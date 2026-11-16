@@ -139,7 +139,7 @@ body {
   outline: none; border-color: var(--text-2); box-shadow: 0 0 0 4px rgba(0,0,0,0.04);
 }
 
-/* Automation Panel (AL0/AL1) */
+/* Automation Panel (AL1) */
 .automation-panel {
   padding: 20px 22px;
   margin-bottom: 18px;

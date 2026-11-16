@@ -21,6 +21,7 @@ class TestCasa3Iteration1(unittest.TestCase):
     def test_dataset_has_61_al1_and_15_al2_controls(self) -> None:
         self.assertTrue(DATA_JSON.exists(), "casa3_controls.json must exist")
         payload = json.loads(DATA_JSON.read_text(encoding="utf-8"))
+        self.assertEqual(sorted(payload["assurance_levels"].keys()), ["AL1", "AL2"])
         controls = payload["controls"]
         self.assertEqual(len(controls), 76)
 

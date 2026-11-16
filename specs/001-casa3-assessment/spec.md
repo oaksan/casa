@@ -1,4 +1,4 @@
-# Feature Specification: Iteration 1 — CASA 3.0 Web Application Assessment Tool (Automated AL0/AL1 + Interactive AL2 Workbench)
+# Feature Specification: Iteration 1 — CASA 3.0 Web Application Assessment Tool (Automated AL1 + Interactive AL2 Workbench)
 
 **Feature Branch**: `[001-casa3-assessment]`
 
@@ -12,17 +12,17 @@
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Automated AL0 & AL1 Assessment and Open Evidence Ingestion (Priority: P1)
+### User Story 1 - Automated AL1 Assessment and Open Evidence Ingestion (Priority: P1)
 
-As a developer (**AL0**) or security lab assessor (**AL1**), I want to evaluate a web application against the **61 deterministic CASA 3.0 AL1 requirements** automatically (by running the automated scanner against a Target URL + Source Repository, or by importing open-format evidence files in SARIF 2.1.0, CycloneDX SBOM, and W3C HAR 1.2), so that all 61 AL0/AL1 controls receive objective `PASS`, `FAIL`, `NOT_APPLICABLE`, or `Not_Covered` verdicts with tool execution logs without manual questionnaires.
+As a security lab assessor (**AL1**), I want to evaluate a web application against the **61 deterministic CASA 3.0 AL1 requirements** automatically (by running the automated scanner against a Target URL + Source Repository, or by importing open-format evidence files in SARIF 2.1.0, CycloneDX SBOM, and W3C HAR 1.2), so that all 61 AL1 controls receive objective `PASS`, `FAIL`, `NOT_APPLICABLE`, or `Not_Covered` verdicts with tool execution logs without manual questionnaires.
 
-**Why this priority**: Core differentiator of CASA 3.0 over CASA 2.1.1; establishes the 61-control deterministic baseline required for AL0, AL1, and AL2.
+**Why this priority**: Core differentiator of CASA 3.0 over CASA 2.1.1; establishes the 61-control deterministic baseline required for AL1 and AL2.
 
-**Independent Test**: Open `assess.html`, select `AL0` or `AL1`, click **Run Automated AL0/AL1 Scan** (or **Load Benchmark AL1 Run** / **Import Evidence**), and verify that all 61 AL1 controls across the 8 domains are automatically populated with verdicts and expandable tool output logs.
+**Independent Test**: Open `assess.html`, select `AL1`, click **Run Automated AL1 Scan** (or **Load Benchmark AL1 Run** / **Import Evidence**), and verify that all 61 AL1 controls across the 8 domains are automatically populated with verdicts and expandable tool output logs.
 
 **Acceptance Scenarios**:
 
-1. **Given** an assessment with Target Assurance Level set to `AL0` or `AL1`, **When** the user views the control list, **Then** only the 61 automated AL1 controls across the 8 CASA 3.0 domains (`SCA`, `SAST`, `TLS`, `CFG`, `AUT`, `AZI`, `OAU`, `WHK`) are in scope.
+1. **Given** an assessment with Target Assurance Level set to `AL1`, **When** the user views the control list, **Then** only the 61 automated AL1 controls across the 8 CASA 3.0 domains (`SCA`, `SAST`, `TLS`, `CFG`, `AUT`, `AZI`, `OAU`, `WHK`) are in scope.
 2. **Given** declared application surfaces (e.g., `Web_Application` checked, `Mobile` and `Native` unchecked), **When** scoping is applied, **Then** controls exclusively targeting `Mobile, Native` (such as `OAU-05` and `OAU-06`) are automatically marked `NOT_APPLICABLE`.
 3. **Given** a target URL and repository path (or uploaded `.sarif` / `.cdx.json` / `.har` files), **When** the user triggers the automated scan, **Then** each of the 61 AL1 controls displays its deterministic verdict (`PASS`, `FAIL`, `NOT_APPLICABLE`, or `Not_Covered`), the executing tool name, and the formatted evidence log.
 
@@ -53,7 +53,7 @@ As a developer or lab assessor, I want to switch to the **Report** view to inspe
 
 **Acceptance Scenarios**:
 
-1. **Given** evaluated controls in scope, **When** the user clicks `Report` or `Generate CASA 3.0 Report →`, **Then** the view renders the certification badge, executive summary prose, 4 KPI cards (`Controls evaluated`, `Pass rate`, `AL0/AL1 Automated`, `AL2 Lab-Adjudicated`), Donut & Radar SVG charts, and the 8-Domain pipeline (`SCA` › `SAST` › `TLS` › `CFG` › `AUT` › `AZI` › `OAU` › `WHK`).
+1. **Given** evaluated controls in scope, **When** the user clicks `Report` or `Generate CASA 3.0 Report →`, **Then** the view renders the certification badge, executive summary prose, 4 KPI cards (`Controls evaluated`, `Pass rate`, `AL1 Automated`, `AL2 Lab-Adjudicated`), Donut & Radar SVG charts, and the 8-Domain pipeline (`SCA` › `SAST` › `TLS` › `CFG` › `AUT` › `AZI` › `OAU` › `WHK`).
 2. **Given** any control with verdict `FAIL` or `Not_Covered`, **When** the report is generated, **Then** the certification status is marked `REMEDIATION REQUIRED` and each blocking control is listed with its exact CASA 3.0 `PASS` criterion, reference open-source tooling, automated log, assessor notes, and figure references (`Figure 1..N`).
 
 ---
@@ -72,8 +72,8 @@ As a developer or lab assessor, I want to switch to the **Report** view to inspe
 
 - **FR-001**: System MUST parse all **61 AL1 requirements** and **15 AL2 requirements** (76 total) across the 8 domains directly from `CASA/CASA 3.0 (AL1) Specification.md`, `CASA/CASA 3.0 (AL1) Test Guide.md`, `CASA/CASA 3.0 (AL2) Specification.md`, and `CASA/CASA 3.0 (AL2) Test Guide.md`.
 - **FR-002**: Frontend MUST replicate the visual layout, sticky topbar, segmented `Assessment`/`Report` switcher, left domain rail with scroll-spy, sticky progress bar, and print stylesheet of the OWASP DSOVS `assess.html` application.
-- **FR-003**: System MUST dynamically scope controls based on Target Assurance Level (`AL0` = 61 automated controls; `AL1` = 61 automated controls; `AL2` = 61 automated + 15 manual lab-adjudicated controls) and Declared Surfaces (`Web_Application`, `Mobile`, `Native`).
-- **FR-004**: System MUST provide automated execution for AL0/AL1 controls via a Python scanner API (`POST /api/scan`) and client-side ingestion of open evidence files (`SARIF 2.1.0`, `CycloneDX/SPDX SBOM`, `W3C HAR 1.2`).
+- **FR-003**: System MUST dynamically scope controls based on Target Assurance Level (`AL1` = 61 automated controls; `AL2` = 61 automated + 15 manual lab-adjudicated controls) and Declared Surfaces (`Web_Application`, `Mobile`, `Native`).
+- **FR-004**: System MUST provide automated execution for AL1 controls via a Python scanner API (`POST /api/scan`) and client-side ingestion of open evidence files (`SARIF 2.1.0`, `CycloneDX/SPDX SBOM`, `W3C HAR 1.2`).
 - **FR-005**: System MUST render an interactive **Verification evidence** checklist, **Notes** field, and **Evidence screenshots** uploader (backed by `IndexedDB`) for all 15 AL2 controls.
 - **FR-006**: System MUST generate a visual Compliance Report with SVG Donut and 8-Axis Radar charts, domain pipeline bar, blocking remediation list, numbered screenshot gallery (`Figure 1..N`), JSON export, and Print/PDF support.
 
@@ -89,5 +89,5 @@ As a developer or lab assessor, I want to switch to the **Report** view to inspe
 ### Measurable Outcomes
 
 - **SC-001**: 100% of the **76 CASA 3.0 controls** (61 AL1 + 15 AL2) are present, accurately categorized into the 8 domains, and linked to their official PASS/FAIL criteria and reference open-source tooling.
-- **SC-002**: Executing an automated AL0/AL1 run evaluates all 61 AL1 controls in under 5 seconds locally and populates deterministic verdicts and evidence logs.
+- **SC-002**: Executing an automated AL1 run evaluates all 61 AL1 controls in under 5 seconds locally and populates deterministic verdicts and evidence logs.
 - **SC-003**: All AL2 verification evidence checkboxes, notes, and attached screenshots survive browser reloads via `localStorage` and `IndexedDB` and render as numbered figures (`Figure 1..N`) in the printable report.

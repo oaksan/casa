@@ -17,7 +17,7 @@ erDiagram
         string org "Application / Organization name"
         string assessor "Assessor / Security Lab name"
         string date "ISO-8601 evaluation date"
-        string target "Target Assurance Level (AL0 | AL1 | AL2)"
+        string target "Target Assurance Level (AL1 | AL2)"
         string targetUrl "Target web URL for live HTTP/TLS probes"
         string repoPath "Local repository path for SCA/SAST scans"
         string[] surfaces "Declared surfaces (Web_Application, Mobile, Native)"
@@ -62,7 +62,7 @@ Compiled deterministically by [`build_casa3_data.py`](file:///home/user/felipe/s
 - `standard`: `"App Defense Alliance CASA"`
 - `version`: `"3.0 (2026-10-16)"`
 - `domains`: Array of the 8 canonical domain names.
-- `assurance_levels`: Metadata for `AL0`, `AL1`, and `AL2`.
+- `assurance_levels`: Metadata for `AL1`, and `AL2`.
 - `controls`: Array of 76 `ControlSpec` objects (61 `AL1` + 15 `AL2`).
 
 ### 2.2. Browser `localStorage` (`casa3-assessment-v1`)

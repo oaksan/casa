@@ -23,11 +23,11 @@ description: "Task list for Iteration 1: CASA 3.0 Web Application Assessment Too
 
 ---
 
-## Phase 3: User Story 1 - Automated AL0 & AL1 Assessment Engine (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Automated AL1 Assessment Engine (Priority: P1) 🎯 MVP
 
 - [x] T006 [US1] Implement repository SCA/SAST/Secret scanner and live URL TLS/Header/Cookie probe engine in `casa-assessment/casa_audit/scanner.py`
 - [x] T007 [US1] Implement HTTP server with `GET /api/controls` and `POST /api/scan` in `casa-assessment/casa_audit/server.py`
-- [x] T008 [US1] Implement AL0/AL1 automated execution panel, surface scoping (`Web_Application`, `Mobile`, `Native`), and client-side SARIF 2.1.0 / CycloneDX SBOM / W3C HAR 1.2 ingestion in `casa-assessment/frontend/assess.html` and `casa-assessment/frontend/app.js`
+- [x] T008 [US1] Implement AL1 automated execution panel, surface scoping (`Web_Application`, `Mobile`, `Native`), and client-side SARIF 2.1.0 / CycloneDX SBOM / W3C HAR 1.2 ingestion in `casa-assessment/frontend/assess.html` and `casa-assessment/frontend/app.js`
 
 ---
 

@@ -1,4 +1,4 @@
-"""Automated AL0/AL1 Scanner Engine for CASA 3.0."""
+"""Automated AL1 Scanner Engine for CASA 3.0."""
 
 from __future__ import annotations
 
@@ -364,7 +364,7 @@ def run_automated_al1_scan(
     repo_path: str = "",
     surfaces: list[str] | None = None,
 ) -> dict[str, dict]:
-    """Run all 61 AL0/AL1 automated checks and return a map of control_id -> result."""
+    """Run all 61 AL1 automated checks and return a map of control_id -> result."""
     declared_surfaces = surfaces or ["Web_Application"]
     controls = load_controls()
     repo_results = scan_repository(repo_path)

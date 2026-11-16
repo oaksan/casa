@@ -9,7 +9,7 @@
 From the repository root (`/home/user/felipe/speckit/casa`):
 
 ```bash
-# Start the local web server and automated AL0/AL1 scanner API on port 8080
+# Start the local web server and automated AL1 scanner API on port 8080
 PYTHONPATH=casa-assessment python3 -m casa_audit --host 127.0.0.1 --port 8080
 ```
 
@@ -19,10 +19,10 @@ Open **http://127.0.0.1:8080/assess.html** in your browser.
 
 ## 2. Running an Assessment (3 Workflows)
 
-### Workflow A: Automated AL0 / AL1 Scan (Live Repository + Target URL)
-1. In the **Setup** card, enter the Application Name, Assessor Name, and select **Target Assurance Level** (`AL0`, `AL1`, or `AL2`).
+### Workflow A: Automated AL1 Scan (Live Repository + Target URL)
+1. In the **Setup** card, enter the Application Name, Assessor Name, and select **Target Assurance Level** (`AL1`, or `AL2`).
 2. Check the **Declared Surfaces** (`Web_Application`, `Mobile`, `Native`). Notice that controls outside declared surfaces (e.g., `OAU-05` and `OAU-06` when only `Web_Application` is selected) are automatically marked `NOT_APPLICABLE`.
-3. Enter a **Target Application URL** (optional) and **Source Repository Path** (defaults to `/home/user/felipe/speckit/casa`) and click **`▶ Run Automated AL0/AL1 Scan`**.
+3. Enter a **Target Application URL** (optional) and **Source Repository Path** (defaults to `/home/user/felipe/speckit/casa`) and click **`▶ Run Automated AL1 Scan`**.
 4. All 61 AL1 controls are evaluated and populated with deterministic verdicts (`PASS`, `FAIL`, `NOT_APPLICABLE`, `Not_Covered`) and expandable tool logs.
 
 ### Workflow B: Ingesting Open Evidence Files (SARIF 2.1.0, CycloneDX SBOM, W3C HAR 1.2)

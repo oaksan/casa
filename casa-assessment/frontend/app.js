@@ -1,4 +1,4 @@
-/* ADA CASA 3.0 Assessment Frontend - Vanilla JS, localStorage + IndexedDB + Automated AL0/AL1 Engine */
+/* ADA CASA 3.0 Assessment Frontend - Vanilla JS, localStorage + IndexedDB + Automated AL1 Engine */
 (function () {
   "use strict";
 
@@ -872,7 +872,7 @@
     document.getElementById("progress-fill").style.width = pct + "%";
   }
 
-  /* ---------- Automated AL0/AL1 Scanner & Evidence Importer ---------- */
+  /* ---------- Automated AL1 Scanner & Evidence Importer ---------- */
   function applyScanResults(resultsMap, sourceLabel) {
     var ts = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
     var updated = 0;
@@ -891,7 +891,7 @@
     updateProgress();
     if (els.autoStatus) {
       els.autoStatus.textContent =
-        "Completed (" + sourceLabel + "): " + updated + " AL0/AL1 controls evaluated at " + ts;
+        "Completed (" + sourceLabel + "): " + updated + " AL1 controls evaluated at " + ts;
     }
   }
 
@@ -900,7 +900,7 @@
     var btn = document.getElementById("btn-run-auto");
     btn.disabled = true;
     if (els.autoStatus) {
-      els.autoStatus.textContent = "Running automated AL0/AL1 checks (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…";
+      els.autoStatus.textContent = "Running automated AL1 checks (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…";
     }
 
     fetch("/api/scan", {
@@ -1399,7 +1399,7 @@
       "</code>), achieving a compliance pass rate of <b>" +
       Math.round(passRate * 100) +
       "%</b>.</p>" +
-      "<p>Under CASA 3.0 rules, every AL0/AL1 control is decided deterministically from automated tool output (SARIF 2.1.0, CycloneDX SBOM, W3C HAR 1.2), while AL2 controls incorporate lab-adjudicated verification evidence checklists, notes, and screenshots. Any <code>FAIL</code> or unexcused <code>Not_Covered</code> verdict blocks certification until remediated and re-verified.</p>";
+      "<p>Under CASA 3.0 rules, every AL1 control is decided deterministically from automated tool output (SARIF 2.1.0, CycloneDX SBOM, W3C HAR 1.2), while AL2 controls incorporate lab-adjudicated verification evidence checklists, notes, and screenshots. Any <code>FAIL</code> or unexcused <code>Not_Covered</code> verdict blocks certification until remediated and re-verified.</p>";
 
     if (figNum) {
       introBody +=
@@ -1439,7 +1439,7 @@
       al1Passed.length +
       "/" +
       al1InScope.length +
-      '</div><div class="lab">AL0/AL1 Automated (PASS/NA)</div></div>' +
+      '</div><div class="lab">AL1 Automated (PASS/NA)</div></div>' +
       '<div class="stat card"><div class="num">' +
       (al2InScope.length ? al2Passed.length + "/" + al2InScope.length : "N/A") +
       '</div><div class="lab">AL2 Lab-Adjudicated (PASS/NA)</div></div>' +
@@ -1461,7 +1461,7 @@
     var gapHtml;
     if (!assessed.length) {
       gapHtml =
-        '<div class="card empty">No controls evaluated yet. Run the Automated AL0/AL1 Scan or rate AL2 controls to generate findings.</div>';
+        '<div class="card empty">No controls evaluated yet. Run the Automated AL1 Scan or rate AL2 controls to generate findings.</div>';
     } else if (!failed.length) {
       gapHtml =
         '<div class="card empty">Zero blocking failures! All evaluated controls meet CASA 3.0 (' +
@@ -1732,7 +1732,7 @@
     loadFigureImages(controlsEl);
     updateProgress();
     if (els.autoStatus) {
-      els.autoStatus.textContent = "Reset complete — 61 AL0/AL1 controls awaiting automated run.";
+      els.autoStatus.textContent = "Reset complete — 61 AL1 controls awaiting automated run.";
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }

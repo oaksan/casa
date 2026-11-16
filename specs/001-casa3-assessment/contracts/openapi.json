@@ -3,7 +3,7 @@
   "info": {
     "title": "ADA CASA 3.0 Automated Assessment API",
     "version": "0.1.0",
-    "description": "Local backend API for serving CASA 3.0 controls and executing automated AL0/AL1 scans."
+    "description": "Local backend API for serving CASA 3.0 controls and executing automated AL1 scans."
   },
   "paths": {
     "/api/controls": {
@@ -18,7 +18,7 @@
     },
     "/api/scan": {
       "post": {
-        "summary": "Execute automated AL0/AL1 scan over target URL and source repository",
+        "summary": "Execute automated AL1 scan over target URL and source repository",
         "requestBody": {
           "required": true,
           "content": {

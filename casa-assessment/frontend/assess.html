@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADA CASA 3.0 Assessment</title>
+  <meta name="description" content="Assess web applications against the App Defense Alliance CASA 3.0 Standard (Automated AL0/AL1 + Lab-Adjudicated AL2)." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="# view-assess" id="brand-home" title="ADA CASA 3.0 Assessment">
+        <span class="brand-badge">ADA</span>
+        <span class="brand-divider" aria-hidden="true"></span>
+        <span class="brand-mark">CASA 3.0</span>
+        <span class="brand-sub">Cloud Application Security Assessment</span>
+      </a>
+      <div class="top-right">
+        <button class="topreset" id="topreset" type="button" title="Clear all saved verdicts, automated runs, notes and screenshots stored in this browser">Reset</button>
+        <nav class="view-switch" aria-label="Views">
+          <button class="seg" data-view="assess" aria-pressed="true">Assessment</button>
+          <button class="seg" data-view="report" aria-pressed="false">Report</button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- ASSESSMENT VIEW -->
+    <section id="view-assess">
+      <aside class="rail" id="rail" aria-label="Jump to domain"></aside>
+      <div class="hero">
+        <div class="hero-kicker">App Defense Alliance &middot; Linux Foundation &middot; v3.0</div>
+        <h1>CASA 3.0 Assessment</h1>
+        <p class="lede">
+          Evaluate web applications against the 8 domains of the CASA 3.0 specification.
+          <strong>AL1</strong> (61 controls) is evaluated automatically via deterministic pass/fail signals and open evidence formats (SARIF, CycloneDX, HAR).
+          <strong>AL2</strong> (+15 controls) adds lab-adjudicated verification evidence checklists, assessor notes, and evidence screenshots.
+        </p>
+      </div>
+
+      <!-- SETUP METADATA CARD -->
+      <div class="setup card">
+        <div class="field">
+          <label for="org">Application / Organization</label>
+          <input id="org" type="text" placeholder="e.g. Acme Web Portal v2.4" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="assessor">Assessor / Security Lab</label>
+          <input id="assessor" type="text" placeholder="e.g. Master's Research Lab" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="date">Date of Evaluation</label>
+          <input id="date" type="date" />
+        </div>
+        <div class="field">
+          <label for="target">Target Assurance Level</label>
+          <select id="target">
+            <option value="AL1">AL1 &mdash; Automated Assessment (61 Controls)</option>
+            <option value="AL2" selected>AL2 &mdash; Full Lab Assessment (61 AL1 + 15 AL2)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- SCOPING & AUTOMATED AL1 RUNNER CARD -->
+      <div class="automation-panel card">
+        <div class="auto-header">
+          <div>
+            <div class="auto-badge-row">
+              <span class="pill-auto">AL1 Automated Engine</span>
+              <span class="auto-sub" id="level-desc">AL2 includes all 61 automated AL1 controls plus 15 interactive lab-adjudicated AL2 controls.</span>
+            </div>
+            <h2>Automated AL1 Execution &amp; Open Evidence Ingestion</h2>
+          </div>
+          <div class="surfaces-box" aria-label="Declared Application Surfaces">
+            <span class="surfaces-label">Declared Surfaces:</span>
+            <label class="surf-check"><input type="checkbox" data-surface="Web_Application" checked /> <span>Web_Application</span></label>
+            <label class="surf-check"><input type="checkbox" data-surface="Mobile" /> <span>Mobile</span></label>
+            <label class="surf-check"><input type="checkbox" data-surface="Native" /> <span>Native</span></label>
+          </div>
+        </div>
+
+        <div class="auto-inputs">
+          <div class="field">
+            <label for="target-url">Target Application URL (for TLS, Headers, Cookies, DAST)</label>
+            <input id="target-url" type="url" placeholder="https://app.example.com or http://localhost:3000" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="repo-path">Source Repository / Artifact Path (for SCA, SAST, Secrets)</label>
+            <input id="repo-path" type="text" placeholder="/home/user/felipe/speckit/casa" value="/home/user/felipe/speckit/casa" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="auto-actions">
+          <button class="btn primary btn-sm" id="btn-run-auto" type="button">
+            &#9654; Run Automated AL1 Scan
+          </button>
+          <label class="btn ghost btn-sm" title="Upload SARIF 2.1.0 (.sarif/.json), CycloneDX/SPDX SBOM (.json), or W3C HAR 1.2 (.har)">
+            &#8682; Import Evidence (SARIF / SBOM / HAR)
+            <input type="file" id="evidence-upload" accept=".json,.sarif,.har" multiple hidden />
+          </label>
+          <button class="btn ghost btn-sm" id="btn-demo-auto" type="button" title="Simulate a full automated AL1 tool run (Semgrep, Trivy, Syft, testssl.sh, OWASP ZAP) to inspect realistic results">
+            &#9889; Load Benchmark AL1 Run
+          </button>
+          <span class="auto-status" id="auto-status">Ready &mdash; 61 AL1 controls awaiting automated run or evidence import.</span>
+        </div>
+      </div>
+
+      <!-- STICKY PROGRESS & FILTER BAR -->
+      <div class="progress-bar card" id="progress">
+        <div class="progress-meta">
+          <div class="progress-left">
+            <span id="progress-count">0 of 76 assessed</span>
+            <span class="meta-sep">&middot;</span>
+            <span id="progress-breakdown" class="muted">AL1: 0/61 &middot; AL2: 0/15</span>
+          </div>
+          <div class="progress-right">
+            <div class="filter-pills" role="group" aria-label="Filter controls">
+              <button type="button" class="fpill active" data-filter="all">All in Scope</button>
+              <button type="button" class="fpill" data-filter="AL1">AL1 Automated (61)</button>
+              <button type="button" class="fpill" data-filter="AL2">AL2 Manual Checklist (15)</button>
+              <button type="button" class="fpill" data-filter="FAIL">Failing</button>
+            </div>
+            <span id="progress-pct" class="muted">0%</span>
+          </div>
+        </div>
+        <div class="track"><div class="fill" id="progress-fill" style="width:0%"></div></div>
+      </div>
+
+      <nav class="phase-nav" id="phase-nav" aria-label="Jump to domain"></nav>
+
+      <div id="controls"></div>
+
+      <div class="footer-actions">
+        <button class="btn ghost" id="reset" type="button">Reset all answers</button>
+        <button class="btn primary" id="goto-report" type="button">Generate CASA 3.0 Report &rarr;</button>
+      </div>
+    </section>
+
+    <!-- REPORT VIEW -->
+    <section id="view-report" hidden>
+      <div id="report"></div>
+    </section>
+  </main>
+
+  <footer class="sitefoot">
+    <span>App Defense Alliance &middot; CASA 3.0 Web Application Security Assessment (Master's Project Iteration 1)</span>
+    <a href="https://github.com/appdefensealliance/ASA-WG" target="_blank" rel="noopener">ASA-WG on GitHub</a>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

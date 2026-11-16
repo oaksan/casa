@@ -1,0 +1,48 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ADA CASA 3.0 Automated Assessment API",
+    "version": "0.1.0",
+    "description": "Local backend API for serving CASA 3.0 controls and executing automated AL0/AL1 scans."
+  },
+  "paths": {
+    "/api/controls": {
+      "get": {
+        "summary": "List all 76 CASA 3.0 controls (61 AL1 + 15 AL2)",
+        "responses": {
+          "200": {
+            "description": "JSON list of CASA 3.0 controls"
+          }
+        }
+      }
+    },
+    "/api/scan": {
+      "post": {
+        "summary": "Execute automated AL0/AL1 scan over target URL and source repository",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target_url": { "type": "string", "example": "https://example.com" },
+                  "repo_path": { "type": "string", "example": "/home/user/felipe/speckit/casa" },
+                  "surfaces": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["Web_Application", "Mobile", "Native"] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Map of control_id to automated verdict, tool name, and evidence log"
+          }
+        }
+      }
+    }
+  }
+}

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import functools
 import http.server
+import importlib
 import json
 from pathlib import Path
 
-from casa_audit.scanner import load_controls, run_automated_al1_scan
+import casa_audit.scanner
+from casa_audit.scanner import load_controls
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
@@ -40,7 +41,8 @@ class CasaAssessmentHandler(http.server.SimpleHTTPRequestHandler):
             target_url = body.get("target_url", "")
             repo_path = body.get("repo_path", "")
             surfaces = body.get("surfaces", ["Web_Application"])
-            results = run_automated_al1_scan(
+            importlib.reload(casa_audit.scanner)
+            results = casa_audit.scanner.run_automated_al1_scan(
                 target_url=target_url,
                 repo_path=repo_path,
                 surfaces=surfaces,

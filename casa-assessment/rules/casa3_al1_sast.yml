@@ -1,0 +1,103 @@
+rules:
+  - id: CASA3-SAST-01-hardcoded-secret
+    languages: [typescript, javascript, python]
+    message: "SAST-01: Hardcoded password, API key, JWT secret or credential in source code (CWE-798)"
+    severity: ERROR
+    pattern-either:
+      - pattern: |
+          const $KEY = '-----BEGIN RSA PRIVATE KEY-----...'
+      - pattern: |
+          jwt.sign($PAYLOAD, "...", ...)
+      - pattern: |
+          crypto.createHmac($ALG, "...")
+
+  - id: CASA3-SAST-02-committed-private-key
+    languages: [typescript, javascript, python]
+    message: "SAST-02: Private key or trust material committed in source code (CWE-321)"
+    severity: ERROR
+    pattern-regex: "-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
+
+  - id: CASA3-SAST-03-weak-cipher
+    languages: [typescript, javascript]
+    message: "SAST-03: Deprecated or broken cipher algorithm or insecure cipher mode (CWE-327)"
+    severity: ERROR
+    pattern-either:
+      - pattern: crypto.createCipher($ALG, ...)
+      - pattern: crypto.createDecipher($ALG, ...)
+      - pattern-regex: "createCipheriv\\(['\"](des|rc4|bf|aes-[0-9]+-ecb)"
+
+  - id: CASA3-SAST-04-weak-hash
+    languages: [typescript, javascript]
+    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (CWE-328)"
+    severity: ERROR
+    pattern-either:
+      - pattern: crypto.createHash('md5')
+      - pattern: crypto.createHash('sha1')
+
+  - id: CASA3-SAST-05-weak-password-kdf
+    languages: [typescript, javascript]
+    message: "SAST-05: Passwords hashed with fast/unsalted hash (MD5) instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2)"
+    severity: ERROR
+    pattern: |
+      export const hash = ($DATA) => crypto.createHash('md5').update($DATA).digest('hex')
+
+  - id: CASA3-SAST-06-insecure-randomness
+    languages: [typescript, javascript]
+    message: "SAST-06: Insecure PRNG (Math.random) used instead of CSPRNG (crypto.randomBytes / crypto.randomUUID) (CWE-338)"
+    severity: ERROR
+    pattern: Math.random()
+
+  - id: CASA3-SAST-07-mass-assignment
+    languages: [typescript, javascript]
+    message: "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation or Finale auto-binding (CWE-915)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "$MODEL.create(req.body, ...)"
+      - pattern: "$MODEL.create(req.body)"
+      - pattern: "Object.assign($USER, req.body)"
+      - pattern: "finale.resource(...)"
+
+  - id: CASA3-SAST-08-sql-injection
+    languages: [typescript, javascript]
+    message: "SAST-08: Unparameterized SQL query constructed via string interpolation/concatenation (CWE-89)"
+    severity: ERROR
+    pattern-regex: "sequelize\\.query\\(\\s*`[^`]*\\$\\{"
+
+  - id: CASA3-SAST-09-unsafe-deserialization
+    languages: [typescript, javascript]
+    message: "SAST-09: Unsafe deserialization of untrusted data (yaml.load / libxmljs / serialize) (CWE-502)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "yaml.load($DATA)"
+      - pattern: "libxml.parseXmlString($DATA, ...)"
+
+  - id: CASA3-SAST-10-dynamic-code-execution
+    languages: [typescript, javascript]
+    message: "SAST-10: Dynamic code execution (eval / vm.runInContext / new Function) on untrusted input (CWE-95)"
+    severity: ERROR
+    pattern-either:
+      - pattern: eval($CODE)
+      - pattern: vm.runInContext($CODE, ...)
+      - pattern: vm.runInNewContext($CODE, ...)
+
+  - id: CASA3-SAST-11-path-traversal
+    languages: [typescript, javascript]
+    message: "SAST-11: File path constructed from unvalidated user-supplied parameter (CWE-22)"
+    severity: ERROR
+    pattern-either:
+      - pattern: res.sendFile(path.resolve($DIR, $USER_INPUT))
+      - pattern: fs.readFile(path.resolve($DIR, $USER_INPUT), ...)
+
+  - id: CASA3-SAST-12-hardcoded-config-secrets
+    languages: [typescript, javascript]
+    message: "SAST-12: Server-side secret or key hardcoded in configuration or source instead of managed secret store (CWE-522)"
+    severity: ERROR
+    pattern-regex: "(jwt\\.pub|privateKey\\s*=\\s*['\"]-----BEGIN)"
+
+  - id: CASA3-SAST-13-sensitive-logging
+    languages: [typescript, javascript]
+    message: "SAST-13: Potential logging of sensitive user or authentication data (CWE-532)"
+    severity: ERROR
+    pattern-either:
+      - pattern: logger.info($MSG + $REQ.body.password)
+      - pattern: console.log(..., $REQ.headers.authorization, ...)

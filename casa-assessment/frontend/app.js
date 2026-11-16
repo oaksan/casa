@@ -46,12 +46,12 @@
     } catch (e) {}
     return {
       meta: {
-        org: "",
+        org: "OWASP Juice Shop",
         assessor: "",
         date: today(),
         target: "AL2",
-        targetUrl: "",
-        repoPath: "/home/user/felipe/speckit/casa",
+        targetUrl: "http://localhost:3000",
+        repoPath: "/home/user/felipe/speckit/juice-shop-master",
         surfaces: ["Web_Application"],
       },
       answers: {},
@@ -379,8 +379,8 @@
   els.assessor.value = state.meta.assessor || "";
   els.date.value = state.meta.date || today();
   els.target.value = state.meta.target || "AL2";
-  els.targetUrl.value = state.meta.targetUrl || "";
-  els.repoPath.value = state.meta.repoPath || "/home/user/felipe/speckit/casa";
+  els.targetUrl.value = state.meta.targetUrl || "http://localhost:3000";
+  els.repoPath.value = state.meta.repoPath || "/home/user/felipe/speckit/juice-shop-master";
 
   function syncLevelDesc() {
     var lv = DATA.assurance_levels && DATA.assurance_levels[state.meta.target];

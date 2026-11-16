@@ -1,4 +1,24 @@
-# ASA-WG
+# CASA 3.0 Web Application Security Assessment (MSc Research Project)
+
+> **Fork & Research Extension of [`appdefensealliance/ASA-WG`](https://github.com/appdefensealliance/ASA-WG)** (licensed under [CC BY-SA 4.0](LICENSE)).
+> Implements an automated **AL1 (61 controls)** assessment engine and an interactive **AL2 (+15 controls)** lab-adjudicated workbench inspired by the [OWASP DevSecOps Verification Standard (`assess.html`)](https://owasp.github.io/www-project-devsecops-verification-standard/assessment/assess.html).
+
+## Quick Start (`casa-assessment`)
+
+```bash
+# Start the CASA 3.0 Assessment Web UI and Automated Scanner API
+PYTHONPATH=casa-assessment python3 -m casa_audit --host 127.0.0.1 --port 8080
+```
+Open **http://127.0.0.1:8080/assess.html** in your browser.
+
+### Repository Highlights
+- **[`casa-assessment/`](casa-assessment/README.md)**: CASA 3.0 Assessment Web UI (`frontend/assess.html`), Automated AL1 Scanner (`casa_audit/scanner.py`), Specification Compiler (`scripts/build_casa3_data.py`), and sample Open Evidence files (`samples/`).
+- **[`specs/001-casa3-assessment/`](specs/001-casa3-assessment/spec.md)**: Spec-Driven Development (SDD) Iteration 1 artifacts (`spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `tasks.md`, `contracts/openapi.json`).
+- **[`CASA/`](CASA/)**: Official **CASA 2.1.1** (`CASA Specification.md`, `CASA Test Guide.md`) and **CASA 3.0** (`CASA 3.0 (AL1) Specification.md`, `CASA 3.0 (AL1) Test Guide.md`, `CASA 3.0 (AL2) Specification.md`, `CASA 3.0 (AL2) Test Guide.md`) specifications.
+
+---
+
+# ASA-WG (Upstream Documentation)
 
 ## Introduction
 

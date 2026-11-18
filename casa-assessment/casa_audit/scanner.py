@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import datetime
+import html
 import json
 import math
 import os
@@ -3035,16 +3036,116 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-02: Debug / Prometheus metrics / Swagger endpoints exposed in production
-    metrics_status, _, metrics_body = http_probe("/metrics")
-    metrics_exposed = metrics_status == 200 and ("process_cpu_" in metrics_body or "nodejs_version_info" in metrics_body)
+    # CFG-02: Framework/server debug modes, profilers, actuators, consoles & stacktrace leak probes (SARIF 2.1.0 + HAR 1.2)
+    is_spa_shell = "<app-root" in root_body.lower()
+
+    def is_spa_fallback(body_txt: str) -> bool:
+        return is_spa_shell and "<app-root" in body_txt.lower()
+
+    debug_endpoint_specs = [
+        ("/metrics", "Prometheus Runtime Metrics", lambda b, ct: "process_cpu_" in b or "nodejs_version_info" in b or "# TYPE " in b),
+        ("/api-docs/", "Swagger UI Interactive API Docs", lambda b, ct: "<title>swagger ui" in b.lower() or "swagger-ui-bundle" in b.lower()),
+        ("/swagger-ui.html", "Swagger UI Endpoint", lambda b, ct: "swagger-ui" in b.lower() and not is_spa_fallback(b)),
+        ("/openapi.json", "OpenAPI Specification", lambda b, ct: '"openapi"' in b or '"swagger"' in b),
+        ("/v3/api-docs", "SpringDoc OpenAPI Endpoint", lambda b, ct: '"openapi"' in b or '"paths"' in b),
+        ("/rest/admin/application-configuration", "Unauthenticated Admin Application Config", lambda b, ct: '"config"' in b and '"server"' in b),
+        ("/actuator", "Spring Boot Actuator Root", lambda b, ct: '"_links"' in b and ("actuator" in b or '"health"' in b)),
+        ("/actuator/env", "Spring Boot Actuator Environment", lambda b, ct: '"propertySources"' in b or '"activeProfiles"' in b),
+        ("/actuator/health", "Spring Boot Actuator Health", lambda b, ct: '"status"' in b and ("UP" in b or "components" in b) and not is_spa_fallback(b)),
+        ("/actuator/beans", "Spring Boot Actuator Beans", lambda b, ct: '"contexts"' in b and '"beans"' in b),
+        ("/__debug__/", "Django Debug Toolbar", lambda b, ct: "djDebug" in b or "django-debug-toolbar" in b.lower()),
+        ("/console", "Werkzeug Interactive Debugger Console", lambda b, ct: "werkzeug" in b.lower() and ("evalex" in b.lower() or "console" in b.lower())),
+        ("/_profiler", "Symfony Web Profiler", lambda b, ct: "symfony profiler" in b.lower() or "sf-toolbar" in b.lower()),
+        ("/rails/info/routes", "Ruby on Rails Routes Debug Page", lambda b, ct: "routes match" in b.lower() or "rails_info" in b.lower()),
+        ("/debug/pprof/", "Go net/http/pprof Profiler", lambda b, ct: "goroutine" in b.lower() and "allocs" in b.lower()),
+        ("/elmah.axd", "ASP.NET ELMAH Error Log", lambda b, ct: "error log for" in b.lower() and "elmah" in b.lower()),
+        ("/phpinfo.php", "PHP phpinfo() Diagnostic Page", lambda b, ct: "php version" in b.lower() and "zend engine" in b.lower()),
+        ("/server-status", "Apache mod_status Diagnostics", lambda b, ct: "apache server status" in b.lower()),
+        ("/graphiql", "GraphiQL Interactive IDE", lambda b, ct: "graphiql" in b.lower() and not is_spa_fallback(b)),
+    ]
+
+    cfg02_findings: list[dict] = []
+    metrics_body = ""
+    for ep_path, ep_label, ep_matcher in debug_endpoint_specs:
+        st, hdrs, body = http_probe(ep_path)
+        if ep_path == "/metrics":
+            metrics_body = body
+        ctype = hdrs.get("content-type", "").lower()
+        if 200 <= st < 300 and not is_spa_fallback(body) and ep_matcher(body, ctype):
+            snippet = body.strip().splitlines()[0][:140] if body.strip() else ""
+            cfg02_findings.append(
+                {
+                    "kind": "debug_endpoint",
+                    "label": ep_label,
+                    "url": f"{base_url}{ep_path}",
+                    "status": st,
+                    "detail": f"Unauthenticated HTTP {st} from {ep_label} ({snippet})",
+                }
+            )
+
+    # Active framework debug / traceback marker probe (malformed JSON + abnormal error triggers)
+    debug_traceback_signatures = [
+        ("Express errorhandler Stacktrace", re.compile(r'<ul\s+id=["\']stacktrace["\']|node_modules[\\/].*:\d+:\d+', re.IGNORECASE)),
+        ("Werkzeug Traceback Debugger", re.compile(r'Werkzeug\s+powered\s+traceback|The debugger caught an exception in your WSGI application', re.IGNORECASE)),
+        ("Django DEBUG=True Page", re.compile(r'You&#x27;re seeing this error because you have <code>DEBUG = True</code>|DEBUG\s*=\s*True.*in your Django', re.IGNORECASE)),
+        ("Rails Exception Debug Page", re.compile(r'Action Controller:\s*Exception caught|Rails\.root:', re.IGNORECASE)),
+        ("ASP.NET Detailed Error Page", re.compile(r'Server Error in [\'"]/[\'"] Application|<b>Stack Trace:</b>', re.IGNORECASE)),
+        ("Raw Stacktrace / Python Traceback", re.compile(r'Traceback \(most recent call last\):|\bSyntaxError:.*\bat\s+[^\s(]+\s+\([^)]+:\d+:\d+\)', re.IGNORECASE | re.DOTALL)),
+    ]
+
+    traceback_probes = [
+        ("POST", "/rest/user/login", {"Content-Type": "application/json"}, b"{invalid_json_cfg02_probe", "Malformed JSON body parser probe"),
+        ("GET", "/rest/products/search?q='", None, None, "Malformed search parameter probe"),
+    ]
+    for mth, pth, hdrs_in, payload_in, p_desc in traceback_probes:
+        st, _, body = http_probe(pth, method=mth, headers=hdrs_in, body=payload_in)
+        matched_sigs = [sig_name for sig_name, sig_re in debug_traceback_signatures if sig_re.search(body)]
+        if matched_sigs:
+            title_m = re.search(r"<title>([^<]+)</title>", body, re.IGNORECASE)
+            title_str = html.unescape(title_m.group(1)).strip() if title_m else f"HTTP {st}"
+            cfg02_findings.append(
+                {
+                    "kind": "debug_marker",
+                    "label": ", ".join(matched_sigs),
+                    "url": f"{base_url}{pth}",
+                    "status": st,
+                    "detail": f"{mth} {base_url}{pth} ({p_desc}) returned HTTP {st} carrying framework debug marker(s) [{', '.join(matched_sigs)}] — '{title_str}'",
+                }
+            )
+
+    for cf in cfg02_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-02",
+                "level": "error",
+                "message": {"text": cf["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": cf["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-02",
+                    "findingKind": cf["kind"],
+                    "label": cf["label"],
+                    "httpStatus": cf["status"],
+                },
+            }
+        )
+
+    cfg02_exposed = len(cfg02_findings) > 0
+    cfg02_lines = [f"{f['url']} -> HTTP {f['status']} [{f['label']}]: {f['detail']}" for f in cfg02_findings]
     results["CFG-02"] = {
-        "verdict": "FAIL" if metrics_exposed else "PASS",
-        "tool": "Debug & Telemetry Endpoint Probe (HAR 1.2)",
+        "verdict": "FAIL" if cfg02_exposed else "PASS",
+        "tool": f"Framework Debug / Profiler / Actuator & Traceback Probe ({len(debug_endpoint_specs)} endpoints + {len(traceback_probes)} error probes, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[FAIL] Unauthenticated debug/telemetry endpoint GET {base_url}/metrics returned HTTP 200 exposing internal runtime metrics (nodejs_version_info, memory heap)."
-            if metrics_exposed
-            else "[PASS] Debug and internal telemetry endpoints are disabled."
+            f"[FAIL] {len(cfg02_findings)} production debug/diagnostic exposure(s) detected:\n  - "
+            + "\n  - ".join(cfg02_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            if cfg02_exposed
+            else f"[PASS] Probed {len(debug_endpoint_specs)} framework debug/profiler/actuator endpoints and {len(traceback_probes)} error-trigger probes; 0 unauthenticated 2xx debug endpoints and 0 framework debug/traceback markers detected.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

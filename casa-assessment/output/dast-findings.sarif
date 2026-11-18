@@ -306,6 +306,94 @@
               "juice-shop-sa-disclaimer.json.sha512"
             ]
           }
+        },
+        {
+          "ruleId": "CASA3-CFG-02",
+          "level": "error",
+          "message": {
+            "text": "Unauthenticated HTTP 200 from Prometheus Runtime Metrics (# HELP juiceshop_llm_input_tokens_total Number of total input tokens processed)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/metrics"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-02",
+            "findingKind": "debug_endpoint",
+            "label": "Prometheus Runtime Metrics",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-02",
+          "level": "error",
+          "message": {
+            "text": "Unauthenticated HTTP 200 from Swagger UI Interactive API Docs (<!-- HTML for static distribution bundle build -->)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/api-docs/"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-02",
+            "findingKind": "debug_endpoint",
+            "label": "Swagger UI Interactive API Docs",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-02",
+          "level": "error",
+          "message": {
+            "text": "Unauthenticated HTTP 200 from Unauthenticated Admin Application Config ({\"config\":{\"server\":{\"port\":3000,\"basePath\":\"\",\"baseUrl\":\"http://localhost:3000\"},\"application\":{\"domain\":\"juice-sh.op\",\"name\":\"OWASP Juice )"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/admin/application-configuration"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-02",
+            "findingKind": "debug_endpoint",
+            "label": "Unauthenticated Admin Application Config",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-02",
+          "level": "error",
+          "message": {
+            "text": "POST http://localhost:3000/rest/user/login (Malformed JSON body parser probe) returned HTTP 500 carrying framework debug marker(s) [Express errorhandler Stacktrace, Raw Stacktrace / Python Traceback] \u2014 'SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-02",
+            "findingKind": "debug_marker",
+            "label": "Express errorhandler Stacktrace, Raw Stacktrace / Python Traceback",
+            "httpStatus": 500
+          }
         }
       ]
     }

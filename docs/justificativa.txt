@@ -2325,3 +2325,68 @@ Ao executar o motor atualizado da Iteração 33 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (11 resultados `CASA3-CFG-01`) e `output/dast-capture.har`.
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 26/61: CFG-02 (Iteração SDD 034)
+================================================================================
+Título: Framework and server debug modes disabled in production
+Mapeamento Normativo: OWASP ASVS V14.3.2 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Modos de depuração (`debug mode`), consoles interativos, profilers, actuators
+e páginas de exceção detalhadas revelam caminhos internos no sistema de arquivos,
+bibliotecas utilizadas, variáveis de ambiente e fluxos de execução. O Guia de
+Testes CASA 3.0 AL1 estabelece para `CFG-02`:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP HAR 1.2;
+- Procedimento: Requisitar endpoints conhecidos de debug e diagnóstico de
+  frameworks comuns em cada host declarado;
+- Critério de Aprovação (PASS): Nenhum console de debug, profiler ou actuator
+  retorna `2xx` sem autenticação, e nenhuma resposta contém marcador de debug
+  de framework (ex.: Werkzeug, Django `DEBUG = True`, Rails exception page,
+  ASP.NET detailed error page, Express `errorhandler` stacktrace);
+- Critério de Falha (FAIL): >= 1 endpoint de debug/profiler/actuator retorna `2xx`
+  sem autenticação, ou >= 1 resposta carrega marcador de debug/traceback.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop expõe endpoints diagnósticos sem autenticação (`/metrics`,
+`/api-docs/`, `/rest/admin/application-configuration`) e utiliza o middleware
+`errorhandler` do Express sem `NODE_ENV=production`, devolvendo stack traces HTML
+completos quando ocorrem erros de parsing (ex.: JSON malformado no login). Além
+disso, rotas desconhecidas caem no catch-all Angular SPA (`200 OK` com `<app-root>`),
+exigindo filtragem anti-falso-positivo de SPA.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 034:
+  O scanner sondava exclusivamente `/metrics`, ignorando `/api-docs/`,
+  `/rest/admin/application-configuration`, actuators/profilers/consoles de
+  frameworks comuns (Spring Boot Actuator, Django Debug Toolbar, Werkzeug, Symfony
+  Profiler, Rails Info, Go pprof, ELMAH, PHPInfo), não enviava sondas ativas
+  para provocar páginas de traceback/debug e não registrava achados em SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 034 (`casa_audit/scanner.py`):
+  1. Matriz Multi-Framework com Filtro Anti-SPA (`is_spa_fallback`):
+     Sonda 19 endpoints diagnósticos conhecidos validando a assinatura real do
+     payload para evitar falsos positivos em SPAs.
+  2. Sondas Ativas de Traceback de Framework:
+     Envia payload JSON malformado (`POST /rest/user/login`) e query inválida
+     (`/rest/products/search?q='`), inspecionando assinaturas Express `errorhandler`
+     (`<ul id="stacktrace">`), Werkzeug, Django, Rails, ASP.NET e Python.
+  3. Persistência em SARIF 2.1.0 (`output/dast-findings.sarif`):
+     Registra todos os achados sob a regra `CASA3-CFG-02` junto ao arquivo HAR 1.2.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 34 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Sondagem executada: 19 endpoints diagnósticos + 2 sondas ativas de exceção (0 falsos positivos do SPA).
+- Achados reais `CASA3-CFG-02` (4 exposições em produção):
+  1. `GET /metrics` -> HTTP 200 [Prometheus Runtime Metrics]
+  2. `GET /api-docs/` -> HTTP 200 [Swagger UI Interactive API Docs]
+  3. `GET /rest/admin/application-configuration` -> HTTP 200 [Unauthenticated Admin Application Config]
+  4. `POST /rest/user/login` (JSON malformado) -> HTTP 500 [`Express errorhandler Stacktrace`, `<ul id="stacktrace">` com `SyntaxError` e caminhos completos do servidor]
+- Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-CFG-02`) e `output/dast-capture.har`.
+- Veredito Automatizado: FAIL
+================================================================================

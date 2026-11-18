@@ -3052,3 +3052,65 @@ Ao executar o motor atualizado da Iteração 45 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (`CASA3-AUT-02`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: **FAIL** (corrigiu o falso positivo anterior).
 ================================================================================
+
+
+================================================================================
+CONTROLE 38/61: AUT-03 (Iteração SDD 046)
+================================================================================
+Título: A new session token is issued upon authentication (session fixation prevented)
+Mapeamento Normativo: OWASP ASVS V3.2.1 (L1); CWE-384 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Vulnerabilidades de *Session Fixation* (CWE-384) ocorrem quando o servidor cria
+ou aceita um identificador de sessão pré-autenticação e o mantém válido/inalterado
+após o login, permitindo que um atacante fixe previamente o cookie da vítima e
+assuma a sessão autenticada posteriormente. O Guia de Testes CASA 3.0 AL1 exige:
+- Evidência: Achados de harness/DAST em SARIF 2.1.0 e captura HAR 1.2 redigida;
+- Procedimento: Capturar o identificador de sessão antes da autenticação,
+  autenticar, capturar o novo identificador e **reproduzir o identificador
+  pré-autenticação contra uma rota protegida**;
+- Critério de Aprovação (PASS): O identificador pós-autenticação difere do
+  identificador pré-autenticação **e** o identificador pré-autenticação é
+  rejeitado posteriormente;
+- Critério de Falha (FAIL): Identificador inalterado após o login ou
+  identificador pré-autenticação permanecendo válido em rotas protegidas.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop não emite cookies de sessão anônima pré-autenticação (`Set-Cookie`
+ausente em `/` e `/rest/user/whoami`), ignora cookies `token`/`connect.sid`/`JSESSIONID`
+fixados pelo cliente no momento de `POST /rest/user/login` e emite um JWT RS256
+assinado no corpo JSON, rejeitando (`HTTP 401`) qualquer replay do identificador fixado
+em rotas protegidas — configurando um caso legítimo de conformidade (`PASS`) para CWE-384.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 046:
+  O scanner verificava apenas `if jwt_token` (1 linha estática), sem capturar
+  cookies pré-autenticação, sem injetar cookies de fixação durante o login, sem
+  reproduzir o identificador pré-autenticação em rotas protegidas após o login e
+  sem integrar SARIF 2.1.0 + HAR 1.2 redigido.
+
+- Oportunidades de Melhoria Implementadas na Iteração 046 (`casa_audit/scanner.py`):
+  1. Captura Pré-Auth & Injeção de *Session Fixation* no Login:
+     Inspeciona `Set-Cookie` em `/` e `/rest/user/whoami`, injeta cookies de
+     fixação (`token`, `connect.sid`, `JSESSIONID`) na chamada `POST /rest/user/login`
+     e valida que o token emitido difere de todos os IDs pré-autenticação.
+  2. Replay Pós-Login em Rotas Protegidas (`/rest/wallet/balance`, `/rest/basket/{bid}`):
+     Reproduz os identificadores pré-autenticação/fixados contra rotas autenticadas
+     exigindo rejeição (`HTTP 401/403`).
+  3. Evidência SARIF 2.1.0 (`CASA3-AUT-03`) + Redacted HAR 1.2:
+     Emite resultados em `output/dast-findings.sarif` e captura redigida em `dast-capture.har`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 46 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Cookies pré-autenticação emitidos pelo servidor em `/` e `/rest/user/whoami`: `0`
+- Autenticação em `POST /rest/user/login` com cabeçalho `Cookie` fixado: emitiu
+  novo JWT (`len=761`) distinto de todos os identificadores pré-autenticação/fixados.
+- Replay pós-login dos identificadores pré-autenticação em `/rest/wallet/balance`
+  e `/rest/basket/17`: **2/2 rejeitados**.
+- Artefatos gerados: `output/dast-findings.sarif` (0 violações `CASA3-AUT-03`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: PASS
+================================================================================

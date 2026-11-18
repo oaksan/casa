@@ -4459,11 +4459,101 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-03: New session token issued upon authentication
+    # AUT-03: Session Fixation & Pre-Authentication Identifier Replay Harness (SARIF 2.1.0 + redacted HAR 1.2)
+    # 1. Inspect pre-authentication endpoints for any anonymous Set-Cookie session identifier
+    pre_session_cookies: list[tuple[str, str]] = []
+    for pre_ep in ["/", "/rest/user/whoami"]:
+        _, pre_hdrs, _ = http_probe(pre_ep)
+        raw_sc = pre_hdrs.get("set-cookie", "")
+        if raw_sc:
+            for part in raw_sc.split(","):
+                kv = part.strip().split(";", 1)[0]
+                if "=" in kv:
+                    ck_name, ck_val = kv.split("=", 1)
+                    if ck_name.strip().lower() in {"token", "session", "sessionid", "sid", "jsessionid", "phpsessid", "connect.sid"}:
+                        pre_session_cookies.append((ck_name.strip(), ck_val.strip()))
+
+    # 2. Construct fixation cookie header (captured pre-auth cookies + injected fixation token)
+    fixed_probe_sid = "casa3_preauth_fixation_probe_deadbeef"
+    fixation_cookie_pairs = list(pre_session_cookies) + [
+        ("token", fixed_probe_sid),
+        ("connect.sid", fixed_probe_sid),
+        ("JSESSIONID", fixed_probe_sid),
+    ]
+    fixation_cookie_hdr = "; ".join(f"{k}={v}" for k, v in fixation_cookie_pairs)
+
+    # 3. Authenticate while presenting the pre-authentication / fixed session identifiers
+    post_st3, post_hdrs3, post_body3 = http_probe(
+        aut02_login_ep,
+        method="POST",
+        headers={"Content-Type": "application/json", "Cookie": fixation_cookie_hdr},
+        body=aut02_body,
+    )
+    post_token3 = ""
+    if 200 <= post_st3 < 300:
+        try:
+            j3 = json.loads(post_body3)
+            post_token3 = (
+                j3.get("authentication", {}).get("token", "")
+                or j3.get("token", "")
+                or j3.get("access_token", "")
+            )
+        except Exception:
+            post_token3 = ""
+        if not post_token3 and post_hdrs3.get("set-cookie"):
+            post_token3 = post_hdrs3["set-cookie"].split(";", 1)[0].split("=", 1)[-1].strip()
+
+    # 4. Replay every pre-authentication / fixed identifier against protected routes afterwards
+    pre_identifiers_to_replay: list[tuple[str, str]] = list(pre_session_cookies) + [("injected_fixation_sid", fixed_probe_sid)]
+    cfg_aut03_findings: list[str] = []
+    pre_vals = {v for _, v in pre_identifiers_to_replay}
+
+    if not post_token3:
+        cfg_aut03_findings.append(f"Authentication on POST {base_url}{aut02_login_ep} did not return a valid session identifier (HTTP {post_st3}).")
+    elif post_token3 in pre_vals:
+        cfg_aut03_findings.append(f"Session identifier remained unchanged across authentication (server adopted pre-authentication token).")
+
+    replayed_checks = 0
+    for id_label, id_val in pre_identifiers_to_replay:
+        for prot_ep in ["/rest/wallet/balance", f"/rest/basket/{auth_bid}"]:
+            rep_st, _, _ = http_probe(
+                prot_ep,
+                headers={"Authorization": f"Bearer {id_val}", "Cookie": f"token={id_val}; {id_label}={id_val}"},
+            )
+            replayed_checks += 1
+            if 200 <= rep_st < 300:
+                cfg_aut03_findings.append(
+                    f"Pre-authentication identifier '{id_label}' was accepted (HTTP {rep_st}) on authenticated route {prot_ep} after login (CWE-384)."
+                )
+
+    for af3_msg in cfg_aut03_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AUT-03",
+                "level": "error",
+                "message": {"text": af3_msg},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": f"{base_url}{aut02_login_ep}"},
+                        }
+                    }
+                ],
+                "properties": {"controlId": "AUT-03"},
+            }
+        )
+
+    aut03_pass = bool(post_token3) and len(cfg_aut03_findings) == 0
     results["AUT-03"] = {
-        "verdict": "PASS" if jwt_token else "Not_Covered",
-        "tool": "Session Fixation & Rotation Probe",
-        "log": "[PASS] Fresh signed authentication token generated upon POST /rest/user/login.",
+        "verdict": "PASS" if aut03_pass else "FAIL",
+        "tool": f"Session Fixation & Post-Auth Pre-ID Replay Harness ({replayed_checks} post-login replays, SARIF 2.1.0 + redacted HAR 1.2)",
+        "log": (
+            f"[PASS] Post-authentication session identifier issued on POST {base_url}{aut02_login_ep} (len={len(post_token3)}) differs from all pre-authentication/injected cookies (pre-auth Set-Cookie count={len(pre_session_cookies)}), and all {replayed_checks} replays of pre-authentication identifiers against protected routes (/rest/wallet/balance, /rest/basket/{auth_bid}) were rejected.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if aut03_pass
+            else f"[FAIL] {len(cfg_aut03_findings)} Session Fixation / rotation violation(s):\n  - "
+            + "\n  - ".join(cfg_aut03_findings)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+        ),
     }
 
     # AUT-04: Session tokens never appear in URLs or query strings

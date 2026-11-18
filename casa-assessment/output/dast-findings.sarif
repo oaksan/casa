@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-AY54LLfRQbpIn3zu1YX+ALmnZDI\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-6jVVOTgcDvgsouYb/PJMrz9K9ZM\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/15 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-1la/uxUU7XVJpGXvGRgRim+OqD8\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/17 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-PzpLxeDScdxRCtGj7vonC1oDB4M\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/15"
+                  "uri": "http://localhost:3000/rest/basket/17"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/34 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-m2qTA9Ysl2FqPBypuvoUOSN6wLs\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/36 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-DK4k1A0ihYMOZFdZ44Av023ejDg\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/34"
+                  "uri": "http://localhost:3000/api/Users/36"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-pXtdGWXY8MkmXd6TETRjTjwbBxM\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-Unm+Tn0/8oGwZm9/nzU4xYzYcz0\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -2026,7 +2026,7 @@
           "ruleId": "CASA3-CFG-10",
           "level": "error",
           "message": {
-            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.926 >= 0.90)"
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.904 >= 0.90)"
           },
           "locations": [
             {
@@ -2042,7 +2042,7 @@
             "findingKind": "exposed_admin_wordlist_path",
             "unauthStatus": 200,
             "authStatus": 200,
-            "lcsSimilarity": 0.926
+            "lcsSimilarity": 0.904
           }
         },
         {
@@ -2182,7 +2182,7 @@
           "ruleId": "CASA3-AUT-02",
           "level": "error",
           "message": {
-            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 7.78s: only 8/200 distinct (192 exact duplicate tokens, max identical collision=34/200; NIST SP 800-90B MCV min-entropy=2.56 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
+            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 7.85s: only 9/200 distinct (191 exact duplicate tokens, max identical collision=37/200; NIST SP 800-90B MCV min-entropy=2.43 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
           },
           "locations": [
             {
@@ -2196,10 +2196,10 @@
           "properties": {
             "controlId": "AUT-02",
             "samplesCollected": 200,
-            "distinctTokens": 8,
-            "duplicateTokens": 192,
-            "maxCollisionFrequency": 34,
-            "minEntropyBits": 2.56
+            "distinctTokens": 9,
+            "duplicateTokens": 191,
+            "maxCollisionFrequency": 37,
+            "minEntropyBits": 2.43
           }
         }
       ]

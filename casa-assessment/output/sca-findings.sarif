@@ -5,7 +5,7 @@
     {
       "tool": {
         "driver": {
-          "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS + NTIA SBOM Diff)",
+          "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS + NTIA SBOM Diff + Malicious/Typosquat)",
           "version": "3.0.0",
           "rules": [
             {
@@ -30,6 +30,12 @@
               "id": "CASA3-SCA-04",
               "shortDescription": {
                 "text": "SCA-04: Published SBOM parses as CycloneDX 1.5+ or SPDX 2.3+, carries all NTIA minimum elements, and (Assessor SBOM - Published SBOM) is empty"
+              }
+            },
+            {
+              "id": "CASA3-SCA-05",
+              "shortDescription": {
+                "text": "SCA-05: No dependency matches a known-malicious package advisory (MAL-*) or Levenshtein distance-1 / suffix typosquat under a different maintainer"
               }
             }
           ]

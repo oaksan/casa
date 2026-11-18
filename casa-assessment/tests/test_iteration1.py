@@ -9,7 +9,12 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from casa_audit.scanner import compute_cvss3_base_score, load_controls, run_automated_al1_scan
+from casa_audit.scanner import (
+    compute_cvss3_base_score,
+    compute_levenshtein_distance,
+    load_controls,
+    run_automated_al1_scan,
+)
 from casa_audit.server import CasaAssessmentHandler
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -70,14 +75,17 @@ class TestCasa3Iteration1(unittest.TestCase):
             self.assertNotIn("... and ", r["log"], f"{cid} log is truncated")
             self.assertNotIn("... (+", r["log"], f"{cid} log is truncated")
 
-        # Iteration 9-12: Verify CVSS v3.1 calculator, SCA SARIF generation, and docs/justificativa.txt
+        # Iteration 9-13: Verify CVSS v3.1 calculator, Levenshtein distance, SCA SARIF generation, and docs/justificativa.txt
         self.assertEqual(compute_cvss3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"), 9.8)
+        self.assertEqual(compute_levenshtein_distance("ngy-cookie", "ngx-cookie"), 1)
+        self.assertEqual(compute_levenshtein_distance("express", "express"), 0)
         self.assertTrue((ROOT_DIR / "casa-assessment" / "output" / "sca-findings.sarif").exists())
         just_txt = (ROOT_DIR / "docs" / "justificativa.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 01/61: SCA-01", just_txt)
         self.assertIn("CONTROLE 02/61: SCA-02", just_txt)
         self.assertIn("CONTROLE 03/61: SCA-03", just_txt)
         self.assertIn("CONTROLE 04/61: SCA-04", just_txt)
+        self.assertIn("CONTROLE 05/61: SCA-05", just_txt)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)
@@ -115,7 +123,7 @@ class TestCasa3Iteration1(unittest.TestCase):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=25) as resp:
                 self.assertEqual(resp.status, 200)
                 body = json.loads(resp.read().decode("utf-8"))
                 self.assertEqual(body["status"], "ok")

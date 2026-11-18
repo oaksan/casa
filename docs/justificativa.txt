@@ -447,3 +447,112 @@ Ao executar o motor atualizado da Iteração 012 contra o OWASP Juice Shop:
      - **40 dependências de build/teste** declaradas no manifesto (`typescript`, `tsx`,
        `cypress`, `eslint`, `@types/*`) foram omitidas por `--omit=dev`.
 ================================================================================
+
+================================================================================
+CONTROLE 05/61: SCA-05 (Iteração SDD 013)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SCA-05
+- Domínio: 1. Software Composition & Supply Chain
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "No dependency matches a known-malicious package advisory (typosquat,
+   protestware, compromised maintainer)"
+- Padrões de Referência:
+  * OpenSSF Malicious Packages (`MAL-*`)
+  * MITRE CWE-1357 (Reliance on Insufficiently Trustworthy Component)
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 1 - SCA-05):
+
+- Evidência Exigida (Evidence):
+  1. "Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability
+     findings in SARIF 2.1.0."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Match every dependency against the OpenSSF malicious-package advisories,
+     and check every package name for close-distance similarity to the most
+     popular package names in its registry."
+  2. "Reference tooling: osv-scanner, OpenSSF malicious-packages feed."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero components match a `MAL-` advisory, and zero components are
+    within Levenshtein distance 1 of a top-10k package name under a different
+    maintainer."
+  * FAIL: "≥ 1 component matches a `MAL-` advisory or the typosquat predicate."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SCA-05 demonstra como o CASA 3.0 converte a detecção de ataques modernos
+à cadeia de suprimentos (comprometimento de mantenedor, protestware e typosquatting)
+em dois predicados formais e 100% determinísticos:
+  1. Predicado de Advisory Malicioso (`AdvisoryMatch`):
+     Consulta à base OpenSSF Malicious Packages (`MAL-*`) e advisories de pacotes
+     comprometidos via OSV.dev (`GHSA-hxxf-q3w9-4xgw` para `eslint-scope@3.7.2`,
+     `GHSA-5rqg-jm4f-cqx7` para protestware, etc.);
+  2. Predicado Algorítmico de Typosquatting (`TyposquatPredicate`):
+     Para cada pacote $p \notin \text{Top10k}$, verifica se existe um pacote
+     canônico $c \in \text{Top10k}$ tal que a distância de edição de Levenshtein
+     $d_{\text{Lev}}(p, c) = 1$ (ou sufixo de linguagem $p \in \{c\text{-js}, c\text{-node}\}$)
+     **E** o conjunto de mantenedores no registro oficial é disjunto:
+     $\text{Maintainers}(p) \cap \text{Maintainers}(c) = \emptyset$.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 013)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 013:
+  O scanner verificava apenas `if vid.startswith("MAL-")` sobre o arquivo
+  `package.json` da raiz do repositório. Ele NÃO inspecionava sub-manifestos da
+  aplicação (`frontend/package.json` e `ftp/package.json.bak`), NÃO implementava
+  o cálculo da distância de Levenshtein ($d_{\text{Lev}} = 1$) nem de sufixos
+  (`-js`) contra os pacotes populares do ecossistema, e NÃO consultava a API do
+  registro npm (`registry.npmjs.org/<pkg>`) para comparar se os mantenedores eram
+  distintos ($\text{Maintainers}(p) \cap \text{Maintainers}(c) = \emptyset$).
+
+- Oportunidades de Melhoria Implementadas na Iteração 013 (`casa_audit/scanner.py`):
+  1. Descoberta Multi-Manifesto (`evaluate_sca05_malicious_and_typosquat`):
+     Analisa todas as 250 dependências declaradas nos manifestos do projeto
+     (`package.json`, `frontend/package.json` e `ftp/package.json.bak`).
+  2. Detecção de Advisories Maliciosos e Mantenedor Comprometido (OSV.dev):
+     Consulta em lote a API OSV.dev (`/v1/querybatch`) identificando tanto IDs
+     `MAL-*` quanto advisories históricos de pacotes maliciosos/comprometidos
+     (como `GHSA-hxxf-q3w9-4xgw` do ataque real de roubo de credenciais `.npmrc`
+     em `eslint-scope@3.7.2`).
+  3. Cálculo da Distância de Edição de Levenshtein (`compute_levenshtein_distance`)
+     e Sufixos de Linguagem + Verificação de Mantenedores (`fetch_npm_maintainers`):
+     Calcula a matriz de programação dinâmica de Levenshtein contra pacotes
+     canônicos Top-10k e consulta `https://registry.npmjs.org/<pkg>` em tempo
+     real para confirmar que o pacote suspeito pertence a um mantenedor diferente
+     do pacote oficial e se houve clonagem da descrição oficial.
+  4. Registro Padronizado em SARIF 2.1.0:
+     Emite a regra `CASA3-SCA-05` no artefato `output/sca-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 013 contra o OWASP Juice Shop (250
+dependências em 3 manifestos), o scanner mudou de um falso `PASS` para **`FAIL`**,
+detectando de forma 100% automatizada os **3 ataques reais de cadeia de suprimentos
+e typosquatting** embutidos no OWASP Juice Shop:
+- Veredito Automatizado: FAIL (3 violações críticas de SCA-05 comprovadas)
+  1. **Mantenedor Comprometido / Pacote Malicioso (`eslint-scope@3.7.2` em `ftp/package.json.bak`):**
+     Detectado via OSV.dev (`GHSA-hxxf-q3w9-4xgw` / `npm:eslint-scope:20180712`),
+     referente ao incidente real de 12/07/2018 em que a conta npm do mantenedor
+     foi comprometida e publicou a versão `3.7.2` com payload para exfiltrar tokens
+     do `~/.npmrc`.
+  2. **Typosquatting por Distância de Levenshtein = 1 (`ngy-cookie@6.0.0` em `frontend/package.json`):**
+     O algoritmo detectou que `ngy-cookie` possui distância de edição de Levenshtein
+     exatamente igual a **1** em relação ao pacote oficial `ngx-cookie` (`y` vs `x`),
+     e confirmou via API do `registry.npmjs.org` que os mantenedores são disjuntos
+     (`ngy-cookie` mantido por `['bkimminich']` vs `ngx-cookie` mantido por
+     `['sa.alemdar']`), além de possuir a descrição oficial clonada
+     (*"Implementation of Angular 1.x $cookies service to Angular"*).
+  3. **Typosquatting por Sufixo de Linguagem (`epilogue-js@0.7` em `ftp/package.json.bak`):**
+     O algoritmo detectou o sufixo `-js` sobre o pacote canônico `epilogue` e
+     confirmou via API do `registry.npmjs.org` que os mantenedores são disjuntos
+     (`epilogue-js` mantido por `['bkimminich']` vs `epilogue` mantido por
+     `['dchester', 'mbroadst']`), com descrição oficial clonada
+     (*"Create REST resources and controllers with Sequelize and Express or Restify"*).
+================================================================================

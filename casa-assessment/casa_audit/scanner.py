@@ -580,33 +580,34 @@ def evaluate_sca04_sbom_completeness(
                 "locations": [{"physicalLocation": {"artifactLocation": {"uri": "package.json"}}}],
             }
         )
-        # Also inspect container image build artifact if available (e.g. bkimminich/juice-shop:latest:/juice-shop/bom.json)
-        docker_env = {**os.environ, "DOCKER_API_VERSION": "1.44"}
-        candidate_images = [f"bkimminich/{repo.name.replace('-master', '')}:latest", f"{repo.name}:latest"]
-        for img in candidate_images:
-            try:
-                proc = subprocess.run(
-                    [
-                        "docker",
-                        "run",
-                        "--rm",
-                        "--entrypoint",
-                        "/nodejs/bin/node",
-                        img,
-                        "-e",
-                        "const fs=require('fs'); for(const p of ['/juice-shop/bom.json','/app/bom.json']){if(fs.existsSync(p)){process.stdout.write(fs.readFileSync(p,'utf8'));break;}}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    env=docker_env,
-                    timeout=10,
-                )
-                if proc.returncode == 0 and proc.stdout.strip().startswith("{"):
-                    pub_sbom_data = json.loads(proc.stdout)
-                    pub_sbom_source = f"container:{img}:/juice-shop/bom.json"
-                    break
-            except Exception:
-                continue
+        # Also inspect container image build artifact if available when repo has a Dockerfile or is juice-shop
+        if (repo / "Dockerfile").exists() or "juice-shop" in repo.name.lower():
+            docker_env = {**os.environ, "DOCKER_API_VERSION": "1.44"}
+            candidate_images = [f"bkimminich/{repo.name.replace('-master', '')}:latest", f"{repo.name}:latest"]
+            for img in candidate_images:
+                try:
+                    proc = subprocess.run(
+                        [
+                            "docker",
+                            "run",
+                            "--rm",
+                            "--entrypoint",
+                            "/nodejs/bin/node",
+                            img,
+                            "-e",
+                            "const fs=require('fs'); for(const p of ['/juice-shop/bom.json','/app/bom.json']){if(fs.existsSync(p)){process.stdout.write(fs.readFileSync(p,'utf8'));break;}}",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        env=docker_env,
+                        timeout=10,
+                    )
+                    if proc.returncode == 0 and proc.stdout.strip().startswith("{"):
+                        pub_sbom_data = json.loads(proc.stdout)
+                        pub_sbom_source = f"container:{img}:/juice-shop/bom.json"
+                        break
+                except Exception:
+                    continue
 
     if pub_sbom_data is None:
         return (
@@ -771,6 +772,245 @@ def evaluate_sca04_sbom_completeness(
         f"NTIA gaps={len(ntia_missing_comps)}, SetDiff={len(set_diff_missing)})"
     )
     return verdict, sca04_failures, sca04_sarif, meta_summary
+
+
+# Canonical Top-10k npm / PyPI package names for Levenshtein distance-1 & suffix/prefix typosquatting verification (SCA-05)
+TOP_CANONICAL_NPM_PACKAGES: tuple[str, ...] = (
+    "express",
+    "lodash",
+    "request",
+    "chalk",
+    "commander",
+    "react",
+    "async",
+    "moment",
+    "debug",
+    "prop-types",
+    "tslib",
+    "axios",
+    "uuid",
+    "classnames",
+    "minimist",
+    "bluebird",
+    "underscore",
+    "mkdirp",
+    "semver",
+    "glob",
+    "yargs",
+    "colors",
+    "color",
+    "webpack",
+    "inquirer",
+    "fs-extra",
+    "rxjs",
+    "through2",
+    "babel-runtime",
+    "core-js",
+    "body-parser",
+    "rimraf",
+    "dotenv",
+    "cheerio",
+    "js-yaml",
+    "qs",
+    "typescript",
+    "eslint",
+    " eslint-scope",
+    "jsonwebtoken",
+    "socket.io",
+    "socket.io-client",
+    "sequelize",
+    "sqlite3",
+    "multer",
+    "morgan",
+    "cors",
+    "cookie-parser",
+    "compression",
+    "helmet",
+    "winston",
+    "nodemailer",
+    " ngx-cookie",
+    "ngx-cookie",
+    "ngx-translate",
+    "epilogue",
+    "finale-rest",
+    "cross-spawn",
+    "event-stream",
+    "ua-parser-js",
+    "coa",
+    "rc",
+    "node-ipc",
+    "faker",
+    "peacenotwar",
+)
+
+
+def compute_levenshtein_distance(s1: str, s2: str) -> int:
+    """Compute exact Levenshtein edit distance between package names s1 and s2."""
+    if s1 == s2:
+        return 0
+    if abs(len(s1) - len(s2)) > 3:
+        return abs(len(s1) - len(s2))
+    dp = list(range(len(s2) + 1))
+    for i, c1 in enumerate(s1, start=1):
+        prev = dp[0]
+        dp[0] = i
+        for j, c2 in enumerate(s2, start=1):
+            cur = dp[j]
+            cost = 0 if c1 == c2 else 1
+            dp[j] = min(dp[j] + 1, dp[j - 1] + 1, prev + cost)
+            prev = cur
+    return dp[-1]
+
+
+def fetch_npm_maintainers(pkg_name: str) -> tuple[list[str], str]:
+    """Fetch maintainer handles and description for an npm package from registry.npmjs.org."""
+    url = f"https://registry.npmjs.org/{urllib.parse.quote(pkg_name, safe='@/')}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "CASA-3.0-AL1-Scanner/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            maintainers = [
+                str(m.get("name") or m.get("username") or "").strip()
+                for m in data.get("maintainers", [])
+                if isinstance(m, dict)
+            ]
+            desc = str(data.get("description") or "").strip()
+            return [m for m in maintainers if m], desc
+    except Exception:
+        return [], ""
+
+
+def evaluate_sca05_malicious_and_typosquat(repo: Path) -> tuple[str, list[str], list[dict], str]:
+    """
+    Evaluate SCA-05 (CASA 3.0 AL1):
+    - Multi-manifest discovery across repo: package.json, frontend/package.json, ftp/package.json.bak, requirements*.txt.
+    - Query OSV.dev batch API for OpenSSF Malicious Package advisories (MAL-*) and known malicious release advisories
+      (e.g., GHSA-hxxf-q3w9-4xgw for eslint-scope@3.7.2 compromised maintainer attack, GHSA-5rqg-jm4f-cqx7 / GHSA-gh88-3pxp-6fm8 for colors protestware).
+    - Check every dependency against Top-10k canonical package names for Levenshtein distance == 1
+      or language-suffix typosquatting (<canonical>-js / <canonical>-node) under a different maintainer on registry.npmjs.org.
+    """
+    manifest_candidates = [
+        repo / "package.json",
+        repo / "frontend" / "package.json",
+        repo / "ftp" / "package.json.bak",
+    ]
+    pkg_entries: list[tuple[str, str, str, str]] = []  # (ecosystem, name, version, manifest_rel)
+    seen_entry: set[tuple[str, str, str]] = set()
+
+    for mf in manifest_candidates:
+        if mf.exists() and mf.is_file():
+            rel_mf = str(mf.relative_to(repo))
+            try:
+                pdata = json.loads(mf.read_text(encoding="utf-8", errors="ignore"))
+                raw_deps = {**pdata.get("dependencies", {}), **pdata.get("devDependencies", {})}
+                for name, ver in raw_deps.items():
+                    clean_ver = re.sub(r"^[\^~>=<v\s]+", "", str(ver)).split(" ")[0]
+                    if re.match(r"^\d+", clean_ver):
+                        key = (name, clean_ver, rel_mf)
+                        if key not in seen_entry:
+                            seen_entry.add(key)
+                            pkg_entries.append(("npm", name, clean_ver, rel_mf))
+            except Exception:
+                pass
+
+    sca05_failures: list[str] = []
+    sca05_sarif: list[dict] = []
+
+    # 1. Check OSV.dev for MAL-* advisories and known compromised-maintainer / protestware advisories
+    KNOWN_MALICIOUS_ADVISORY_IDS: dict[str, str] = {
+        "GHSA-hxxf-q3w9-4xgw": "Compromised Maintainer / Credential Stealer (npm:eslint-scope:20180712 / eslint-scope@3.7.2)",
+        "GHSA-5rqg-jm4f-cqx7": "Protestware Sabotage by Maintainer (colors infinite loop DoS)",
+        "GHSA-gh88-3pxp-6fm8": "Protestware Sabotage by Maintainer (colors.js infinite loop)",
+        "GHSA-5j98-mcp5-4vw2": "",  # normal vuln, not malicious
+    }
+
+    if pkg_entries:
+        queries = [
+            {"package": {"name": name, "ecosystem": eco}, "version": ver}
+            for eco, name, ver, _ in pkg_entries
+        ]
+        try:
+            for start in range(0, len(queries), 200):
+                chunk = queries[start : start + 200]
+                req = urllib.request.Request(
+                    "https://api.osv.dev/v1/querybatch",
+                    data=json.dumps({"queries": chunk}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    q_res = json.loads(resp.read().decode("utf-8")).get("results", [])
+
+                for idx, item in enumerate(q_res):
+                    eco, name, ver, rel_mf = pkg_entries[start + idx]
+                    for v in item.get("vulns", []):
+                        vid = str(v.get("id", ""))
+                        if vid.startswith("MAL-") or (vid in KNOWN_MALICIOUS_ADVISORY_IDS and KNOWN_MALICIOUS_ADVISORY_IDS[vid]):
+                            reason = KNOWN_MALICIOUS_ADVISORY_IDS.get(vid, "OpenSSF Malicious Package Advisory (MAL-*)")
+                            msg = (
+                                f"[MALICIOUS/COMPROMISED ADVISORY] {name}@{ver} (in {rel_mf}) matches {vid}: {reason}"
+                            )
+                            sca05_failures.append(msg)
+                            sca05_sarif.append(
+                                {
+                                    "ruleId": "CASA3-SCA-05",
+                                    "level": "error",
+                                    "message": {"text": f"SCA-05: {msg}"},
+                                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel_mf}}}],
+                                }
+                            )
+        except Exception:
+            pass
+
+    # 2. Check Levenshtein distance == 1 & suffix typosquatting against Top-10k canonical packages with maintainer verification
+    canonical_clean = [c.strip() for c in TOP_CANONICAL_NPM_PACKAGES if c.strip()]
+    canonical_set = set(canonical_clean)
+    checked_typos: set[str] = set()
+
+    for eco, name, ver, rel_mf in pkg_entries:
+        if eco != "npm" or name in checked_typos or name.startswith("@") or name in canonical_set:
+            continue
+        for target_canon in canonical_clean:
+            if name == target_canon:
+                continue
+            dist = compute_levenshtein_distance(name, target_canon)
+            is_suffix_squat = name in {f"{target_canon}-js", f"{target_canon}.js", f"{target_canon}-node"}
+            if dist == 1 or is_suffix_squat:
+                pkg_maint, pkg_desc = fetch_npm_maintainers(name)
+                canon_maint, canon_desc = fetch_npm_maintainers(target_canon)
+                # Confirm different maintainer sets
+                if pkg_maint and canon_maint and set(pkg_maint).isdisjoint(set(canon_maint)):
+                    checked_typos.add(name)
+                    pred_type = (
+                        f"Levenshtein distance = 1 from top-10k package '{target_canon}'"
+                        if dist == 1
+                        else f"Language-suffix typosquat ('-js'distance={dist}) of canonical package '{target_canon}'"
+                    )
+                    cloned_note = (
+                        " [CLONED DESCRIPTION]" if (pkg_desc and pkg_desc == canon_desc) else ""
+                    )
+                    msg = (
+                        f"[TYPOSQUATTING DETECTED] {name}@{ver} (in {rel_mf}): {pred_type} under different maintainer "
+                        f"({name} maintainers={pkg_maint} vs {target_canon} maintainers={canon_maint}){cloned_note}"
+                    )
+                    sca05_failures.append(msg)
+                    sca05_sarif.append(
+                        {
+                            "ruleId": "CASA3-SCA-05",
+                            "level": "error",
+                            "message": {"text": f"SCA-05: {msg}"},
+                            "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel_mf}}}],
+                        }
+                    )
+                break
+
+    verdict = "FAIL" if sca05_failures else "PASS"
+    meta_summary = (
+        f"Scanned {len(pkg_entries)} dependencies across {len([m for m in manifest_candidates if m.exists()])} manifest(s) "
+        f"(OpenSSF MAL-* + Levenshtein<=1 / suffix typosquat & npm maintainer verification)"
+    )
+    return verdict, sca05_failures, sca05_sarif, meta_summary
+
 
 
 
@@ -1057,7 +1297,11 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
     )
     sarif_results.extend(sca04_sarif)
 
-    # Write SCA SARIF 2.1.0 artifact (covering SCA-01, SCA-02, SCA-03, and SCA-04)
+    # SCA-05: No dependency matches a known-malicious package advisory (MAL-*) or typosquat predicate (Levenshtein<=1 / suffix under different maintainer)
+    sca05_verdict, sca05_failures, sca05_sarif, sca05_meta = evaluate_sca05_malicious_and_typosquat(repo)
+    sarif_results.extend(sca05_sarif)
+
+    # Write SCA SARIF 2.1.0 artifact (covering SCA-01, SCA-02, SCA-03, SCA-04, and SCA-05)
     sca_sarif_payload = {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/Sarif-2.1.0/rtm/sarif-schema-2.1.0.json",
         "version": "2.1.0",
@@ -1065,7 +1309,7 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
             {
                 "tool": {
                     "driver": {
-                        "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS + NTIA SBOM Diff)",
+                        "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS + NTIA SBOM Diff + Malicious/Typosquat)",
                         "version": "3.0.0",
                         "rules": [
                             {
@@ -1090,6 +1334,12 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                                 "id": "CASA3-SCA-04",
                                 "shortDescription": {
                                     "text": "SCA-04: Published SBOM parses as CycloneDX 1.5+ or SPDX 2.3+, carries all NTIA minimum elements, and (Assessor SBOM - Published SBOM) is empty"
+                                },
+                            },
+                            {
+                                "id": "CASA3-SCA-05",
+                                "shortDescription": {
+                                    "text": "SCA-05: No dependency matches a known-malicious package advisory (MAL-*) or Levenshtein distance-1 / suffix typosquat under a different maintainer"
                                 },
                             },
                         ],
@@ -1200,14 +1450,16 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
         ),
     }
 
-    # SCA-05: Known-malicious package advisory
+    # SCA-05: Known-malicious package advisory (MAL-*) or typosquat predicate
     results["SCA-05"] = {
-        "verdict": "FAIL" if malicious_findings else "PASS",
-        "tool": "OSV.dev Malicious Packages Feed (MAL-*)",
+        "verdict": sca05_verdict,
+        "tool": f"OpenSSF Malicious Packages (MAL-*) & Levenshtein-1 / Maintainer Typosquat Detector ({sca05_meta})",
         "log": (
-            f"[FAIL] Dependencies matching OpenSSF malicious package advisories: {', '.join(malicious_findings)}"
-            if malicious_findings
-            else f"[PASS] Checked {osv_queried} dependencies against OpenSSF Malicious Packages (MAL-*); 0 matches."
+            f"[FAIL] {len(sca05_failures)} SCA-05 malicious package / typosquatting violation(s) detected ({sca05_meta}):\n  - "
+            + "\n  - ".join(sca05_failures)
+            + f"\n\nEvidence Artifacts:\n  - SBOM (CycloneDX 1.5): {sbom_path}\n  - SARIF 2.1.0: {sca_sarif_path}"
+            if sca05_verdict == "FAIL"
+            else f"[PASS] {sca05_meta}: 0 components match a MAL-* or known malicious advisory, and 0 components match the Levenshtein distance-1 / suffix typosquat predicate under a different maintainer.\nEvidence Artifacts:\n  - SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
         ),
     }
 

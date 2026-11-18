@@ -97,6 +97,7 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertIn("CONTROLE 12/61: SAST-07", just_txt)
         self.assertIn("CONTROLE 13/61: SAST-08", just_txt)
         self.assertIn("CONTROLE 14/61: SAST-09", just_txt)
+        self.assertIn("CONTROLE 15/61: SAST-10", just_txt)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)

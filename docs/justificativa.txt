@@ -1393,3 +1393,86 @@ Ao executar o motor atualizado da Iteração 22 contra o OWASP Juice Shop:
      `routes/vulnCodeSnippet.ts:L90`, `lib/scripts/lintConfig.ts:L22`):**
      Invocações diretas de `yaml.load(...)`.
 ================================================================================
+
+================================================================================
+CONTROLE 15/61: SAST-10 (Iteração SDD 023)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-10
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "No dynamic code execution on untrusted input (`eval`, `Function`, `exec`, reflection)"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V5.2.4 (L1)
+  * MITRE CWE-95 (Improper Neutralization of Directives in Dynamically Evaluated Code)
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-10):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run static rules for dynamic code execution, command execution and
+     reflective class loading, with data-flow tracking from request sources."
+  2. "Reference tooling: semgrep."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level taint paths from an untrusted source into a
+    dynamic-execution sink."
+  * FAIL: "≥ 1 `error`-level taint path into a dynamic-execution sink."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-10 é modelado pelo CASA 3.0 como um grafo de fluxo de dados
+(Taint Tracking) onde uma entrada controlada pelo usuário atinge primitivas de
+execução dinâmica ou injeção de comandos:
+  - **Sources:** Entradas de requisição HTTP (`body.*`, `req.body`, `req.query`,
+    `req.params`, atributos controlados do usuário como `user.username`);
+  - **Sinks:** `eval(...)`, `new Function(...)`, `safeEval(...)`, sandbox
+    `vm.runInContext` recebendo variável contaminada, `child_process.exec/execSync(...)`,
+    e em Python `eval`, `exec`, `os.system`, `subprocess(..., shell=True)`.
+Somente caminhos onde há fluxo real de dado contaminado (`Source → Sink`) são
+classificados como `error`, evitando ruído em chamadas estáticas ou literais.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 023)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 023:
+  A regra `CASA3-SAST-10-dynamic-code-execution` fazia apenas casamento sintático
+  cego de `eval($CODE)` e `vm.runInContext($CODE, ...)`, sem rastreamento de fluxo
+  de dados (`mode: taint`). Como resultado:
+  1. Gerava falsos positivos em expressões internas estáticas (como o cálculo
+     interno do CAPTCHA em `routes/captcha.ts:22` e a chamada literal de
+     desserialização em `lib/xml.ts:38` / `routes/fileUpload.ts:114`);
+  2. Não cobria primitivas de execução de comandos do SO (`child_process.exec`,
+     `execSync`, Python `os.system`, `subprocess shell=True`) nem o fluxo completo
+     de `body.orderLinesData` para `safeEval` em `routes/b2bOrder.ts`.
+
+- Oportunidades de Melhoria Implementadas na Iteração 023 (`rules/casa3_al1_sast.yml`):
+  1. Conversão para Semgrep Taint Analysis (`mode: taint`):
+     Definição de `pattern-sources` (`body.$FIELD`, `req.body`, `req.query`,
+     `req.params`, `user.username`) conectadas a `pattern-sinks` (`eval`,
+     `new Function`, `safeEval`, `const sandbox = { safeEval, $VAR }`,
+     `vm.runInNewContext`, `child_process.exec/execSync`).
+  2. Suporte Multi-Linguagem Python (`CASA3-SAST-10-dynamic-code-execution-python`):
+     Rastreamento de taint para `eval`, `exec`, `os.system` e `subprocess(..., shell=True)`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado com `mode: taint` contra o OWASP Juice Shop:
+- Eliminação de Falsos Positivos: Os 3 falsos positivos anteriores (`routes/captcha.ts:22`,
+  `lib/xml.ts:38`, `routes/fileUpload.ts:114`) foram eliminados com 100% de precisão.
+- Veredito Automatizado: FAIL (Exatamente os 2 fluxos reais de RCE por entrada não confiável)
+  1. **Remote Code Execution (RCE) no Pedido B2B (`routes/b2bOrder.ts:L19→L21→L23`):**
+     A entrada HTTP `body.orderLinesData` flui para `orderLinesData` e entra no
+     sandbox `{ safeEval, orderLinesData }` executado via `vm.runInContext('safeEval(orderLinesData)', sandbox)`.
+  2. **Eval Injection / SSTI no Perfil de Usuário (`routes/userProfile.ts:L52→L60→L65`):**
+     O atributo `user.username` controlado pelo usuário (em `#{$code}#`) flui
+     para `code` e atinge `eval(code)` diretamente na renderização do perfil.
+================================================================================

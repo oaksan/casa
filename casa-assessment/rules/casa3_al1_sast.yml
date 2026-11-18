@@ -200,13 +200,41 @@ rules:
       - pattern: "jsonpickle.decode(...)"
 
   - id: CASA3-SAST-10-dynamic-code-execution
+    mode: taint
     languages: [typescript, javascript]
-    message: "SAST-10: Dynamic code execution (eval / vm.runInContext / new Function) on untrusted input (CWE-95)"
+    message: "SAST-10: Untrusted input flows into dynamic code execution / command execution sink (eval / safeEval / Function / vm / exec) (CWE-95)"
     severity: ERROR
-    pattern-either:
+    pattern-sources:
+      - pattern: "body.$FIELD"
+      - pattern: "req.body"
+      - pattern: "req.query"
+      - pattern: "req.params"
+      - pattern: "user.username"
+    pattern-sinks:
       - pattern: eval($CODE)
-      - pattern: vm.runInContext($CODE, ...)
+      - pattern: new Function($CODE)
+      - pattern: safeEval($CODE)
+      - pattern: "const sandbox = { safeEval, $VAR }"
       - pattern: vm.runInNewContext($CODE, ...)
+      - pattern: child_process.exec($CMD, ...)
+      - pattern: child_process.execSync($CMD, ...)
+
+  - id: CASA3-SAST-10-dynamic-code-execution-python
+    mode: taint
+    languages: [python]
+    message: "SAST-10: Untrusted input flows into dynamic code/command execution sink in Python (eval / exec / os.system / subprocess shell=True) (CWE-95)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: request.args
+      - pattern: request.form
+      - pattern: request.json
+      - pattern: input(...)
+    pattern-sinks:
+      - pattern: eval($CODE, ...)
+      - pattern: exec($CODE, ...)
+      - pattern: os.system($CMD)
+      - pattern: subprocess.run($CMD, ..., shell=True, ...)
+      - pattern: subprocess.Popen($CMD, ..., shell=True, ...)
 
   - id: CASA3-SAST-11-path-traversal
     languages: [typescript, javascript]

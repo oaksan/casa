@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-K3xZxgElf+YDYxzg9Hqu9W3aaUQ\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-U9d34Bx8hWJIYoDL1X9aLjg6L5c\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/57 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-83IiRSTQvDrsecvGMCEXLkc81f8\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/61 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-y/sryRvCekxTVVqlgj/kcWLdpzk\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/57"
+                  "uri": "http://localhost:3000/rest/basket/61"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/77 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-RwfCh8ta4itUezVCYlxF4gznBpQ\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/81 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-Gu7Z3ojyyaY04Qs79NunEZVvxjE\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/77"
+                  "uri": "http://localhost:3000/api/Users/81"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-F5uVLfYQGzWTnI6n4ne6lzLsRPc\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-etQDX1iPpaLjA8LKlAUFSyCQFSM\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -2026,7 +2026,7 @@
           "ruleId": "CASA3-CFG-10",
           "level": "error",
           "message": {
-            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.930 >= 0.90)"
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.924 >= 0.90)"
           },
           "locations": [
             {
@@ -2042,7 +2042,7 @@
             "findingKind": "exposed_admin_wordlist_path",
             "unauthStatus": 200,
             "authStatus": 200,
-            "lcsSimilarity": 0.93
+            "lcsSimilarity": 0.924
           }
         },
         {
@@ -2182,7 +2182,7 @@
           "ruleId": "CASA3-AUT-02",
           "level": "error",
           "message": {
-            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 7.99s: only 9/200 distinct (191 exact duplicate tokens, max identical collision=34/200; NIST SP 800-90B MCV min-entropy=2.56 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
+            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 7.23s: only 8/200 distinct (192 exact duplicate tokens, max identical collision=36/200; NIST SP 800-90B MCV min-entropy=2.47 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
           },
           "locations": [
             {
@@ -2196,10 +2196,10 @@
           "properties": {
             "controlId": "AUT-02",
             "samplesCollected": 200,
-            "distinctTokens": 9,
-            "duplicateTokens": 191,
-            "maxCollisionFrequency": 34,
-            "minEntropyBits": 2.56
+            "distinctTokens": 8,
+            "duplicateTokens": 192,
+            "maxCollisionFrequency": 36,
+            "minEntropyBits": 2.47
           }
         },
         {
@@ -2287,13 +2287,13 @@
           "ruleId": "CASA3-AUT-05",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/57 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
+            "text": "GET http://localhost:3000/rest/basket/61 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/57"
+                  "uri": "http://localhost:3000/rest/basket/61"
                 }
               }
             }
@@ -2444,7 +2444,7 @@
           "ruleId": "CASA3-AUT-08",
           "level": "error",
           "message": {
-            "text": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(60); value='60') at http://localhost:3000/#/search."
+            "text": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(64); value='64') at http://localhost:3000/#/search."
           },
           "locations": [
             {
@@ -2461,7 +2461,7 @@
             "storage": "sessionStorage",
             "key": "bid",
             "reasons": [
-              "canary(60)"
+              "canary(64)"
             ]
           }
         },
@@ -2494,7 +2494,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_removed, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_removed_1795042267' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_removed, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_removed_1795042678' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2515,7 +2515,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_replaced, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_replaced_1795042267' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_replaced, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_replaced_1795042678' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2536,7 +2536,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_second_session, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_sess2_1795042267' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_second_session, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_sess2_1795042678' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2557,7 +2557,7 @@
           "ruleId": "CASA3-AZI-02",
           "level": "error",
           "message": {
-            "text": "Headless Chrome executed injected JavaScript payload at http://localhost:3000/#/search and triggered live out-of-band HTTP callback GET 127.0.0.1:42557/cb?vec=dom_search (CWE-79 / ASVS V5.3.3)."
+            "text": "Headless Chrome executed injected JavaScript payload at http://localhost:3000/#/search and triggered live out-of-band HTTP callback GET 127.0.0.1:42763/cb?vec=dom_search (CWE-79 / ASVS V5.3.3)."
           },
           "locations": [
             {

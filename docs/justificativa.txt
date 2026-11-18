@@ -1904,3 +1904,79 @@ Ao executar a sonda completa do `TLS-02` contra o OWASP Juice Shop (`http://loca
   `TLS 1.3`) foi oferecida na porta `3000` (`modernOffered=[]`), pois o endpoint
   opera exclusivamente em HTTP cleartext sem encapsulamento TLS.
 ================================================================================
+
+================================================================================
+CONTROLE 21/61: TLS-03 (Iteração SDD 029)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: TLS-03
+- Domínio: 3. Transport Security
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Only strong cipher suites; NULL, EXPORT, anonymous, RC4 and legacy CBC
+   suites rejected; forward secrecy preferred"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V9.1.2 (L1)
+  * NIST SP 800-52 Rev.2
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 3 - TLS-03):
+
+- Evidência Exigida (Evidence):
+  1. "Machine-readable (JSON) TLS scanner output, for every declared host."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "From the TLS assessment, read the cipher suites each declared host offers
+     and whether forward-secrecy suites are preferred."
+  2. "Reference tooling: testssl.sh, Qualys SSL Labs."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "No NULL, EXPORT, anonymous, RC4, 3DES or CBC-SHA1 suite is offered,
+    and every TLS 1.2 suite offered provides forward secrecy."
+  * FAIL: "≥ 1 suite from the banned list (NULL, EXPORT, anonymous, RC4, 3DES,
+    CBC-SHA1) is offered, or ≥ 1 TLS 1.2 suite without forward secrecy is offered."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle TLS-03 verifica o conjunto de suítes criptográficas aceitas no
+handshake TLS mediante enumeração determinística de classes OpenSSL:
+  $$\mathcal{B}_{suite} = \{\text{eNULL},\ \text{EXP},\ \text{aNULL},\ \text{RC4},\ \text{3DES},\ \text{CBC-SHA1}\}$$
+  $$\text{NonFS}_{1.2} = \{\text{kRSA} \setminus (\text{ECDHE} \cup \text{DHE})\}$$
+O servidor é aprovado se, e somente se, $\mathcal{B}_{suite} = \emptyset$,
+$\text{NonFS}_{1.2} = \emptyset$ e houver oferta ativa de suítes AEAD com
+Sigilo Perfeito Futuro (`ECDHE+AESGCM`, `ECDHE+CHACHA20`, `TLS 1.3 AEAD`).
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 029)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 029:
+  O scanner verificava apenas `if cipher_info: PASS else FAIL` sobre uma única
+  suíte negociada pelo handshake padrão, sem testar ativamente a rejeição de
+  suítes banidas (`NULL`, `EXPORT`, `aNULL`, `RC4`, `3DES`, `CBC-SHA1`), sem
+  verificar se havia troca de chaves `RSA` estática sem Forward Secrecy no TLS 1.2
+  e sem exportar o inventário de suítes em `output/tls-scan.json`.
+
+- Oportunidades de Melhoria Implementadas na Iteração 029 (`casa_audit/scanner.py`):
+  1. Sondagem Ativa por Categoria de Cifra (`probe_cipher_suites`):
+     - Testa individualmente as 6 categorias proibidas (`eNULL`, `EXP`, `aNULL`,
+       `RC4`, `3DES`, `CBC-SHA1`) usando `@SECLEVEL=0`;
+     - Testa explicitamente troca de chaves sem Forward Secrecy (`kRSA:!ECDHE:!DHE`)
+       no TLS 1.2;
+     - Confirma oferta ativa de suítes fortes AEAD com Forward Secrecy em TLS 1.2
+       e TLS 1.3.
+  2. Persistência em JSON (`output/tls-scan.json`):
+     Grava `.cipherSuites` e `tls03CipherEnforcement` para auditoria automatizada.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 29 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Registro `.cipherSuites` em `output/tls-scan.json`:
+  `strongForwardSecrecyOffered=[]`, `bannedSuitesOffered=[]`, `nonForwardSecrecyTls12Offered=[]`
+- Veredito Automatizado: FAIL
+  Justificativa do Motor: Nenhuma suíte criptográfica forte TLS 1.2/1.3 com
+  Forward Secrecy é oferecida na porta `3000` porque a aplicação serve todo o
+  tráfego em HTTP não criptografado.
+================================================================================

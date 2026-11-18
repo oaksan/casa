@@ -1,6 +1,6 @@
 {
   "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
-  "scannedAt": "2026-11-18T16:24:23.619058+00:00",
+  "scannedAt": "2026-11-18T16:31:48.395730+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "tlsHandshake": {
@@ -18,6 +18,12 @@
     "TLS 1.1": "not offered",
     "TLS 1.2": "not offered",
     "TLS 1.3": "not offered"
+  },
+  "cipherSuites": {
+    "probedPort": 3000,
+    "strongForwardSecrecyOffered": [],
+    "bannedSuitesOffered": [],
+    "nonForwardSecrecyTls12Offered": []
   },
   "tls01CleartextEnforcement": {
     "cleartextPort": 3000,
@@ -56,6 +62,13 @@
     "probedPort": 3000,
     "modernOffered": [],
     "deprecatedOffered": [],
+    "verdict": "FAIL"
+  },
+  "tls03CipherEnforcement": {
+    "probedPort": 3000,
+    "strongForwardSecrecyOffered": [],
+    "bannedSuitesOffered": [],
+    "nonForwardSecrecyTls12Offered": [],
     "verdict": "FAIL"
   }
 }

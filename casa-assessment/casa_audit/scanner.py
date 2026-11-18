@@ -2383,6 +2383,72 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     modern_offered = [p for p in ("TLS 1.2", "TLS 1.3") if protocols_matrix.get(p) == "offered"]
     tls02_pass = bool(modern_offered) and len(deprecated_offered) == 0
 
+    # TLS-03: Probe cipher suites for banned algorithms (NULL, EXPORT, aNULL, RC4, 3DES, CBC-SHA1), TLS 1.2 non-FS, and strong FS AEAD
+    def probe_cipher_suites(target_h: str, target_p: int) -> dict:
+        def _try_cipher(c_spec: str, min_v: ssl.TLSVersion | None = None, max_v: ssl.TLSVersion | None = None) -> str | None:
+            try:
+                ctx_c = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                ctx_c.check_hostname = False
+                ctx_c.verify_mode = ssl.CERT_NONE
+                ctx_c.set_ciphers(c_spec)
+                if min_v is not None:
+                    ctx_c.minimum_version = min_v
+                if max_v is not None:
+                    ctx_c.maximum_version = max_v
+                with socket.create_connection((target_h, target_p), timeout=2.0) as s:
+                    with ctx_c.wrap_socket(s, server_hostname=target_h) as ss:
+                        c = ss.cipher()
+                        return c[0] if c else None
+            except Exception:
+                return None
+
+        banned_checks = [
+            ("NULL", "eNULL:@SECLEVEL=0"),
+            ("EXPORT", "EXP:@SECLEVEL=0"),
+            ("Anonymous (aNULL)", "aNULL:@SECLEVEL=0"),
+            ("RC4", "RC4:@SECLEVEL=0"),
+            ("3DES", "3DES:@SECLEVEL=0"),
+            ("CBC-SHA1", "AES128-SHA:AES256-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES128-SHA:@SECLEVEL=0"),
+        ]
+        banned_offered: list[str] = []
+        for cat, spec in banned_checks:
+            res_c = _try_cipher(spec, ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_2)
+            if res_c:
+                banned_offered.append(f"{cat}:{res_c}")
+
+        # Check static RSA key exchange in TLS 1.2 (no Forward Secrecy)
+        non_fs_tls12: list[str] = []
+        res_rsa = _try_cipher("kRSA:!ECDHE:!DHE:!eNULL:!aNULL:@SECLEVEL=0", ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_2)
+        if res_rsa:
+            non_fs_tls12.append(res_rsa)
+
+        # Check preferred strong FS AEAD suites in TLS 1.2 & TLS 1.3
+        strong_fs: list[str] = []
+        fs12 = _try_cipher("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM", ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_2)
+        if fs12:
+            strong_fs.append(f"TLSv1.2:{fs12}")
+        fs13 = _try_cipher("DEFAULT", ssl.TLSVersion.TLSv1_3, ssl.TLSVersion.TLSv1_3)
+        if fs13:
+            strong_fs.append(f"TLSv1.3:{fs13}")
+
+        return {
+            "probedPort": target_p,
+            "strongForwardSecrecyOffered": strong_fs,
+            "bannedSuitesOffered": banned_offered,
+            "nonForwardSecrecyTls12Offered": non_fs_tls12,
+        }
+
+    cipher_audit = (
+        probe_cipher_suites(host, protocol_target_port)
+        if host
+        else {"probedPort": protocol_target_port, "strongForwardSecrecyOffered": [], "bannedSuitesOffered": [], "nonForwardSecrecyTls12Offered": []}
+    )
+    tls03_pass = (
+        bool(cipher_audit["strongForwardSecrecyOffered"])
+        and len(cipher_audit["bannedSuitesOffered"]) == 0
+        and len(cipher_audit["nonForwardSecrecyTls12Offered"]) == 0
+    )
+
     tls_scan_report = {
         "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
         "scannedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -2397,6 +2463,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             "error": tls_handshake_error or None,
         },
         "protocols": protocols_matrix,
+        "cipherSuites": cipher_audit,
         "tls01CleartextEnforcement": {
             "cleartextPort": cleartext_http_port,
             "probes": cleartext_probe_records,
@@ -2408,6 +2475,10 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             "modernOffered": modern_offered,
             "deprecatedOffered": deprecated_offered,
             "verdict": "PASS" if tls02_pass else "FAIL",
+        },
+        "tls03CipherEnforcement": {
+            **cipher_audit,
+            "verdict": "PASS" if tls03_pass else "FAIL",
         },
     }
     tls_json_path.write_text(json.dumps(tls_scan_report, indent=2), encoding="utf-8")
@@ -2443,9 +2514,21 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
     results["TLS-03"] = {
-        "verdict": "PASS" if cipher_info else "FAIL",
-        "tool": "TLS Cipher Suite Inspector",
-        "log": f"[{'PASS' if cipher_info else 'FAIL'}] Negotiated cipher suite: {cipher_info or 'None (Cleartext HTTP)'}.",
+        "verdict": "PASS" if tls03_pass else "FAIL",
+        "tool": f"TLS Cipher Suite & Forward Secrecy Analyzer ({host}:{protocol_target_port}, JSON)",
+        "log": (
+            f"[PASS] On {host}:{protocol_target_port}, only strong AEAD Forward Secrecy suites offered ({', '.join(cipher_audit['strongForwardSecrecyOffered'])}); 0 banned suites (NULL/EXPORT/aNULL/RC4/3DES/CBC-SHA1) and 0 non-FS TLS 1.2 suites offered.\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            if tls03_pass
+            else (
+                f"[FAIL] TLS-03 cipher violation on {host}:{protocol_target_port}: "
+                + (
+                    f"Banned suite(s) offered={cipher_audit['bannedSuitesOffered']}; non-FS TLS 1.2={cipher_audit['nonForwardSecrecyTls12Offered']}"
+                    if (cipher_audit["bannedSuitesOffered"] or cipher_audit["nonForwardSecrecyTls12Offered"])
+                    else "Zero strong TLS 1.2/1.3 Forward Secrecy cipher suites offered (endpoint operates in cleartext HTTP)"
+                )
+                + f".\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            )
+        ),
     }
     results["TLS-04"] = {
         "verdict": "PASS" if cert_valid else "FAIL",

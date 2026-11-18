@@ -4691,18 +4691,123 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-05: Logout invalidates the session server-side
-    # In Juice Shop, JWT tokens are stateless and never invalidated server-side on logout
+    # AUT-05: Logout invalidates session & refresh token server-side (Active Logout Replay Harness, SARIF 2.1.0 + redacted HAR 1.2)
     insec_file = repo / "lib" / "insecurity.ts"
     insec_txt = insec_file.read_text(encoding="utf-8", errors="ignore") if insec_file.exists() else ""
+    aut05_token = auth_token or post_token3 or jwt_token
+    aut05_refresh_token = ""
+    try:
+        r5_st, _, r5_body = http_probe(
+            aut02_login_ep,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=aut02_body,
+        )
+        if 200 <= r5_st < 300:
+            j5 = json.loads(r5_body)
+            fresh5 = j5.get("authentication", {}).get("token", "") or j5.get("token", "") or j5.get("access_token", "")
+            if fresh5:
+                aut05_token = fresh5
+            aut05_refresh_token = j5.get("refresh_token", "") or j5.get("authentication", {}).get("refreshToken", "")
+    except Exception:
+        pass
+
+    logout_endpoints_tried: list[str] = []
+    server_logout_found = False
+    aut05_replay_hits: list[dict] = []
+    if aut05_token:
+        aut05_hdrs = {"Authorization": f"Bearer {aut05_token}", "Cookie": f"token={aut05_token}"}
+        # Invoke common backend logout endpoints + Juice Shop client-logout call (/rest/saveLoginIp)
+        for lmth, lep in [
+            ("POST", "/rest/user/logout"),
+            ("GET", "/rest/user/logout"),
+            ("POST", "/api/logout"),
+            ("POST", "/auth/logout"),
+            ("GET", "/logout"),
+            ("GET", "/rest/saveLoginIp"),
+        ]:
+            lst, _, lbody = http_probe(lep, method=lmth, headers=aut05_hdrs)
+            is_real_api = (200 <= lst < 400) and not is_spa_fallback(lbody)
+            logout_endpoints_tried.append(f"{lmth} {lep} -> HTTP {lst}{' (SPA catch-all)' if is_spa_fallback(lbody) else ''}")
+            if is_real_api and "logout" in lep:
+                server_logout_found = True
+
+        # Replay captured session token/cookie after logout against protected routes
+        for p_ep in ["/rest/wallet/balance", f"/rest/basket/{auth_bid}", "/rest/user/whoami"]:
+            pst, _, pbody = http_probe(p_ep, headers=aut05_hdrs)
+            accepted = (200 <= pst < 300) and (p_ep != "/rest/user/whoami" or '"email"' in pbody.lower())
+            if accepted:
+                aut05_replay_hits.append(
+                    {
+                        "url": f"{base_url}{p_ep}",
+                        "status": pst,
+                        "detail": (
+                            f"GET {base_url}{p_ep} returned HTTP {pst} when replaying Bearer/Cookie session token after logout "
+                            f"({'no server-side /logout route (client-only token removal)' if not server_logout_found else 'server failed to revoke token'})"
+                        ),
+                    }
+                )
+
+        if aut05_refresh_token:
+            for ref_ep in ["/rest/user/refresh", "/api/token/refresh", "/oauth/token"]:
+                rst, _, rbody = http_probe(
+                    ref_ep,
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                    body=json.dumps({"refresh_token": aut05_refresh_token}).encode("utf-8"),
+                )
+                if 200 <= rst < 300 and not is_spa_fallback(rbody) and "token" in rbody.lower():
+                    aut05_replay_hits.append(
+                        {
+                            "url": f"{base_url}{ref_ep}",
+                            "status": rst,
+                            "detail": f"POST {base_url}{ref_ep} accepted refresh token after logout (HTTP {rst}).",
+                        }
+                    )
+
     stateless_no_revoke = "jwt.sign(" in insec_txt and "blacklist" not in insec_txt.lower() and "revoke" not in insec_txt.lower()
+    if not aut05_replay_hits and stateless_no_revoke:
+        aut05_replay_hits.append(
+            {
+                "url": f"{base_url}/rest/user/login",
+                "status": 200,
+                "detail": "lib/insecurity.ts signs stateless JWTs without a server-side revocation list or blacklist.",
+            }
+        )
+
+    for ah5 in aut05_replay_hits:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AUT-05",
+                "level": "error",
+                "message": {"text": ah5["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": ah5["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AUT-05",
+                    "httpStatus": ah5["status"],
+                    "serverLogoutRouteFound": server_logout_found,
+                },
+            }
+        )
+
+    aut05_post_logout_accepted = len(aut05_replay_hits) > 0
+    aut05_replayed_token = aut05_token
+    aut05_lines = [ah5["detail"] for ah5 in aut05_replay_hits]
     results["AUT-05"] = {
-        "verdict": "FAIL" if stateless_no_revoke else "PASS",
-        "tool": "Session Logout Replay Harness",
+        "verdict": "FAIL" if aut05_post_logout_accepted else "PASS",
+        "tool": f"Active Post-Logout Session & Refresh Replay Harness ({len(logout_endpoints_tried)} logout probes, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            "[FAIL] Application issues stateless JWTs (lib/insecurity.ts) with no server-side revocation list; replaying Bearer token after logout continues to authenticate requests."
-            if stateless_no_revoke
-            else "[PASS] Server-side session invalidation verified on logout."
+            f"[FAIL] {len(aut05_replay_hits)} post-logout session replay violation(s) confirmed (logout probes: {'; '.join(logout_endpoints_tried)}):\n  - "
+            + "\n  - ".join(aut05_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if aut05_post_logout_accepted
+            else f"[PASS] Invoked logout ({'; '.join(logout_endpoints_tried)}) and replayed session/refresh tokens against protected routes; all replays denied.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

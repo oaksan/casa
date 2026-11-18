@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-q73px/VV3DZUAc04wCJkVIvkgds\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-OMPtdG9w/83DHWBzBcsAXNpvyFA\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/20 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-FeX6XV98CexYoBjIGz7M82HM86Y\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/23 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-vQ3i6HeZ5Y9jXxjNJNh3ppykeCw\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/20"
+                  "uri": "http://localhost:3000/rest/basket/23"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/39 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-PDfSsKXNB5y2IaqgDYquEJFI9EI\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/42 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-l4xK/S7LhAAFdVsd2MGbgFxDhgQ\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/39"
+                  "uri": "http://localhost:3000/api/Users/42"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-y1+h07vbZfYaHK0PEVbJFp3IL4s\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-ITPI8dvL8NArQBi7qw/Ut4yjmpk\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -2026,7 +2026,7 @@
           "ruleId": "CASA3-CFG-10",
           "level": "error",
           "message": {
-            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.930 >= 0.90)"
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.926 >= 0.90)"
           },
           "locations": [
             {
@@ -2042,7 +2042,7 @@
             "findingKind": "exposed_admin_wordlist_path",
             "unauthStatus": 200,
             "authStatus": 200,
-            "lcsSimilarity": 0.93
+            "lcsSimilarity": 0.926
           }
         },
         {
@@ -2182,7 +2182,7 @@
           "ruleId": "CASA3-AUT-02",
           "level": "error",
           "message": {
-            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 11.05s: only 12/200 distinct (188 exact duplicate tokens, max identical collision=22/200; NIST SP 800-90B MCV min-entropy=3.18 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
+            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 8.61s: only 9/200 distinct (191 exact duplicate tokens, max identical collision=34/200; NIST SP 800-90B MCV min-entropy=2.56 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
           },
           "locations": [
             {
@@ -2196,10 +2196,10 @@
           "properties": {
             "controlId": "AUT-02",
             "samplesCollected": 200,
-            "distinctTokens": 12,
-            "duplicateTokens": 188,
-            "maxCollisionFrequency": 22,
-            "minEntropyBits": 3.18
+            "distinctTokens": 9,
+            "duplicateTokens": 191,
+            "maxCollisionFrequency": 34,
+            "minEntropyBits": 2.56
           }
         },
         {
@@ -2260,6 +2260,69 @@
           "properties": {
             "controlId": "AUT-04",
             "channel": "URL_Fragment_Access_Token"
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-05",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/wallet/balance returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/wallet/balance"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-05",
+            "httpStatus": 200,
+            "serverLogoutRouteFound": false
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-05",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/basket/23 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/basket/23"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-05",
+            "httpStatus": 200,
+            "serverLogoutRouteFound": false
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-05",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/user/whoami returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/whoami"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-05",
+            "httpStatus": 200,
+            "serverLogoutRouteFound": false
           }
         }
       ]

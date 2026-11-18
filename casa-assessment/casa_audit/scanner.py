@@ -2247,7 +2247,14 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
                     "url": redacted_har_url,
                     "httpVersion": "HTTP/1.1",
                     "headers": [
-                        {"name": k, "value": "[REDACTED]" if k.lower() in sensitive_hdrs else v}
+                        {
+                            "name": k,
+                            "value": (
+                                f"{v.split(' ', 1)[0]} [REDACTED]"
+                                if k.lower() == "authorization" and " " in str(v)
+                                else ("[REDACTED]" if k.lower() in sensitive_hdrs else v)
+                            ),
+                        }
                         for k, v in req_headers.items()
                     ],
                 },
@@ -6970,10 +6977,136 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
+    # OAU-08: Access token transport enforcement (Authorization: Bearer|DPoP header only; never URL query strings or fragments) (SARIF 2.1.0 + redacted HAR 1.2)
+    oau08_findings: list[dict] = []
+    seen_oau08_keys: set[tuple[str, str]] = set()
+    oau08_probes = 0
+    bearer_hdr_count = 0
+    idp_token_ep_re = re.compile(r"/(?:token|revoke|introspect)(?:$|[/?#])", re.IGNORECASE)
+
+    def _add_oau08(location: str, kind: str, detail: str, status: int = 0) -> None:
+        key8 = (location, kind)
+        if key8 not in seen_oau08_keys:
+            seen_oau08_keys.add(key8)
+            oau08_findings.append({"location": location, "kind": kind, "cwe": "CWE-598", "status": status, "detail": detail})
+
+    # 1. Active probe: test whether backend resource endpoints accept bearer token via URL query string (?access_token= / ?token=)
+    if base_url and aut05_token:
+        for qp_name in ("access_token", "token"):
+            q_st, _, q_body = http_probe(f"/rest/basket/{auth_bid}?{qp_name}={urllib.parse.quote(aut05_token)}")
+            oau08_probes += 1
+            if 200 <= q_st < 300 and (str(auth_bid) in q_body or '"Products"' in q_body):
+                _add_oau08(
+                    f"{base_url}/rest/basket/{auth_bid}",
+                    "Query_String_Bearer_Accepted",
+                    f"Resource endpoint GET /rest/basket/{auth_bid}?{qp_name}=[REDACTED] authenticated via URL query parameter (HTTP {q_st}; violates RFC 6750 §2.3).",
+                    status=q_st,
+                )
+
+    # 2. Scan full HAR 1.2 proxy log for resource requests bearing access tokens & verify Authorization Bearer/DPoP usage
+    jwt_url_re = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}")
+    for h_ent in har_entries:
+        req_obj = h_ent.get("request", {})
+        req_url = req_obj.get("url", "")
+        if idp_token_ep_re.search(urllib.parse.urlparse(req_url).path):
+            continue
+        for hdr in req_obj.get("headers", []):
+            if hdr.get("name", "").lower() == "authorization":
+                h_val = str(hdr.get("value", "")).strip()
+                if re.match(r"^(?:Bearer|DPoP)\s+", h_val, re.IGNORECASE) or h_val == "[REDACTED]":
+                    bearer_hdr_count += 1
+                else:
+                    _add_oau08(
+                        req_url.split("?", 1)[0],
+                        "Authorization_NonBearer_Scheme",
+                        f"Resource request {req_url.split('?', 1)[0]} used non-Bearer/DPoP Authorization scheme (OAU-08 requires Bearer or DPoP).",
+                    )
+        p_u8 = urllib.parse.urlparse(req_url)
+        if ("access_token=" in p_u8.query or "id_token=" in p_u8.query) and "rest/basket" not in p_u8.path:
+            _add_oau08(
+                req_url.split("?", 1)[0],
+                "HAR_Query_Access_Token",
+                f"Captured proxy request {req_url.split('?', 1)[0]} transmitted access_token/id_token in URL query string instead of Authorization header.",
+            )
+        elif jwt_url_re.search(p_u8.query) or jwt_url_re.search(p_u8.fragment):
+            _add_oau08(
+                req_url.split("?", 1)[0],
+                "HAR_URL_JWT_Exposure",
+                f"Captured proxy request {req_url.split('?', 1)[0]} placed JWT bearer token inside URL query/fragment (RFC 6750 §2.3).",
+            )
+
+    # 3. Inspect live JS bundles (main.js) & OAuth client sources + routing for resource query/fragment token transport
+    oau08_sources = list(combined_oauth_sources)
+    app_routing = repo / "frontend" / "src" / "app" / "app.routing.ts"
+    if app_routing.exists():
+        rt_txt = app_routing.read_text(encoding="utf-8", errors="ignore")
+        if ("app.routing.ts", rt_txt) not in oau08_sources and "frontend/src/app/app.routing.ts" not in [s[0] for s in oau08_sources]:
+            oau08_sources.append(("frontend/src/app/app.routing.ts", rt_txt))
+
+    query_tok_call_re = re.compile(
+        r"""(?:https?://[^\s'"`]+|\$\{[^}]+\}|this\.hostServer\s*\+\s*)['"`]?[^'"`\n]*\?(?:[^'"`\n]*&)?access_token=""",
+        re.IGNORECASE,
+    )
+    for src_name, src_body in oau08_sources:
+        m_qt = query_tok_call_re.search(src_body)
+        if m_qt:
+            lno8 = src_body[: m_qt.start()].count("\n") + 1 if not src_name.startswith("http") else 1
+            loc8 = f"{src_name}:{lno8}" if not src_name.startswith("http") else src_name
+            snippet8 = src_body[m_qt.start() : min(len(src_body), m_qt.end() + 45)].replace("\n", " ").strip()
+            _add_oau08(
+                loc8,
+                "Resource_Query_Access_Token_Transport",
+                f"{loc8} transmits OAuth access_token to a resource endpoint in the URL query string ({snippet8}) instead of an Authorization: Bearer header (RFC 6750 §2.3 / ASVS V3.1.1).",
+            )
+        if "access_token=" in src_body and ("#access_token=" in src_body or "OAuthMatcher" in src_body or "parseRedirectUrlParams().access_token" in src_body):
+            _add_oau08(
+                src_name,
+                "URL_Fragment_Access_Token_Transport",
+                f"{src_name} transports OAuth access_token via URL fragment (#access_token=), exposing token in browser history/routing instead of backend code exchange + Authorization header.",
+            )
+
+    for af_o8 in oau08_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-OAU-08",
+                "level": "error",
+                "message": {"text": af_o8["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_o8["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "OAU-08",
+                    "findingKind": af_o8["kind"],
+                    "cwe": af_o8["cwe"],
+                    "httpStatus": af_o8["status"],
+                },
+            }
+        )
+
+    oau08_fail = len(oau08_findings) > 0
+    oau08_lines = [f"[{o8['kind']}] {o8['detail']}" for o8 in oau08_findings]
     results["OAU-08"] = {
-        "verdict": "PASS",
-        "tool": "HAR Authorization Header Inspector",
-        "log": "[PASS] Access tokens transmitted via Authorization: Bearer header; none observed in URL query strings.",
+        "verdict": "FAIL" if oau08_fail else "PASS",
+        "tool": (
+            f"HAR 1.2 & JS Bundle Authorization Transport Inspector ({len(har_entries)} HAR requests, "
+            f"{bearer_hdr_count} Authorization: Bearer requests, {oau08_probes} query-token probes, "
+            f"{len(oau08_sources)} client/bundle artifacts, SARIF 2.1.0 + redacted HAR 1.2)"
+        ),
+        "log": (
+            f"[FAIL] {len(oau08_findings)} access-token transport violation(s) detected (RFC 6750 §2.3 / ASVS V3.1.1; {bearer_hdr_count} Bearer header requests observed in HAR):\n  - "
+            + "\n  - ".join(oau08_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if oau08_fail
+            else (
+                f"[PASS] Inspected {len(har_entries)} proxy HAR requests ({bearer_hdr_count} with Authorization: Bearer/DPoP), "
+                f"{oau08_probes} active query-token probes, and {len(oau08_sources)} client/bundle artifacts; 0 tokens sent in URL query strings or fragments.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            )
+        ),
     }
     results["OAU-09"] = {
         "verdict": "FAIL" if jwt_confusion else "PASS",

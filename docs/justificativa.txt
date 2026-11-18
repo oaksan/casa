@@ -4251,3 +4251,72 @@ Ao executar o motor atualizado da Iteração 64 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (11 resultados `CASA3-OAU-07`) e `output/dast-capture.har` (280 entradas redigidas).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 57/61: OAU-08 (Iteração SDD 065)
+================================================================================
+Título: Access tokens are transmitted only in the Authorization header; never in query strings or URL fragments
+Mapeamento Normativo: RFC 6750 §2.3; ASVS V3.1.1 (L1) | Superfície: All
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Tokens de acesso OAuth 2.0 enviados em parâmetros de query string ou fragmentos
+de URL ficam expostos em históricos de navegador, cabeçalhos `Referer`, logs de
+proxies reversos e servidores HTTP, violando o transporte exclusivo via
+cabeçalho `Authorization: Bearer` ou `DPoP` (RFC 6750 §2.3; ASVS V3.1.1). O
+Guia de Testes CASA 3.0 AL1 estabelece para `OAU-08`:
+- Evidência: Captura HAR 1.2 redigida e SARIF 2.1.0 para análise estática de
+  artefatos cliente;
+- Procedimento: Varrer todo o tráfego capturado/rastreado identificando cada
+  requisição portadora de token e registrando onde o token aparece;
+- Critério de Aprovação (PASS): Todo access token apresentado a endpoint de
+  recurso vai no cabeçalho `Authorization` (`Bearer` ou `DPoP`);
+- Critério de Falha (FAIL): >= 1 access token apresentado a endpoint de recurso
+  em query string, fragmento ou fora de `Authorization: Bearer|DPoP`.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Embora o backend do OWASP Juice Shop rejeite `?token=`/`?access_token=` em
+`/rest/basket/{bid}` (`HTTP 401`), o cliente Angular — tanto no bundle JS servido
+em produção (`http://localhost:3000/main.js`) quanto em `user.service.ts:68` —
+envia explicitamente o `access_token` na query string para o endpoint de recurso
+Google UserInfo (`https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=...`),
+além de receber tokens via fragmento `#access_token=` em `app.routing.ts` / `main.js`.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 065:
+  O controle `OAU-08` era um stub fixo que sempre retornava `PASS` ("Access
+  tokens transmitted via Authorization: Bearer header; none observed in URL
+  query strings"), ignorando o transporte explícito de `access_token` via query
+  string em `main.js` e `user.service.ts:68`, ignorando fragmentos `#access_token=`,
+  sem varrer `har_entries`, sem sondar endpoints com query bearer token e sem
+  emitir SARIF 2.1.0 (`CASA3-OAU-08`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 065 (`casa_audit/scanner.py`):
+  1. Preservação do Esquema no HAR Redigido (`Bearer [REDACTED]`):
+     Ajustado `http_probe` para manter o esquema (`Bearer [REDACTED]` /
+     `DPoP [REDACTED]`) sem expor o valor do token no arquivo HAR 1.2.
+  2. Varredura Integral do HAR 1.2 + Sondas Ativas de Query Bearer Token:
+     Analisa todas as requisições capturadas (`282` entradas HAR, validando `89`
+     requisições `Authorization: Bearer`), além de sondar `/rest/basket/{bid}`
+     com `?access_token=` e `?token=`.
+  3. Auditoria de Bundle JS em Execução (`main.js`) e Artefatos Cliente:
+     Detecta `userinfo?alt=json&access_token=` e transporte em `#access_token=`,
+     emitindo achados `CASA3-OAU-08` em SARIF 2.1.0.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 65 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Tráfego HAR 1.2 analisado: **282** requisições (`89` `Authorization: Bearer [REDACTED]`)
+- Sondas ativas `?access_token=`/`?token=`: **2** (rejeitadas no `/rest/basket/{bid}` com HTTP 401)
+- Violações `CASA3-OAU-08` detectadas (**4 achados**):
+  1. `[Resource_Query_Access_Token_Transport]` `http://localhost:3000/main.js` envia `access_token` em query string para `/oauth2/v1/userinfo`.
+  2. `[URL_Fragment_Access_Token_Transport]` `http://localhost:3000/main.js` trafega `#access_token=` via fragmento de URL.
+  3. `[Resource_Query_Access_Token_Transport]` `frontend/src/app/Services/user.service.ts:68` envia `?alt=json&access_token=` na URL em vez de `Authorization: Bearer`.
+  4. `[URL_Fragment_Access_Token_Transport]` `frontend/src/app/app.routing.ts` trafega `#access_token=` no roteamento cliente.
+- Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-OAU-08`) e `output/dast-capture.har` (282 entradas redigidas).
+- Veredito Automatizado: **FAIL** (corrigiu o falso `PASS` do stub anterior).
+================================================================================

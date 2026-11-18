@@ -155,9 +155,24 @@ rules:
 
   - id: CASA3-SAST-08-sql-injection
     languages: [typescript, javascript]
-    message: "SAST-08: Unparameterized SQL query constructed via string interpolation/concatenation (CWE-89)"
+    message: "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
     severity: ERROR
-    pattern-regex: "sequelize\\.query\\(\\s*`[^`]*\\$\\{"
+    pattern-either:
+      - pattern-regex: "sequelize\\.query\\(\\s*`[^`]*\\$\\{"
+      - pattern: "sequelize.query($Q + $INPUT, ...)"
+      - pattern: "$COLL.find({ $where: $EXPR + $INPUT })"
+      - pattern-regex: "\\$where\\s*:\\s*`[^`]*\\$\\{"
+      - pattern: "$DB.query($Q + $INPUT, ...)"
+
+  - id: CASA3-SAST-08-sql-nosql-python
+    languages: [python]
+    message: "SAST-08: Unparameterized SQL query constructed via string formatting or concatenation in Python (CWE-89)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "$CURSOR.execute(f\"...\", ...)"
+      - pattern: "$CURSOR.execute($Q + $INPUT, ...)"
+      - pattern: "$CURSOR.execute($Q % $INPUT, ...)"
+      - pattern: "$CURSOR.execute($Q.format(...), ...)"
 
   - id: CASA3-SAST-09-unsafe-deserialization
     languages: [typescript, javascript]

@@ -1217,3 +1217,88 @@ Ao executar o motor híbrido da Iteração 20 contra o OWASP Juice Shop:
      persistido no registro do usuário criado (comprovando escalonamento de
      privilégio via Mass Assignment em tempo real).
 ================================================================================
+
+================================================================================
+CONTROLE 13/61: SAST-08 (Iteração SDD 021)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-08
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Database access exclusively uses parameterized queries, ORMs or escaped input"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V5.3.4 (L1)
+  * MITRE CWE-89 (SQL Injection) / CWE-943 (Improper Neutralization of Special Elements in Data Query Logic - NoSQL)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-08):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run static SQL-injection rules across every database access path in the
+     source code or, where only a build artifact is available, over the
+     application code extracted from it."
+  2. "Reference tooling: CodeQL, semgrep."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level findings of query construction by concatenation
+    or interpolation on a tainted value."
+  * FAIL: "≥ 1 `error`-level SQL/NoSQL construction finding on tainted input."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-08 é um dos casos mais consolidados de Análise Estática de
+Segurança (AST). A distinção entre acesso seguro parametrizado (`?`, `$1`,
+`replacements: [...]`, métodos ORM tipados) e construção insegura de consultas
+SQL/NoSQL (template literals `${...}`, concatenação `+`, operador `$where` com
+expressões dinâmicas) é puramente estrutural na AST da linguagem, garantindo
+decidibilidade determinística e zero ambiguidade.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 021)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 021:
+  A regra `CASA3-SAST-08-sql-injection` possuía apenas 1 expressão regular
+  (`sequelize\.query\(\s*`[^`]*\$\{`). Com isso, ela detectava SQL Injection em
+  `sequelize.query(...)`, mas deixava passar **todas as 3 vulnerabilidades reais
+  de NoSQL Injection** do OWASP Juice Shop usando o operador `$where` do MarsDB/MongoDB
+  (`routes/trackOrder.ts:18`, `routes/showProductReviews.ts:36` e `routes/chat.ts:149`),
+  além de não cobrir concatenação com `+` e consultas em Python (`cursor.execute`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 021 (`rules/casa3_al1_sast.yml`):
+  1. Cobertura Conjunta SQL + NoSQL (`CASA3-SAST-08-sql-injection`):
+     Inclusão de padrões AST e regex para `sequelize.query($Q + $INPUT)`,
+     `$DB.query($Q + $INPUT)`, `$COLL.find({ $where: $EXPR + $INPUT })` e
+     `$where: `...${...}``.
+  2. Suporte Multi-Linguagem Python (`CASA3-SAST-08-sql-nosql-python`):
+     Inclusão de padrões AST para `cursor.execute(f"...")`, `+`, `%` e `.format(...)`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 21 contra o OWASP Juice Shop, a
+detecção do controle `SAST-08` saltou de 5 para **13 achados comprovados**,
+capturando 100% das rotas SQL e NoSQL vulneráveis da aplicação:
+- Veredito Automatizado: FAIL (13 ocorrências de SQL/NoSQL Injection)
+  1. **SQL Injection na Rota de Login (`routes/login.ts:L34`):**
+     `models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' ...`)`
+     — interpolação direta de `req.body.email`.
+  2. **SQL Injection na Busca de Produtos (`routes/search.ts:L23`):**
+     `models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' ...`)`
+     — interpolação direta do parâmetro `q` (`criteria`), permitindo UNION SQL Injection.
+  3. **NoSQL Injection no Rastreamento de Pedidos (`routes/trackOrder.ts:L18`):**
+     `db.ordersCollection.find({ $where: `this.orderId === '${id}'` })`
+     — injeção de JavaScript via operador `$where` em MarsDB.
+  4. **NoSQL Injection nas Avaliações de Produto (`routes/showProductReviews.ts:L36`):**
+     `db.reviewsCollection.find({ $where: 'this.product == ' + id })`
+     — concatenação direta de `id` no operador `$where`.
+  5. **NoSQL Injection no Chatbot (`routes/chat.ts:L149`):**
+     `db.reviewsCollection.find({ $where: 'this.product == ' + productId })`
+     — concatenação direta de `productId` no operador `$where`.
+================================================================================

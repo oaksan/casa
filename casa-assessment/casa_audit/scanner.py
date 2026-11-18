@@ -3427,13 +3427,81 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-05: Clickjacking protection
-    xfo = root_headers.get("x-frame-options", "")
-    clickjack_ok = xfo.upper() in {"DENY", "SAMEORIGIN"} or "frame-ancestors" in csp.lower()
+    # CFG-05: Clickjacking protection (frame-ancestors or X-Frame-Options DENY/SAMEORIGIN) across all HTML routes (SARIF 2.1.0 + HAR 1.2)
+    def has_valid_frame_ancestors(csp_str: str) -> tuple[bool, list[str]]:
+        if not csp_str:
+            return False, []
+        dirs = parse_csp_directives(csp_str)
+        fa = dirs.get("frame-ancestors", [])
+        if not fa:
+            return False, []
+        if "*" in fa:
+            return False, fa
+        valid_tokens = [
+            tok for tok in fa
+            if tok in {"'none'", "'self'"} or re.match(r"^(?:https?://)?[a-z0-9.*:-]+$", tok)
+        ]
+        return len(valid_tokens) == len(fa) and len(fa) > 0, fa
+
+    cfg05_findings: list[dict] = []
+    xfo_modes_seen: set[str] = set()
+    fa_routes_ok = 0
+
+    for key_url, ex in html_routes_seen.items():
+        r_xfo = ex["headers"].get("x-frame-options", "").strip().upper()
+        r_csp = ex["headers"].get("content-security-policy", "").strip()
+        xfo_ok = r_xfo in {"DENY", "SAMEORIGIN"}
+        fa_ok, fa_tokens = has_valid_frame_ancestors(r_csp)
+        if r_xfo:
+            xfo_modes_seen.add(r_xfo)
+        if fa_ok:
+            fa_routes_ok += 1
+        if not (xfo_ok or fa_ok):
+            cfg05_findings.append(
+                {
+                    "url": ex["url"],
+                    "method": ex["method"],
+                    "status": ex["status"],
+                    "detail": (
+                        f"{key_url} (HTTP {ex['status']}) lacks valid anti-clickjacking protection "
+                        f"(X-Frame-Options='{r_xfo or '<missing>'}', CSP frame-ancestors={fa_tokens or '<missing>'})"
+                    ),
+                }
+            )
+
+    for cf5 in cfg05_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-05",
+                "level": "error",
+                "message": {"text": cf5["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": cf5["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-05",
+                    "httpMethod": cf5["method"],
+                    "httpStatus": cf5["status"],
+                },
+            }
+        )
+
+    clickjack_ok = len(html_routes_seen) > 0 and len(cfg05_findings) == 0
+    cfg05_lines = [cf5["detail"] for cf5 in cfg05_findings]
     results["CFG-05"] = {
         "verdict": "PASS" if clickjack_ok else "FAIL",
-        "tool": "HTTP Header Inspector (HAR 1.2)",
-        "log": f"[{'PASS' if clickjack_ok else 'FAIL'}] X-Frame-Options: '{xfo or '<missing>'}', CSP frame-ancestors present: {'frame-ancestors' in csp.lower()}.",
+        "tool": f"Multi-Route Clickjacking Header & CSP frame-ancestors Inspector ({len(html_routes_seen)} HTML routes inspected, SARIF 2.1.0 + HAR 1.2)",
+        "log": (
+            f"[PASS] All {len(html_routes_seen)} HTML route(s) enforce anti-clickjacking directives (X-Frame-Options={sorted(xfo_modes_seen) or ['<none>']}, valid CSP frame-ancestors on {fa_routes_ok}/{len(html_routes_seen)} route(s)).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            if clickjack_ok
+            else f"[FAIL] {len(cfg05_findings)} HTML route(s) out of {len(html_routes_seen)} lack X-Frame-Options (DENY/SAMEORIGIN) and valid CSP frame-ancestors:\n  - "
+            + "\n  - ".join(cfg05_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+        ),
     }
 
     # CFG-06: X-Content-Type-Options: nosniff

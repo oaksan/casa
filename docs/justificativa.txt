@@ -2513,3 +2513,60 @@ Ao executar o motor atualizado da Iteração 36 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (39 resultados `CASA3-CFG-04`) e `output/dast-capture.har`.
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 29/61: CFG-05 (Iteração SDD 037)
+================================================================================
+Título: Clickjacking prevented via `frame-ancestors` or `X-Frame-Options`
+Mapeamento Normativo: OWASP ASVS V14.4.7 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Ataques de *Clickjacking* (UI Redressing) incorporam páginas sensíveis da
+aplicação em um `<iframe>` invisível sob domínio do atacante para induzir cliques
+não intencionais. O Guia de Testes CASA 3.0 AL1 estabelece para `CFG-05`:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP HAR 1.2;
+- Procedimento: Inspecionar os cabeçalhos de resposta ao longo de todo o crawl em
+  busca de `frame-ancestors` e `X-Frame-Options`;
+- Critério de Aprovação (PASS): Toda resposta HTML traz CSP `frame-ancestors` com
+  `'none'`, `'self'` ou lista explícita de origens, ou `X-Frame-Options: DENY`
+  ou `SAMEORIGIN`;
+- Critério de Falha (FAIL): >= 1 resposta HTML não traz nenhuma dessas diretivas
+  nas formas válidas exigidas.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Em `server.ts`, o OWASP Juice Shop registra o middleware `helmet.frameguard()`
+globalmente antes das rotas, injetando `X-Frame-Options: SAMEORIGIN` tanto na
+SPA principal quanto nos diretórios `serveIndex`, `/api-docs/` e páginas de erro
+HTML HTTP 500 — servindo como caso real de conformidade (`PASS`) mesmo sem CSP
+`frame-ancestors`.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 037:
+  O scanner checava apenas `root_headers` (`GET /`), aceitando a mera substring
+  `"frame-ancestors" in csp.lower()` (sem validar se a diretiva continha curinga
+  inseguro `*`), sem inspecionar as demais rotas HTML do crawl e sem emitir
+  achados/referências SARIF 2.1.0 + HAR 1.2.
+
+- Oportunidades de Melhoria Implementadas na Iteração 037 (`casa_audit/scanner.py`):
+  1. Verificação em 100% das Rotas HTML (`html_routes_seen`):
+     Valida cada rota HTML capturada no crawl para garantir que nenhuma página
+     secundária, Swagger UI ou página de erro escape da proteção anti-framing.
+  2. Parser Rigoroso de `frame-ancestors` e `X-Frame-Options`:
+     Exige `X-Frame-Options` em `{DENY, SAMEORIGIN}` ou CSP `frame-ancestors`
+     com `'none'`, `'self'` ou origens explícitas (rejeitando `*` e diretivas vazias).
+  3. Evidência DAST SARIF 2.1.0 (`CASA3-CFG-05`) + HAR 1.2:
+     Registra qualquer rota não conforme em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 37 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Rotas HTML inspecionadas ao longo do crawl: 39/39
+- Proteção verificada: `X-Frame-Options=['SAMEORIGIN']` presente em 100% das
+  39 rotas HTML (`valid CSP frame-ancestors on 0/39 route(s)`).
+- Artefatos gerados: `output/dast-findings.sarif` (0 violações `CASA3-CFG-05`) e `output/dast-capture.har`.
+- Veredito Automatizado: PASS
+================================================================================

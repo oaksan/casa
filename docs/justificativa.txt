@@ -3900,3 +3900,79 @@ Ao executar o motor atualizado da Iteração 59 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (2 resultados `CASA3-OAU-02`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 52/61: OAU-03 (Iteração SDD 060)
+================================================================================
+Título: The application registers only exact, non-wildcard redirect URIs, and its own callback endpoint contains no open redirect or forwarding chain
+Mapeamento Normativo: RFC 9700 §2.1; CWE-601 | Superfície: All
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+URI de redirecionamento OAuth 2.0 com curingas (`*`), esquema `http:` inseguro
+fora de loopback ou endpoints de callback com redirecionamento aberto permitem
+exfiltração de códigos de autorização e tokens de acesso (RFC 9700 §2.1 / CWE-601).
+O Guia de Testes CASA 3.0 AL1 estabelece para `OAU-03`:
+- Evidência: Captura HAR 1.2 redigida do fluxo de autorização e SARIF 2.1.0 para
+  análise de artefatos cliente;
+- Procedimento: Ler as redirect URIs registradas no fluxo/configuração e fazer
+  fuzzing nos parâmetros `redirect`, `next`, `continue`, `return_to` e
+  `RelayState` do endpoint de callback da aplicação;
+- Critério de Aprovação (PASS): Nenhuma redirect URI observada contém wildcard
+  ou `http:` não-loopback (`127.0.0.1`, `[::1]`, `localhost`) em superfície
+  `Mobile`/`Native`, e nenhum fuzz de callback gera `3xx Location`, meta-refresh
+  ou redirecionamento via script para host fora dos hosts observados;
+- Critério de Falha (FAIL): >= 1 wildcard redirect URI, >= 1 `http:` não-loopback
+  ou >= 1 redirecionamento externo no callback.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop expõe as configurações OAuth em runtime por meio de
+`GET /rest/admin/application-configuration` (`googleOauth.authorizedRedirects`),
+definidas também em `config/default.yml`, contendo 17 URIs registradas — entre
+elas 4 entradas `http:` não-loopback (`192.168.99.100:3000/4200` e
+`penguin.termina.linux.test:3000/4200`) — além da rota de forwarding `/redirect`
+suscetível a bypass de allowlist via query substring e path substring (`HTTP 302`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 060:
+  O controle `OAU-03` reutilizava apenas a flag booleana `open_redir_vuln` do
+  `AZI-06`, sem ler ou auditar as `redirect_uri` registradas em runtime/cliente
+  (wildcard e `http:` não-loopback), sem executar fuzzing nos endpoints de callback
+  com `redirect`, `next`, `continue`, `return_to` e `RelayState`, e sem emitir
+  SARIF 2.1.0 (`CASA3-OAU-03`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 060 (`casa_audit/scanner.py`):
+  1. Extrator Multi-Fonte de `redirect_uri`:
+     Ampliação opcional `max_bytes` em `http_probe` (512 KB) para leitura integral
+     de `GET /rest/admin/application-configuration`, somada à inspeção de
+     `har_entries`, `combined_oauth_sources` e `config/default.yml`.
+  2. Validação de Curingas e `http:` Não-Loopback:
+     Checa wildcards `*` e esquema `http:` fora de `{localhost, 127.0.0.1, ::1}`.
+  3. Fuzzer Ativo de Callback & Forwarding (`33` sondas):
+     Testa `/oauth`, `/callback`, `/oauth/callback`, `/auth/callback`,
+     `/api/auth/callback` e `/redirect` com `redirect`, `next`, `continue`,
+     `return_to`, `RelayState` e bypasses `to=` (`protocol_relative`,
+     `query_substring_bypass`, `path_substring_bypass`), inspecionando `3xx Location`,
+     `<meta http-equiv="refresh">` e redirecionamentos em script JS.
+  4. Emissão SARIF 2.1.0 (`CASA3-OAU-03`) + Redacted HAR 1.2.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 60 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Redirect URIs auditadas: **17** | Sondas de fuzzing executadas: **33**
+- Violações `CASA3-OAU-03` detectadas (**6 achados**):
+  1-4. `[CWE-319 / NonLoopback_HTTP_Redirect_URI]` `http://192.168.99.100:3000`,
+       `http://192.168.99.100:4200`, `http://penguin.termina.linux.test:3000` e
+       `http://penguin.termina.linux.test:4200` registrados em
+       `/rest/admin/application-configuration#googleOauth.uri` e `config/default.yml`.
+  5. `[CWE-601 / Callback_Open_Redirect_query_substring_bypass]` `GET /redirect?to=...`
+     retornou `HTTP 302 Location: https://oau03-evil.example.com?https://github.com/juice-shop/juice-shop`.
+  6. `[CWE-601 / Callback_Open_Redirect_path_substring_bypass]` `GET /redirect?to=...`
+     retornou `HTTP 302 Location: https://oau03-evil.example.com/https://github.com/juice-shop/juice-shop`.
+- Artefatos gerados: `output/dast-findings.sarif` (6 resultados `CASA3-OAU-03`) e `output/dast-capture.har` (272 entradas redigidas).
+- Veredito Automatizado: FAIL
+================================================================================

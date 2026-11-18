@@ -2200,6 +2200,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         headers: dict[str, str] | None = None,
         body: bytes | None = None,
         follow_redirects: bool = True,
+        max_bytes: int = 16384,
     ) -> tuple[int, dict[str, str], str]:
         url = f"{base_url}{path}" if path.startswith("/") else path
         req_headers = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
@@ -2218,12 +2219,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             with opener.open(req, timeout=6) as resp:
                 status = resp.status
                 resp_headers = {k.lower(): v for k, v in resp.headers.items()}
-                resp_body = resp.read(16384).decode("utf-8", errors="ignore")
+                resp_body = resp.read(max_bytes).decode("utf-8", errors="ignore")
         except urllib.error.HTTPError as he:
             status = he.code
             resp_headers = {k.lower(): v for k, v in he.headers.items()}
             try:
-                resp_body = he.read(16384).decode("utf-8", errors="ignore")
+                resp_body = he.read(max_bytes).decode("utf-8", errors="ignore")
             except Exception:
                 resp_body = ""
         except Exception as exc:
@@ -6320,13 +6321,229 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             else f"[PASS] Verified PKCE with code_challenge_method=S256, code_challenge >= 43 chars, and code_verifier across all {len(combined_oauth_sources)} OAuth artifacts.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
+    # OAU-03: Exact non-wildcard redirect URIs & callback open-redirect / forwarding chain fuzzing (SARIF 2.1.0 + redacted HAR 1.2)
+    oau03_observed_redirects: dict[str, set[str]] = {}
+    loopback_hosts = {"localhost", "127.0.0.1", "::1"}
+
+    def _add_observed_redirect(uri_val: str, src_label: str) -> None:
+        u_clean = uri_val.strip().strip("'\"")
+        if not u_clean or "${" in u_clean or "<" in u_clean:
+            return
+        if u_clean.startswith(("http://", "https://")) or "://" in u_clean or "*" in u_clean:
+            oau03_observed_redirects.setdefault(u_clean, set()).add(src_label)
+
+    # 1a. Live application OAuth configuration & crawled HAR captures
+    if base_url:
+        cfg_st, _, cfg_body = http_probe("/rest/admin/application-configuration", max_bytes=524288)
+        if cfg_st == 200 and cfg_body:
+            try:
+                cfg_json = json.loads(cfg_body)
+                auth_redirs = (
+                    cfg_json.get("config", {})
+                    .get("application", {})
+                    .get("googleOauth", {})
+                    .get("authorizedRedirects", [])
+                )
+                if isinstance(auth_redirs, list):
+                    for redir_entry in auth_redirs:
+                        if isinstance(redir_entry, dict):
+                            for r_key in ("uri", "proxy"):
+                                if isinstance(redir_entry.get(r_key), str):
+                                    _add_observed_redirect(
+                                        redir_entry[r_key],
+                                        f"/rest/admin/application-configuration#googleOauth.{r_key}",
+                                    )
+            except Exception:
+                pass
+
+    for h_ent in har_entries:
+        req_u = h_ent.get("request", {}).get("url", "")
+        if "redirect_uri=" in req_u:
+            qs_map = urllib.parse.parse_qs(urllib.parse.urlparse(req_u).query)
+            for rv in qs_map.get("redirect_uri", []):
+                _add_observed_redirect(rv, f"HAR:{req_u.split('?', 1)[0]}")
+
+    # 1b. Client JS bundles, OAuth client components, and config/default.yml
+    for src_name, src_body in combined_oauth_sources:
+        for m_ru in re.finditer(r"redirect_uri=([^\s\"'`&<>]+)", src_body):
+            _add_observed_redirect(urllib.parse.unquote(m_ru.group(1)), src_name)
+
+    default_yml = repo / "config" / "default.yml"
+    if default_yml.exists():
+        yml_txt = default_yml.read_text(encoding="utf-8", errors="ignore")
+        in_auth_redirs = False
+        for line_y in yml_txt.splitlines():
+            if re.match(r"^\s*authorizedRedirects\s*:", line_y):
+                in_auth_redirs = True
+                continue
+            if in_auth_redirs:
+                if re.match(r"^\s*-\s*\{", line_y):
+                    for m_kv in re.finditer(r"(?:uri|proxy)\s*:\s*['\"]([^'\"]+)['\"]", line_y):
+                        _add_observed_redirect(m_kv.group(1), "config/default.yml#authorizedRedirects")
+                elif line_y.strip() and not line_y.lstrip().startswith("#"):
+                    in_auth_redirs = False
+
+    allowed_oauth_hosts: set[str] = set()
+    if host:
+        allowed_oauth_hosts.add(host.lower())
+    for u_obs in oau03_observed_redirects:
+        p_obs = urllib.parse.urlparse(u_obs if "://" in u_obs else f"https://{u_obs}")
+        if p_obs.hostname and "*" not in p_obs.hostname:
+            allowed_oauth_hosts.add(p_obs.hostname.lower())
+
+    oau03_findings: list[dict] = []
+    seen_oau03_keys: set[tuple[str, str]] = set()
+    oau03_probes = 0
+    loopback_http_count = 0
+
+    # 2. Evaluate registered redirect URIs against OAU-03 criteria (wildcards & non-loopback http:)
+    for obs_uri, obs_srcs in sorted(oau03_observed_redirects.items()):
+        p_u = urllib.parse.urlparse(obs_uri)
+        obs_host = (p_u.hostname or "").lower()
+        src_desc = ", ".join(sorted(obs_srcs))
+        if "*" in obs_uri:
+            k3 = ("Wildcard_Redirect_URI", obs_uri)
+            if k3 not in seen_oau03_keys:
+                seen_oau03_keys.add(k3)
+                oau03_findings.append(
+                    {
+                        "location": src_desc,
+                        "kind": "Wildcard_Redirect_URI",
+                        "cwe": "CWE-601",
+                        "status": 0,
+                        "detail": f"Registered OAuth redirect URI '{obs_uri}' ({src_desc}) contains wildcard '*' (prohibited by RFC 9700 §2.1).",
+                    }
+                )
+        if p_u.scheme.lower() == "http":
+            if obs_host in loopback_hosts:
+                loopback_http_count += 1
+            else:
+                k3 = ("NonLoopback_HTTP_Redirect_URI", obs_uri)
+                if k3 not in seen_oau03_keys:
+                    seen_oau03_keys.add(k3)
+                    oau03_findings.append(
+                        {
+                            "location": src_desc,
+                            "kind": "NonLoopback_HTTP_Redirect_URI",
+                            "cwe": "CWE-319",
+                            "status": 0,
+                            "detail": (
+                                f"Registered OAuth redirect URI '{obs_uri}' ({src_desc}) uses cleartext 'http:' on non-loopback host '{obs_host}' "
+                                "(violates RFC 9700 §2.1 / OAU-03)."
+                            ),
+                        }
+                    )
+
+    # 3. Fuzz application callback & forwarding endpoints across redirect/next/continue/return_to/RelayState (+ to bypasses)
+    callback_candidates: list[str] = [
+        "/oauth",
+        "/callback",
+        "/oauth/callback",
+        "/auth/callback",
+        "/api/auth/callback",
+        "/redirect",
+    ]
+    for obs_uri in oau03_observed_redirects:
+        p_cb = urllib.parse.urlparse(obs_uri)
+        if p_cb.hostname and host and p_cb.hostname.lower() == host.lower() and p_cb.path and p_cb.path not in {"", "/"}:
+            if p_cb.path not in callback_candidates:
+                callback_candidates.append(p_cb.path)
+
+    oau03_sentinel = "https://oau03-evil.example.com/cb"
+    oau03_params = ("redirect", "next", "continue", "return_to", "RelayState")
+
+    def _inspect_oau03_redirect_response(ep_path: str, param_name: str, payload_lbl: str, r_st: int, r_hdrs: dict[str, str], r_body: str) -> None:
+        redir_loc = extract_redirect_target(r_st, r_hdrs, r_body)
+        if not redir_loc:
+            m_js = re.search(
+                r'(?:window\.)?location(?:\.href)?\s*=\s*["\']([^"\']*oau03-evil\.example\.com[^"\']*)["\']'
+                r'|location\.(?:replace|assign)\(\s*["\']([^"\']*oau03-evil\.example\.com[^"\']*)["\']',
+                r_body,
+                re.IGNORECASE,
+            )
+            if m_js:
+                redir_loc = (m_js.group(1) or m_js.group(2) or "").strip()
+        if not redir_loc:
+            return
+        norm_loc = f"https:{redir_loc}" if redir_loc.startswith("//") else redir_loc
+        dest_host = (urllib.parse.urlparse(norm_loc).hostname or "").lower()
+        if dest_host and (dest_host == "oau03-evil.example.com" or (allowed_oauth_hosts and dest_host not in allowed_oauth_hosts)):
+            k3 = (f"Callback_Open_Redirect_{payload_lbl}", f"{ep_path}?{param_name}")
+            if k3 not in seen_oau03_keys:
+                seen_oau03_keys.add(k3)
+                oau03_findings.append(
+                    {
+                        "location": f"{base_url}{ep_path}",
+                        "kind": f"Callback_Open_Redirect_{payload_lbl}",
+                        "cwe": "CWE-601",
+                        "status": r_st,
+                        "detail": (
+                            f"GET {base_url}{ep_path}?{param_name}=... ({payload_lbl}) returned HTTP {r_st} redirect target "
+                            f"'{redir_loc}' resolving to host '{dest_host}' outside observed OAuth redirect hosts (CWE-601)."
+                        ),
+                    }
+                )
+
+    if base_url:
+        for cb_ep in callback_candidates:
+            for cb_param in oau03_params:
+                q_str = urllib.parse.urlencode({cb_param: oau03_sentinel})
+                fz_st, fz_hdrs, fz_body = http_probe(f"{cb_ep}?{q_str}", follow_redirects=False)
+                oau03_probes += 1
+                _inspect_oau03_redirect_response(cb_ep, cb_param, "direct", fz_st, fz_hdrs, fz_body)
+
+            if "redirect" in cb_ep:
+                bypass_payloads = [
+                    ("protocol_relative", "//oau03-evil.example.com/cb"),
+                    ("query_substring_bypass", "https://oau03-evil.example.com?https://github.com/juice-shop/juice-shop"),
+                    ("path_substring_bypass", "https://oau03-evil.example.com/https://github.com/juice-shop/juice-shop"),
+                ]
+                for bp_lbl, bp_val in bypass_payloads:
+                    q_bp = urllib.parse.urlencode({"to": bp_val})
+                    fz_st, fz_hdrs, fz_body = http_probe(f"{cb_ep}?{q_bp}", follow_redirects=False)
+                    oau03_probes += 1
+                    _inspect_oau03_redirect_response(cb_ep, "to", bp_lbl, fz_st, fz_hdrs, fz_body)
+
+    for af_o3 in oau03_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-OAU-03",
+                "level": "error",
+                "message": {"text": af_o3["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_o3["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "OAU-03",
+                    "findingKind": af_o3["kind"],
+                    "cwe": af_o3["cwe"],
+                    "httpStatus": af_o3["status"],
+                },
+            }
+        )
+
+    oau03_vuln = len(oau03_findings) > 0
+    oau03_lines = [f"[{o3['cwe']} / {o3['kind']}] {o3['detail']}" for o3 in oau03_findings]
     results["OAU-03"] = {
-        "verdict": "FAIL" if open_redir_vuln else "PASS",
-        "tool": "OAuth Redirect URI Validator",
+        "verdict": "FAIL" if oau03_vuln else "PASS",
+        "tool": (
+            f"OAuth 2.0 Redirect URI & Callback Fuzz Analyzer ({len(oau03_observed_redirects)} registered URIs, "
+            f"{oau03_probes} callback fuzz probes across redirect/next/continue/return_to/RelayState, SARIF 2.1.0 + redacted HAR 1.2)"
+        ),
         "log": (
-            "[FAIL] Application contains unvalidated redirect forwarding chain (routes/redirect.ts) reachable from callback flows."
-            if open_redir_vuln
-            else "[PASS] Exact redirect URI registration verified."
+            f"[FAIL] {len(oau03_findings)} OAuth 2.0 redirect URI / callback forwarding violation(s) detected across {len(oau03_observed_redirects)} registered URI(s) and {oau03_probes} fuzz probe(s):\n  - "
+            + "\n  - ".join(oau03_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if oau03_vuln
+            else (
+                f"[PASS] Audited {len(oau03_observed_redirects)} OAuth redirect URI(s) ({loopback_http_count} loopback dev URI(s), 0 wildcards, 0 non-loopback http: URIs) "
+                f"and {oau03_probes} callback fuzz probes (redirect, next, continue, return_to, RelayState); 0 external 3xx/meta/script redirects observed.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            )
         ),
     }
     has_state = "state=" in login_txt and "nonce=" in login_txt

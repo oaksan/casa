@@ -1,6 +1,6 @@
 {
   "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
-  "scannedAt": "2026-11-18T16:31:48.395730+00:00",
+  "scannedAt": "2026-11-18T16:38:33.522937+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "tlsHandshake": {
@@ -24,6 +24,23 @@
     "strongForwardSecrecyOffered": [],
     "bannedSuitesOffered": [],
     "nonForwardSecrecyTls12Offered": []
+  },
+  "certificate": {
+    "probedPort": 3000,
+    "present": false,
+    "chainTrustedToPublicRoot": false,
+    "hostnameMatches": false,
+    "notExpired": false,
+    "remainingDays": null,
+    "subject": null,
+    "issuer": null,
+    "san": [],
+    "notBefore": null,
+    "notAfter": null,
+    "warnings": [],
+    "errors": [
+      "No TLS/X.509 endpoint reachable on localhost:3000 ([SSL: RECORD_LAYER_FAILURE] record layer failure (_ssl.c:1033))"
+    ]
   },
   "tls01CleartextEnforcement": {
     "cleartextPort": 3000,
@@ -69,6 +86,24 @@
     "strongForwardSecrecyOffered": [],
     "bannedSuitesOffered": [],
     "nonForwardSecrecyTls12Offered": [],
+    "verdict": "FAIL"
+  },
+  "tls04CertificateValidation": {
+    "probedPort": 3000,
+    "present": false,
+    "chainTrustedToPublicRoot": false,
+    "hostnameMatches": false,
+    "notExpired": false,
+    "remainingDays": null,
+    "subject": null,
+    "issuer": null,
+    "san": [],
+    "notBefore": null,
+    "notAfter": null,
+    "warnings": [],
+    "errors": [
+      "No TLS/X.509 endpoint reachable on localhost:3000 ([SSL: RECORD_LAYER_FAILURE] record layer failure (_ssl.c:1033))"
+    ],
     "verdict": "FAIL"
   }
 }

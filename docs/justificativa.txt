@@ -1980,3 +1980,76 @@ Ao executar o motor atualizado da Iteração 29 contra o OWASP Juice Shop (`http
   Forward Secrecy é oferecida na porta `3000` porque a aplicação serve todo o
   tráfego em HTTP não criptografado.
 ================================================================================
+
+================================================================================
+CONTROLE 22/61: TLS-04 (Iteração SDD 030)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: TLS-04
+- Domínio: 3. Transport Security
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Certificate chain is valid, trusted, unexpired and matches the hostname"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V9.2.1 (L2)
+  * CA/Browser Forum Baseline Requirements
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 3 - TLS-04):
+
+- Evidência Exigida (Evidence):
+  1. "Machine-readable (JSON) TLS scanner output, for every declared host."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "From the TLS assessment, validate the certificate chain of each declared
+     host against a public root store and check hostname match and expiry."
+  2. "Reference tooling: testssl.sh, Qualys SSL Labs."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Chain validates to a public root, the certificate is not expired
+    at scan time, and CN/SAN matches every host tested; remaining lifetime under
+    30 days is reported informational."
+  * FAIL: "Any chain validation error, expired certificate, or hostname mismatch."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle TLS-04 verifica 4 invariantes criptográficas e temporais sobre o
+certificado X.509v3 servido no handshake TLS:
+  $$\text{PASS} \iff \text{Present} \land \text{ChainTrusted}(\text{PublicRootStore}) \land (\text{now} \in [\text{notBefore}, \text{notAfter}]) \land (\text{host} \in \text{SAN} \cup \{\text{CN}\})$$
+Com o critério adicional informacional quando $0 \le (\text{notAfter} - \text{now}) < 30\text{ dias}$.
+Cada componente dessa fórmula possui verificação determinística via validação
+PKIX do OpenSSL/Python (`ssl.create_default_context()`) e parsing dos campos
+ASN.1 DER do certificado (`openssl x509 -inform DER`).
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 030)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 030:
+  O scanner checava apenas o booleano `cert_valid` de um handshake genérico, sem
+  extrair `subject`, `issuer`, `SANs`, `notBefore`, `notAfter` nem o número de
+  dias restantes (`remainingDays`), sem emitir alerta informacional para janela
+  `< 30 dias` e sem registrar a seção `.certificate` no JSON `output/tls-scan.json`.
+
+- Oportunidades de Melhoria Implementadas na Iteração 030 (`casa_audit/scanner.py`):
+  1. Validação PKIX Completa e Extração ASN.1 DER (`probe_x509_certificate`):
+     - Executa verificação estrita contra o repositório público de raízes
+       (`ssl.create_default_context()`) e correspondência de hostname;
+     - Extrai o certificado binário DER e usa `openssl x509` para inspecionar
+       `subject`, `issuer`, `notBefore`, `notAfter`, lista `subjectAltName` e
+       calcular `remainingDays` (emitindo aviso informacional se `< 30 dias`).
+  2. Persistência em JSON (`output/tls-scan.json`):
+     Grava `.certificate` e `tls04CertificateValidation` com todos os atributos X.509.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 30 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Registro `.certificate` em `output/tls-scan.json`:
+  `present=False`, `chainTrustedToPublicRoot=False`, `hostnameMatches=False`, `notExpired=False`
+- Veredito Automatizado: FAIL
+  Justificativa do Motor: Nenhum endpoint TLS / certificado X.509 foi encontrado
+  na porta `3000` (`[SSL: RECORD_LAYER_FAILURE]`), confirmando a ausência total
+  de autenticação de servidor via PKI/X.509.
+================================================================================

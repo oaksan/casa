@@ -2449,6 +2449,115 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         and len(cipher_audit["nonForwardSecrecyTls12Offered"]) == 0
     )
 
+    # TLS-04: X.509 certificate chain validation against public root store, hostname/SAN match, expiry & <30d warning
+    def probe_x509_certificate(target_h: str, target_p: int) -> dict:
+        info: dict = {
+            "probedPort": target_p,
+            "present": False,
+            "chainTrustedToPublicRoot": False,
+            "hostnameMatches": False,
+            "notExpired": False,
+            "remainingDays": None,
+            "subject": None,
+            "issuer": None,
+            "san": [],
+            "notBefore": None,
+            "notAfter": None,
+            "warnings": [],
+            "errors": [],
+        }
+        der_cert: bytes | None = None
+        # 1. Strict verification against public root store & hostname
+        try:
+            ctx_strict = ssl.create_default_context()
+            with socket.create_connection((target_h, target_p), timeout=3.0) as s:
+                with ctx_strict.wrap_socket(s, server_hostname=target_h) as ss:
+                    der_cert = ss.getpeercert(binary_form=True)
+                    info["chainTrustedToPublicRoot"] = True
+                    info["hostnameMatches"] = True
+        except ssl.SSLCertVerificationError as verr:
+            msg_v = str(verr)
+            info["errors"].append(f"X.509 verification failed: {msg_v}")
+            if "hostname mismatch" not in msg_v.lower() and "doesn't match" not in msg_v.lower():
+                # Still inspect certificate metadata via unverified socket
+                pass
+        except Exception as exc:
+            info["errors"].append(f"No TLS/X.509 endpoint reachable on {target_h}:{target_p} ({exc})")
+
+        # 2. Extract certificate metadata via binary DER + openssl x509 if TLS endpoint answered
+        if der_cert is None:
+            try:
+                ctx_raw = ssl._create_unverified_context()
+                with socket.create_connection((target_h, target_p), timeout=3.0) as s:
+                    with ctx_raw.wrap_socket(s, server_hostname=target_h) as ss:
+                        der_cert = ss.getpeercert(binary_form=True)
+            except Exception:
+                pass
+
+        if der_cert:
+            info["present"] = True
+            try:
+                x509_proc = subprocess.run(
+                    ["openssl", "x509", "-inform", "DER", "-noout", "-subject", "-issuer", "-dates", "-ext", "subjectAltName"],
+                    input=der_cert,
+                    capture_output=True,
+                    timeout=4,
+                )
+                out_txt = x509_proc.stdout.decode("utf-8", errors="ignore")
+                for line in out_txt.splitlines():
+                    ls = line.strip()
+                    if ls.startswith("subject="):
+                        info["subject"] = ls[len("subject="):].strip()
+                    elif ls.startswith("issuer="):
+                        info["issuer"] = ls[len("issuer="):].strip()
+                    elif ls.startswith("notBefore="):
+                        info["notBefore"] = ls[len("notBefore="):].strip()
+                    elif ls.startswith("notAfter="):
+                        info["notAfter"] = ls[len("notAfter="):].strip()
+                    elif "DNS:" in ls or "IP Address:" in ls:
+                        info["san"] = [item.strip() for item in ls.split(",")]
+
+                if info["notAfter"]:
+                    dt_exp = datetime.datetime.fromtimestamp(ssl.cert_time_to_seconds(info["notAfter"]), tz=datetime.timezone.utc)
+                    now_utc = datetime.datetime.now(datetime.timezone.utc)
+                    rem_days = (dt_exp - now_utc).days
+                    info["remainingDays"] = rem_days
+                    if rem_days >= 0:
+                        info["notExpired"] = True
+                        if rem_days < 30:
+                            info["warnings"].append(
+                                f"Informational: certificate expires in {rem_days} day(s) (< 30 days threshold)"
+                            )
+                    else:
+                        info["errors"].append(f"Certificate expired {abs(rem_days)} day(s) ago (notAfter={info['notAfter']})")
+
+                # Explicit CN/SAN hostname check when strict handshake errored
+                if not info["hostnameMatches"]:
+                    target_l = target_h.lower()
+                    san_hosts = [s.split(":", 1)[1].strip().lower() for s in info["san"] if ":" in s]
+                    cn_m = re.search(r"CN\s*=\s*([^,/]+)", info["subject"] or "")
+                    cn_host = cn_m.group(1).strip().lower() if cn_m else ""
+                    if target_l in san_hosts or target_l == cn_host:
+                        info["hostnameMatches"] = True
+                    else:
+                        info["errors"].append(f"Hostname mismatch: expected '{target_h}', certificate CN='{cn_host}', SAN={san_hosts}")
+            except Exception as exc:
+                info["errors"].append(f"Failed to parse X.509 DER metadata: {exc}")
+
+        return info
+
+    cert_audit = (
+        probe_x509_certificate(host, protocol_target_port)
+        if host
+        else {"present": False, "chainTrustedToPublicRoot": False, "hostnameMatches": False, "notExpired": False, "warnings": [], "errors": ["No host"]}
+    )
+    tls04_pass = (
+        bool(cert_audit["present"])
+        and bool(cert_audit["chainTrustedToPublicRoot"])
+        and bool(cert_audit["notExpired"])
+        and bool(cert_audit["hostnameMatches"])
+    )
+
     tls_scan_report = {
         "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
         "scannedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -2464,6 +2573,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         },
         "protocols": protocols_matrix,
         "cipherSuites": cipher_audit,
+        "certificate": cert_audit,
         "tls01CleartextEnforcement": {
             "cleartextPort": cleartext_http_port,
             "probes": cleartext_probe_records,
@@ -2479,6 +2589,10 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         "tls03CipherEnforcement": {
             **cipher_audit,
             "verdict": "PASS" if tls03_pass else "FAIL",
+        },
+        "tls04CertificateValidation": {
+            **cert_audit,
+            "verdict": "PASS" if tls04_pass else "FAIL",
         },
     }
     tls_json_path.write_text(json.dumps(tls_scan_report, indent=2), encoding="utf-8")
@@ -2530,10 +2644,19 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
+    cert_warn_note = (
+        f"\n  - {'; '.join(cert_audit['warnings'])}" if cert_audit.get("warnings") else ""
+    )
     results["TLS-04"] = {
-        "verdict": "PASS" if cert_valid else "FAIL",
-        "tool": "X.509 Chain Validator",
-        "log": f"[{'PASS' if cert_valid else 'FAIL'}] Certificate validation on {host}:{port}: {'Valid trusted chain' if cert_valid else 'No valid TLS certificate (Cleartext HTTP or untrusted CA)'}.",
+        "verdict": "PASS" if tls04_pass else "FAIL",
+        "tool": f"X.509 Certificate Chain, Public Root Store, Expiry & CN/SAN Validator ({host}:{protocol_target_port}, JSON)",
+        "log": (
+            f"[PASS] X.509 certificate on {host}:{protocol_target_port} validates to public root store, matches CN/SAN ({cert_audit.get('san')}), and is unexpired ({cert_audit.get('remainingDays')} days remaining; notAfter={cert_audit.get('notAfter')}).{cert_warn_note}\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            if tls04_pass
+            else f"[FAIL] TLS-04 X.509 validation failed on {host}:{protocol_target_port}: "
+            + ("; ".join(cert_audit["errors"]) if cert_audit["errors"] else "No X.509 certificate served over cleartext HTTP")
+            + f".\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+        ),
     }
     hsts = root_headers.get("strict-transport-security", "")
     hsts_m = re.search(r"max-age=(\d+)", hsts, re.IGNORECASE)

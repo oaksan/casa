@@ -7240,7 +7240,67 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 8: Webhook Security (WHK-01 .. WHK-03) ----
-    for cid in ["WHK-01", "WHK-02", "WHK-03"]:
+    whk_receivers, whk_files, whk_scanned_files, whk_disc_probes = discover_webhook_facilities(
+        repo,
+        base_url=base_url,
+        http_fn=http_probe if base_url else None,
+    )
+
+    # WHK-01: Cleartext HTTP webhook delivery refusal + TLS 1.2+ enforcement (testssl.sh-compatible TLS matrix, HAR 1.2, SARIF 2.1.0)
+    whk01_verdict, whk01_probes, whk01_findings, whk01_tls_matrices = evaluate_whk01_delivery_tls(
+        whk_receivers,
+        webhook_files=whk_files,
+        http_fn=http_probe if base_url else None,
+        tls_matrix_fn=probe_protocol_matrix if host else None,
+    )
+    for af_w1 in whk01_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-WHK-01",
+                "level": "error",
+                "message": {"text": af_w1["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_w1["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "WHK-01",
+                    "findingKind": af_w1["kind"],
+                    "cwe": af_w1["cwe"],
+                    "httpStatus": af_w1["status"],
+                },
+            }
+        )
+    whk01_lines = [f"[{w1['kind']}] {w1['detail']}" for w1 in whk01_findings]
+    results["WHK-01"] = {
+        "verdict": whk01_verdict,
+        "tool": (
+            f"Webhook Delivery & TLS 1.2+ Verifier (scanned {whk_scanned_files} repo files, {whk_disc_probes} discovery probes, "
+            f"{len(whk_receivers)} receivers, {whk01_probes} cleartext/TLS probes, SARIF 2.1.0 + redacted HAR 1.2 + TLS JSON)"
+        ),
+        "log": (
+            f"[FAIL] {len(whk01_findings)} webhook cleartext / legacy-TLS violation(s) detected across {len(whk_receivers)} receiver(s) and {whk01_probes} probe(s):\n  - "
+            + "\n  - ".join(whk01_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+            if whk01_verdict == "FAIL"
+            else (
+                f"[PASS] Audited {len(whk_receivers)} webhook receiver(s) ({whk01_probes} cleartext/TLS probes, {len(whk01_tls_matrices)} TLS matrices); "
+                f"100% cleartext deliveries denied (or 3xx->HTTPS) and only TLS 1.2/1.3 negotiated.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                if whk01_verdict == "PASS"
+                else (
+                    f"[Not_Covered] Audited {whk_scanned_files} workspace source/config files and executed {whk_disc_probes} HTTP POST discovery probes "
+                    f"(/webhook, /webhooks, /api/webhook, /api/webhooks, /rest/webhook, /hooks/callback); 0 inbound webhook receivers or outbound webhook callback facilities observed.\n"
+                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                )
+            )
+        ),
+    }
+
+    for cid in ["WHK-02", "WHK-03"]:
         results[cid] = {
             "verdict": "Not_Covered",
             "tool": "Webhook Scope Inspector",
@@ -7602,6 +7662,239 @@ def evaluate_oau06_client_secret_scanner(
         verdict = "Not_Covered"
 
     return verdict, files_scanned, bin_count, findings, client_ids
+
+
+def discover_webhook_facilities(
+    repo: Path,
+    base_url: str = "",
+    http_fn=None,
+) -> tuple[list[str], dict[str, str], int, int]:
+    """
+    Domain 8 Webhook Discovery Engine (WHK-01 .. WHK-03).
+    Scans source/config artifacts for inbound webhook receivers, signing-secret handlers,
+    or outbound webhook callback registration facilities, and actively probes candidate
+    HTTP POST webhook receiver routes (excluding SPA HTML fallbacks).
+    Returns: (receivers, webhook_files, files_scanned, discovery_probes)
+    """
+    skip_dirs = {".git", "node_modules", "dist", "build", "venv", ".venv", "ftp", "frontend/dist", ".angular", "Pods"}
+    exts = {".ts", ".js", ".py", ".go", ".java", ".rb", ".yml", ".yaml", ".json"}
+    route_sig_re = re.compile(
+        r"""(?:app|router)\.(?:post|all)\s*\(\s*['"]([^'"]*(?:webhook|hooks)[^'"]*)['"]"""
+        r"""|@(?:Post|RequestMapping|app\.route)\s*\(\s*['"]([^'"]*(?:webhook|hooks)[^'"]*)['"]"""
+        r"""|X-Hub-Signature|X-Webhook-Signature|webhook-signature|Stripe-Signature|Standard-Webhooks"""
+        r"""|\b(?:webhook_url|webhookUrl|callback_url|callbackUrl|SIGNING_SECRET|WEBHOOK_SECRET)\b""",
+        re.IGNORECASE,
+    )
+    url_extract_re = re.compile(r"""(?:webhook_url|webhookUrl|endpoint|receiver)\s*[:=]\s*['"](https?://[^'"\s]+)['"]""", re.IGNORECASE)
+
+    webhook_files: dict[str, str] = {}
+    receivers: list[str] = []
+    files_scanned = 0
+    discovery_probes = 0
+
+    if repo.exists():
+        for root_dir, dirnames, filenames in os.walk(repo):
+            rel_root = os.path.relpath(root_dir, repo)
+            if rel_root == ".":
+                rel_root = ""
+            dirnames[:] = [d for d in dirnames if d not in skip_dirs and not (f"{rel_root}/{d}".strip("/") in skip_dirs)]
+            for fname in filenames:
+                if fname.endswith((".spec.ts", ".test.ts", ".spec.js", ".test.js")):
+                    continue
+                fpath = Path(root_dir) / fname
+                if fpath.suffix.lower() not in exts:
+                    continue
+                rel_path = f"{rel_root}/{fname}".lstrip("./")
+                files_scanned += 1
+                try:
+                    txt = fpath.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    continue
+                if route_sig_re.search(txt):
+                    webhook_files[rel_path] = txt
+                    for m_u in url_extract_re.finditer(txt):
+                        u_val = m_u.group(1).strip()
+                        if u_val not in receivers:
+                            receivers.append(u_val)
+                    if base_url:
+                        for m_rt in route_sig_re.finditer(txt):
+                            rt_p = (m_rt.group(1) or m_rt.group(2) or "").strip()
+                            if rt_p.startswith("/"):
+                                full_r = f"{base_url.rstrip('/')}{rt_p}"
+                                if full_r not in receivers:
+                                    receivers.append(full_r)
+
+    if base_url and http_fn:
+        spa_st, _, spa_body = http_fn("/__casa3_whk_nonexistent__", method="POST", body=b"{}")
+        discovery_probes += 1
+        spa_sig = spa_body[:300].strip() if spa_st == 200 else ""
+        for wp in ["/webhook", "/webhooks", "/api/webhook", "/api/webhooks", "/rest/webhook", "/hooks/callback"]:
+            wst, _, wbody = http_fn(
+                wp,
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                body=b'{"event":"casa3.webhook.probe","id":"whk-disc-01"}',
+                follow_redirects=False,
+            )
+            discovery_probes += 1
+            if wst in {0, 404, 405, 501}:
+                continue
+            if wst >= 500 and ("Unexpected path:" in wbody or "Cannot POST" in wbody or "<title>Error:" in wbody):
+                continue
+            if "<app-root" in wbody or "Cannot POST" in wbody or (spa_sig and wbody[:300].strip() == spa_sig):
+                continue
+            full_w = f"{base_url.rstrip('/')}{wp}"
+            if full_w not in receivers:
+                receivers.append(full_w)
+
+    return receivers, webhook_files, files_scanned, discovery_probes
+
+
+def evaluate_whk01_delivery_tls(
+    receivers: list[str],
+    webhook_files: dict[str, str] | None = None,
+    http_fn=None,
+    tls_matrix_fn=None,
+) -> tuple[str, int, list[dict], dict[str, dict]]:
+    """
+    WHK-01 Cleartext Delivery Rejection & TLS 1.2+ Enforcement Verifier (CASA v2.1.1 §7.1.1).
+    Attempts delivery to each receiver over cleartext HTTP (accepting 3xx -> https:// as denied per Test Guide),
+    and verifies TLS 1.0/1.1 refusal + TLS 1.2/1.3 negotiation on receiver hosts.
+    Returns: (verdict, probes_sent, sarif_findings, receiver_tls_matrices)
+    """
+    if not receivers and not webhook_files:
+        return "Not_Covered", 0, [], {}
+
+    def _default_post(url: str) -> tuple[int, dict[str, str], str]:
+        class _NoRedir(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                return None
+
+        opener = urllib.request.build_opener(_NoRedir)
+        req = urllib.request.Request(
+            url,
+            data=b'{"event":"casa3.whk01.probe","id":"whk01-01"}',
+            headers={"Content-Type": "application/json", "User-Agent": "ADA-CASA-3.0-WHK01/3.0"},
+            method="POST",
+        )
+        try:
+            with opener.open(req, timeout=3) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(4096).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, ""
+        except Exception:
+            return 0, {}, ""
+
+    def _default_tls_matrix(t_host: str, t_port: int) -> dict[str, str]:
+        mat: dict[str, str] = {}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            for lbl, tv in [
+                ("TLS 1.0", ssl.TLSVersion.TLSv1),
+                ("TLS 1.1", ssl.TLSVersion.TLSv1_1),
+                ("TLS 1.2", ssl.TLSVersion.TLSv1_2),
+                ("TLS 1.3", ssl.TLSVersion.TLSv1_3),
+            ]:
+                offered = False
+                try:
+                    ctx_w = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                    ctx_w.check_hostname = False
+                    ctx_w.verify_mode = ssl.CERT_NONE
+                    ctx_w.set_ciphers("ALL:@SECLEVEL=0")
+                    ctx_w.minimum_version = tv
+                    ctx_w.maximum_version = tv
+                    with socket.create_connection((t_host, t_port), timeout=2.0) as sk:
+                        with ctx_w.wrap_socket(sk, server_hostname=t_host) as ss:
+                            if ss.version():
+                                offered = True
+                except Exception:
+                    pass
+                mat[lbl] = "offered" if offered else "not offered"
+        return mat
+
+    findings: list[dict] = []
+    seen_keys: set[tuple[str, str]] = set()
+    probes = 0
+    tls_results: dict[str, dict] = {}
+    matrix_probe = tls_matrix_fn or _default_tls_matrix
+
+    def _add_whk01(loc: str, kind: str, detail: str, status: int = 0) -> None:
+        key_w = (loc, kind)
+        if key_w not in seen_keys:
+            seen_keys.add(key_w)
+            findings.append({"location": loc, "kind": kind, "cwe": "CWE-319", "status": status, "detail": detail})
+
+    for w_url in receivers:
+        pw = urllib.parse.urlparse(w_url)
+        whost = pw.hostname or ""
+        wpath = pw.path or "/"
+        if pw.query:
+            wpath += f"?{pw.query}"
+        if not whost:
+            continue
+
+        # 1. Test cleartext http:// delivery (even if declared URL is https://, construct http:// counterpart)
+        http_url = f"http://{whost}:{pw.port or 80}{wpath}" if pw.scheme == "http" else f"http://{whost}{wpath}"
+        if http_fn:
+            c_st, c_hdrs, _ = http_fn(
+                http_url,
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                body=b'{"event":"casa3.whk01.probe","id":"whk01-01"}',
+                follow_redirects=False,
+            )
+        else:
+            c_st, c_hdrs, _ = _default_post(http_url)
+        probes += 1
+
+        if 200 <= c_st < 300:
+            _add_whk01(
+                http_url,
+                "WHK01_Cleartext_Delivery_Accepted",
+                f"Webhook receiver {http_url} accepted cleartext HTTP POST delivery (HTTP {c_st}; violates CASA v2.1.1 §7.1.1).",
+                status=c_st,
+            )
+        elif 300 <= c_st < 400:
+            loc_h = c_hdrs.get("location", "").strip()
+            if not loc_h.lower().startswith("https://"):
+                _add_whk01(
+                    http_url,
+                    "WHK01_NonHTTPS_Redirect",
+                    f"Webhook receiver {http_url} returned HTTP {c_st} redirect to non-HTTPS destination '{loc_h}'.",
+                    status=c_st,
+                )
+
+        # 2. Assess TLS versions (TLS 1.0/1.1 refused, TLS 1.2 or 1.3 offered) on receiver HTTPS port
+        if pw.scheme == "https" or pw.port == 443:
+            tls_port = pw.port or 443
+            mat_w = matrix_probe(whost, tls_port)
+            tls_results[f"{whost}:{tls_port}"] = mat_w
+            probes += 4
+            legacy_w = [v for v in ("TLS 1.0", "TLS 1.1") if mat_w.get(v) == "offered"]
+            modern_w = [v for v in ("TLS 1.2", "TLS 1.3") if mat_w.get(v) == "offered"]
+            if legacy_w:
+                _add_whk01(
+                    f"https://{whost}:{tls_port}",
+                    "WHK01_Legacy_TLS_Offered",
+                    f"Webhook receiver {whost}:{tls_port} negotiated deprecated TLS version(s) {legacy_w} (WHK-01 requires TLS 1.2+ only).",
+                )
+            elif not modern_w:
+                _add_whk01(
+                    f"https://{whost}:{tls_port}",
+                    "WHK01_No_TLS12_Plus",
+                    f"Webhook receiver {whost}:{tls_port} failed to negotiate TLS 1.2 or TLS 1.3.",
+                )
+
+    for rel_f, f_body in (webhook_files or {}).items():
+        for m_cu in re.finditer(r"""(?:webhook_url|webhookUrl|endpoint|receiver)\s*[:=]\s*['"](http://[^'"\s]+)['"]""", f_body, re.IGNORECASE):
+            _add_whk01(
+                rel_f,
+                "WHK01_Static_Cleartext_URL",
+                f"{rel_f} configures webhook delivery target over cleartext '{m_cu.group(1)}' instead of https://.",
+            )
+
+    verdict = "FAIL" if findings else "PASS"
+    return verdict, probes, findings, tls_results
 
 
 def evaluate_sast07_mass_assignment_probe(target_url: str) -> str | None:

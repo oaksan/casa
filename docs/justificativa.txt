@@ -4386,3 +4386,65 @@ Ao executar o motor atualizado da Iteração 66 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (10 resultados `CASA3-OAU-09`) e `output/dast-capture.har` (299 entradas redigidas).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 59/61: WHK-01 (Iteração SDD 067)
+================================================================================
+Título: Webhook traffic is delivered exclusively over HTTPS with TLS 1.2+; cleartext endpoints are refused
+Mapeamento Normativo: CASA v2.1.1 §7.1.1; Standard Webhooks | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Receptores de webhook que aceitam entregas em HTTP em texto claro ou versões
+obsoletas TLS 1.0/1.1 expõem eventos assinados, payloads confidenciais e
+cabeçalhos HMAC a interceptação/downgrade (CASA v2.1.1 §7.1.1; Standard
+Webhooks). O Guia de Testes CASA 3.0 AL1 estabelece para `WHK-01`:
+- Evidência: Captura HAR 1.2 redigida das tentativas de entrega, JSON compatível
+  com `testssl.sh` para o host receptor e SARIF 2.1.0 para checagens estáticas;
+- Procedimento: Tentar entregar payloads ao receptor via HTTP em claro, TLS 1.0
+  e TLS 1.1 e executar avaliação TLS sobre o host receptor;
+- Critério de Aprovação (PASS): Toda entrega em claro é recusada (um `3xx`
+  redirecionando para receptor HTTPS conta como recusado) e o receptor negocia
+  apenas TLS 1.2 ou 1.3;
+- Critério de Falha (FAIL): >= 1 entrega em claro aceita ou versão TLS legada
+  negociada.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop não implementa receptores de webhook de entrada nem
+disparadores de saída (`/webhook`, `/webhooks`, `/api/webhook`, `/api/webhooks`,
+`/rest/webhook`, `/hooks/callback` retornam fallback SPA ou `HTTP 500 Unexpected
+path:`, e 0 arquivos entre os **657** artefatos de repositório declaram rotas
+ou assinaturas de webhook). O motor atualiza a simples string estática anterior
+para executar descoberta ativa + estática real e retornar `Not_Covered`
+fundamentado no Juice Shop, além de validar `FAIL` e `PASS` em fixtures reais.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 067:
+  Os controles `WHK-01..WHK-03` exibiam uma mensagem estática fixa
+  `Not_Covered` sem varrer o repositório por rotas/URLs/assinaturas de webhook,
+  sem sondar rotas de webhook em HTTP, sem testar recusa HTTP (`3xx -> https://`)
+  ou matriz TLS 1.0/1.1/1.2/1.3 e sem emitir SARIF 2.1.0 (`CASA3-WHK-01`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 067 (`casa_audit/scanner.py`):
+  1. Motor de Descoberta Multi-Fonte (`discover_webhook_facilities`):
+     Varre código/configs (`.ts`, `.js`, `.py`, `.go`, `.java`, `.rb`, `.yml`,
+     `.json`) buscando rotas e headers (`X-Hub-Signature`, `Standard-Webhooks`,
+     `webhookUrl`) e executa 7 sondas `POST` filtrando fallbacks HTML de SPA e
+     rotas Express não mapeadas (`Unexpected path:`).
+  2. Verificador Ativo de Entrega HTTP & Matriz TLS (`evaluate_whk01_delivery_tls`):
+     Testa entrega `http://` em claro (`FollowRedirects=False`), tratando `3xx -> https://`
+     como recusa válida e `2xx` como `WHK01_Cleartext_Delivery_Accepted`, avalia
+     handshakes TLS 1.0/1.1/1.2/1.3 sobre o receptor e emite `CASA3-WHK-01` em
+     SARIF 2.1.0 + HAR 1.2 + `tls-scan.json`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP E FIXTURES (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+- OWASP Juice Shop (`http://localhost:3000`): **Not_Covered** após varredura real de **657** arquivos e **7** sondas HTTP `POST` (`0` receptores/disparadores de webhook).
+- Fixture receptor HTTP `202` em claro + config `http://`: **FAIL** (`WHK01_Cleartext_Delivery_Accepted`, `WHK01_Static_Cleartext_URL`).
+- Fixture receptor com recusa `301 -> https://` + TLS 1.2/1.3 exclusivo: **PASS**.
+- Veredito Automatizado no OWASP Juice Shop: Not_Covered
+================================================================================

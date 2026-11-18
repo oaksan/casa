@@ -16,6 +16,7 @@ from casa_audit.scanner import (
     compute_shannon_entropy,
     evaluate_oau05_system_browser_policy,
     evaluate_oau06_client_secret_scanner,
+    evaluate_whk01_delivery_tls,
     load_controls,
     run_automated_al1_scan,
 )
@@ -164,6 +165,24 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertIn("CONTROLE 56/61: OAU-07", just_txt)
         self.assertIn("CONTROLE 57/61: OAU-08", just_txt)
         self.assertIn("CONTROLE 58/61: OAU-09", just_txt)
+        self.assertIn("CONTROLE 59/61: WHK-01", just_txt)
+
+        wf_fail, _, wf_hits, _ = evaluate_whk01_delivery_tls(
+            ["https://hooks.example.com/webhook"],
+            webhook_files={"hooks.ts": "const webhookUrl = 'http://hooks.example.com/webhook'"},
+            http_fn=lambda *a, **kw: (202, {}, "accepted"),
+            tls_matrix_fn=lambda h, p: {"TLS 1.0": "offered", "TLS 1.1": "not offered", "TLS 1.2": "offered", "TLS 1.3": "not offered"},
+        )
+        self.assertEqual(wf_fail, "FAIL")
+        self.assertGreaterEqual(len(wf_hits), 3)
+
+        wf_pass, _, wf_hits_p, _ = evaluate_whk01_delivery_tls(
+            ["https://hooks.example.com/webhook"],
+            http_fn=lambda *a, **kw: (301, {"location": "https://hooks.example.com/webhook"}, ""),
+            tls_matrix_fn=lambda h, p: {"TLS 1.0": "not offered", "TLS 1.1": "not offered", "TLS 1.2": "offered", "TLS 1.3": "offered"},
+        )
+        self.assertEqual(wf_pass, "PASS")
+        self.assertEqual(wf_hits_p, [])
         with tempfile.TemporaryDirectory() as tmpdir6:
             td6 = Path(tmpdir6)
             (td6 / "app.apk").write_bytes(

@@ -1044,3 +1044,88 @@ Ao executar o motor atualizado da Iteração 18 contra o OWASP Juice Shop:
      persistência direta da senha do usuário no banco SQLite/Sequelize usando MD5
      rápido e determinístico (permitindo ataques instantâneos de rainbow tables e GPU).
 ================================================================================
+
+================================================================================
+CONTROLE 11/61: SAST-06 (Iteração SDD 019)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-06
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "All security-relevant randomness uses a CSPRNG"
+- Padrões de Referência:
+  * MITRE CWE-338 (Use of Cryptographically Weak PRNG)
+  * OWASP ASVS v4.0.3: V6.3.1, V6.3.2 (L2)
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-06):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run static rules that find non-cryptographic random sources and time-based
+     seeds, with data-flow tracking to token, key, nonce, salt, IV and
+     password-reset sinks."
+  2. "Reference tooling: semgrep."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level taint paths from a non-CSPRNG source to a
+    security-relevant sink."
+  * FAIL: "≥ 1 `error`-level taint path from a non-CSPRNG source to a
+    security-relevant sink."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+No CASA 2.1.1, o requisito de aleatoriedade era único; no CASA 3.0, ele foi
+dividido (Tabela 1 da Especificação: *"Randomness in AL1 (SAST-06); verifier
+lifecycle in AL2 (AUT-11)"*) precisamente porque o uso de PRNGs previsíveis
+(`Math.random()`, `random.random()`, `Date.now()`, `new Date()`) em contextos
+críticos é decidível por **Análise de Fluxo de Dados (`mode: taint` no Semgrep)**:
+  - **Sources:** `Math.random()`, `Date.now()`, `new Date()`, `random.random/randint/choice()`, `time.time()`.
+  - **Sinks de Segurança:** `expressJwt({ secret })`, `jwt.sign`, geração de
+    senhas, CAPTCHA anti-automação, IVs (`createCipheriv`), salts (`pbkdf2`) e
+    hashes de tokens (`security.hash`).
+Essa modelagem elimina falsos positivos em usos benignos (como sorteio de preços,
+quantidades de estoque ou tempo estimado de entrega).
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 019)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 019:
+  A regra `CASA3-SAST-06-insecure-randomness` usava apenas um casamento sintático
+  cego (`pattern: Math.random()`), gerando 3 falsos positivos em dados de
+  catálogo (`data/datacreator.ts:323, 381, 756` — quantidade, preço e ETA) e
+  não detectando sementes baseadas em tempo (`new Date()`, `Date.now()`) nem
+  PRNGs inseguros em Python (`random.*`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 019 (`rules/casa3_al1_sast.yml`):
+  1. Conversão para Semgrep Taint Analysis (`mode: taint`):
+     Definição formal de `pattern-sources` (`Math.random()`, `Date.now()`,
+     `new Date()`) e `pattern-sinks` (segredo JWT, geração de CAPTCHA, IVs,
+     salts PBKDF2, geração de senhas e tokens).
+  2. Suporte Multi-Linguagem Python (`CASA3-SAST-06-insecure-randomness-python`):
+     Rastreamento de taint de `random.random()`, `random.randint()`, `random.choice()`
+     e `time.time()` para sinks de token/segredo/PBKDF2 em Python.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado com `mode: taint` contra o OWASP Juice Shop:
+- Redução de Ruído / Falsos Positivos: Os 3 falsos positivos de catálogo
+  (`quantity`, `price`, `eta`) foram eliminados com 100% de precisão.
+- Veredito Automatizado: FAIL (7 caminhos reais de Taint para sinks de segurança)
+  1. **Segredo JWT com PRNG Inseguro (`lib/insecurity.ts:L53`):**
+     `Math.random()` flui diretamente para `expressJwt({ secret: '' + Math.random() })`
+     no middleware `denyAll`.
+  2. **Semente Baseada em Timestamp em Identificador B2B (`routes/b2bOrder.ts:L41`):**
+     `new Date()` flui para `security.hash(`${(new Date()).toString()}_B2B`)`
+     para gerar identificadores previsíveis de pedidos corporativos.
+  3. **Geração de Desafio CAPTCHA Anti-Automação (`routes/captcha.ts:L14-19`):**
+     5 fluxos de `Math.random()` gerando os termos e operadores matemáticos do
+     CAPTCHA (`firstTerm`, `secondTerm`, `thirdTerm`, `firstOperator`, `secondOperator`).
+================================================================================

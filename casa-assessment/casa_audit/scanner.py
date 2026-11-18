@@ -17,6 +17,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import warnings
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -2314,6 +2315,74 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
 
     tls01_pass = tls_handshake_ok and is_https and len(cleartext_findings) == 0
+
+    # TLS-02: Probe every SSL/TLS protocol version independently (SSLv2, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, TLS 1.3)
+    def probe_protocol_matrix(target_h: str, target_p: int) -> dict[str, str]:
+        matrix: dict[str, str] = {}
+
+        def _raw_hello(record: bytes, expected_ver: bytes | None) -> bool:
+            try:
+                with socket.create_connection((target_h, target_p), timeout=2.0) as s:
+                    s.settimeout(2.0)
+                    s.sendall(record)
+                    resp = s.recv(64)
+                    if expected_ver is None:
+                        return len(resp) > 3 and resp[2] == 0x04 and not resp.startswith(b"HTTP/")
+                    return (
+                        len(resp) >= 11
+                        and resp[0] == 0x16
+                        and resp[5] == 0x02
+                        and resp[9:11] == expected_ver
+                    )
+            except Exception:
+                return False
+
+        sslv2_hello = (
+            b"\x80\x2e\x01\x00\x02\x00\x15\x00\x00\x00\x10\x07\x00\xc0\x05\x00\x80\x03\x00\x80\x01\x00\x80\x06\x00\x40\x04\x00\x80\x02\x00\x80"
+            + b"\x11" * 16
+        )
+        matrix["SSLv2"] = "offered" if _raw_hello(sslv2_hello, None) else "not offered"
+
+        sslv3_body = b"\x03\x00" + b"\x11" * 32 + b"\x00\x00\x04\x00\x2f\x00\x35\x01\x00"
+        sslv3_hs = b"\x01" + len(sslv3_body).to_bytes(3, "big") + sslv3_body
+        sslv3_rec = b"\x16\x03\x00" + len(sslv3_hs).to_bytes(2, "big") + sslv3_hs
+        matrix["SSLv3"] = "offered" if _raw_hello(sslv3_rec, b"\x03\x00") else "not offered"
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            for label, tv in [
+                ("TLS 1.0", ssl.TLSVersion.TLSv1),
+                ("TLS 1.1", ssl.TLSVersion.TLSv1_1),
+                ("TLS 1.2", ssl.TLSVersion.TLSv1_2),
+                ("TLS 1.3", ssl.TLSVersion.TLSv1_3),
+            ]:
+                offered = False
+                try:
+                    ctx_p = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                    ctx_p.check_hostname = False
+                    ctx_p.verify_mode = ssl.CERT_NONE
+                    ctx_p.set_ciphers("ALL:@SECLEVEL=0")
+                    ctx_p.minimum_version = tv
+                    ctx_p.maximum_version = tv
+                    with socket.create_connection((target_h, target_p), timeout=2.0) as s:
+                        with ctx_p.wrap_socket(s, server_hostname=target_h) as ss:
+                            if ss.version():
+                                offered = True
+                except Exception:
+                    pass
+                matrix[label] = "offered" if offered else "not offered"
+        return matrix
+
+    protocol_target_port = port
+    protocols_matrix = (
+        probe_protocol_matrix(host, protocol_target_port)
+        if host
+        else {"SSLv2": "not offered", "SSLv3": "not offered", "TLS 1.0": "not offered", "TLS 1.1": "not offered", "TLS 1.2": "not offered", "TLS 1.3": "not offered"}
+    )
+    deprecated_offered = [p for p in ("SSLv2", "SSLv3", "TLS 1.0", "TLS 1.1") if protocols_matrix.get(p) == "offered"]
+    modern_offered = [p for p in ("TLS 1.2", "TLS 1.3") if protocols_matrix.get(p) == "offered"]
+    tls02_pass = bool(modern_offered) and len(deprecated_offered) == 0
+
     tls_scan_report = {
         "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
         "scannedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -2327,11 +2396,18 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             "cipherSuite": cipher_info[0] if cipher_info else None,
             "error": tls_handshake_error or None,
         },
+        "protocols": protocols_matrix,
         "tls01CleartextEnforcement": {
             "cleartextPort": cleartext_http_port,
             "probes": cleartext_probe_records,
             "violations": cleartext_findings,
             "verdict": "PASS" if tls01_pass else "FAIL",
+        },
+        "tls02ProtocolEnforcement": {
+            "probedPort": protocol_target_port,
+            "modernOffered": modern_offered,
+            "deprecatedOffered": deprecated_offered,
+            "verdict": "PASS" if tls02_pass else "FAIL",
         },
     }
     tls_json_path.write_text(json.dumps(tls_scan_report, indent=2), encoding="utf-8")
@@ -2348,10 +2424,23 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             + f"\n\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
+    proto_summary = ", ".join(f"{k}={v}" for k, v in protocols_matrix.items())
     results["TLS-02"] = {
-        "verdict": "PASS" if tls_version in {"TLSv1.2", "TLSv1.3"} else "FAIL",
-        "tool": "TLS Protocol Handshake Analyzer",
-        "log": f"[{'PASS' if tls_version in {'TLSv1.2', 'TLSv1.3'} else 'FAIL'}] Negotiated TLS protocol version on {host}:{port}: {tls_version or 'None (Cleartext HTTP)'}.",
+        "verdict": "PASS" if tls02_pass else "FAIL",
+        "tool": f"TLS Protocol Matrix Analyzer (SSLv2..TLS 1.3 on {host}:{protocol_target_port}, JSON)",
+        "log": (
+            f"[PASS] On {host}:{protocol_target_port}, modern TLS offered ({', '.join(modern_offered)}) and all legacy protocols rejected ({proto_summary}).\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            if tls02_pass
+            else (
+                f"[FAIL] TLS-02 violation on {host}:{protocol_target_port}: "
+                + (
+                    f"Deprecated protocol(s) offered: {', '.join(deprecated_offered)}"
+                    if deprecated_offered
+                    else "Neither TLS 1.2 nor TLS 1.3 is offered (endpoint serves cleartext HTTP / refuses TLS)"
+                )
+                + f".\nProtocol Matrix (.protocols): {proto_summary}\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            )
+        ),
     }
     results["TLS-03"] = {
         "verdict": "PASS" if cipher_info else "FAIL",

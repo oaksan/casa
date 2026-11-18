@@ -1833,3 +1833,74 @@ Ao executar o motor atualizado da Iteração 27 contra o OWASP Juice Shop (`http
   3. `GET http://localhost:3000/rest/user/login` respondeu com **2.928 bytes em texto claro** sem redirect `3xx` para HTTPS.
   4. `GET http://localhost:3000/api/Products` respondeu `HTTP 200` com **16.383 bytes de catálogo JSON em texto claro** sem redirect para HTTPS.
 ================================================================================
+
+================================================================================
+CONTROLE 20/61: TLS-02 (Iteração SDD 028)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: TLS-02
+- Domínio: 3. Transport Security
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Only TLS 1.2 and TLS 1.3 enabled; SSLv3, TLS 1.0 and TLS 1.1 rejected"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V9.1.3 (L1)
+  * NIST SP 800-52 Rev.2 (Guidelines for the Selection, Configuration, and Use
+    of Transport Layer Security Implementations)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 3 - TLS-02):
+
+- Evidência Exigida (Evidence):
+  1. "Machine-readable (JSON) TLS scanner output, for every declared host."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "From the TLS assessment, read the protocol versions each declared host offers."
+  2. "Reference tooling: testssl.sh, Qualys SSL Labs."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "`.protocols` reports TLS 1.2 or TLS 1.3 `offered` on every declared
+    host, and SSLv2, SSLv3, TLS 1.0 and TLS 1.1 all `not offered`."
+  * FAIL: "Any of SSLv2, SSLv3, TLS 1.0 or TLS 1.1 reported `offered`, or a
+    declared host does not complete a TLS 1.2 or 1.3 handshake."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle TLS-02 é uma função booleana estrita sobre o conjunto finito de
+versões do protocolo SSL/TLS:
+$$\text{PASS} \iff \big(\text{TLS 1.2} \lor \text{TLS 1.3} = \text{offered}\big) \land \big(\forall p \in \{\text{SSLv2}, \text{SSLv3}, \text{TLS 1.0}, \text{TLS 1.1}\}: p = \text{not offered}\big)$$
+Isso requer sondar **cada protocolo isoladamente** (forçando `minimum_version = maximum_version = p` no handshake TLS ou enviando `ClientHello` bruto para `SSLv2`/`SSLv3`), pois um único handshake padrão negociaria apenas a versão mais alta e ocultaria suporte a downgrade legado (`TLS 1.0`/`1.1`).
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 028)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 028:
+  O scanner verificava apenas a versão negociada em 1 handshake único padrão
+  (`if tls_version in {"TLSv1.2", "TLSv1.3"}`). Se um servidor HTTPS suportasse
+  `TLS 1.3`, mas também mantivesse `TLS 1.0` ou `TLS 1.1` habilitados para
+  downgrade, o código anterior gerava um **falso `PASS`**, além de não gerar
+  a matriz `.protocols` no JSON.
+
+- Oportunidades de Melhoria Implementadas na Iteração 028 (`casa_audit/scanner.py`):
+  1. Sonda Ativa Independente de Todas as 6 Versões (`probe_protocol_matrix`):
+     - `SSLv2` e `SSLv3`: envia `ClientHello` binário bruto e verifica se há
+       `ServerHello` compatível (contornando a remoção de SSLv3 no cliente OpenSSL 3.5);
+     - `TLS 1.0`, `TLS 1.1`, `TLS 1.2`, `TLS 1.3`: executa handshakes isolados
+       com `ALL:@SECLEVEL=0` e `minimum_version = maximum_version` para cada versão.
+  2. Persistência Estruturada em `output/tls-scan.json`:
+     Grava o objeto `.protocols` e o bloco `tls02ProtocolEnforcement` conforme
+     o critério do Test Guide.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar a sonda completa do `TLS-02` contra o OWASP Juice Shop (`http://localhost:3000`):
+- Matriz `.protocols` em `output/tls-scan.json`:
+  `SSLv2=not offered, SSLv3=not offered, TLS 1.0=not offered, TLS 1.1=not offered, TLS 1.2=not offered, TLS 1.3=not offered`
+- Veredito Automatizado: FAIL
+  Justificativa do Motor: Nenhuma das versões modernas exigidas (`TLS 1.2` ou
+  `TLS 1.3`) foi oferecida na porta `3000` (`modernOffered=[]`), pois o endpoint
+  opera exclusivamente em HTTP cleartext sem encapsulamento TLS.
+================================================================================

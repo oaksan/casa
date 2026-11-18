@@ -3504,12 +3504,76 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-06: X-Content-Type-Options: nosniff
-    xcto = root_headers.get("x-content-type-options", "")
+    # CFG-06: X-Content-Type-Options: nosniff present on 100% of HTTP responses across the crawl (SARIF 2.1.0 + HAR 1.2)
+    # Sample representative static file/asset if not yet in crawled_exchanges
+    http_probe("/ftp/legal.md")
+
+    cfg06_total = 0
+    cfg06_compliant = 0
+    cfg06_violations: list[dict] = []
+    seen_cfg06_urls: set[str] = set()
+
+    for ex in crawled_exchanges:
+        if ex["status"] <= 0:
+            continue
+        key_url = f"{ex['method']} {ex['url']}#{ex['status']}"
+        if key_url in seen_cfg06_urls:
+            continue
+        seen_cfg06_urls.add(key_url)
+        cfg06_total += 1
+        xcto_val = ex["headers"].get("x-content-type-options", "").strip()
+        if xcto_val.lower() == "nosniff":
+            cfg06_compliant += 1
+        else:
+            cfg06_violations.append(
+                {
+                    "url": ex["url"],
+                    "method": ex["method"],
+                    "status": ex["status"],
+                    "observed": xcto_val or "<missing>",
+                    "detail": (
+                        f"{ex['method']} {ex['url']} (HTTP {ex['status']}, Content-Type: "
+                        f"{ex['headers'].get('content-type', '<none>')}) returned "
+                        f"X-Content-Type-Options: '{xcto_val or '<missing>'}' (expected 'nosniff')"
+                    ),
+                }
+            )
+
+    for v6 in cfg06_violations:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-06",
+                "level": "error",
+                "message": {"text": v6["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": v6["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-06",
+                    "httpMethod": v6["method"],
+                    "httpStatus": v6["status"],
+                    "observedHeader": v6["observed"],
+                },
+            }
+        )
+
+    cfg06_pass = cfg06_total > 0 and len(cfg06_violations) == 0
+    cfg06_pct = round((cfg06_compliant / cfg06_total) * 100, 1) if cfg06_total else 0.0
+    cfg06_lines = [v["detail"] for v in cfg06_violations]
     results["CFG-06"] = {
-        "verdict": "PASS" if xcto.lower() == "nosniff" else "FAIL",
-        "tool": "HTTP Header Inspector (HAR 1.2)",
-        "log": f"[{'PASS' if xcto.lower() == 'nosniff' else 'FAIL'}] X-Content-Type-Options: '{xcto or '<missing>'}'.",
+        "verdict": "PASS" if cfg06_pass else "FAIL",
+        "tool": f"Crawl-Wide X-Content-Type-Options Inspector ({cfg06_total} HTTP responses inspected, SARIF 2.1.0 + HAR 1.2)",
+        "log": (
+            f"[PASS] X-Content-Type-Options: nosniff present on 100% ({cfg06_compliant}/{cfg06_total}) of crawled HTTP responses.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            if cfg06_pass
+            else f"[FAIL] X-Content-Type-Options: nosniff present on only {cfg06_compliant}/{cfg06_total} ({cfg06_pct}% < 100%) of crawled HTTP responses ({len(cfg06_violations)} violation(s)):\n  - "
+            + "\n  - ".join(cfg06_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+        ),
     }
 
     # CFG-07: Anti-caching headers on sensitive/API responses

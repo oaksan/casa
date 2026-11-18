@@ -1340,6 +1340,28 @@
             "httpMethod": "GET",
             "httpStatus": 200
           }
+        },
+        {
+          "ruleId": "CASA3-CFG-06",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/metrics (HTTP 200, Content-Type: text/plain; version=0.0.4; charset=utf-8) returned X-Content-Type-Options: '<missing>' (expected 'nosniff')"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/metrics"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-06",
+            "httpMethod": "GET",
+            "httpStatus": 200,
+            "observedHeader": "<missing>"
+          }
         }
       ]
     }

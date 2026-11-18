@@ -1302,3 +1302,94 @@ capturando 100% das rotas SQL e NoSQL vulneráveis da aplicação:
      `db.reviewsCollection.find({ $where: 'this.product == ' + productId })`
      — concatenação direta de `productId` no operador `$where`.
 ================================================================================
+
+================================================================================
+CONTROLE 14/61: SAST-09 (Iteração SDD 022)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-09
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Deserialization of untrusted data is avoided or integrity-protected"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V5.5.3 (L1)
+  * MITRE CWE-502 (Deserialization of Untrusted Data)
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-09):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run static deserialization rules over every deserialization call site for
+     native object streams, pickle, YAML, PHP unserialize, .NET formatters and
+     equivalents."
+  2. "Reference tooling: semgrep, CodeQL."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level findings of an untrusted-input deserialization
+    sink without a type allowlist, `ObjectInputFilter`, or a verified integrity
+    check on the serialized blob."
+  * FAIL: "≥ 1 `error`-level finding of an untrusted-input deserialization sink
+    that lacks a type allowlist, `ObjectInputFilter`, or a verified integrity check."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-09 (terceiro dos 3 novos requisitos estáticos introduzidos pelo
+CASA 3.0 — Tabela 2: *"safe deserialization"*) verifica a invocação de APIs
+de desserialização conhecidamente perigosas sobre entradas não confiáveis sem
+filtro de tipos (`ObjectInputFilter` / `SafeLoader`) ou validação criptográfica
+de integridade (HMAC). Na AST, cada API insegura (`yaml.load`, `libxml2.XmlDocument.fromString`
+com `XML_PARSE_NOENT`/`XML_PARSE_DTDLOAD`, `pickle.loads`, `node-serialize`) possui
+assinatura sintática determinística.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 022)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 022:
+  A regra `CASA3-SAST-09-unsafe-deserialization` continha apenas `yaml.load($DATA)`
+  e `libxml.parseXmlString($DATA, ...)`. Por essa limitação, ela **falhava em
+  detectar os verdadeiros pontos de entrada de upload do usuário** no OWASP Juice Shop:
+  1. `routes/fileUpload.ts:114` encapsula `yaml.load(data)` dentro de uma string
+     passada para `vm.runInContext('JSON.stringify(yaml.load(data))', sandbox)`
+     sobre arquivos YAML enviados via HTTP upload (`YAML Bomb`);
+  2. `routes/fileUpload.ts:80` e `lib/xml.ts:35-38` usam `parseXmlString(data)`
+     e `libxml2.XmlDocument.fromString(data, { option })` com flags
+     `XML_PARSE_NOENT | XML_PARSE_DTDLOAD` habilitadas (`XXE`);
+  3. Não havia regras para `pickle`, `yaml.load` inseguro e `marshal` em Python,
+     e o agregador não deduplicava ocorrências por arquivo/linha.
+
+- Oportunidades de Melhoria Implementadas na Iteração 022 (`rules/casa3_al1_sast.yml`
+  e `casa_audit/scanner.py`):
+  1. Expansão JS/TS (`CASA3-SAST-09-unsafe-deserialization`):
+     Detecção de `yaml.load(...)` mesmo dentro de strings de contexto `vm.runInContext`,
+     chamadas a `parseXmlString($DATA, ...)`, `XmlDocument.fromString`, flags
+     `XML_PARSE_NOENT` / `XML_PARSE_DTDLOAD` e `serialize.unserialize`.
+  2. Suporte Multi-Linguagem Python (`CASA3-SAST-09-unsafe-deserialization-python`):
+     Inclusão de `pickle.load/loads`, `cPickle.loads`, `marshal.loads`,
+     `yaml.load`, `yaml.unsafe_load` e `jsonpickle.decode`.
+  3. Deduplicação por `(SAST-ID, arquivo, linha)` em `run_sast_checks()`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 22 contra o OWASP Juice Shop:
+- Veredito Automatizado: FAIL (8 achados únicos de desserialização insegura)
+  1. **Desserialização XML Insegura com Expansão de Entidades Externas (`routes/fileUpload.ts:L80` + `lib/xml.ts:L35, L38`):**
+     Buffer de upload XML do usuário (`file.buffer.toString()`) é passado para
+     `parseXmlString(data)` -> `libxml2.XmlDocument.fromString(data, { option })`
+     com `XML_PARSE_NOENT | XML_PARSE_DTDLOAD`, permitindo XXE e leitura de
+     `/etc/passwd`.
+  2. **Desserialização YAML de Upload Não-Confiável (`routes/fileUpload.ts:L114`):**
+     Buffer de upload YAML do usuário é desserializado via
+     `vm.runInContext('JSON.stringify(yaml.load(data))', sandbox)` sem esquema de
+     allowlist ou limite seguro de expansão de âncoras (YAML Bomb).
+  3. **Carregamento YAML sem Restrição de Schema (`server.ts:L140`, `routes/vulnCodeFixes.ts:L83`,
+     `routes/vulnCodeSnippet.ts:L90`, `lib/scripts/lintConfig.ts:L22`):**
+     Invocações diretas de `yaml.load(...)`.
+================================================================================

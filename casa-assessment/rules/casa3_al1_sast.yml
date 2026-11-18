@@ -176,11 +176,28 @@ rules:
 
   - id: CASA3-SAST-09-unsafe-deserialization
     languages: [typescript, javascript]
-    message: "SAST-09: Unsafe deserialization of untrusted data (yaml.load / libxmljs / serialize) (CWE-502)"
+    message: "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
     severity: ERROR
     pattern-either:
       - pattern: "yaml.load($DATA)"
+      - pattern: "parseXmlString($DATA, ...)"
       - pattern: "libxml.parseXmlString($DATA, ...)"
+      - pattern-regex: "yaml\\.load\\([^)]+\\)"
+      - pattern-regex: "XML_PARSE_NOENT|XML_PARSE_DTDLOAD|XmlDocument\\.fromString"
+      - pattern: "serialize.unserialize($DATA)"
+
+  - id: CASA3-SAST-09-unsafe-deserialization-python
+    languages: [python]
+    message: "SAST-09: Unsafe deserialization of untrusted data in Python (pickle / yaml.load / marshal / jsonpickle) (CWE-502)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "pickle.loads(...)"
+      - pattern: "pickle.load(...)"
+      - pattern: "cPickle.loads(...)"
+      - pattern: "marshal.loads(...)"
+      - pattern: "yaml.load($DATA)"
+      - pattern: "yaml.unsafe_load(...)"
+      - pattern: "jsonpickle.decode(...)"
 
   - id: CASA3-SAST-10-dynamic-code-execution
     languages: [typescript, javascript]

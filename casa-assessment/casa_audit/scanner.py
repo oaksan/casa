@@ -1900,6 +1900,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             if proc.stdout:
                 sdata = json.loads(proc.stdout)
                 semgrep_ran = True
+                seen_sast_loc: set[tuple[str, str, int]] = set()
                 for item in sdata.get("results", []):
                     check_id = item.get("check_id", "")
                     m = re.search(r"(SAST-\d{2})", check_id)
@@ -1911,6 +1912,9 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                         except ValueError:
                             rel_p = fpath
                         line_no = item.get("start", {}).get("line", 0)
+                        if (sid, rel_p, line_no) in seen_sast_loc:
+                            continue
+                        seen_sast_loc.add((sid, rel_p, line_no))
                         msg = item.get("extra", {}).get("message", "")
                         findings_by_sast_id[sid].append(f"{rel_p}:{line_no} — {msg}")
 

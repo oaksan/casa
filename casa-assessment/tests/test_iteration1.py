@@ -161,6 +161,7 @@ class TestCasa3Iteration1(unittest.TestCase):
             self.assertIn("ASWebAuthenticationSession", app_hits)
 
         self.assertIn("CONTROLE 55/61: OAU-06", just_txt)
+        self.assertIn("CONTROLE 56/61: OAU-07", just_txt)
         with tempfile.TemporaryDirectory() as tmpdir6:
             td6 = Path(tmpdir6)
             (td6 / "app.apk").write_bytes(

@@ -4182,3 +4182,72 @@ binário e confirma sua aceitação pelo endpoint (`FAIL`).
 - Fixture Kotlin PKCE público (`AuthConfig.kt`): **PASS** (`['mob-public-pkce-01']`, `0` achados).
 - Veredito Automatizado no OWASP Juice Shop (`Web_Application`): NOT_APPLICABLE
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 56/61: OAU-07 (Iteração SDD 064)
+================================================================================
+Título: Access and refresh tokens are held in platform secure storage — Keystore, Keychain, or HttpOnly Secure cookie. Never localStorage, SharedPreferences plaintext, or disk cache
+Mapeamento Normativo: MASA 1.1.1.1 / 2.1.1.1; CWE-922; ASVS V6.4.1 (L2) | Superfície: All
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Tokens de acesso e refresh devem residir exclusivamente em armazenamento seguro
+da plataforma (Android Keystore, iOS Keychain) ou cookies `HttpOnly; Secure`
+emitidos pelo servidor — nunca em `localStorage`, `sessionStorage`, IndexedDB,
+`SharedPreferences`/`NSUserDefaults` em texto claro ou cookies acessíveis por
+JavaScript (CWE-922; MASA 1.1.1.1 / 2.1.1.1). O Guia de Testes CASA 3.0 AL1
+estabelece para `OAU-07`:
+- Evidência: Captura HAR 1.2 redigida e SARIF 2.1.0 para análise de artefatos;
+- Procedimento: Enumerar storage do navegador na superfície Web (`localStorage`,
+  `sessionStorage`, IndexedDB, `document.cookie` / `Set-Cookie`) e depósitos de
+  preferências/plist/Keychain no cliente móvel comparando contra os tokens
+  observados no fluxo;
+- Critério de Aprovação (PASS): Nenhum token observado aparece fora de Keystore/
+  Keychain ou cookie `HttpOnly; Secure`;
+- Critério de Falha (FAIL): >= 1 token armazenado fora desses mecanismos ou
+  cookie portador de token sem `HttpOnly` ou `Secure`.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Via Chrome Headless CDP ao vivo (`scripts/headless_storage_dump.js`), bundles
+JavaScript servidos (`http://localhost:3000/main.js`) e código Angular cliente,
+comprova-se que o OWASP Juice Shop persiste o JWT autenticado simultaneamente em
+`localStorage['token']` e em cookie cliente via `cookieService.put('token', ...)`
+sem flags `HttpOnly`, `Secure` ou `SameSite` — completamente legível via
+`document.cookie`.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 064:
+  O controle `OAU-07` verificava apenas a lista estática `local_storage_hits`,
+  incluindo até arquivos de teste `*.spec.ts`, sem correlacionar o dump ativo do
+  navegador Chrome Headless CDP (`localStorage`, `sessionStorage`, `IndexedDB`,
+  `document.cookie`), sem auditar `Set-Cookie` (`HttpOnly`/`Secure`), sem
+  inspecionar bundles JS servidos (`main.js`) ou lojas móveis (`SharedPreferences`/
+  `UserDefaults`), e sem emitir SARIF 2.1.0 (`CASA3-OAU-07`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 064 (`casa_audit/scanner.py`):
+  1. Reuso Integral do Dump Chrome Headless CDP (`aut08_snap`):
+     Correlaciona `localStorage`, `sessionStorage`, `IndexedDB` e `document.cookie`
+     ao vivo contra o JWT observado (`eyJ...` / prefixo do token ativo).
+  2. Auditoria de `Set-Cookie`, JS Bundles & Sinks Móveis:
+     Verifica violações `HttpOnly`/`Secure`, `localStorage.setItem`/`cookieService.put`
+     em `main.js` (com suporte a template strings `` `token` ``), componentes
+     Angular de produção (filtrando `*.spec.ts`) e `SharedPreferences`/`UserDefaults`.
+  3. Emissão SARIF 2.1.0 (`CASA3-OAU-07`) + Redacted HAR 1.2.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 64 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Execução Chrome Headless CDP (`headless=True`), **268** respostas HTTP e **5** artefatos bundle/fonte
+- Violações `CASA3-OAU-07` detectadas (**11 achados** sem ruído de testes `*.spec.ts`):
+  1. `[Browser_localStorage_Token]` `localStorage['token']` no Chrome Headless contém token Bearer (len=763).
+  2. `[NonHttpOnly_Token_Cookie]` `document.cookie` expõe cookie `token` (len=763) sem `HttpOnly`/`Secure`.
+  3. `[Cookie_Missing_HttpOnly_Or_Secure]` `/rest/user/login` sem `Set-Cookie HttpOnly; Secure`.
+  4-9. `http://localhost:3000/main.js`, `login.component.ts` e `oauth.component.ts` (`localStorage.setItem` + `cookieService.put` sem `HttpOnly`/`Secure`).
+  10-11. `two-factor-auth-enter.component.ts` e `payment.component.ts` (`localStorage.setItem('token', ...)`).
+- Artefatos gerados: `output/dast-findings.sarif` (11 resultados `CASA3-OAU-07`) e `output/dast-capture.har` (280 entradas redigidas).
+- Veredito Automatizado: FAIL
+================================================================================

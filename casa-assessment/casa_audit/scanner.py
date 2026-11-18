@@ -2237,26 +2237,116 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         return status, resp_headers, resp_body
 
     # ---- Domain 3: Transport Security (TLS-01 .. TLS-06) ----
+    tls_json_path = OUTPUT_DIR / "tls-scan.json"
+    tls_port = port if is_https else 443
     tls_version = None
     cipher_info = None
+    tls_handshake_ok = False
     cert_valid = False
-    if is_https and host:
+    tls_handshake_error = ""
+
+    if host:
+        # 1. Strict X.509 trusted-chain handshake
         try:
             ctx = ssl.create_default_context()
-            with socket.create_connection((host, port), timeout=5) as sock:
+            with socket.create_connection((host, tls_port), timeout=4) as sock:
                 with ctx.wrap_socket(sock, server_hostname=host) as ssock:
                     tls_version = ssock.version()
                     cipher_info = ssock.cipher()
+                    tls_handshake_ok = True
                     cert_valid = True
         except Exception as exc:
-            tls_version = f"Handshake failed: {exc}"
+            tls_handshake_error = str(exc)
+            # 2. Fallback TLS handshake without CA verification so TLS-02/03 can still inspect protocol/cipher even if cert is self-signed
+            try:
+                ctx_unverified = ssl._create_unverified_context()
+                with socket.create_connection((host, tls_port), timeout=4) as sock:
+                    with ctx_unverified.wrap_socket(sock, server_hostname=host) as ssock:
+                        tls_version = ssock.version()
+                        cipher_info = ssock.cipher()
+                        tls_handshake_ok = True
+            except Exception:
+                pass
 
+    # TLS-01: Probe cleartext HTTP endpoints without following redirects + verify port 443 TLS handshake
     root_status, root_headers, root_body = http_probe("/")
+    cleartext_http_port = 80 if is_https else port
+    cleartext_base = f"http://{host}:{cleartext_http_port}"
+    cleartext_endpoints = ["/", "/rest/user/login", "/api/Products"]
+    cleartext_findings: list[str] = []
+    cleartext_probe_records: list[dict] = []
+
+    if not tls_handshake_ok:
+        cleartext_findings.append(
+            f"TLS handshake on {host}:{tls_port} failed ({tls_handshake_error or 'no TLS listener'})"
+        )
+    elif not is_https:
+        cleartext_findings.append(
+            f"Declared target URL '{base_url}' operates directly over unencrypted HTTP cleartext scheme"
+        )
+
+    for ep in cleartext_endpoints:
+        ep_url = f"{cleartext_base}{ep}"
+        c_status, c_headers, c_body = http_probe(ep_url, follow_redirects=False)
+        loc = c_headers.get("location", "")
+        loc_parsed = urllib.parse.urlparse(loc) if loc else None
+        valid_https_redirect = bool(
+            300 <= c_status < 400
+            and loc_parsed is not None
+            and loc_parsed.scheme.lower() == "https"
+            and (loc_parsed.hostname or "").lower() == (host or "").lower()
+        )
+        cleartext_probe_records.append(
+            {
+                "url": ep_url,
+                "status": c_status,
+                "location": loc,
+                "valid_https_redirect": valid_https_redirect,
+                "cleartext_bytes": len(c_body) if c_status > 0 else 0,
+            }
+        )
+        if c_status == 0:
+            # Connection refused / timeout on cleartext HTTP port satisfies no-cleartext-fallback
+            continue
+        if not valid_https_redirect:
+            cleartext_findings.append(
+                f"GET {ep_url} answered HTTP {c_status} in cleartext ({len(c_body)} bytes, Location='{loc or '<none>'}') instead of 3xx redirect to https://{host}/"
+            )
+
+    tls01_pass = tls_handshake_ok and is_https and len(cleartext_findings) == 0
+    tls_scan_report = {
+        "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
+        "scannedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "targetHost": host,
+        "declaredUrl": base_url,
+        "tlsHandshake": {
+            "port": tls_port,
+            "completed": tls_handshake_ok,
+            "trustedCertificateChain": cert_valid,
+            "negotiatedProtocol": tls_version,
+            "cipherSuite": cipher_info[0] if cipher_info else None,
+            "error": tls_handshake_error or None,
+        },
+        "tls01CleartextEnforcement": {
+            "cleartextPort": cleartext_http_port,
+            "probes": cleartext_probe_records,
+            "violations": cleartext_findings,
+            "verdict": "PASS" if tls01_pass else "FAIL",
+        },
+    }
+    tls_json_path.write_text(json.dumps(tls_scan_report, indent=2), encoding="utf-8")
 
     results["TLS-01"] = {
-        "verdict": "PASS" if is_https else "FAIL",
-        "tool": "TLS Socket & HTTP Probe (HAR 1.2)",
-        "log": f"[{'PASS' if is_https else 'FAIL'}] Target URL '{base_url}' uses scheme '{parsed.scheme}://'. Cleartext HTTP is accepted without HTTPS redirect.",
+        "verdict": "PASS" if tls01_pass else "FAIL",
+        "tool": f"TLS Handshake & Cleartext No-Redirect Probe ({host}:{tls_port} / HTTP:{cleartext_http_port}, JSON + HAR 1.2)",
+        "log": (
+            f"[PASS] Host '{host}' completed TLS handshake on port {tls_port} ({tls_version}) and all {len(cleartext_endpoints)} HTTP:{cleartext_http_port} probes either refused cleartext or returned 3xx redirect to https://{host}/.\n"
+            f"Evidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HTTP HAR 1.2: {har_path}"
+            if tls01_pass
+            else f"[FAIL] {len(cleartext_findings)} TLS-01 transport enforcement violation(s) on '{host}':\n  - "
+            + "\n  - ".join(cleartext_findings)
+            + f"\n\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HTTP HAR 1.2: {har_path}"
+        ),
     }
     results["TLS-02"] = {
         "verdict": "PASS" if tls_version in {"TLSv1.2", "TLSv1.3"} else "FAIL",

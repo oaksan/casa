@@ -1,0 +1,47 @@
+{
+  "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
+  "scannedAt": "2026-11-18T16:20:20.658112+00:00",
+  "targetHost": "localhost",
+  "declaredUrl": "http://localhost:3000",
+  "tlsHandshake": {
+    "port": 443,
+    "completed": true,
+    "trustedCertificateChain": false,
+    "negotiatedProtocol": "TLSv1.3",
+    "cipherSuite": "TLS_AES_256_GCM_SHA384",
+    "error": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1033)"
+  },
+  "tls01CleartextEnforcement": {
+    "cleartextPort": 3000,
+    "probes": [
+      {
+        "url": "http://localhost:3000/",
+        "status": 200,
+        "location": "",
+        "valid_https_redirect": false,
+        "cleartext_bytes": 9984
+      },
+      {
+        "url": "http://localhost:3000/rest/user/login",
+        "status": 500,
+        "location": "",
+        "valid_https_redirect": false,
+        "cleartext_bytes": 2928
+      },
+      {
+        "url": "http://localhost:3000/api/Products",
+        "status": 200,
+        "location": "",
+        "valid_https_redirect": false,
+        "cleartext_bytes": 16383
+      }
+    ],
+    "violations": [
+      "Declared target URL 'http://localhost:3000' operates directly over unencrypted HTTP cleartext scheme",
+      "GET http://localhost:3000/ answered HTTP 200 in cleartext (9984 bytes, Location='<none>') instead of 3xx redirect to https://localhost/",
+      "GET http://localhost:3000/rest/user/login answered HTTP 500 in cleartext (2928 bytes, Location='<none>') instead of 3xx redirect to https://localhost/",
+      "GET http://localhost:3000/api/Products answered HTTP 200 in cleartext (16383 bytes, Location='<none>') instead of 3xx redirect to https://localhost/"
+    ],
+    "verdict": "FAIL"
+  }
+}

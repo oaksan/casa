@@ -1756,3 +1756,80 @@ passou de falso `PASS` para **`FAIL` irrefutável**:
      e localizou os valores canário gravados **literalmente em texto claro** no
      arquivo de log de acesso da aplicação.
 ================================================================================
+
+================================================================================
+CONTROLE 19/61: TLS-01 (Iteração SDD 027)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: TLS-01
+- Domínio: 3. Transport Security
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "TLS enforced on all endpoints; no cleartext fallback; HTTP redirects to HTTPS"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V9.1.1 (L1)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 3 - TLS-01):
+
+- Evidência Exigida (Evidence):
+  1. "Machine-readable (JSON) TLS scanner output, for every declared host."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run a TLS assessment against every declared host and probe port 80 to
+     observe whether cleartext is served or redirected."
+  2. "Reference tooling: testssl.sh, Qualys SSL Labs."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Every declared host completes a TLS handshake on 443, and on port 80
+    either the connection is refused or times out, or every request returns a
+    3xx `Location` to the same host over `https`."
+  * FAIL: "A declared host does not complete a TLS handshake on 443; ≥ 1 port-80
+    request is answered other than by a 3xx `Location` to the same host over
+    `https`; or application content is served over cleartext."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle TLS-01 reduz a verificação de transporte seguro a uma máquina de
+estados binária sobre protocolos de rede (TCP + TLS + HTTP):
+  1. **Handshake TLS (Porta 443 / TLS):** Execução de handshake TLS real no host;
+  2. **Sonda HTTP Cleartext sem Auto-Redirect (`follow_redirects=False`):**
+     Para cada endpoint $e$ sondado em cleartext HTTP:
+     $$\text{Valid}(e) \iff (\text{status}(e) = 0 \text{ [recusado/timeout]}) \lor (300 \le \text{status}(e) < 400 \land \text{scheme}(\text{Location}) = \text{"https"} \land \text{host}(\text{Location}) = \text{targetHost})$$
+  3. **Evidência JSON Máquina-Legível (`output/tls-scan.json`) + `HAR 1.2`.**
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 027)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 027:
+  O scanner verificava apenas `if is_https: PASS else FAIL` sobre a URL
+  informada pelo usuário, sem sequer gerar o artefato JSON TLS obrigatório,
+  sem sondar múltiplos endpoints em HTTP cleartext com `follow_redirects=False`,
+  sem validar se um eventual `3xx` apontava para `https://<mesmo-host>/`, e
+  exibia texto contraditório (`"Cleartext HTTP is accepted"`) mesmo em caso de
+  `PASS`. Além disso, caso o avaliador informasse uma URL `https://`, o scanner
+  NÃO testava a porta HTTP `80` em busca de fallback em texto claro (falso `PASS`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 027 (`casa_audit/scanner.py`):
+  1. Sonda Multi-Endpoint sem Redirecionamento Automático (`follow_redirects=False`):
+     Testa explicitamente `GET /`, `GET /rest/user/login` e `GET /api/Products`
+     em cleartext HTTP, verificando `status == 0` (recusado) ou `3xx` com
+     `Location` apontando para `https://<mesmo-host>/`.
+  2. Handshake TLS + Separação de Validação X.509 (`tls_handshake_ok` vs `cert_valid`):
+     Verifica tanto a conclusão do handshake TLS quanto a cadeia de confiança.
+  3. Geração da Evidência JSON Estruturada (`casa-assessment/output/tls-scan.json`):
+     Persiste o JSON compatível com `testssl.sh` contendo `tlsHandshake` e
+     `tls01CleartextEnforcement` com todos os probes executados.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 27 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Veredito Automatizado: FAIL (4 violações de TLS-01 documentadas em `tls-scan.json` e `dast-capture.har`)
+  1. A URL declarada `http://localhost:3000` opera diretamente em HTTP sem criptografia.
+  2. `GET http://localhost:3000/` respondeu `HTTP 200` com **9.984 bytes de HTML em texto claro** (`Location='<none>'`).
+  3. `GET http://localhost:3000/rest/user/login` respondeu com **2.928 bytes em texto claro** sem redirect `3xx` para HTTPS.
+  4. `GET http://localhost:3000/api/Products` respondeu `HTTP 200` com **16.383 bytes de catálogo JSON em texto claro** sem redirect para HTTPS.
+================================================================================

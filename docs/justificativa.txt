@@ -1571,3 +1571,99 @@ cobertura do `SAST-11` saltou de 4 para **10 achados reais de Path Traversal / Z
      Metadados fornecidos pelo usuário concatenados diretamente em caminhos de
      escrita e leitura no sistema de arquivos.
 ================================================================================
+
+================================================================================
+CONTROLE 17/61: SAST-12 (Iteração SDD 025)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-12
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Server-side secrets are held in a managed secrets store, not in config files
+   or environment baked into images"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V6.4.1 (L2)
+  * MITRE CWE-522 (Insufficiently Protected Credentials)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-12):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run secret detectors and configuration and infrastructure-as-code rules
+     over the repository, dump the environment layers of every container image,
+     and confirm each candidate live by presenting it to its issuing service or
+     by the detector's verification flag. For each live secret, establish where
+     it is held and inventory the secrets-manager SDK call sites."
+  2. "Reference tooling: semgrep, trivy, docker."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Every literal matching the detectors' secret patterns that the
+    assessor confirms live resolves through a secrets-manager SDK call or an
+    injected runtime mount; none is present in config files, IaC, or image
+    environment layers."
+  * FAIL: "≥ 1 confirmed-live secret that does not resolve through a
+    secrets-manager SDK call or an injected runtime mount."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-12 combina 3 inspeções automatizadas determinísticas sobre a
+infraestrutura como código (IaC), o código-fonte e os artefatos de container:
+  1. **Inventário de SDKs de Secrets Manager:** Varredura dos manifestos e
+     código-fonte em busca de integrações com cofres gerenciados (`AWS Secrets Manager`,
+     `AWS SSM Parameter Store`, `GCP Secret Manager`, `Azure Key Vault`, `HashiCorp Vault`);
+  2. **Auditoria de IaC e Configurações:** Inspeção de arquivos `.tf` (Terraform),
+     `.yml` (`config/`, `docker-compose.yml`), `.env` e `Dockerfile` em busca de
+     chaves privadas e credenciais embutidas;
+  3. **Inspeção de Camadas e Env de Imagens Docker (`docker inspect` + container FS):**
+     Extração das variáveis `.Config.Env` da imagem e verificação de arquivos de
+     segredo assados na imagem via `COPY` em vez de montados em runtime.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 025)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 025:
+  A regra `CASA3-SAST-12-hardcoded-config-secrets` era apenas uma regex simples
+  (`jwt\.pub|privateKey\s*=\s*['"]-----BEGIN`) que avaliava somente 2 linhas em
+  `lib/insecurity.ts`. Ela NÃO fazia o inventário de SDKs de Secrets Manager,
+  NÃO inspecionava os arquivos Terraform (`terraform/networking.tf`,
+  `infrastructure/terraform/networking.tf`) nem fazia o dump das camadas e
+  artefatos assados dentro da imagem Docker (`bkimminich/juice-shop:latest`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 025 (`casa_audit/scanner.py`
+  e `rules/casa3_al1_sast.yml`):
+  1. Função `evaluate_sast12_secrets_management_and_iac(repo)`:
+     - Realiza o inventário completo de chamadas a SDKs de Secrets Manager;
+     - Audita todos os arquivos Terraform (`.tf`), `config/*.yml`, `Dockerfile` e `.env`;
+     - Executa `docker inspect` (`.Config.Env`) e inspeciona a imagem
+       `bkimminich/juice-shop:latest` para comprovar segredos assados na camada
+       da imagem (`COPY`).
+  2. Expansão da Regra Semgrep (`CASA3-SAST-12-hardcoded-config-secrets`):
+     Inclusão de padrões HMAC hardcoded e linguagem `terraform`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 25 contra o OWASP Juice Shop:
+- Inventário de Secrets Manager SDKs: **0 call sites** encontrados (nenhum cofre
+  gerenciado AWS/GCP/Azure/Vault é utilizado pela aplicação).
+- Veredito Automatizado: FAIL (6 violações graves de gerenciamento de segredos)
+  1. **Segredo em IaC Terraform (`terraform/networking.tf:L171` e `infrastructure/terraform/networking.tf:L171`):**
+     Chave privada RSA completa (`-----BEGIN RSA PRIVATE KEY-----...`) hardcoded
+     diretamente no código Terraform (desafio `iacLeakedKeyChallenge`).
+  2. **Segredos Assados na Camada da Imagem Docker (`Dockerfile:L38` / `bkimminich/juice-shop:latest`):**
+     A instrução `COPY --from=installer /juice-shop .` assa dentro da imagem de
+     produção 5 artefatos sensíveis (`/juice-shop/ctf.key`, `/juice-shop/encryptionkeys/jwt.pub`,
+     `/juice-shop/encryptionkeys/premium.key`, `/juice-shop/ftp/incident-support.kdbx`
+     e `/juice-shop/data/static/users.yml`) sem montagem dinâmica segura nem
+     Secrets Manager.
+  3. **Segredos e Chaves no Servidor sem Secrets Manager (`lib/insecurity.ts:L20, L21, L42`):**
+     Chave privada RSA inline, leitura local de `encryptionkeys/jwt.pub` e
+     segredo HMAC-SHA256 hardcoded (`pa4qacea4VK9t9nGv7yZtwmj`).
+================================================================================

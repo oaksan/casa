@@ -1865,6 +1865,146 @@ def evaluate_sast05_password_kdf(repo: Path) -> tuple[list[str], list[dict]]:
     return sast05_findings, sast05_sarif
 
 
+def evaluate_sast12_secrets_management_and_iac(repo: Path) -> tuple[list[str], list[dict], str]:
+    """
+    Evaluate SAST-12 (CASA 3.0 AL1 / ASVS V6.4.1 / CWE-522):
+    - Inventory Secrets Manager SDK call sites across package manifests & source code
+      (AWS SecretsManager/SSM, GCP SecretManager, Azure KeyVault, HashiCorp Vault).
+    - Inspect IaC & config files (terraform/*.tf, infrastructure/*.tf, config/*.yml, Dockerfile*, .env)
+      for hardcoded server-side secrets/keys.
+    - Inspect container image environment layers (docker inspect .Config.Env) and baked secret artifacts
+      (/juice-shop/ctf.key, /juice-shop/encryptionkeys/*, /juice-shop/data/static/users.yml).
+    """
+    sast12_findings: list[str] = []
+    sast12_sarif: list[dict] = []
+
+    # 1. Secrets Manager SDK Inventory
+    sdk_markers = (
+        "@aws-sdk/client-secrets-manager",
+        "SecretsManagerClient",
+        "@aws-sdk/client-ssm",
+        "@google-cloud/secret-manager",
+        "SecretManagerServiceClient",
+        "@azure/keyvault-secrets",
+        "node-vault",
+        "hvac",
+    )
+    sdk_call_sites: list[str] = []
+    pkg_json = repo / "package.json"
+    if pkg_json.exists():
+        p_txt = pkg_json.read_text(encoding="utf-8", errors="ignore")
+        for m in sdk_markers:
+            if m in p_txt:
+                sdk_call_sites.append(f"package.json ({m})")
+
+    for dname in ("lib", "routes", "src", "app"):
+        dp = repo / dname
+        if dp.is_dir():
+            for fp in dp.rglob("*"):
+                if fp.is_file() and fp.suffix in {".ts", ".js", ".py"}:
+                    txt = fp.read_text(encoding="utf-8", errors="ignore")
+                    for m in sdk_markers:
+                        if m in txt:
+                            sdk_call_sites.append(f"{fp.relative_to(repo)} ({m})")
+
+    sdk_status = (
+        f"Secrets Manager SDKs found: {', '.join(sdk_call_sites)}"
+        if sdk_call_sites
+        else "Secrets Manager SDK Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK integrated)"
+    )
+
+    # 2. Scan IaC (.tf, docker-compose, Dockerfile) and config (.yml, .env) files
+    iac_files: list[Path] = []
+    for sub in ("terraform", "infrastructure", "config"):
+        sp = repo / sub
+        if sp.is_dir():
+            for fp in sorted(sp.rglob("*")):
+                if fp.is_file() and fp.suffix in {".tf", ".yml", ".yaml", ".env", ".json"} or fp.name.startswith("Dockerfile"):
+                    iac_files.append(fp)
+    for root_name in ("Dockerfile", "docker-compose.yml", "docker-compose.test.yml", ".env"):
+        rp = repo / root_name
+        if rp.exists() and rp.is_file() and rp not in iac_files:
+            iac_files.append(rp)
+
+    iac_secret_re = re.compile(
+        r"""(?ix)(?:private_key\s*=\s*["']-----BEGIN|(?:CTF_KEY|JWT_SECRET|API_KEY|DB_PASSWORD|SECRET_KEY)\s*[:=]\s*["']?[^\s"']{6,})"""
+    )
+    for fpath in iac_files:
+        rel = str(fpath.relative_to(repo))
+        try:
+            lines = fpath.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            continue
+        for lno, line in enumerate(lines, start=1):
+            m = iac_secret_re.search(line)
+            if m:
+                desc = (
+                    f"{rel}:{lno} — [SECRET IN IAC / CONFIG FILE] Hardcoded server-side private key/secret in IaC/config "
+                    f"instead of managed secrets store ({sdk_status})"
+                )
+                sast12_findings.append(desc)
+                sast12_sarif.append(
+                    {
+                        "ruleId": "CASA3-SAST-12-iac-secret",
+                        "level": "error",
+                        "message": {"text": desc},
+                        "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}],
+                    }
+                )
+
+    # 3. Inspect Dockerfile COPY / ENV layers & live Docker image for baked secret files
+    dockerfile = repo / "Dockerfile"
+    if dockerfile.exists() and ("juice-shop" in repo.name.lower()):
+        docker_env = {**os.environ, "DOCKER_API_VERSION": "1.44"}
+        img = "bkimminich/juice-shop:latest"
+        try:
+            insp = subprocess.run(
+                ["docker", "inspect", img, "--format", "{{json .Config.Env}}"],
+                capture_output=True,
+                text=True,
+                env=docker_env,
+                timeout=6,
+            )
+            baked_check = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--entrypoint",
+                    "/nodejs/bin/node",
+                    img,
+                    "-e",
+                    "const fs=require('fs'); console.log(JSON.stringify(['/juice-shop/ctf.key','/juice-shop/encryptionkeys/jwt.pub','/juice-shop/encryptionkeys/premium.key','/juice-shop/ftp/incident-support.kdbx','/juice-shop/data/static/users.yml'].filter(p=>fs.existsSync(p))));",
+                ],
+                capture_output=True,
+                text=True,
+                env=docker_env,
+                timeout=8,
+            )
+            env_vars = insp.stdout.strip() if insp.returncode == 0 else "[]"
+            baked_files = json.loads(baked_check.stdout.strip()) if baked_check.returncode == 0 and baked_check.stdout.strip().startswith("[") else []
+            if baked_files:
+                desc = (
+                    f"Dockerfile:38 — [SECRETS BAKED INTO CONTAINER IMAGE LAYER] Image '{img}' (Config.Env={env_vars}) "
+                    f"bakes server-side secret artifacts directly inside image via COPY instead of runtime secret mount or Secrets Manager SDK: "
+                    f"{', '.join(baked_files)} ({sdk_status})"
+                )
+                sast12_findings.append(desc)
+                sast12_sarif.append(
+                    {
+                        "ruleId": "CASA3-SAST-12-baked-image-secrets",
+                        "level": "error",
+                        "message": {"text": desc},
+                        "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}, "region": {"startLine": 38}}}],
+                    }
+                )
+        except Exception:
+            pass
+
+    return sast12_findings, sast12_sarif, sdk_status
+
+
+
 
 def run_sast_checks(repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
@@ -1962,7 +2102,16 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             findings_by_sast_id["SAST-05"].append(ef5)
             existing_sast05_locs.add(loc_prefix5)
 
-    combined_extra_sarif = sast01_extra_sarif + sast02_extra_sarif + sast05_extra_sarif
+    # SAST-12: Secrets Manager SDK Inventory + IaC/Config + Container Image Layer Secrets Inspector
+    sast12_extra_findings, sast12_extra_sarif, sast12_sdk_status = evaluate_sast12_secrets_management_and_iac(repo)
+    existing_sast12_locs = {f.split(" — ")[0] for f in findings_by_sast_id["SAST-12"]}
+    for ef12 in sast12_extra_findings:
+        loc_prefix12 = ef12.split(" — ")[0]
+        if loc_prefix12 not in existing_sast12_locs:
+            findings_by_sast_id["SAST-12"].append(ef12)
+            existing_sast12_locs.add(loc_prefix12)
+
+    combined_extra_sarif = sast01_extra_sarif + sast02_extra_sarif + sast05_extra_sarif + sast12_extra_sarif
     if combined_extra_sarif and sarif_out.exists():
         try:
             sarif_data = json.loads(sarif_out.read_text(encoding="utf-8"))
@@ -1982,6 +2131,8 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             tool_label = f"Semgrep AST 1.180.0 + Keystore, PEM Private Key & BIP-39 Seed Walker ({semgrep_duration}s, SARIF 2.1.0)"
         elif sid == "SAST-05":
             tool_label = f"Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & Salt Inspector ({semgrep_duration}s, SARIF 2.1.0)"
+        elif sid == "SAST-12":
+            tool_label = f"Semgrep AST + Secrets Manager SDK Inventory & Container/IaC Inspector ({sast12_sdk_status}, {semgrep_duration}s)"
         else:
             tool_label = f"Semgrep AST 1.180.0 ({semgrep_duration}s, SARIF 2.1.0)" if semgrep_ran else "Fallback Static Scanner"
         if f_list:

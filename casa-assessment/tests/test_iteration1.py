@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import threading
 import unittest
 import urllib.request
@@ -13,6 +14,7 @@ from casa_audit.scanner import (
     compute_cvss3_base_score,
     compute_levenshtein_distance,
     compute_shannon_entropy,
+    evaluate_oau05_system_browser_policy,
     load_controls,
     run_automated_al1_scan,
 )
@@ -136,6 +138,26 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertIn("CONTROLE 51/61: OAU-02", just_txt)
         self.assertIn("CONTROLE 52/61: OAU-03", just_txt)
         self.assertIn("CONTROLE 53/61: OAU-04", just_txt)
+        self.assertIn("CONTROLE 54/61: OAU-05", just_txt)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            td = Path(tmpdir)
+            (td / "LoginActivity.kt").write_text(
+                'val wv = WebView(ctx)\nwv.loadUrl("https://accounts.google.com/o/oauth2/v2/auth?client_id=abc&response_type=code")',
+                encoding="utf-8",
+            )
+            (td / "AuthVC.swift").write_text("let vc = SFSafariViewController(url: authUrl)", encoding="utf-8")
+            v_fail, _, _, hits_fail, _ = evaluate_oau05_system_browser_policy(td)
+            self.assertEqual(v_fail, "FAIL")
+            self.assertEqual(len(hits_fail), 2)
+
+            (td / "LoginActivity.kt").write_text("CustomTabsIntent.Builder().build().launchUrl(ctx, authUri)", encoding="utf-8")
+            (td / "AuthVC.swift").write_text('ASWebAuthenticationSession(url: authUrl, callbackURLScheme: "myapp")', encoding="utf-8")
+            v_pass, _, _, hits_pass, app_hits = evaluate_oau05_system_browser_policy(td)
+            self.assertEqual(v_pass, "PASS")
+            self.assertEqual(hits_pass, [])
+            self.assertIn("CustomTabsIntent", app_hits)
+            self.assertIn("ASWebAuthenticationSession", app_hits)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)

@@ -4049,3 +4049,71 @@ Ao executar o motor atualizado da Iteração 61 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-OAU-04`) e `output/dast-capture.har` (280 entradas redigidas).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 54/61: OAU-05 (Iteração SDD 062)
+================================================================================
+Título: Native, mobile and desktop clients perform authorization in the system browser (Custom Tabs / ASWebAuthenticationSession) — never an embedded WebView
+Mapeamento Normativo: RFC 8252 §8.12 | Superfície: Mobile, Native
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Clientes nativos, móveis e desktop nunca devem renderizar telas de autorização
+do provedor de identidade em WebViews embutidas (`WebView`, `WKWebView`,
+`SFSafariViewController`, `BrowserWindow`), pois a aplicação hospedeira passaria
+a ter acesso direto a credenciais e cookies SSO do usuário (RFC 8252 §8.12). O
+Guia de Testes CASA 3.0 AL1 estabelece para `OAU-05`:
+- Evidência: Captura HAR 1.2 redigida do fluxo de autorização e SARIF 2.1.0 para
+  análise de artefatos/binários cliente;
+- Procedimento: Observar a superfície que apresenta a página de autorização e
+  varrer o artefato/binário cliente em busca de classes WebView embutidas
+  carregando endpoints de autorização;
+- Critério de Aprovação (PASS): URL de autorização apresentada por Custom Tabs,
+  `ASWebAuthenticationSession` ou navegador externo do sistema, sem nenhuma
+  classe WebView in-app carregando o endpoint;
+- Critério de Falha (FAIL): Endpoint de autorização carregado em `WebView`,
+  `WKWebView`, `SFSafariViewController` ou equivalente.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop é exclusivamente uma aplicação web Angular + Node.js (`Web_Application`),
+sem binários `.apk`/`.ipa`/`.asar` ou clientes Kotlin/Swift/Electron/Capacitor.
+Logo, sob escopo `Web_Application`, `OAU-05` recebe corretamente `NOT_APPLICABLE`,
+e mesmo quando forçado manualmente em escopo `Mobile`/`Native` deve auditar o
+repositório real e reportar `Not_Covered` (ausência de cliente móvel/nativo) em
+vez de retornar `PASS` fictício. Além disso, o analisador foi validado em
+fixtures reais Android/iOS com `WebView`/`SFSafariViewController` (`FAIL`) versus
+`CustomTabsIntent`/`ASWebAuthenticationSession` (`PASS`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 062:
+  `OAU-05` era um stub fixo que sempre retornava `PASS` ("Checked native client
+  browser authorization policy"), sem varrer arquivos/binários cliente, sem
+  checar `User-Agent` em HAR 1.2 e sem emitir SARIF 2.1.0 (`CASA3-OAU-05`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 062 (`casa_audit/scanner.py`):
+  1. Função Dedicada `evaluate_oau05_system_browser_policy`:
+     Varre fontes Android/iOS/Desktop (`.kt`, `.java`, `.swift`, `.m`, `.mm`,
+     `.cs`, `.dart`, `.ts`, `.js`), manifestos (`AndroidManifest.xml`,
+     `Info.plist`, `package.json`), binários (`.apk`, `.ipa`, `.asar`), bundles
+     JS servidos e cabeçalhos `User-Agent` do HAR 1.2 (`; wv)` / WebView móvel).
+  2. Regra de Bloqueio de WebView Embutida + APIs Aprovadas:
+     Detecta `Android WebView`, `WKWebView`, `SFSafariViewController`,
+     `BrowserWindow` e `InAppBrowser` combinados a fluxos OAuth, contra
+     `CustomTabsIntent`, `ASWebAuthenticationSession`, `AppAuth` e
+     `shell.openExternal`.
+  3. Execução Estática e Híbrida + SARIF 2.1.0 (`CASA3-OAU-05`):
+     Executa tanto via DAST quanto estaticamente em `run_automated_al1_scan`
+     quando `Mobile`/`Native` estiver ativo sem `target_url`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP E FIXTURES (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+- Juice Shop (`surfaces=['Web_Application']`): `NOT_APPLICABLE` (superfície fora de `Mobile, Native`).
+- Juice Shop (`surfaces=['Mobile', 'Native']`): `Not_Covered` após varredura real de **659** artefatos e **0** binários móveis/nativos (em vez de falso `PASS`).
+- Fixture Android WebView (`WebView.loadUrl`) + iOS (`SFSafariViewController`): **FAIL** (`2` achados: `iOS_SFSafariViewController`, `Android_WebView`).
+- Fixture Android Custom Tabs (`CustomTabsIntent`) + iOS (`ASWebAuthenticationSession`): **PASS**.
+- Veredito Automatizado no OWASP Juice Shop (`Web_Application`): NOT_APPLICABLE
+================================================================================

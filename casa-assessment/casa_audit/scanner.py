@@ -6712,11 +6712,56 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
-    # OAU-05 and OAU-06 are Mobile/Native only (handled by surface scoping)
+    # OAU-05: Native/Mobile System Browser Authorization Inspector (RFC 8252 §8.12, Mobile/Native only; SARIF 2.1.0 + redacted HAR 1.2)
+    oau05_verdict, oau05_files, oau05_bins, oau05_findings, oau05_approved = evaluate_oau05_system_browser_policy(
+        repo,
+        har_entries=har_entries,
+        bundle_texts=oauth_bundle_texts,
+    )
+    for af_o5 in oau05_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-OAU-05",
+                "level": "error",
+                "message": {"text": af_o5["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_o5["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "OAU-05",
+                    "findingKind": af_o5["kind"],
+                    "cwe": af_o5["cwe"],
+                },
+            }
+        )
+    oau05_lines = [f"[{o5['kind']}] {o5['detail']}" for o5 in oau05_findings]
     results["OAU-05"] = {
-        "verdict": "PASS",
-        "tool": "Native OAuth Inspector",
-        "log": "[PASS] Checked native client browser authorization policy.",
+        "verdict": oau05_verdict,
+        "tool": (
+            f"Mobile/Native System Browser & WebView Inspector ({oau05_files} artifacts, {oau05_bins} binaries, "
+            f"HAR 1.2 User-Agent + SARIF 2.1.0)"
+        ),
+        "log": (
+            f"[FAIL] {len(oau05_findings)} embedded WebView OAuth authorization violation(s) detected across {oau05_files} client artifact(s):\n  - "
+            + "\n  - ".join(oau05_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if oau05_verdict == "FAIL"
+            else (
+                f"[PASS] Audited {oau05_files} mobile/native artifact(s) ({oau05_bins} binaries); verified system browser authorization APIs "
+                f"({', '.join(oau05_approved) if oau05_approved else 'external browser policy'}) and 0 embedded WebView OAuth flows.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                if oau05_verdict == "PASS"
+                else (
+                    f"[Not_Covered] Scanned {oau05_files} workspace files ({oau05_bins} mobile/native binaries); no Mobile/Native binary or source client "
+                    f"(APK/IPA/Kotlin/Swift/Electron/Capacitor) present in target workspace for RFC 8252 §8.12 WebView inspection.\n"
+                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                )
+            )
+        ),
     }
     results["OAU-06"] = {
         "verdict": "PASS",
@@ -6783,6 +6828,139 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     dast_sarif_path.write_text(json.dumps(dast_sarif_payload, indent=2), encoding="utf-8")
 
     return results
+
+
+def evaluate_oau05_system_browser_policy(
+    repo: Path,
+    har_entries: list[dict] | None = None,
+    bundle_texts: dict[str, str] | None = None,
+) -> tuple[str, int, int, list[dict], list[str]]:
+    """
+    OAU-05 Client WebView & System Browser Authorization Inspector (RFC 8252 §8.12).
+    Scans mobile/native source files, manifests, binaries, live JS bundles, and HAR User-Agent
+    captures for embedded WebViews loading OAuth authorization URLs versus system-browser APIs
+    (Custom Tabs, ASWebAuthenticationSession, AppAuth, shell.openExternal).
+    Returns: (verdict, files_scanned, binary_count, sarif_findings, approved_browser_apis)
+    """
+    skip_dirs = {".git", "node_modules", "dist", "build", "venv", ".venv", "ftp", "frontend/dist", ".angular", "Pods"}
+    src_exts = {".kt", ".java", ".swift", ".m", ".mm", ".cs", ".dart", ".ts", ".tsx", ".js", ".jsx", ".xml", ".plist"}
+    bin_exts = {".apk", ".ipa", ".asar"}
+
+    oauth_ctx_re = re.compile(
+        r"(?:oauth2?|authorize|authorization|auth[_-]?url|authEndpoint|client_id=|response_type=|redirect_uri=|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com/authorize)",
+        re.IGNORECASE,
+    )
+    webview_checks: list[tuple[str, re.Pattern[str], str]] = [
+        ("Android_WebView", re.compile(r"\bWebView\b|android\.webkit\.WebView|\.loadUrl\(", re.IGNORECASE), "Android in-app WebView"),
+        ("iOS_WKWebView", re.compile(r"\b(?:WKWebView|UIWebView)\b|\.load\(\s*URLRequest", re.IGNORECASE), "iOS embedded WKWebView/UIWebView"),
+        ("iOS_SFSafariViewController", re.compile(r"\bSFSafariViewController\b", re.IGNORECASE), "iOS SFSafariViewController (prohibited per OAU-05; must use ASWebAuthenticationSession)"),
+        ("Electron_BrowserWindow", re.compile(r"\bnew\s+BrowserWindow\b|<webview\b", re.IGNORECASE), "Electron embedded BrowserWindow/<webview>"),
+        ("Hybrid_InAppBrowser", re.compile(r"\bInAppBrowser\b|react-native-webview|flutter_webview_plugin", re.IGNORECASE), "Hybrid/cross-platform embedded InAppBrowser/WebView"),
+    ]
+    approved_browser_re = re.compile(
+        r"\b(?:CustomTabsIntent|androidx\.browser\.customtabs|ASWebAuthenticationSession|AuthorizationService|AppAuth|FlutterAppAuth|openAuthSessionAsync|shell\.openExternal)\b"
+    )
+    native_marker_re = re.compile(
+        r"(?:AndroidManifest\.xml|Info\.plist|react-native|@capacitor|electron|cordova|flutter|net\.openid\.appauth|AuthenticationServices)",
+        re.IGNORECASE,
+    )
+
+    findings: list[dict] = []
+    seen_keys: set[tuple[str, str]] = set()
+    approved_hits: list[str] = []
+    files_scanned = 0
+    bin_count = 0
+    has_mobile_native_artifacts = False
+
+    def _add_finding(loc: str, kind: str, desc: str) -> None:
+        key5 = (loc, kind)
+        if key5 not in seen_keys:
+            seen_keys.add(key5)
+            findings.append({"location": loc, "kind": kind, "cwe": "CWE-749", "detail": desc})
+
+    def _inspect_text(label: str, text: str) -> None:
+        if approved_browser_re.search(text):
+            for m_app in approved_browser_re.finditer(text):
+                tok = m_app.group(0)
+                if tok not in approved_hits:
+                    approved_hits.append(tok)
+        if not oauth_ctx_re.search(text):
+            return
+        for w_kind, w_re, w_desc in webview_checks:
+            m_w = w_re.search(text)
+            if m_w:
+                lno = text[: m_w.start()].count("\n") + 1 if not label.startswith("http") else 1
+                loc_str = f"{label}:{lno}" if not label.startswith("http") else label
+                _add_finding(
+                    loc_str,
+                    w_kind,
+                    f"{loc_str} loads OAuth authorization flow inside {w_desc} instead of external system browser / Custom Tabs / ASWebAuthenticationSession (RFC 8252 §8.12).",
+                )
+
+    if repo.exists():
+        for root_dir, dirnames, filenames in os.walk(repo):
+            rel_root = os.path.relpath(root_dir, repo)
+            if rel_root == ".":
+                rel_root = ""
+            dirnames[:] = [d for d in dirnames if d not in skip_dirs and not (f"{rel_root}/{d}".strip("/") in skip_dirs)]
+            for fname in filenames:
+                fpath = Path(root_dir) / fname
+                rel_path = f"{rel_root}/{fname}".lstrip("./")
+                ext = fpath.suffix.lower()
+                if fname in {"AndroidManifest.xml", "Info.plist"} or ext in {".kt", ".java", ".swift", ".m", ".mm", ".cs", ".dart"}:
+                    has_mobile_native_artifacts = True
+                if ext in bin_exts:
+                    bin_count += 1
+                    has_mobile_native_artifacts = True
+                    files_scanned += 1
+                    try:
+                        raw = fpath.read_bytes()[:4_194_304]
+                        decoded = raw.decode("latin-1", errors="ignore")
+                        if native_marker_re.search(decoded) or oauth_ctx_re.search(decoded):
+                            _inspect_text(rel_path, decoded)
+                    except Exception:
+                        pass
+                    continue
+                if fname == "package.json" or ext in src_exts:
+                    files_scanned += 1
+                    try:
+                        txt = fpath.read_text(encoding="utf-8", errors="ignore")
+                    except Exception:
+                        continue
+                    if fname == "package.json" and native_marker_re.search(txt):
+                        has_mobile_native_artifacts = True
+                    if ext != ".xml" and ext != ".plist" and fname != "package.json":
+                        _inspect_text(rel_path, txt)
+
+    for b_url, b_txt in (bundle_texts or {}).items():
+        files_scanned += 1
+        _inspect_text(b_url, b_txt)
+
+    # Check HAR 1.2 User-Agent headers on authorization requests for embedded WebView fingerprints
+    for h_ent in (har_entries or []):
+        req_u = h_ent.get("request", {}).get("url", "")
+        if not oauth_ctx_re.search(req_u):
+            continue
+        for hdr in h_ent.get("request", {}).get("headers", []):
+            if hdr.get("name", "").lower() == "user-agent":
+                ua_val = hdr.get("value", "")
+                if "; wv)" in ua_val or (re.search(r"Version/\d+\.\d+\s+Chrome/", ua_val)) or (
+                    "AppleWebKit/" in ua_val and "Mobile/" in ua_val and "Safari/" not in ua_val
+                ):
+                    _add_finding(
+                        req_u.split("?", 1)[0],
+                        "HAR_Embedded_WebView_UserAgent",
+                        f"HAR 1.2 capture shows authorization request {req_u.split('?', 1)[0]} initiated from embedded WebView User-Agent '{ua_val}' (RFC 8252 §8.12).",
+                    )
+
+    if findings:
+        verdict = "FAIL"
+    elif approved_hits or has_mobile_native_artifacts:
+        verdict = "PASS"
+    else:
+        verdict = "Not_Covered"
+
+    return verdict, files_scanned, bin_count, findings, approved_hits
 
 
 def evaluate_sast07_mass_assignment_probe(target_url: str) -> str | None:
@@ -6896,6 +7074,25 @@ def run_automated_al1_scan(
 
     dyn_results = run_dynamic_and_protocol_checks(target_url, repo)
     merged = {**sca_results, **sast_results, **dyn_results}
+
+    # OAU-05 Static Client/Binary Execution when target_url is absent and Mobile/Native surface is active
+    if (not target_url or not target_url.strip()) and any(s in {"Mobile", "Native"} for s in declared_surfaces) and repo.exists():
+        oau05_v, oau05_f, oau05_b, oau05_hits, oau05_app = evaluate_oau05_system_browser_policy(repo)
+        oau05_lines_st = [f"[{o5['kind']}] {o5['detail']}" for o5 in oau05_hits]
+        merged["OAU-05"] = {
+            "verdict": oau05_v,
+            "tool": f"Mobile/Native System Browser & WebView Inspector ({oau05_f} artifacts, {oau05_b} binaries, SARIF 2.1.0)",
+            "log": (
+                f"[FAIL] {len(oau05_hits)} embedded WebView OAuth authorization violation(s) detected across {oau05_f} client artifact(s):\n  - "
+                + "\n  - ".join(oau05_lines_st)
+                if oau05_v == "FAIL"
+                else (
+                    f"[PASS] Audited {oau05_f} mobile/native artifact(s) ({oau05_b} binaries); verified system browser authorization APIs ({', '.join(oau05_app) if oau05_app else 'external browser policy'}) and 0 embedded WebView OAuth flows."
+                    if oau05_v == "PASS"
+                    else f"[Not_Covered] Scanned {oau05_f} workspace files ({oau05_b} mobile/native binaries); no Mobile/Native binary or source client (APK/IPA/Kotlin/Swift/Electron/Capacitor) present in target workspace for RFC 8252 §8.12 WebView inspection."
+                )
+            ),
+        }
 
     # SAST-07 Hybrid Verification: Combine Semgrep AST unrestricted-binder check with active Mass Assignment probe
     if "SAST-07" in merged and target_url and target_url.strip():

@@ -3364,3 +3364,67 @@ Ao executar o motor atualizado da Iteração 50 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (3 resultados `CASA3-AUT-07`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 43/61: AUT-08 (Iteração SDD 051)
+================================================================================
+Título: Client-side storage holds no sensitive data or authentication material, and is cleared on logout
+Mapeamento Normativo: OWASP ASVS V8.2.3 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Armazenar tokens de sessão, acesso, refresh, identificadores canário de conta ou
+números PAN em `localStorage`, `sessionStorage`, `IndexedDB` ou cookies legíveis
+por JavaScript (não-`HttpOnly`) expõe todo material de autenticação a qualquer
+vulnerabilidade de XSS ou extensão maliciosa no navegador. O Guia de Testes CASA
+3.0 AL1 exige inspeção dinâmica via navegador headless para `AUT-08`:
+- Evidência: Achados de harness/DAST em SARIF 2.1.0 e captura HAR 1.2 redigida;
+- Procedimento: Com um navegador headless (Playwright / Chrome DevTools), fazer
+  dump do armazenamento do navegador (`localStorage`, `sessionStorage`, `IndexedDB`
+  e cookies não-`HttpOnly`) antes e depois do logout, comparando os valores contra
+  canários da conta de teste e tokens observados;
+- Critério de Aprovação (PASS): Nenhum valor armazenado corresponde a token de
+  sessão/JWT, padrão PAN válido por Luhn, valor canário ou campo de perfil do
+  IdP, **e** nenhum material de autenticação sobrevive após o logout.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Durante o login na SPA Angular do OWASP Juice Shop, a aplicação grava o JWT RS256
+simultaneamente em `localStorage['token']` e em cookie não-`HttpOnly` (`document.cookie`),
+além de persistir o identificador de cesta `bid` em `sessionStorage['bid']`. Ao clicar
+em Logout (`#navbarLogoutButton`), os itens são removidos no cliente, porém a
+exposição pré-logout em client storage viola diretamente a primeira condição do controle.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 051:
+  O scanner efetuava apenas busca textual estática por `localStorage.setItem('token'`
+  em arquivos `.ts`, sem executar um navegador headless real, sem capturar `sessionStorage`,
+  `IndexedDB` nem cookies não-`HttpOnly`, sem checar valores canário ou PAN Luhn e
+  sem verificar limpeza pós-logout ou emitir SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 051 (`headless_storage_dump.js` + `casa_audit/scanner.py`):
+  1. Dump Dinâmico em Navegador Headless Real (Google Chrome CDP via Node WebSocket):
+     Provisiona conta canário, faz login na interface Angular (`/#/login`), extrai
+     `localStorage`, `sessionStorage`, `IndexedDB` e `document.cookie` antes do
+     logout, clica em `#navbarAccount` -> `#navbarLogoutButton` e repete o dump
+     pós-logout.
+  2. Scanner de Padrões Sensíveis (`scan_storage_snapshot` + `luhn_check`):
+     Audita JWTs, tokens observados, valores canário (`email`, `password`, `bid`),
+     chaves de autenticação e PANs válidos por algoritmo de Luhn em ambos os momentos.
+  3. Evidência SARIF 2.1.0 (`CASA3-AUT-08`) + Redacted HAR 1.2:
+     Emite achados mascarados em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 51 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Execução real em Google Chrome headless (`--headless=new` via CDP):
+  - Achados antes do logout (`before_logout` em `http://localhost:3000/#/search`, **3 achados**):
+    1. `localStorage['token']`: contém JWT RS256 ativo (`len=760`).
+    2. `sessionStorage['bid']`: contém valor canário `'36'` da conta autenticada.
+    3. `nonHttpOnlyCookies['token']`: contém cookie de sessão JWT legível via JS (`len=760`).
+  - Dump após clique de logout: **0 itens persistentes** pós-logout (remoção client-side confirmada).
+- Artefatos gerados: `output/dast-findings.sarif` (3 resultados `CASA3-AUT-08`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

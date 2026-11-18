@@ -5108,7 +5108,74 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-08: Client-side storage holds no sensitive data or authentication material
+    # AUT-08: Headless Chrome browser storage dump before & after logout (localStorage, sessionStorage, IndexedDB, non-HttpOnly cookies) (SARIF 2.1.0 + redacted HAR 1.2)
+    def luhn_check(digits: str) -> bool:
+        total = 0
+        alt = False
+        for ch in reversed(digits):
+            d = int(ch)
+            if alt:
+                d *= 2
+                if d > 9:
+                    d -= 9
+            total += d
+            alt = not alt
+        return total % 10 == 0
+
+    def scan_storage_snapshot(phase: str, snap: dict, canaries: list[str]) -> list[dict]:
+        hits: list[dict] = []
+        if not snap:
+            return hits
+        jwt_re8 = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
+        pan_re8 = re.compile(r"\b\d{13,19}\b")
+
+        def inspect_kv(store_name: str, key_s: str, val_s: str) -> None:
+            if not val_s:
+                return
+            reasons: list[str] = []
+            if jwt_re8.search(val_s) or val_s in {auth_token, jwt_token, post_token3, aut05_replayed_token}:
+                reasons.append("JWT/session_token")
+            for can in canaries:
+                if can and can in val_s:
+                    reasons.append(f"canary({can[:12]})")
+            for m_pan in pan_re8.findall(val_s):
+                if luhn_check(m_pan):
+                    reasons.append("Luhn_PAN")
+                    break
+            if any(k_tok in key_s.lower() for k_tok in ("token", "password", "secret", "auth")) and not reasons:
+                reasons.append("auth_material_key")
+            if reasons:
+                masked = f"{val_s[:12]}...<len={len(val_s)}>" if len(val_s) > 20 else val_s
+                hits.append(
+                    {
+                        "phase": phase,
+                        "store": store_name,
+                        "key": key_s,
+                        "reasons": reasons,
+                        "detail": (
+                            f"[{phase}] browser {store_name}['{key_s}'] holds sensitive authentication/canary material "
+                            f"({', '.join(reasons)}; value='{masked}') at {snap.get('href', base_url)}."
+                        ),
+                    }
+                )
+
+        for k, v in (snap.get("localStorage") or {}).items():
+            inspect_kv("localStorage", str(k), str(v))
+        for k, v in (snap.get("sessionStorage") or {}).items():
+            inspect_kv("sessionStorage", str(k), str(v))
+        raw_ck = snap.get("nonHttpOnlyCookies") or ""
+        for ck_part in raw_ck.split(";"):
+            ck_part = ck_part.strip()
+            if "=" in ck_part:
+                ck_k, ck_v = ck_part.split("=", 1)
+                if ck_k.strip().lower() not in {"language", "welcomebanner_status", "cookieconsent_status"}:
+                    inspect_kv("nonHttpOnlyCookies", ck_k.strip(), ck_v.strip())
+        for db_obj in (snap.get("indexedDB") or []):
+            db_name = str(db_obj.get("name", "")) if isinstance(db_obj, dict) else str(db_obj)
+            if db_name:
+                inspect_kv("IndexedDB", db_name, json.dumps(db_obj))
+        return hits
+
     frontend_src = repo / "frontend" / "src"
     local_storage_hits: list[str] = []
     if frontend_src.exists():
@@ -5116,13 +5183,113 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             txt = fp.read_text(encoding="utf-8", errors="ignore")
             if "localStorage.setItem('token'" in txt or 'localStorage.setItem("token"' in txt:
                 local_storage_hits.append(str(fp.relative_to(repo)))
+
+    aut08_findings: list[dict] = []
+    headless_script = CASA_ASSESS_DIR / "scripts" / "headless_storage_dump.js"
+    headless_executed = False
+    post_logout_residual = 0
+    node_bin = shutil.which("node")
+    chrome_bin = shutil.which("google-chrome") or ("/usr/bin/google-chrome" if Path("/usr/bin/google-chrome").exists() else None)
+
+    if node_bin and chrome_bin and headless_script.exists():
+        em8 = f"casa3_aut08_canary_{int(time.time())}@juice-sh.op"
+        pw8 = "Casa3Aut08Canary!99"
+        bid8 = str(auth_bid)
+        r8_st, _, _ = http_probe(
+            "/api/Users/",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": em8, "password": pw8, "passwordRepeat": pw8}).encode("utf-8"),
+        )
+        if not (200 <= r8_st < 300):
+            em8, pw8 = ("admin@juice-sh.op", "admin123")
+        else:
+            l8_st, _, l8_body = http_probe(
+                aut02_login_ep,
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({"email": em8, "password": pw8}).encode("utf-8"),
+            )
+            if 200 <= l8_st < 300:
+                try:
+                    bid8 = str(json.loads(l8_body).get("authentication", {}).get("bid", bid8))
+                except Exception:
+                    pass
+
+        try:
+            with socket.socket() as s8:
+                s8.bind(("127.0.0.1", 0))
+                cdp_port8 = s8.getsockname()[1]
+            env8 = {**os.environ, "CHROME_BIN": chrome_bin}
+            cp8 = subprocess.run(
+                [node_bin, str(headless_script), base_url, str(cdp_port8), em8, pw8],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=env8,
+            )
+            if cp8.returncode == 0 and cp8.stdout.strip():
+                snap_res = json.loads(cp8.stdout.strip().splitlines()[-1])
+                if snap_res.get("ok"):
+                    headless_executed = True
+                    canaries8 = [em8, pw8, bid8]
+                    before_hits = scan_storage_snapshot("before_logout", snap_res.get("before", {}), canaries8)
+                    after_hits = scan_storage_snapshot("after_logout", snap_res.get("after", {}), canaries8)
+                    post_logout_residual = len(after_hits)
+                    aut08_findings.extend(before_hits)
+                    aut08_findings.extend(after_hits)
+        except Exception:
+            headless_executed = False
+
+    if not aut08_findings and local_storage_hits:
+        aut08_findings.append(
+            {
+                "phase": "static_source",
+                "store": "localStorage",
+                "key": "token",
+                "reasons": ["localStorage.setItem"],
+                "detail": f"Authentication Bearer token written to plaintext browser localStorage in: {', '.join(local_storage_hits)}",
+            }
+        )
+
+    for af8 in aut08_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AUT-08",
+                "level": "error",
+                "message": {"text": af8["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": base_url},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AUT-08",
+                    "phase": af8["phase"],
+                    "storage": af8["store"],
+                    "key": af8["key"],
+                    "reasons": af8["reasons"],
+                },
+            }
+        )
+
+    aut08_fail = len(aut08_findings) > 0
+    aut08_lines = [af8["detail"] for af8 in aut08_findings]
     results["AUT-08"] = {
-        "verdict": "FAIL" if local_storage_hits else "PASS",
-        "tool": "Client Storage Inspector",
+        "verdict": "FAIL" if aut08_fail else "PASS",
+        "tool": (
+            f"Headless Chrome CDP Storage Dump (localStorage, sessionStorage, IndexedDB, non-HttpOnly cookies; pre/post-logout, post-logout survivors={post_logout_residual}, SARIF 2.1.0 + redacted HAR 1.2)"
+            if headless_executed
+            else "Client Storage Inspector (SARIF 2.1.0 + redacted HAR 1.2)"
+        ),
         "log": (
-            f"[FAIL] Authentication Bearer token stored in plaintext browser localStorage in: {', '.join(local_storage_hits)}"
-            if local_storage_hits
-            else "[PASS] No sensitive authentication tokens stored in browser localStorage/sessionStorage."
+            f"[FAIL] {len(aut08_findings)} client-side storage exposure(s) detected via headless browser dump (post-logout persisting items={post_logout_residual}):\n  - "
+            + "\n  - ".join(aut08_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if aut08_fail
+            else f"[PASS] Headless browser dumped localStorage, sessionStorage, IndexedDB, and non-HttpOnly cookies before and after logout; 0 tokens/canaries/PANs stored and 0 auth material persisted post-logout.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

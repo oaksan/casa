@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-K9DMuMeeLof5s4AtGdOkBDi61tU\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-0h+zxo/VrhgiQf7Vo6f0+LGg0aI\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/29 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-ZuwRqVXPHu44VXkQN/ARpO5UM8Y\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/33 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-iughWvwdwAa1EKDMA/StM01s1cg\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/29"
+                  "uri": "http://localhost:3000/rest/basket/33"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/48 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-62dXnWfC/545/V2tfYrEmAsR/Tg\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/52 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-N/ShiU2kblFh9X7ISJL3k49cqgo\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/48"
+                  "uri": "http://localhost:3000/api/Users/52"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-XkGl2pb/1Fs+j16irvIiKT7A+lI\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-ZwF3VoS6Cc2OyaXgRUfOReFFpGA\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -2026,7 +2026,7 @@
           "ruleId": "CASA3-CFG-10",
           "level": "error",
           "message": {
-            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.913 >= 0.90)"
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.902 >= 0.90)"
           },
           "locations": [
             {
@@ -2042,7 +2042,7 @@
             "findingKind": "exposed_admin_wordlist_path",
             "unauthStatus": 200,
             "authStatus": 200,
-            "lcsSimilarity": 0.913
+            "lcsSimilarity": 0.902
           }
         },
         {
@@ -2182,7 +2182,7 @@
           "ruleId": "CASA3-AUT-02",
           "level": "error",
           "message": {
-            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 9.24s: only 10/200 distinct (190 exact duplicate tokens, max identical collision=36/200; NIST SP 800-90B MCV min-entropy=2.47 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
+            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 11.13s: only 12/200 distinct (188 exact duplicate tokens, max identical collision=30/200; NIST SP 800-90B MCV min-entropy=2.74 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
           },
           "locations": [
             {
@@ -2196,10 +2196,10 @@
           "properties": {
             "controlId": "AUT-02",
             "samplesCollected": 200,
-            "distinctTokens": 10,
-            "duplicateTokens": 190,
-            "maxCollisionFrequency": 36,
-            "minEntropyBits": 2.47
+            "distinctTokens": 12,
+            "duplicateTokens": 188,
+            "maxCollisionFrequency": 30,
+            "minEntropyBits": 2.74
           }
         },
         {
@@ -2287,13 +2287,13 @@
           "ruleId": "CASA3-AUT-05",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/29 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
+            "text": "GET http://localhost:3000/rest/basket/33 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/29"
+                  "uri": "http://localhost:3000/rest/basket/33"
                 }
               }
             }
@@ -2413,6 +2413,81 @@
             "controlId": "AUT-07",
             "attackVector": "algorithm_confusion_hs256_pubkey",
             "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-08",
+          "level": "error",
+          "message": {
+            "text": "[before_logout] browser localStorage['token'] holds sensitive authentication/canary material (JWT/session_token; value='eyJ0eXAiOiJK...<len=760>') at http://localhost:3000/#/search."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-08",
+            "phase": "before_logout",
+            "storage": "localStorage",
+            "key": "token",
+            "reasons": [
+              "JWT/session_token"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-08",
+          "level": "error",
+          "message": {
+            "text": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(36); value='36') at http://localhost:3000/#/search."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-08",
+            "phase": "before_logout",
+            "storage": "sessionStorage",
+            "key": "bid",
+            "reasons": [
+              "canary(36)"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-08",
+          "level": "error",
+          "message": {
+            "text": "[before_logout] browser nonHttpOnlyCookies['token'] holds sensitive authentication/canary material (JWT/session_token; value='eyJ0eXAiOiJK...<len=760>') at http://localhost:3000/#/search."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-08",
+            "phase": "before_logout",
+            "storage": "nonHttpOnlyCookies",
+            "key": "token",
+            "reasons": [
+              "JWT/session_token"
+            ]
           }
         }
       ]

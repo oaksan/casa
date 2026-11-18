@@ -15,6 +15,7 @@ from casa_audit.scanner import (
     compute_levenshtein_distance,
     compute_shannon_entropy,
     evaluate_oau05_system_browser_policy,
+    evaluate_oau06_client_secret_scanner,
     load_controls,
     run_automated_al1_scan,
 )
@@ -158,6 +159,25 @@ class TestCasa3Iteration1(unittest.TestCase):
             self.assertEqual(hits_pass, [])
             self.assertIn("CustomTabsIntent", app_hits)
             self.assertIn("ASWebAuthenticationSession", app_hits)
+
+        self.assertIn("CONTROLE 55/61: OAU-06", just_txt)
+        with tempfile.TemporaryDirectory() as tmpdir6:
+            td6 = Path(tmpdir6)
+            (td6 / "app.apk").write_bytes(
+                b'PK\x03\x04client_id="mob-client-01" client_secret="GOCSPX-RealLeakedSecret9876543210"'
+            )
+            v6_fail, _, bins6, hits6, cids6 = evaluate_oau06_client_secret_scanner(td6)
+            self.assertEqual(v6_fail, "FAIL")
+            self.assertEqual(bins6, 1)
+            self.assertIn("mob-client-01", cids6)
+            self.assertGreaterEqual(len(hits6), 2)
+
+            (td6 / "app.apk").unlink()
+            (td6 / "AuthConfig.kt").write_text('val clientId = "mob-public-pkce-01"', encoding="utf-8")
+            v6_pass, _, _, hits6_p, cids6_p = evaluate_oau06_client_secret_scanner(td6)
+            self.assertEqual(v6_pass, "PASS")
+            self.assertEqual(hits6_p, [])
+            self.assertIn("mob-public-pkce-01", cids6_p)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)

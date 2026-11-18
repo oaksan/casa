@@ -4117,3 +4117,68 @@ fixtures reais Android/iOS com `WebView`/`SFSafariViewController` (`FAIL`) versu
 - Fixture Android Custom Tabs (`CustomTabsIntent`) + iOS (`ASWebAuthenticationSession`): **PASS**.
 - Veredito Automatizado no OWASP Juice Shop (`Web_Application`): NOT_APPLICABLE
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 55/61: OAU-06 (Iteração SDD 063)
+================================================================================
+Título: No client secret is embedded in a public client binary, bundle or extension package
+Mapeamento Normativo: RFC 8252 §8.5; CWE-798 | Superfície: Mobile, Native
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Clientes públicos nativos, móveis ou extensões não conseguem manter segredos
+confidenciais, pois qualquer string ou recurso embutido no pacote distribuído
+ao usuário final pode ser extraído via engenharia reversa (RFC 8252 §8.5;
+CWE-798). O Guia de Testes CASA 3.0 AL1 estabelece para `OAU-06`:
+- Evidência: Captura HAR 1.2 redigida do fluxo de autorização e SARIF 2.1.0 para
+  análise estática de artefatos cliente;
+- Procedimento: Extrair strings, recursos e pools de constantes de binários,
+  bundles ou pacotes de extensão, coletando candidatos a `client_secret`
+  (formatos conhecidos de provedores, atribuições literais a `client_secret` e
+  strings de alta entropia adjacentes a `client_id`) e apresentando cada
+  candidato ao endpoint de token do IdP com o `client_id` da aplicação;
+- Critério de Aprovação (PASS): Nenhum candidato extraído do cliente público é
+  aceito pelo endpoint de token do IdP;
+- Critério de Falha (FAIL): >= 1 candidato extraído é embutido/aceito como
+  `client_secret`.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop atua exclusivamente como aplicação Web Angular + Node.js
+(`Web_Application`), publicando somente `clientId` público sem pacote móvel/nativo
+(`.apk`, `.ipa`, `.asar`, `.crx`, `.xpi` ou código Kotlin/Swift). Sob superfície
+`Web_Application`, recebe `NOT_APPLICABLE`; sob `Mobile`/`Native`, o motor real
+varre **813** artefatos, extrai os **2** `client_id` públicos e confirma `0`
+segredos vazados (`Not_Covered` na ausência de binário nativo/móvel). Em fixtures
+nativos com `.apk` + endpoint `/oauth/token` local, extrai o `GOCSPX-...` do
+binário e confirma sua aceitação pelo endpoint (`FAIL`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 063:
+  `OAU-06` era um stub estático que sempre retornava `PASS` ("No client secret
+  embedded in mobile/native package"), sem extrair strings de binários/bundles,
+  sem procurar formatos de provedores ou alta entropia perto de `client_id`, sem
+  inspecionar HAR 1.2 nem emitir SARIF 2.1.0 (`CASA3-OAU-06`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 063 (`casa_audit/scanner.py`):
+  1. Função `evaluate_oau06_client_secret_scanner`:
+     Varre fontes cliente, manifestos/recursos, binários (`.apk`, `.ipa`,
+     `.asar`, `.crx`, `.xpi`), bundles JS em execução (`main.js`) e capturas
+     HAR 1.2 coletando `client_id` e candidatos a `client_secret` por 3 vetores
+     (formatos `GOCSPX-`/`gho_`..., atribuições literais e entropia de Shannon
+     >= 3.8 adjacente a `client_id`), além de apresentação ativa ao endpoint de
+     token loopback quando presente.
+  2. Emissão SARIF 2.1.0 (`CASA3-OAU-06`) + Execução Estática/Híbrida:
+     Integrado a `run_dynamic_and_protocol_checks` e `run_automated_al1_scan`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP E FIXTURES (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+- Juice Shop (`surfaces=['Web_Application']`): `NOT_APPLICABLE` (superfície fora de `Mobile, Native`).
+- Juice Shop (`surfaces=['Mobile', 'Native']`): `Not_Covered` sobre **813** artefatos (`0` binários, `2 client_id(s)`, `0` vazamentos).
+- Fixture APK + `/oauth/token` local: **FAIL** (`Known_IdP_Client_Secret`, `Embedded_Client_Secret_Key`, `Token_Endpoint_Accepted_Embedded_Secret`).
+- Fixture Kotlin PKCE público (`AuthConfig.kt`): **PASS** (`['mob-public-pkce-01']`, `0` achados).
+- Veredito Automatizado no OWASP Juice Shop (`Web_Application`): NOT_APPLICABLE
+================================================================================

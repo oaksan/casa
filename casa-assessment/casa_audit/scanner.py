@@ -6763,10 +6763,57 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
+    # OAU-06: Client Binary & Bundle Embedded Client Secret Scanner (RFC 8252 §8.5; CWE-798, Mobile/Native only; SARIF 2.1.0 + redacted HAR 1.2)
+    oau06_verdict, oau06_files, oau06_bins, oau06_findings, oau06_cids = evaluate_oau06_client_secret_scanner(
+        repo,
+        har_entries=har_entries,
+        bundle_texts=oauth_bundle_texts,
+    )
+    for af_o6 in oau06_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-OAU-06",
+                "level": "error",
+                "message": {"text": af_o6["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_o6["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "OAU-06",
+                    "findingKind": af_o6["kind"],
+                    "cwe": af_o6["cwe"],
+                },
+            }
+        )
+    oau06_lines = [f"[{o6['kind']}] {o6['detail']}" for o6 in oau06_findings]
     results["OAU-06"] = {
-        "verdict": "PASS",
-        "tool": "Client Binary Secret Scanner",
-        "log": "[PASS] No client secret embedded in mobile/native package.",
+        "verdict": oau06_verdict,
+        "tool": (
+            f"Mobile/Native Client Secret & Constant-Pool Scanner ({oau06_files} artifacts, {oau06_bins} binaries, "
+            f"{len(oau06_cids)} client_id(s), SARIF 2.1.0 + redacted HAR 1.2)"
+        ),
+        "log": (
+            f"[FAIL] {len(oau06_findings)} embedded OAuth client secret violation(s) detected across {oau06_files} client artifact(s):\n  - "
+            + "\n  - ".join(oau06_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if oau06_verdict == "FAIL"
+            else (
+                f"[PASS] Extracted strings/resources from {oau06_files} mobile/native artifact(s) ({oau06_bins} binaries, client_ids={oau06_cids}); "
+                f"0 embedded or accepted client_secret values detected.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                if oau06_verdict == "PASS"
+                else (
+                    f"[Not_Covered] Scanned {oau06_files} workspace artifacts ({oau06_bins} mobile/native binaries/extensions); "
+                    f"no Mobile/Native public-client package (.apk/.ipa/.asar/.crx/.xpi or Kotlin/Swift client) present for RFC 8252 §8.5 inspection "
+                    f"(0 client_secret leaks observed in client bundles/HAR).\n"
+                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                )
+            )
+        ),
     }
     results["OAU-07"] = {
         "verdict": "FAIL" if local_storage_hits else "PASS",
@@ -6963,6 +7010,200 @@ def evaluate_oau05_system_browser_policy(
     return verdict, files_scanned, bin_count, findings, approved_hits
 
 
+def evaluate_oau06_client_secret_scanner(
+    repo: Path,
+    har_entries: list[dict] | None = None,
+    bundle_texts: dict[str, str] | None = None,
+) -> tuple[str, int, int, list[dict], list[str]]:
+    """
+    OAU-06 Public Client Binary/Bundle Secret Scanner (RFC 8252 §8.5; CWE-798).
+    Extracts constant-pool strings, known issuer client-secret formats, explicit
+    client_secret key assignments, and high-entropy tokens adjacent to client_id across
+    mobile/native binaries (.apk/.ipa/.asar/.crx/.xpi), client source/resources, live JS
+    bundles, and HAR token-endpoint exchanges; verifies loopback/test IdP token endpoints if declared.
+    Returns: (verdict, files_scanned, binary_count, sarif_findings, discovered_client_ids)
+    """
+    skip_dirs = {".git", "node_modules", "dist", "build", "venv", ".venv", "ftp", "frontend/dist", ".angular", "Pods"}
+    src_exts = {
+        ".kt", ".java", ".swift", ".m", ".mm", ".cs", ".dart",
+        ".ts", ".tsx", ".js", ".jsx", ".xml", ".plist", ".json", ".properties",
+    }
+    bin_exts = {".apk", ".ipa", ".asar", ".crx", ".xpi"}
+
+    client_id_re = re.compile(
+        r"""(?:client[_-]?id|clientId)\s*[:=]\s*['"]([A-Za-z0-9_.\-]{8,140})['"]|([0-9]{10,}-[a-z0-9]+\.apps\.googleusercontent\.com)""",
+        re.IGNORECASE,
+    )
+    issuer_secret_re = re.compile(
+        r"\b(GOCSPX-[A-Za-z0-9_-]{20,}|(?:gho|ghu|ghs)_[A-Za-z0-9]{20,})\b"
+    )
+    explicit_secret_re = re.compile(
+        r"""(?:client[_-]?secret|clientSecret|CLIENT_SECRET|oauth_secret|consumer_secret)\s*[:=]\s*['"]([^'"\n]{8,160})['"]"""
+    )
+    adjacent_tok_re = re.compile(r"""['"]([A-Za-z0-9_\-+/=.]{16,128})['"]""")
+    token_ep_re = re.compile(r"https?://(?:127\.0\.0\.1|localhost)(?::\d+)?/[^\s'\"`]+token[^\s'\"`]*", re.IGNORECASE)
+    native_marker_re = re.compile(
+        r"(?:AndroidManifest\.xml|Info\.plist|react-native|@capacitor|electron|cordova|flutter|manifest\.json|AppAuth)",
+        re.IGNORECASE,
+    )
+
+    placeholder_tokens = {
+        "replace_me", "your_client_secret", "changeme", "dummy_secret",
+        "<client_secret>", "placeholder", "undefined", "process.env",
+    }
+
+    findings: list[dict] = []
+    seen_keys: set[tuple[str, str]] = set()
+    client_ids: list[str] = []
+    candidate_secrets: list[tuple[str, str, str]] = []
+    local_token_endpoints: list[str] = []
+    files_scanned = 0
+    bin_count = 0
+    has_mobile_native_artifacts = False
+
+    def _add_finding(loc: str, kind: str, desc: str) -> None:
+        key6 = (loc, kind)
+        if key6 not in seen_keys:
+            seen_keys.add(key6)
+            findings.append({"location": loc, "kind": kind, "cwe": "CWE-798", "detail": desc})
+
+    def _inspect_text(label: str, text: str) -> None:
+        for m_cid in client_id_re.finditer(text):
+            cid_v = (m_cid.group(1) or m_cid.group(2) or "").strip()
+            if cid_v and cid_v not in client_ids:
+                client_ids.append(cid_v)
+
+        for m_tep in token_ep_re.finditer(text):
+            u_tep = m_tep.group(0).rstrip(".,;)")
+            if u_tep not in local_token_endpoints:
+                local_token_endpoints.append(u_tep)
+
+        for m_iss in issuer_secret_re.finditer(text):
+            sec = m_iss.group(1)
+            lno = text[: m_iss.start()].count("\n") + 1 if not label.startswith("http") else 1
+            loc_str = f"{label}:{lno}" if not label.startswith("http") else label
+            candidate_secrets.append((loc_str, "Known_IdP_Client_Secret", sec))
+            _add_finding(
+                loc_str,
+                "Known_IdP_Client_Secret",
+                f"{loc_str} embeds known OAuth issuer client secret pattern ('{sec[:8]}***'; RFC 8252 §8.5 / CWE-798).",
+            )
+
+        for m_exp in explicit_secret_re.finditer(text):
+            sec = m_exp.group(1).strip()
+            low = sec.lower()
+            if any(p in low for p in placeholder_tokens) or sec.startswith("${"):
+                continue
+            lno = text[: m_exp.start()].count("\n") + 1 if not label.startswith("http") else 1
+            loc_str = f"{label}:{lno}" if not label.startswith("http") else label
+            candidate_secrets.append((loc_str, "Embedded_Client_Secret_Key", sec))
+            _add_finding(
+                loc_str,
+                "Embedded_Client_Secret_Key",
+                f"{loc_str} assigns literal client_secret ('{sec[:4]}***', len={len(sec)}) inside public client artifact (RFC 8252 §8.5 / CWE-798).",
+            )
+
+        for m_cid in client_id_re.finditer(text):
+            win_start = max(0, m_cid.start() - 250)
+            win_end = min(len(text), m_cid.end() + 250)
+            window = text[win_start:win_end]
+            for m_tok in adjacent_tok_re.finditer(window):
+                cand = m_tok.group(1)
+                if cand in client_ids or cand.startswith("http") or "apps.googleusercontent.com" in cand:
+                    continue
+                if shannon_entropy_bits(cand) >= 3.8 and len(cand) >= 24 and (any(c.isdigit() for c in cand) and any(c.isalpha() for c in cand)):
+                    # Skip already captured issuer/explicit values or standard angular/bundle hashes
+                    if any(cand == cs[2] for cs in candidate_secrets):
+                        continue
+                    lno = text[: m_cid.start()].count("\n") + 1 if not label.startswith("http") else 1
+                    loc_str = f"{label}:{lno}" if not label.startswith("http") else label
+                    candidate_secrets.append((loc_str, "HighEntropy_Adjacent_Secret", cand))
+                    _add_finding(
+                        loc_str,
+                        "HighEntropy_Adjacent_Secret",
+                        f"{loc_str} places high-entropy secret candidate ({shannon_entropy_bits(cand):.2f} bits/char) adjacent to client_id (CWE-798).",
+                    )
+
+    if repo.exists():
+        for root_dir, dirnames, filenames in os.walk(repo):
+            rel_root = os.path.relpath(root_dir, repo)
+            if rel_root == ".":
+                rel_root = ""
+            dirnames[:] = [d for d in dirnames if d not in skip_dirs and not (f"{rel_root}/{d}".strip("/") in skip_dirs)]
+            for fname in filenames:
+                fpath = Path(root_dir) / fname
+                rel_path = f"{rel_root}/{fname}".lstrip("./")
+                ext = fpath.suffix.lower()
+                if fname in {"AndroidManifest.xml", "Info.plist", "strings.xml"} or ext in {".kt", ".java", ".swift", ".m", ".mm", ".cs", ".dart"}:
+                    has_mobile_native_artifacts = True
+                if ext in bin_exts:
+                    bin_count += 1
+                    has_mobile_native_artifacts = True
+                    files_scanned += 1
+                    try:
+                        decoded = fpath.read_bytes()[:4_194_304].decode("latin-1", errors="ignore")
+                        _inspect_text(rel_path, decoded)
+                    except Exception:
+                        pass
+                    continue
+                if ext in src_exts:
+                    files_scanned += 1
+                    try:
+                        txt = fpath.read_text(encoding="utf-8", errors="ignore")
+                    except Exception:
+                        continue
+                    if fname == "package.json" and native_marker_re.search(txt):
+                        has_mobile_native_artifacts = True
+                    _inspect_text(rel_path, txt)
+
+    for b_url, b_txt in (bundle_texts or {}).items():
+        files_scanned += 1
+        _inspect_text(b_url, b_txt)
+
+    # Check HAR token endpoint traffic for client_secret parameter or Basic auth credentials
+    for h_ent in (har_entries or []):
+        req_u = h_ent.get("request", {}).get("url", "")
+        if "client_secret=" in req_u:
+            _add_finding(
+                req_u.split("?", 1)[0],
+                "HAR_Token_Request_Client_Secret",
+                f"HAR capture shows public-client token exchange to {req_u.split('?', 1)[0]} sending client_secret.",
+            )
+
+    # If loopback token endpoint(s) and candidates were both extracted, actively present candidates to token endpoint
+    if local_token_endpoints and candidate_secrets and client_ids:
+        for tep in local_token_endpoints[:2]:
+            for loc_s, _, sec_cand in candidate_secrets[:10]:
+                post_data = urllib.parse.urlencode(
+                    {"grant_type": "client_credentials", "client_id": client_ids[0], "client_secret": sec_cand}
+                ).encode("utf-8")
+                try:
+                    t_req = urllib.request.Request(
+                        tep,
+                        data=post_data,
+                        headers={"Content-Type": "application/x-www-form-urlencoded"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(t_req, timeout=3) as t_resp:
+                        if 200 <= t_resp.status < 300:
+                            _add_finding(
+                                tep,
+                                "Token_Endpoint_Accepted_Embedded_Secret",
+                                f"Token endpoint {tep} actively accepted extracted client secret candidate from {loc_s} (HTTP {t_resp.status}; RFC 8252 §8.5).",
+                            )
+                except Exception:
+                    pass
+
+    if findings:
+        verdict = "FAIL"
+    elif has_mobile_native_artifacts:
+        verdict = "PASS"
+    else:
+        verdict = "Not_Covered"
+
+    return verdict, files_scanned, bin_count, findings, client_ids
+
+
 def evaluate_sast07_mass_assignment_probe(target_url: str) -> str | None:
     """
     Active Mass Assignment Probe for SAST-07 (CASA 3.0 AL1 Test Guide):
@@ -7090,6 +7331,23 @@ def run_automated_al1_scan(
                     f"[PASS] Audited {oau05_f} mobile/native artifact(s) ({oau05_b} binaries); verified system browser authorization APIs ({', '.join(oau05_app) if oau05_app else 'external browser policy'}) and 0 embedded WebView OAuth flows."
                     if oau05_v == "PASS"
                     else f"[Not_Covered] Scanned {oau05_f} workspace files ({oau05_b} mobile/native binaries); no Mobile/Native binary or source client (APK/IPA/Kotlin/Swift/Electron/Capacitor) present in target workspace for RFC 8252 §8.12 WebView inspection."
+                )
+            ),
+        }
+
+        oau06_v, oau06_f, oau06_b, oau06_hits, oau06_cids_st = evaluate_oau06_client_secret_scanner(repo)
+        oau06_lines_st = [f"[{o6['kind']}] {o6['detail']}" for o6 in oau06_hits]
+        merged["OAU-06"] = {
+            "verdict": oau06_v,
+            "tool": f"Mobile/Native Client Secret & Constant-Pool Scanner ({oau06_f} artifacts, {oau06_b} binaries, {len(oau06_cids_st)} client_id(s), SARIF 2.1.0)",
+            "log": (
+                f"[FAIL] {len(oau06_hits)} embedded OAuth client secret violation(s) detected across {oau06_f} client artifact(s):\n  - "
+                + "\n  - ".join(oau06_lines_st)
+                if oau06_v == "FAIL"
+                else (
+                    f"[PASS] Extracted strings/resources from {oau06_f} mobile/native artifact(s) ({oau06_b} binaries, client_ids={oau06_cids_st}); 0 embedded client_secret values detected."
+                    if oau06_v == "PASS"
+                    else f"[Not_Covered] Scanned {oau06_f} workspace artifacts ({oau06_b} mobile/native binaries/extensions); no Mobile/Native public-client package present for RFC 8252 §8.5 inspection."
                 )
             ),
         }

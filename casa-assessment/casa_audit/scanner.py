@@ -2163,7 +2163,9 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     har_path = OUTPUT_DIR / "dast-capture.har"
+    dast_sarif_path = OUTPUT_DIR / "dast-findings.sarif"
     har_entries: list[dict] = []
+    dast_sarif_results: list[dict] = []
 
     if not target_url or not target_url.strip():
         for prefix, count in [("TLS", 6), ("CFG", 11), ("AUT", 8), ("AZI", 6), ("OAU", 9), ("WHK", 3)]:
@@ -2867,21 +2869,169 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 4: Server Configuration & Response Headers (CFG-01 .. CFG-11) ----
-    # CFG-01: Directory browsing probe (/ftp, /assets, /public)
-    ftp_status, _, ftp_body = http_probe("/ftp")
-    dir_exposed = ftp_status == 200 and (
-        "listing directory" in ftp_body.lower()
-        or "acquisitions.md" in ftp_body
-        or "package.json.bak" in ftp_body
-        or "index of /" in ftp_body.lower()
-    )
+    # CFG-01: Spider / crawl directory prefixes & parse autoindex / S3 ListBucketResult (SARIF 2.1.0 + HAR 1.2)
+    def parse_directory_index(path_str: str, st_code: int, resp_hdrs: dict[str, str], resp_txt: str) -> tuple[str | None, list[str]]:
+        if st_code != 200 or not resp_txt:
+            return None, []
+        low = resp_txt.lower()
+        ctype = resp_hdrs.get("content-type", "").lower()
+
+        # 1. S3 ListBucketResult XML parser
+        if "<listbucketresult" in low and ("<contents>" in low or "<key>" in low or "<commonprefixes>" in low or "xml" in ctype):
+            keys = [k.strip() for k in re.findall(r"<Key>\s*([^<]+?)\s*</Key>", resp_txt, re.IGNORECASE) if k.strip()]
+            return "S3 ListBucketResult XML", keys
+
+        # 2. HTML autoindex markup (Express serveIndex, Apache mod_autoindex, Nginx autoindex, Python http.server)
+        is_serveindex = "listing directory" in low or ('id="files"' in low and "view-tiles" in low)
+        is_autoindex = (
+            "<title>index of /" in low
+            or "<h1>index of /" in low
+            or "directory listing for /" in low
+            or ("parent directory" in low and ("last modified" in low or "<pre>" in low))
+        )
+        if is_serveindex or is_autoindex:
+            fmt = "Express serveIndex Autoindex HTML" if is_serveindex else "Web Server Autoindex HTML"
+            hrefs = re.findall(r'<a\b[^>]*href=["\']([^"\']+)["\']', resp_txt, re.IGNORECASE)
+            items: list[str] = []
+            seen_items: set[str] = set()
+            norm_prefix = path_str.strip("/")
+            tail_seg = norm_prefix.split("/")[-1] if norm_prefix else ""
+            for raw_href in hrefs:
+                clean = raw_href.strip().split("?", 1)[0].split("#", 1)[0]
+                if (
+                    not clean
+                    or clean in {".", "..", "../", "./..", "/"}
+                    or clean.endswith("/..")
+                ):
+                    continue
+                if clean.startswith(("javascript:", "mailto:", "http://", "https://")):
+                    continue
+                clean_rel = clean.lstrip("/")
+                if clean_rel in {norm_prefix, tail_seg}:
+                    continue
+                if norm_prefix and clean_rel.startswith(f"{norm_prefix}/"):
+                    item_name = clean_rel[len(norm_prefix) + 1 :]
+                elif tail_seg and clean_rel.startswith(f"{tail_seg}/"):
+                    item_name = clean_rel[len(tail_seg) + 1 :]
+                else:
+                    item_name = clean_rel
+                if not item_name or item_name in {"..", "."}:
+                    continue
+                if item_name not in seen_items:
+                    seen_items.add(item_name)
+                    items.append(item_name)
+            return fmt, items
+        return None, []
+
+    # Spider entry page, robots.txt, and sitemap.xml to collect directory prefixes
+    discovered_prefixes: list[str] = []
+    seen_prefixes: set[str] = set()
+
+    def register_prefix(candidate: str) -> None:
+        c_path = urllib.parse.urlparse(candidate).path
+        if not c_path.startswith("/"):
+            c_path = "/" + c_path
+        c_norm = "/" + c_path.strip("/") if c_path != "/" else "/"
+        if c_norm not in seen_prefixes:
+            seen_prefixes.add(c_norm)
+            discovered_prefixes.append(c_norm)
+
+    register_prefix("/")
+    for html_link in re.findall(r'(?:href|src|action)=["\'](/[^"\'?#\s]+)["\']', root_body, re.IGNORECASE):
+        if "/" in html_link.lstrip("/"):
+            parent_dir = "/" + html_link.strip("/").rsplit("/", 1)[0]
+            register_prefix(parent_dir)
+
+    robots_st, _, robots_txt = http_probe("/robots.txt")
+    if robots_st == 200 and robots_txt:
+        for m_rob in re.finditer(r"^\s*(?:Allow|Disallow|Sitemap)\s*:\s*(\S+)", robots_txt, re.IGNORECASE | re.MULTILINE):
+            rob_target = m_rob.group(1).strip()
+            if rob_target.startswith(("http://", "https://")):
+                rob_target = urllib.parse.urlparse(rob_target).path
+            if rob_target.startswith("/") and rob_target != "/":
+                register_prefix(rob_target.rstrip("*"))
+
+    for seed_dir in [
+        "/ftp",
+        "/encryptionkeys",
+        "/support/logs",
+        "/infrastructure",
+        "/.well-known",
+        "/assets",
+        "/public",
+        "/static",
+        "/uploads",
+        "/files",
+        "/logs",
+        "/backup",
+    ]:
+        register_prefix(seed_dir)
+
+    cfg01_findings: list[dict] = []
+    probed_dir_count = 0
+    max_dir_probes = 30
+    idx_cursor = 0
+    while idx_cursor < len(discovered_prefixes) and probed_dir_count < max_dir_probes:
+        dpath = discovered_prefixes[idx_cursor]
+        idx_cursor += 1
+        st, hdrs, body = (root_status, root_headers, root_body) if dpath == "/" else http_probe(dpath)
+        probed_dir_count += 1
+        idx_fmt, idx_items = parse_directory_index(dpath, st, hdrs, body)
+        if idx_fmt:
+            cfg01_findings.append(
+                {
+                    "path": dpath,
+                    "url": f"{base_url}{dpath}",
+                    "status": st,
+                    "format": idx_fmt,
+                    "items": idx_items,
+                }
+            )
+            dast_sarif_results.append(
+                {
+                    "ruleId": "CASA3-CFG-01",
+                    "level": "error",
+                    "message": {
+                        "text": (
+                            f"Directory browsing enabled at {base_url}{dpath} (HTTP {st}, {idx_fmt}): "
+                            f"exposed {len(idx_items)} entry/entries ({', '.join(idx_items[:8])}{'...' if len(idx_items) > 8 else ''})."
+                        )
+                    },
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {"uri": f"{base_url}{dpath}"},
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "controlId": "CFG-01",
+                        "indexFormat": idx_fmt,
+                        "httpStatus": st,
+                        "enumeratedItems": idx_items[:20],
+                    },
+                }
+            )
+            # Queue nested directory entries discovered in the index (e.g. quarantine/)
+            for item in idx_items:
+                if item.endswith("/") or "." not in item.rsplit("/", 1)[-1]:
+                    nested = f"{dpath.rstrip('/')}/{item.rstrip('/')}"
+                    register_prefix(nested)
+
+    cfg01_exposed = len(cfg01_findings) > 0
+    cfg01_lines = [
+        f"GET {f['url']} -> HTTP {f['status']} [{f['format']}] ({len(f['items'])} entries: {', '.join(f['items'][:10])}{'...' if len(f['items']) > 10 else ''})"
+        for f in cfg01_findings
+    ]
     results["CFG-01"] = {
-        "verdict": "FAIL" if dir_exposed else "PASS",
-        "tool": "Active Directory Enumeration Probe (HAR 1.2)",
+        "verdict": "FAIL" if cfg01_exposed else "PASS",
+        "tool": f"Active Spider & Directory Autoindex / ListBucketResult Parser ({probed_dir_count} prefixes probed, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[FAIL] GET {base_url}/ftp returned HTTP {ftp_status} with exposed directory listing (contains confidential files e.g. acquisitions.md, package.json.bak)."
-            if dir_exposed
-            else f"[PASS] Probed /, /ftp; directory listing is disabled (HTTP {ftp_status})."
+            f"[FAIL] {len(cfg01_findings)} exposed directory index(es) discovered across {probed_dir_count} probed prefixes:\n  - "
+            + "\n  - ".join(cfg01_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            if cfg01_exposed
+            else f"[PASS] Probed {probed_dir_count} crawled and common directory prefixes; 0 responses parsed as directory index (HTML autoindex or S3 ListBucketResult).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 
@@ -3278,7 +3428,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             "log": "[Not_Covered] No inbound webhook receiver or outbound webhook callback facility declared for this engagement.",
         }
 
-    # Write W3C HAR 1.2 artifact
+    # Write W3C HAR 1.2 and DAST SARIF 2.1.0 artifacts
     har_payload = {
         "log": {
             "version": "1.2",
@@ -3287,6 +3437,23 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         }
     }
     har_path.write_text(json.dumps(har_payload, indent=2), encoding="utf-8")
+
+    dast_sarif_payload = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "ADA CASA 3.0 Active DAST Engine",
+                        "version": "3.0",
+                    }
+                },
+                "results": dast_sarif_results,
+            }
+        ],
+    }
+    dast_sarif_path.write_text(json.dumps(dast_sarif_payload, indent=2), encoding="utf-8")
 
     return results
 

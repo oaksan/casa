@@ -1,0 +1,313 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "ADA CASA 3.0 Active DAST Engine",
+          "version": "3.0"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/ftp (HTTP 200, Express serveIndex Autoindex HTML): exposed 11 entry/entries (quarantine, acquisitions.md, announcement_encrypted.md, coupons_2013.md.bak, eastere.gg, encrypt.pyc, incident-support.kdbx, legal.md...)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/ftp"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "quarantine",
+              "acquisitions.md",
+              "announcement_encrypted.md",
+              "coupons_2013.md.bak",
+              "eastere.gg",
+              "encrypt.pyc",
+              "incident-support.kdbx",
+              "legal.md",
+              "package-lock.json.bak",
+              "package.json.bak",
+              "suspicious_errors.yml"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/encryptionkeys (HTTP 200, Express serveIndex Autoindex HTML): exposed 2 entry/entries (jwt.pub, premium.key)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/encryptionkeys"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "jwt.pub",
+              "premium.key"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/support/logs (HTTP 200, Express serveIndex Autoindex HTML): exposed 3 entry/entries (access.log.2026-11-16, access.log.2026-11-18, audit.json)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/support/logs"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "access.log.2026-11-16",
+              "access.log.2026-11-18",
+              "audit.json"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/infrastructure (HTTP 200, Express serveIndex Autoindex HTML): exposed 3 entry/entries (terraform, docker-compose.yml, Dockerfile)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/infrastructure"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "terraform",
+              "docker-compose.yml",
+              "Dockerfile"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/.well-known (HTTP 200, Express serveIndex Autoindex HTML): exposed 2 entry/entries (csaf, security.txt)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "csaf",
+              "security.txt"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/ftp/quarantine (HTTP 200, Express serveIndex Autoindex HTML): exposed 4 entry/entries (juicy_malware_linux_amd_64.url, juicy_malware_linux_arm_64.url, juicy_malware_macos_64.url, juicy_malware_windows_64.exe.url)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/ftp/quarantine"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "juicy_malware_linux_amd_64.url",
+              "juicy_malware_linux_arm_64.url",
+              "juicy_malware_macos_64.url",
+              "juicy_malware_windows_64.exe.url"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/infrastructure/terraform (HTTP 200, Express serveIndex Autoindex HTML): exposed 4 entry/entries (main.tf, networking.tf, outputs.tf, variables.tf)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/infrastructure/terraform"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "main.tf",
+              "networking.tf",
+              "outputs.tf",
+              "variables.tf"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/.well-known/csaf (HTTP 200, Express serveIndex Autoindex HTML): exposed 6 entry/entries (2017, 2021, 2024, changes.csv, index.txt, provider-metadata.json)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known/csaf"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "2017",
+              "2021",
+              "2024",
+              "changes.csv",
+              "index.txt",
+              "provider-metadata.json"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/.well-known/csaf/2017 (HTTP 200, Express serveIndex Autoindex HTML): exposed 3 entry/entries (juice-shop-sa-20200513-express-jwt.json, juice-shop-sa-20200513-express-jwt.json.asc, juice-shop-sa-20200513-express-jwt.json.sha512)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known/csaf/2017"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "juice-shop-sa-20200513-express-jwt.json",
+              "juice-shop-sa-20200513-express-jwt.json.asc",
+              "juice-shop-sa-20200513-express-jwt.json.sha512"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/.well-known/csaf/2021 (HTTP 200, Express serveIndex Autoindex HTML): exposed 3 entry/entries (juice-shop-sa-20211014-proto.json, juice-shop-sa-20211014-proto.json.asc, juice-shop-sa-20211014-proto.json.sha512)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known/csaf/2021"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "juice-shop-sa-20211014-proto.json",
+              "juice-shop-sa-20211014-proto.json.asc",
+              "juice-shop-sa-20211014-proto.json.sha512"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-01",
+          "level": "error",
+          "message": {
+            "text": "Directory browsing enabled at http://localhost:3000/.well-known/csaf/2024 (HTTP 200, Express serveIndex Autoindex HTML): exposed 3 entry/entries (juice-shop-sa-disclaimer.json, juice-shop-sa-disclaimer.json.asc, juice-shop-sa-disclaimer.json.sha512)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known/csaf/2024"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-01",
+            "indexFormat": "Express serveIndex Autoindex HTML",
+            "httpStatus": 200,
+            "enumeratedItems": [
+              "juice-shop-sa-disclaimer.json",
+              "juice-shop-sa-disclaimer.json.asc",
+              "juice-shop-sa-disclaimer.json.sha512"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

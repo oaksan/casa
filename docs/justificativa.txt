@@ -2197,3 +2197,131 @@ Ao executar o motor atualizado da Iteração 32 contra o OWASP Juice Shop (`http
   Justificativa do Motor: A porta `3000` não possui listener TLS ativo (tráfego
   em HTTP cleartext), impossibilitando garantias contra ataques de camada TLS.
 ================================================================================
+
+
+================================================================================
+CONTROLE 25/61: CFG-01 (Iteração SDD 033)
+================================================================================
+Título: Directory browsing disabled; file and directory enumeration not possible
+Mapeamento Normativo: OWASP ASVS V4.3.2 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+A listagem automática de diretórios (`Directory Browsing` / `Autoindex`) permite
+que atacantes enumerem arquivos ocultos, backups (`.bak`, `.kdbx`), logs de acesso,
+chaves criptográficas e templates de infraestrutura sem adivinhar nomes via
+força bruta. O CASA 3.0 AL1 Test Guide exige:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP em formato HAR 1.2;
+- Procedimento de Teste: Rastrear (spider) cada origem web declarada, requisitar
+  todo prefixo de diretório descoberto no crawl e inspecionar se o corpo da
+  resposta analisa como índice de diretório (`autoindex` HTML ou `ListBucketResult` XML S3);
+- Critério de Aprovação (PASS): Nenhuma resposta analisa como índice de diretório;
+- Critério de Falha (FAIL): >= 1 resposta analisa como índice de diretório.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop habilita propositalmente o middleware `serveIndex` do Express em
+múltiplos diretórios em `server.ts` (`/ftp`, `/encryptionkeys`, `/support/logs`,
+`/infrastructure`, `/.well-known`), além de expor subdiretórios navegáveis recursivamente.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 033:
+  O scanner verificava exclusivamente a rota estática `/ftp`, ignorando
+  `/encryptionkeys`, `/support/logs`, `/infrastructure`, `/.well-known` e subdiretórios
+  descobertos dinamicamente, não possuía parser genérico para autoindex / S3
+  `ListBucketResult`, e não gerava o artefato DAST em formato SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 033 (`casa_audit/scanner.py`):
+  1. Spider & Descoberta Recursiva de Prefixos:
+     Coleta prefixos a partir da página inicial (`href`/`src`/`action`), `robots.txt`,
+     diretórios comuns e subdiretórios extraídos de listagens HTML retornadas.
+  2. Parser de Autoindex HTML e S3 `ListBucketResult`:
+     Identifica marcações do Express `serveIndex`, Apache `mod_autoindex`, Nginx
+     autoindex e XML `ListBucketResult` S3, extraindo os artefatos enumerados.
+  3. Geração de DAST SARIF 2.1.0 (`output/dast-findings.sarif`):
+     Registra cada achado `CASA3-CFG-01` em SARIF 2.1.0 junto à captura `output/dast-capture.har`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 33 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Prefixos de diretório sondados: 20
+- Índices de diretório expostos detectados (`CASA3-CFG-01`): 11
+  1. `GET http://localhost:3000/ftp` -> HTTP 200 (11 entradas: `quarantine`, `acquisitions.md`, `coupons_2013.md.bak`, `incident-support.kdbx`, `package.json.bak`, etc.)
+  2. `GET http://localhost:3000/encryptionkeys` -> HTTP 200 (`jwt.pub`, `premium.key`)
+  3. `GET http://localhost:3000/support/logs` -> HTTP 200 (`access.log.2026-11-16`, `access.log.2026-11-18`, `audit.json`)
+  4. `GET http://localhost:3000/infrastructure` -> HTTP 200 (`terraform`, `docker-compose.yml`, `Dockerfile`)
+  5. `GET http://localhost:3000/.well-known` -> HTTP 200 (`csaf`, `security.txt`)
+  6. `GET http://localhost:3000/ftp/quarantine` -> HTTP 200 (4 entradas `juicy_malware_*.url`)
+  7. `GET http://localhost:3000/infrastructure/terraform` -> HTTP 200 (`main.tf`, `networking.tf`, `outputs.tf`, `variables.tf`)
+  8. `GET http://localhost:3000/.well-known/csaf` -> HTTP 200 (6 entradas: `2017`, `2021`, `2024`, `changes.csv`, `index.txt`, `provider-metadata.json`)
+  9. `GET http://localhost:3000/.well-known/csaf/2017` -> HTTP 200 (3 arquivos CSAF)
+  10. `GET http://localhost:3000/.well-known/csaf/2021` -> HTTP 200 (3 arquivos CSAF)
+  11. `GET http://localhost:3000/.well-known/csaf/2024` -> HTTP 200 (3 arquivos CSAF)
+- Artefatos gerados: `output/dast-findings.sarif` (11 resultados `CASA3-CFG-01`) e `output/dast-capture.har`.
+- Veredito Automatizado: FAIL
+================================================================================
+
+
+================================================================================
+CONTROLE 25/61: CFG-01 (Iteração SDD 033)
+================================================================================
+Título: Directory browsing disabled; file and directory enumeration not possible
+Mapeamento Normativo: OWASP ASVS V4.3.2 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+A listagem automática de diretórios (`Directory Browsing` / `Autoindex`) permite
+que atacantes enumerem arquivos ocultos, backups (`.bak`, `.kdbx`), logs de acesso,
+chaves criptográficas e templates de infraestrutura sem adivinhar nomes via
+força bruta. O CASA 3.0 AL1 Test Guide exige:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP em formato HAR 1.2;
+- Procedimento de Teste: Rastrear (spider) cada origem web declarada, requisitar
+  todo prefixo de diretório descoberto no crawl e inspecionar se o corpo da
+  resposta analisa como índice de diretório (`autoindex` HTML ou `ListBucketResult` XML S3);
+- Critério de Aprovação (PASS): Nenhuma resposta analisa como índice de diretório;
+- Critério de Falha (FAIL): >= 1 resposta analisa como índice de diretório.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop habilita propositalmente o middleware `serveIndex` do Express em
+múltiplos diretórios em `server.ts` (`/ftp`, `/encryptionkeys`, `/support/logs`,
+`/infrastructure`, `/.well-known`), além de expor subdiretórios navegáveis recursivamente.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 033:
+  O scanner verificava exclusivamente a rota estática `/ftp`, ignorando
+  `/encryptionkeys`, `/support/logs`, `/infrastructure`, `/.well-known` e subdiretórios
+  descobertos dinamicamente, não possuía parser genérico para autoindex / S3
+  `ListBucketResult`, e não gerava o artefato DAST em formato SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 033 (`casa_audit/scanner.py`):
+  1. Spider & Descoberta Recursiva de Prefixos:
+     Coleta prefixos a partir da página inicial (`href`/`src`/`action`), `robots.txt`,
+     diretórios comuns e subdiretórios extraídos de listagens HTML retornadas.
+  2. Parser de Autoindex HTML e S3 `ListBucketResult`:
+     Identifica marcações do Express `serveIndex`, Apache `mod_autoindex`, Nginx
+     autoindex e XML `ListBucketResult` S3, extraindo os artefatos enumerados.
+  3. Geração de DAST SARIF 2.1.0 (`output/dast-findings.sarif`):
+     Registra cada achado `CASA3-CFG-01` em SARIF 2.1.0 junto à captura `output/dast-capture.har`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 33 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Prefixos de diretório sondados: 20
+- Índices de diretório expostos detectados (`CASA3-CFG-01`): 11
+  1. `GET http://localhost:3000/ftp` -> HTTP 200 (11 entradas: `quarantine`, `acquisitions.md`, `coupons_2013.md.bak`, `incident-support.kdbx`, `package.json.bak`, etc.)
+  2. `GET http://localhost:3000/encryptionkeys` -> HTTP 200 (`jwt.pub`, `premium.key`)
+  3. `GET http://localhost:3000/support/logs` -> HTTP 200 (`access.log.2026-11-16`, `access.log.2026-11-18`, `audit.json`)
+  4. `GET http://localhost:3000/infrastructure` -> HTTP 200 (`terraform`, `docker-compose.yml`, `Dockerfile`)
+  5. `GET http://localhost:3000/.well-known` -> HTTP 200 (`csaf`, `security.txt`)
+  6. `GET http://localhost:3000/ftp/quarantine` -> HTTP 200 (4 entradas `juicy_malware_*.url`)
+  7. `GET http://localhost:3000/infrastructure/terraform` -> HTTP 200 (`main.tf`, `networking.tf`, `outputs.tf`, `variables.tf`)
+  8. `GET http://localhost:3000/.well-known/csaf` -> HTTP 200 (6 entradas: `2017`, `2021`, `2024`, `changes.csv`, `index.txt`, `provider-metadata.json`)
+  9. `GET http://localhost:3000/.well-known/csaf/2017` -> HTTP 200 (3 arquivos CSAF)
+  10. `GET http://localhost:3000/.well-known/csaf/2021` -> HTTP 200 (3 arquivos CSAF)
+  11. `GET http://localhost:3000/.well-known/csaf/2024` -> HTTP 200 (3 arquivos CSAF)
+- Artefatos gerados: `output/dast-findings.sarif` (11 resultados `CASA3-CFG-01`) e `output/dast-capture.har`.
+- Veredito Automatizado: FAIL
+================================================================================

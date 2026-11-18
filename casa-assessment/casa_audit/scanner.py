@@ -6020,17 +6020,120 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-06: No open redirect or HTTP parameter pollution
-    redir_file = repo / "routes" / "redirect.ts"
-    redir_txt = redir_file.read_text(encoding="utf-8", errors="ignore") if redir_file.exists() else ""
-    open_redir_vuln = "res.redirect(toUrl)" in redir_txt and "includes(" in insec_txt
+    # AZI-06: Active Open Redirect & HTTP Parameter Pollution (HPP) Authorization Differential Probe (SARIF 2.1.0 + redacted HAR 1.2)
+    allowed_redirect_hosts = {host.lower(), "github.com", "blockchain.info", "explorer.dash.org", "etherscan.io", "shop.spreadshirt.com", "shop.spreadshirt.de", "www.stickeryou.com", "leanpub.com"}
+    azi06_findings: list[dict] = []
+    azi06_probes = 0
+
+    def extract_redirect_target(st_code: int, hdrs_map: dict[str, str], body_txt: str) -> str:
+        if 300 <= st_code < 400 and hdrs_map.get("location"):
+            return hdrs_map["location"].strip()
+        m_meta = re.search(r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+url=([^"\'>;\s]+)', body_txt, re.IGNORECASE)
+        if m_meta:
+            return m_meta.group(1).strip()
+        return ""
+
+    # 1. Baseline denied redirect vs Open-Redirect bypass probes
+    base_redir_st, _, _ = http_probe("/redirect?to=https://evil.example.com", follow_redirects=False)
+    azi06_probes += 1
+
+    redir_vectors = [
+        ("direct_off_allowlist", "/redirect?to=https://evil.example.com"),
+        ("protocol_relative", "/redirect?to=//evil.example.com"),
+        ("query_substring_bypass", "/redirect?to=https://evil.example.com?https://github.com/juice-shop/juice-shop"),
+        ("userinfo_at_bypass", "/redirect?to=https://github.com/juice-shop/juice-shop@evil.example.com"),
+    ]
+    for r_lbl, r_path in redir_vectors:
+        r_st, r_hdrs, r_body = http_probe(r_path, follow_redirects=False)
+        azi06_probes += 1
+        loc_target = extract_redirect_target(r_st, r_hdrs, r_body)
+        if loc_target:
+            loc_host = (urllib.parse.urlparse(loc_target).hostname or "").lower()
+            if loc_host and loc_host not in allowed_redirect_hosts:
+                azi06_findings.append(
+                    {
+                        "url": f"{base_url}{r_path.split('?', 1)[0]}",
+                        "kind": f"OpenRedirect_{r_lbl}",
+                        "cwe": "CWE-601",
+                        "status": r_st,
+                        "detail": (
+                            f"GET {base_url}{r_path} returned HTTP {r_st} Location '{loc_target}' resolving to "
+                            f"off-allowlist host '{loc_host}' (allowlist substring '.includes()' / parser bypass — CWE-601)."
+                        ),
+                    }
+                )
+
+    # 2. HTTP Parameter Pollution (HPP) duplicated-parameter authorization differential probes
+    hpp_redir_st, hpp_redir_hdrs, _ = http_probe(
+        "/redirect?to=https://evil.example.com&to=https://github.com/juice-shop/juice-shop",
+        follow_redirects=False,
+    )
+    azi06_probes += 1
+    if (300 <= hpp_redir_st < 400) and base_redir_st >= 400:
+        hpp_loc = hpp_redir_hdrs.get("location", "")
+        azi06_findings.append(
+            {
+                "url": f"{base_url}/redirect",
+                "kind": "HPP_Authorization_Outcome_Bypass",
+                "cwe": "CWE-235",
+                "status": hpp_redir_st,
+                "detail": (
+                    f"Duplicated ?to= parameter flipped redirect authorization outcome from HTTP {base_redir_st} (denied) "
+                    f"to HTTP {hpp_redir_st} (Location='{hpp_loc}') via Express query-array coercion."
+                ),
+            }
+        )
+
+    # Also test duplicated auth/query parameters on protected route
+    b_auth_st, _, _ = http_probe(f"/rest/basket/{auth_bid}", headers=auth_req_headers)
+    hpp_auth_st, _, _ = http_probe(f"/rest/basket/{auth_bid}?id={auth_bid}&id=1", headers=auth_req_headers)
+    unauth_base_st, _, _ = http_probe("/rest/basket/1")
+    unauth_hpp_st, _, _ = http_probe("/rest/basket/1?id=1&id=1")
+    azi06_probes += 4
+    if unauth_base_st in {401, 403} and 200 <= unauth_hpp_st < 300:
+        azi06_findings.append(
+            {
+                "url": f"{base_url}/rest/basket/1",
+                "kind": "HPP_Authz_Privilege_Bypass",
+                "cwe": "CWE-235",
+                "status": unauth_hpp_st,
+                "detail": f"Duplicated query parameter on /rest/basket/1 changed unauthenticated HTTP {unauth_base_st} to HTTP {unauth_hpp_st}.",
+            }
+        )
+
+    for afz6 in azi06_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AZI-06",
+                "level": "error",
+                "message": {"text": afz6["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": afz6["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AZI-06",
+                    "findingKind": afz6["kind"],
+                    "cwe": afz6["cwe"],
+                    "httpStatus": afz6["status"],
+                },
+            }
+        )
+
+    open_redir_vuln = len(azi06_findings) > 0
+    azi06_lines = [f"[{az6['cwe']} / {az6['kind']}] {az6['detail']}" for az6 in azi06_findings]
     results["AZI-06"] = {
         "verdict": "FAIL" if open_redir_vuln else "PASS",
-        "tool": "Open Redirect & HPP Analyzer",
+        "tool": f"Active Open Redirect & HPP Differential Analyzer ({azi06_probes} no-redirect + HPP probes, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            "[FAIL] routes/redirect.ts & lib/insecurity.ts validate redirect target using substring .includes() instead of strict origin parsing, allowing arbitrary external redirects via ?to=https://evil.com?<allowlisted_url> (CWE-601)."
+            f"[FAIL] {len(azi06_findings)} Open Redirect / HPP authorization bypass(es) confirmed across {azi06_probes} probes:\n  - "
+            + "\n  - ".join(azi06_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if open_redir_vuln
-            else "[PASS] Redirect endpoints enforce strict allowlist validation."
+            else f"[PASS] Executed {azi06_probes} open-redirect and duplicated-parameter HPP probes; 0 off-allowlist redirects and 0 HPP authorization changes detected.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

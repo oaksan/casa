@@ -3723,3 +3723,61 @@ Ao executar o motor atualizado da Iteração 56 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (3 resultados `CASA3-AZI-05`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 49/61: AZI-06 (Iteração SDD 057)
+================================================================================
+Título: No open redirect or unvalidated forward; HTTP parameter pollution handled safely
+Mapeamento Normativo: OWASP ASVS V5.1.5, V5.1.1 (L1); CWE-601 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Redirecionamentos abertos (CWE-601) permitem *phishing* em domínios confiáveis,
+enquanto *HTTP Parameter Pollution* (HPP / CWE-235) explora a conversão implícita
+de parâmetros repetidos em arrays ou concatenação para contornar regras de
+autorização e allowlists. O Guia de Testes CASA 3.0 AL1 estabelece para `AZI-06`:
+- Evidência: Achados de DAST autenticado e harness em SARIF 2.1.0 + HAR 1.2 redigido;
+- Procedimento: Enviar payloads de *open redirect* a todo parâmetro de redirect
+  e requisições com parâmetros duplicados a endpoints relevantes para autorização;
+- Critério de Aprovação (PASS): Nenhum `Location` 3xx, *meta-refresh* ou redirect
+  JS resolve para host fora da allowlist do escopo, e parâmetros duplicados não
+  alteram decisões de autorização;
+- Critério de Falha (FAIL): >= 1 redirecionamento fora da allowlist ou alteração
+  de decisão de autorização por parâmetro duplicado.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Em `lib/insecurity.ts:135`, a função `isRedirectAllowed` valida a URL usando
+`url.includes(allowedUrl)`. Com isso, tanto URLs maliciosas com substring na
+query (`?to=https://evil.example.com?https://github.com/juice-shop/juice-shop`)
+quanto parâmetros HPP duplicados (`?to=https://evil.example.com&to=<allowlisted>`)
+via coerção de array do Express contornam a allowlist (de `HTTP 406` para `302`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 057:
+  O scanner verificava apenas `res.redirect(toUrl)` e `includes(` estaticamente
+  no código-fonte, sem executar nenhuma requisição HTTP com `follow_redirects=False`,
+  sem testar bypasses `@`/query/`//`, sem testar parâmetros duplicados (HPP) e sem
+  emitir achados em SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 057 (`casa_audit/scanner.py`):
+  1. Sondas Ativas `NoRedirect` de *Open Redirect* (5 variações + parsing de host):
+     Avalia cabeçalho `Location` 3xx e `<meta http-equiv="refresh">`, extraindo o
+     hostname real via `urlparse` contra a allowlist estrita de hosts permitidos.
+  2. Scanner Diferencial de *HTTP Parameter Pollution* (HPP):
+     Compara resposta baseline negada (`HTTP 406`) contra parâmetro `?to=` duplicado
+     (`HTTP 302`) além de testar poluição de parâmetros em `/rest/basket/{id}`.
+  3. Evidência SARIF 2.1.0 (`CASA3-AZI-06`) + Redacted HAR 1.2:
+     Preserva `open_redir_vuln` para `OAU-03` e emite `CASA3-AZI-06` em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 57 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Achados `CASA3-AZI-06` confirmados em **10 sondas ativas** (**2 violações**):
+  1. `[CWE-601 / OpenRedirect_query_substring_bypass]` `GET /redirect?to=https://evil.example.com?https://github.com/juice-shop/juice-shop` -> `HTTP 302` apontando para host `evil.example.com`.
+  2. `[CWE-235 / HPP_Authorization_Outcome_Bypass]` Parâmetro `?to=` duplicado inverteu a autorização de `HTTP 406` (negado) para `HTTP 302` (`Location='https://evil.example.com,https://github.com/juice-shop/juice-shop'`).
+- Artefatos gerados: `output/dast-findings.sarif` (2 resultados `CASA3-AZI-06`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

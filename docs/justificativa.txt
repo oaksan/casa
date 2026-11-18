@@ -3664,3 +3664,62 @@ Ao executar o motor atualizado da Iteração 55 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (0 achados `CASA3-AZI-04`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: **PASS** (corrigiu a confusão estática CWE-94 vs CWE-78).
 ================================================================================
+
+
+================================================================================
+CONTROLE 48/61: AZI-05 (Iteração SDD 056)
+================================================================================
+Título: No Local/Remote File Inclusion or path traversal
+Mapeamento Normativo: OWASP ASVS V5.3.9, V12.3.2, V12.3.3 (L1); CWE-22, CWE-98 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Falhas de *Path Traversal* / LFI (CWE-22) e *Remote File Inclusion* (CWE-98)
+ocorrem quando caminhos ou URLs controlados pelo usuário contornam restrições de
+diretório ou extensão (via *double-encoding* `%252f`, *poison null byte* `%2500`,
+caminhos absolutos ou UNC) ou levam o servidor a buscar recursos remotos arbitrários.
+O Guia de Testes CASA 3.0 AL1 estabelece para `AZI-05`:
+- Evidência: Achados de DAST autenticado e harness em SARIF 2.1.0 + HAR 1.2 redigido;
+- Procedimento: Enviar um conjunto de payloads de traversal e inclusão de arquivos
+  (formas codificadas, duplamente codificadas, null-byte, absolutas e UNC) para
+  todo parâmetro que influencia um caminho ou inclusão remota;
+- Critério de Aprovação (PASS): Nenhuma resposta retorna conteúdo restrito/fora da
+  raiz nem apresenta marcador/callback de inclusão remota;
+- Critério de Falha (FAIL): >= 1 resposta contendo arquivo restrito ou inclusão remota.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop apresenta duas vulnerabilidades reais alinhadas ao `AZI-05`:
+1. `routes/fileServer.ts` decodifica `%2500` após validar extensão `.md`/`.pdf`,
+   permitindo leitura arbitrária de arquivos restritos (`/ftp/package.json.bak%2500.md`,
+   `/ftp/suspicious_errors.yml%2500.md` — CWE-22).
+2. `POST /profile/image/url` busca dinamicamente via HTTP qualquer `imageUrl`
+   enviada pelo usuário autenticado (CWE-98 / RFI-SSRF).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 056:
+  O scanner enviava apenas 1 única requisição estática (`/ftp/package.json.bak%2500.md`),
+  ignorando variações codificadas (`..%2f`), duplamente codificadas (`..%252f`),
+  absolutas (`%2fetc%2fpasswd`), UNC (`\\server\share`), outros endpoints (`/support/logs`),
+  inclusão remota ativa em `POST /profile/image/url` e SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 056 (`casa_audit/scanner.py`):
+  1. Matriz Completa de 9 Sondas (Encoded, Double-Encoded, Null-Byte, Absoluto, UNC + RFI):
+     Testa `/ftp/`, `/support/logs/` e demais formas normativas exigidas pelo guia.
+  2. Listener HTTP Ativo para *Remote File Inclusion* (`RfiCallbackHandler`):
+     Submete URL de callback em `POST /profile/image/url` e comprova a requisição
+     HTTP de saída efetuada pelo servidor (`/casa3_rfi_probe.svg`).
+  3. Evidência SARIF 2.1.0 (`CASA3-AZI-05`) + Redacted HAR 1.2:
+     Emite todos os achados em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 56 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Achados confirmados em **9 sondas** (`CASA3-AZI-05`, **3 violações**):
+  1. `[CWE-22 / null_byte_package_json_bak]` `GET /ftp/package.json.bak%2500.md` -> `HTTP 200` (contornou allowlist de extensão).
+  2. `[CWE-22 / null_byte_restricted_yaml]` `GET /ftp/suspicious_errors.yml%2500.md` -> `HTTP 200` (`title: Suspicious error messages...`).
+  3. `[CWE-98 / remote_file_inclusion_fetch]` `POST /profile/image/url` provocou fetch HTTP remoto no servidor para `/casa3_rfi_probe.svg` (`HTTP 200`).
+- Artefatos gerados: `output/dast-findings.sarif` (3 resultados `CASA3-AZI-05`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

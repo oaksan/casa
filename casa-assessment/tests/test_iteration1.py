@@ -89,6 +89,10 @@ class TestCasa3Iteration1(unittest.TestCase):
                 self.assertIn("data.js", html)
                 self.assertIn("app.js", html)
 
+            app_js = (FRONTEND_DIR / "app.js").read_text(encoding="utf-8")
+            self.assertIn('triageNotesLbl: "Notas do Avaliador"', app_js)
+            self.assertIn('triageNotesPh: "Notas como controles compensatórios"', app_js)
+
             # 2. Verify POST /api/scan returns 61 AL1 automated verdicts
             req = urllib.request.Request(
                 f"http://127.0.0.1:{port}/api/scan",

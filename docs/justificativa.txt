@@ -2936,3 +2936,64 @@ Ao executar o motor atualizado da Iteração 43 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (0 violações `CASA3-CFG-11`) e `output/dast-capture.har`.
 - Veredito Automatizado: PASS
 ================================================================================
+
+
+================================================================================
+CONTROLE 36/61: AUT-01 (Iteração SDD 044)
+================================================================================
+Título: No default, shared or vendor-supplied credentials accepted
+Mapeamento Normativo: OWASP ASVS V2.5.4 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Credenciais padrão de fornecedor, contas de demonstração (`demo/demo`) ou senhas
+compartilhadas pré-semeadas comprometem imediatamente qualquer controle de acesso
+da aplicação. O Guia de Testes CASA 3.0 AL1 estabelece para `AUT-01`:
+- Evidência: Achados de harness/DAST em SARIF 2.1.0 e captura HAR 1.2 **redigida**
+  (*redacted HAR 1.2*) das requisições reproduzidas;
+- Procedimento: Reproduzir um corpus de credenciais padrão somado aos padrões de
+  fornecedor de cada produto identificado contra todo endpoint de autenticação;
+- Critério de Aprovação (PASS): Zero pares do corpus autenticam em qualquer
+  superfície de login;
+- Critério de Falha (FAIL): >= 1 par autentica.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop pré-semeia múltiplas contas com credenciais fracas/padrão em
+`data/static/users.yml`, incluindo administrador (`admin@juice-sh.op`), usuário
+de demonstração (`demo` / `demo`) e contas padrão do produto (`jim`, `bender`,
+`mc.safesearch`), todas aceitando `POST /rest/user/login` e emitindo JWTs válidos.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 044:
+  O scanner testava apenas 1 único par fixo (`admin@juice-sh.op` / `admin123`) em
+  `/rest/user/login`, sem corpus genérico de credenciais padrão, sem descoberta
+  de superfícies alternativas de login com filtro anti-SPA, sem redação de
+  cabeçalhos sensíveis no HAR 1.2 e sem emissão em SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 044 (`casa_audit/scanner.py`):
+  1. Corpus Combinado (Padrões Genéricos + Derivados do Produto) & Descoberta de Login:
+     Avalia 12 pares (8 genéricos estilo SecLists + 4 do produto quando aplicável)
+     sobre superfícies de login ativas (`/rest/user/login`, `/api/login`, `/auth/login`).
+  2. Redação de Credenciais e Tokens (`[REDACTED]` no HAR 1.2 + mascaramento no log/SARIF):
+     Cabeçalhos `authorization`, `cookie`, `set-cookie` e `x-api-key` passam a
+     ser automaticamente redigidos em `dast-capture.har`, e senhas testadas são
+     mascaradas no log e no SARIF.
+  3. Evidência SARIF 2.1.0 (`CASA3-AUT-01`) + Redacted HAR 1.2:
+     Emite todos os achados em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 44 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Tentativas executadas em `/rest/user/login`: 12 pares (4 padrões do produto + 8 genéricos)
+- Pares autenticados com sucesso (**5/12** — achados `CASA3-AUT-01`):
+  1. `admin@juice-sh.op` / `ad***(8ch)` (`product_vendor_default`, HTTP 200, JWT len=717)
+  2. `jim@juice-sh.op` / `nc***(8ch)` (`product_vendor_default`, HTTP 200, JWT len=712)
+  3. `bender@juice-sh.op` / `Oh***(24ch)` (`product_vendor_default`, HTTP 200, JWT len=716)
+  4. `mc.safesearch@juice-sh.op` / `Mr***(11ch)` (`product_vendor_default`, HTTP 200, JWT len=727)
+  5. `demo` / `de***(4ch)` (`generic_default_credential`, HTTP 200, JWT len=700)
+- Redação HAR 1.2 confirmada: 72 ocorrências de `[REDACTED]` nos cabeçalhos sensíveis.
+- Artefatos gerados: `output/dast-findings.sarif` (5 resultados `CASA3-AUT-01`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

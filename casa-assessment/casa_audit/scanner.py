@@ -2223,6 +2223,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             resp_body = f"Connection error: {exc}"
 
         elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
+        sensitive_hdrs = {"authorization", "cookie", "set-cookie", "x-api-key"}
         har_entries.append(
             {
                 "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -2231,12 +2232,18 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
                     "method": method,
                     "url": url,
                     "httpVersion": "HTTP/1.1",
-                    "headers": [{"name": k, "value": v} for k, v in req_headers.items()],
+                    "headers": [
+                        {"name": k, "value": "[REDACTED]" if k.lower() in sensitive_hdrs else v}
+                        for k, v in req_headers.items()
+                    ],
                 },
                 "response": {
                     "status": status,
                     "httpVersion": "HTTP/1.1",
-                    "headers": [{"name": k, "value": v} for k, v in resp_headers.items()],
+                    "headers": [
+                        {"name": k, "value": "[REDACTED]" if k.lower() in sensitive_hdrs else v}
+                        for k, v in resp_headers.items()
+                    ],
                 },
             }
         )
@@ -4164,28 +4171,138 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 5: Authentication & Session Management (AUT-01 .. AUT-08) ----
-    # AUT-01: Default / vendor-supplied credentials probe
-    login_payload = json.dumps({"email": "admin@juice-sh.op", "password": "admin123"}).encode("utf-8")
-    l_status, l_hdrs, l_body = http_probe(
-        "/rest/user/login",
-        method="POST",
-        headers={"Content-Type": "application/json"},
-        body=login_payload,
+    # AUT-01: Default, shared & product-derived vendor credential replay harness (SARIF 2.1.0 + redacted HAR 1.2)
+    generic_default_corpus = [
+        ("admin", "admin"),
+        ("admin@example.com", "admin"),
+        ("administrator", "administrator"),
+        ("root", "root"),
+        ("test", "test"),
+        ("guest", "guest"),
+        ("user", "password"),
+        ("demo", "demo"),
+    ]
+    is_juice_shop_target = "juice shop" in root_body.lower() or "juice-sh.op" in root_body.lower() or (repo / "data" / "static" / "users.yml").exists()
+    product_default_corpus = (
+        [
+            ("admin@juice-sh.op", "admin123"),
+            ("jim@juice-sh.op", "ncc-1701"),
+            ("bender@juice-sh.op", "OhG0dPlease1nsertLiquor!"),
+            ("mc.safesearch@juice-sh.op", "Mr. N00dles"),
+        ]
+        if is_juice_shop_target
+        else []
     )
-    jwt_token = ""
-    if l_status == 200 and '"token"' in l_body:
-        try:
-            jwt_token = json.loads(l_body).get("authentication", {}).get("token", "")
-        except Exception:
-            pass
+    aut01_corpus = product_default_corpus + generic_default_corpus
 
+    # Identify active login surfaces (avoiding SPA HTML catch-all false positives)
+    aut01_login_endpoints = ["/rest/user/login", "/api/login", "/auth/login"]
+    active_login_surfaces: list[str] = []
+    for lp in aut01_login_endpoints:
+        st_chk, hdrs_chk, body_chk = http_probe(
+            lp,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": "__casa3_nonexistent__", "password": "__invalid__"}).encode("utf-8"),
+        )
+        ctype_chk = hdrs_chk.get("content-type", "").lower()
+        if lp == "/rest/user/login" or (st_chk in {400, 401, 403, 422} and not is_spa_fallback(body_chk)) or ("application/json" in ctype_chk and st_chk != 404):
+            active_login_surfaces.append(lp)
+
+    if not active_login_surfaces:
+        active_login_surfaces = ["/rest/user/login"]
+
+    jwt_token = ""
+    l_hdrs: dict[str, str] = {}
+    l_status = 0
+    aut01_findings: list[dict] = []
+    aut01_attempts = 0
+
+    for login_ep in active_login_surfaces:
+        for cred_user, cred_pass in aut01_corpus:
+            payload_dict = (
+                {"email": cred_user, "password": cred_pass}
+                if ("@" in cred_user or login_ep == "/rest/user/login")
+                else {"username": cred_user, "password": cred_pass}
+            )
+            st1, h1, b1 = http_probe(
+                login_ep,
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                body=json.dumps(payload_dict).encode("utf-8"),
+            )
+            aut01_attempts += 1
+            if login_ep == "/rest/user/login" and cred_user == "admin@juice-sh.op":
+                l_status = st1
+                l_hdrs = h1
+
+            issuance_token = ""
+            if 200 <= st1 < 300 and not is_spa_fallback(b1):
+                try:
+                    parsed_b1 = json.loads(b1)
+                    issuance_token = (
+                        parsed_b1.get("authentication", {}).get("token", "")
+                        or parsed_b1.get("token", "")
+                        or parsed_b1.get("access_token", "")
+                    )
+                except Exception:
+                    issuance_token = ""
+                has_set_cookie = bool(h1.get("set-cookie"))
+                if issuance_token or has_set_cookie:
+                    if not jwt_token and issuance_token:
+                        jwt_token = issuance_token
+                        l_hdrs = h1
+                        l_status = st1
+                    masked_pw = f"{cred_pass[:2]}***({len(cred_pass)}ch)"
+                    kind_lbl = "product_vendor_default" if (cred_user, cred_pass) in product_default_corpus else "generic_default_credential"
+                    aut01_findings.append(
+                        {
+                            "url": f"{base_url}{login_ep}",
+                            "endpoint": login_ep,
+                            "account": cred_user,
+                            "maskedPassword": masked_pw,
+                            "kind": kind_lbl,
+                            "status": st1,
+                            "detail": (
+                                f"POST {base_url}{login_ep} authenticated {kind_lbl} account "
+                                f"'{cred_user}' / '{masked_pw}' -> HTTP {st1} (issued session token len={len(issuance_token)})"
+                            ),
+                        }
+                    )
+
+    for af1 in aut01_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AUT-01",
+                "level": "error",
+                "message": {"text": af1["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af1["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AUT-01",
+                    "account": af1["account"],
+                    "credentialCategory": af1["kind"],
+                    "httpStatus": af1["status"],
+                },
+            }
+        )
+
+    aut01_fail = len(aut01_findings) > 0
+    aut01_lines = [af1["detail"] for af1 in aut01_findings]
     results["AUT-01"] = {
-        "verdict": "FAIL" if (l_status == 200 and jwt_token) else "PASS",
-        "tool": "Default Credential Probe (HAR 1.2)",
+        "verdict": "FAIL" if aut01_fail else "PASS",
+        "tool": f"Default & Vendor Credential Replay Harness ({aut01_attempts} attempts across {len(active_login_surfaces)} login surface(s), SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] POST {base_url}/rest/user/login accepted known default administrator credential (admin@juice-sh.op / admin123) and issued valid JWT session token."
-            if (l_status == 200 and jwt_token)
-            else f"[PASS] Default credential probe rejected by authentication endpoint (HTTP {l_status})."
+            f"[FAIL] {len(aut01_findings)}/{len(aut01_corpus)} default/vendor credential pair(s) authenticated across {active_login_surfaces}:\n  - "
+            + "\n  - ".join(aut01_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if aut01_fail
+            else f"[PASS] Replayed {aut01_attempts} default/vendor credential probes across {active_login_surfaces}; 0 credential pairs authenticated.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

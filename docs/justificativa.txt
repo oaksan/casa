@@ -3488,3 +3488,66 @@ Ao executar o motor atualizado da Iteração 52 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (3 resultados `CASA3-AZI-01`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 45/61: AZI-02 (Iteração SDD 053)
+================================================================================
+Título: No Cross-Site Scripting — reflected, stored or DOM-based
+Mapeamento Normativo: OWASP ASVS V5.3.3 (L1); CWE-79 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Vulnerabilidades de *Cross-Site Scripting* (XSS Refletido, Armazenado ou DOM)
+permitem execução arbitrária de JavaScript na origem da aplicação, viabilizando
+sequestro de sessão, leitura de tokens e ações em nome da vítima (CWE-79). O
+Guia de Testes CASA 3.0 AL1 exige confirmação ativa para `AZI-02`:
+- Evidência: Achados de DAST autenticado e harness em SARIF 2.1.0 + HAR 1.2 redigido;
+- Procedimento: Executar varredura XSS ativa autenticada e varredura DOM ao
+  longo do crawl, com **callback *out-of-band*** que confirme a execução de script;
+- Critério de Aprovação (PASS): Zero achados confirmados por callback de execução
+  e nenhum candidato reproduzível manualmente;
+- Critério de Falha (FAIL): >= 1 execução confirmada por callback ou candidato
+  reproduzido como explorável.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O frontend Angular do OWASP Juice Shop utiliza `DomSanitizer.bypassSecurityTrustHtml(...)`
+em 7 componentes distintos (`search-result.component.ts:146`, `about.component.ts`,
+`administration.component.ts`, `track-result.component.ts`, `score-board.component.ts`,
+`data-export.component.ts` e `last-login-ip.component.ts`). No componente de busca
+(`/#/search?q=...`), qualquer payload HTML/event-handler (`<img src=x onerror=...>`)
+é renderizado sem sanitização diretamente no DOM.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 053:
+  O scanner fazia apenas grep estático de `bypassSecurityTrustHtml` em arquivos `.ts`
+  (incluindo falsos positivos de `.spec.ts`), sem iniciar servidor de callback,
+  sem injetar payloads XSS armazenados/refletidos/DOM, sem executar navegador
+  headless para disparar JavaScript real e sem gravar SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 053 (`headless_xss_callback.js` + `casa_audit/scanner.py`):
+  1. Servidor Ephemeral Out-of-Band (`XssCallbackHandler`) + Chrome Headless CDP:
+     Abre listener HTTP em `127.0.0.1:<cb_port>`, envia sondas XSS em `/api/Feedbacks/`
+     (resolvendo CAPTCHA), `/profile` e `/rest/products/search`, lança o Google
+     Chrome headless com cookie autenticado (`Network.setCookie`) navegando pelas
+     visões `/#/about`, `/#/search?q=<img src=x onerror="fetch(...)">` e `/profile`.
+  2. Confirmação por Execução Real de Script (`out_of_band_http_callback`):
+     Classifica execução real confirmada via HTTP callback distinto de candidatos
+     estáticos e exclui arquivos `.spec.ts` da contagem de sinks Angular (7 componentes reais).
+  3. Evidência SARIF 2.1.0 (`CASA3-AZI-02`) + Redacted HAR 1.2:
+     Registra o achado confirmado em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 53 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Sondas executadas: 5 (Feedbacks Stored XSS, `/profile`, API search reflection e
+  3 páginas no Chrome headless; 7 sinks reais `bypassSecurityTrustHtml` identificados).
+- Confirmação ao vivo (`CASA3-AZI-02`):
+  - `[DOM_XSS_callback_confirmed]` O Google Chrome headless executou o payload
+    JavaScript injetado em `http://localhost:3000/#/search` e disparou o callback
+    HTTP *out-of-band* ao vivo `GET 127.0.0.1:40429/cb?vec=dom_search`.
+- Artefatos gerados: `output/dast-findings.sarif` (`CASA3-AZI-02`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

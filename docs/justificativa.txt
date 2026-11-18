@@ -4320,3 +4320,69 @@ Ao executar o motor atualizado da Iteração 65 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-OAU-08`) e `output/dast-capture.har` (282 entradas redigidas).
 - Veredito Automatizado: **FAIL** (corrigiu o falso `PASS` do stub anterior).
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 58/61: OAU-09 (Iteração SDD 066)
+================================================================================
+Título: Where the application's own backend accepts identity-provider ID tokens or access tokens as proof of identity, it validates signature, iss, aud, exp and scope against the identity provider's published keys; alg:none and algorithm confusion are rejected
+Mapeamento Normativo: RFC 9700 §4.9; RFC 8725; CWE-347 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Sempre que o backend da aplicação aceitar tokens como prova de identidade, deve
+validar criptograficamente a assinatura contra a lista estrita de algoritmos
+permitidos e chaves publicadas do IdP, rejeitar `alg:none` e confusão de
+algoritmo (`RS256` -> `HS256` com chave pública) e impor validação das claims
+`iss`, `aud`, `exp` e `scope` (RFC 9700 §4.9; RFC 8725; CWE-347). O Guia de
+Testes CASA 3.0 AL1 estabelece para `OAU-09`:
+- Evidência: Captura HAR 1.2 redigida e SARIF 2.1.0;
+- Procedimento: Reenviar tokens forjados para todo endpoint observado que
+  aceite token: não assinado (`alg:none`), chave estrangeira, expirado (`exp`),
+  audiência incorreta (`aud`), emissor incorreto (`iss`) e escopo insuficiente
+  (`scope`);
+- Critério de Aprovação (PASS): Todo endpoint que aceita token válido rejeita
+  100% dos tokens forjados;
+- Critério de Falha (FAIL): >= 1 token forjado aceito por qualquer endpoint.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O backend do OWASP Juice Shop expõe `/encryptionkeys/jwt.pub` e configura
+`express-jwt` sem `algorithms`, `issuer`, `audience` ou `scope`. Como resultado,
+sondas ativas contra os endpoints protegidos `/rest/wallet/balance` e
+`/rest/basket/{bid}` comprovam aceitação `HTTP 200` para `unsigned_alg_none`,
+`alg_confusion_hs256_pubkey`, `wrong_audience_aud`, `wrong_issuer_iss` e
+`insufficient_scope`, enquanto rejeitam apenas `expired_exp_claim` e
+`foreign_signing_key` (`HTTP 401`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 066:
+  O controle `OAU-09` verificava apenas a flag estática `jwt_confusion`
+  (`"expressJwt(({ secret: publicKey })" in insec_txt`), sem executar replay
+  dinâmico de tokens forjados contra os endpoints autenticados, sem validar os
+  vetores de `exp`, `aud`, `iss`, `scope` e chave estrangeira exigidos pelo Guia
+  de Testes e sem gravar SARIF 2.1.0 (`CASA3-OAU-09`) nem HAR 1.2.
+
+- Oportunidades de Melhoria Implementadas na Iteração 066 (`casa_audit/scanner.py`):
+  1. Harness Ativo de 7 Vetores JWT/OIDC contra Endpoints Autenticados:
+     Constrói tokens `unsigned_alg_none`, `foreign_signing_key`,
+     `alg_confusion_hs256_pubkey`, `expired_exp_claim`, `wrong_audience_aud`,
+     `wrong_issuer_iss` e `insufficient_scope`, testando previamente a
+     aceitação do token legítimo em `/rest/wallet/balance` e `/rest/basket/{bid}`
+     (`16` sondas registradas em HAR 1.2).
+  2. Emissão SARIF 2.1.0 (`CASA3-OAU-09`) por Endpoint e Vetor Aceito:
+     Distingue claramente vetores rejeitados (`HTTP 401`) de violações ativas (`HTTP 200`).
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 66 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Sondas executadas: **16** contra **2** endpoints (`/rest/wallet/balance`, `/rest/basket/{bid}`)
+- Vetores rejeitados (`HTTP 401`): `expired_exp_claim`, `foreign_signing_key`
+- Vetores aceitos (`HTTP 200`, **10 achados `CASA3-OAU-09`** = 5 vetores × 2 endpoints):
+  `unsigned_alg_none`, `alg_confusion_hs256_pubkey`, `wrong_audience_aud`,
+  `wrong_issuer_iss`, `insufficient_scope`.
+- Artefatos gerados: `output/dast-findings.sarif` (10 resultados `CASA3-OAU-09`) e `output/dast-capture.har` (299 entradas redigidas).
+- Veredito Automatizado: FAIL
+================================================================================

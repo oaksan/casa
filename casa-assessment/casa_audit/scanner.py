@@ -7108,13 +7108,134 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
+    # OAU-09: Active 7-Vector Crafted Token Replay & Claim Validation Harness (signature, iss, aud, exp, scope, alg:none, alg confusion) (SARIF 2.1.0 + redacted HAR 1.2)
+    oau09_token = aut05_replayed_token or auth_token or jwt_token
+    oau09_findings: list[dict] = []
+    seen_oau09_keys: set[tuple[str, str]] = set()
+    oau09_probes = 0
+    oau09_endpoints: list[str] = ["/rest/wallet/balance", f"/rest/basket/{auth_bid}"]
+    oau09_rejected_vectors: set[str] = set()
+
+    def _add_oau09(location: str, vector: str, detail: str, status: int = 0) -> None:
+        key9 = (location, vector)
+        if key9 not in seen_oau09_keys:
+            seen_oau09_keys.add(key9)
+            oau09_findings.append(
+                {
+                    "location": location,
+                    "vector": vector,
+                    "cwe": "CWE-347",
+                    "status": status,
+                    "detail": detail,
+                }
+            )
+
+    if base_url and oau09_token and oau09_token.count(".") == 2:
+        hdr9_b64, pay9_b64, _ = oau09_token.split(".")
+        try:
+            pay9 = b64url_decode_json(pay9_b64)
+        except Exception:
+            pay9 = {}
+
+        oau09_pub_key = b""
+        pk9_st, _, pk9_body = http_probe("/encryptionkeys/jwt.pub")
+        if pk9_st == 200 and "BEGIN PUBLIC KEY" in pk9_body:
+            oau09_pub_key = pk9_body.encode("utf-8")
+        elif (repo / "encryptionkeys" / "jwt.pub").exists():
+            oau09_pub_key = (repo / "encryptionkeys" / "jwt.pub").read_bytes()
+
+        none9_hdr = b64url_encode(json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+        foreign9_hdr = b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+        foreign9_sig = b64url_encode(
+            hmac.new(b"foreign-attacker-signing-key-999", f"{foreign9_hdr}.{pay9_b64}".encode("utf-8"), hashlib.sha256).digest()
+        )
+
+        def _sign_oau09(claim_updates: dict) -> str:
+            merged_pay = {**(pay9 if isinstance(pay9, dict) else {}), **claim_updates}
+            p_b64 = b64url_encode(json.dumps(merged_pay, separators=(",", ":")).encode("utf-8"))
+            if oau09_pub_key:
+                h_b64 = b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+                s_b64 = b64url_encode(
+                    hmac.new(oau09_pub_key, f"{h_b64}.{p_b64}".encode("utf-8"), hashlib.sha256).digest()
+                )
+                return f"{h_b64}.{p_b64}.{s_b64}"
+            return f"{none9_hdr}.{p_b64}."
+
+        oau09_vectors: list[tuple[str, str]] = [
+            ("unsigned_alg_none", f"{none9_hdr}.{pay9_b64}."),
+            ("foreign_signing_key", f"{foreign9_hdr}.{pay9_b64}.{foreign9_sig}"),
+            ("alg_confusion_hs256_pubkey", _sign_oau09({})),
+            ("expired_exp_claim", _sign_oau09({"exp": 1577836800})),
+            ("wrong_audience_aud", _sign_oau09({"aud": "https://wrong-audience.example.com"})),
+            ("wrong_issuer_iss", _sign_oau09({"iss": "https://wrong-issuer.example.com"})),
+            ("insufficient_scope", _sign_oau09({"scope": "minimal:none"})),
+        ]
+
+        for ep9 in oau09_endpoints:
+            # Verify endpoint accepts genuine token first per OAU-09 Test Procedure
+            base9_st, _, _ = http_probe(ep9, headers={"Authorization": f"Bearer {oau09_token}"})
+            oau09_probes += 1
+            if not (200 <= base9_st < 300):
+                continue
+            for vec9_name, vec9_tok in oau09_vectors:
+                v9_st, _, _ = http_probe(ep9, headers={"Authorization": f"Bearer {vec9_tok}"})
+                oau09_probes += 1
+                if 200 <= v9_st < 300:
+                    _add_oau09(
+                        f"{base_url}{ep9}",
+                        vec9_name,
+                        f"GET {base_url}{ep9} ACCEPTED crafted token '{vec9_name}' (HTTP {v9_st}) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347).",
+                        status=v9_st,
+                    )
+                else:
+                    oau09_rejected_vectors.add(vec9_name)
+    elif jwt_confusion:
+        _add_oau09(
+            "lib/insecurity.ts",
+            "static_alg_confusion_no_iss_aud",
+            "Backend token verification (lib/insecurity.ts) configures express-jwt with RSA publicKey without algorithm pinning or iss/aud claim validation (RFC 8725 / CWE-347).",
+        )
+
+    for af_o9 in oau09_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-OAU-09",
+                "level": "error",
+                "message": {"text": af_o9["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_o9["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "OAU-09",
+                    "attackVector": af_o9["vector"],
+                    "cwe": af_o9["cwe"],
+                    "httpStatus": af_o9["status"],
+                },
+            }
+        )
+
+    oau09_fail = len(oau09_findings) > 0
+    oau09_lines = [f"[{o9['vector']}] {o9['detail']}" for o9 in oau09_findings]
     results["OAU-09"] = {
-        "verdict": "FAIL" if jwt_confusion else "PASS",
-        "tool": "Backend Token Validator Inspector (RFC 9700 / RFC 8725)",
+        "verdict": "FAIL" if oau09_fail else "PASS",
+        "tool": (
+            f"OAuth/OIDC Backend Token Replay & Claim Validator Harness ({oau09_probes} crafted-token probes across {len(oau09_endpoints)} protected endpoints, "
+            f"rejected={sorted(oau09_rejected_vectors)}, SARIF 2.1.0 + redacted HAR 1.2)"
+        ),
         "log": (
-            "[FAIL] Backend token verification (lib/insecurity.ts) does not validate iss/aud claims and permits algorithm confusion (alg:none / HS256 with public key)."
-            if jwt_confusion
-            else "[PASS] Backend validates signature, iss, aud, exp, and rejects alg:none."
+            f"[FAIL] {len(oau09_findings)} crafted-token acceptance violation(s) detected across {oau09_probes} probes (RFC 9700 §4.9 / RFC 8725 / CWE-347):\n  - "
+            + "\n  - ".join(oau09_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if oau09_fail
+            else (
+                f"[PASS] Executed {oau09_probes} crafted-token probes (unsigned/alg:none, foreign key, alg confusion, expired, wrong aud, wrong iss, insufficient scope) "
+                f"across {len(oau09_endpoints)} token-accepting endpoints; 100% rejected.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            )
         ),
     }
 

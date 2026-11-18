@@ -51,11 +51,26 @@ rules:
 
   - id: CASA3-SAST-04-weak-hash
     languages: [typescript, javascript]
-    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (CWE-328)"
+    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
     severity: ERROR
     pattern-either:
       - pattern: crypto.createHash('md5')
       - pattern: crypto.createHash('sha1')
+      - pattern: crypto.createHmac('md5', ...)
+      - pattern: crypto.createHmac('sha1', ...)
+      - pattern: CryptoJS.MD5(...)
+      - pattern: CryptoJS.SHA1(...)
+      - pattern: $SEC.hash($PASSWORD)
+
+  - id: CASA3-SAST-04-weak-hash-python
+    languages: [python]
+    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context in Python (CWE-328)"
+    severity: ERROR
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+      - pattern: hmac.new($KEY, $MSG, hashlib.md5)
+      - pattern: hmac.new($KEY, $MSG, hashlib.sha1)
 
   - id: CASA3-SAST-05-weak-password-kdf
     languages: [typescript, javascript]

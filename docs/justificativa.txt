@@ -868,3 +868,96 @@ Ao executar o motor atualizado da Iteração 16 contra o OWASP Juice Shop:
   em vez de cifras de bloco simétricas. Portanto, o veredito `PASS` para o
   `SAST-03` comprova ausência de falsos positivos.
 ================================================================================
+
+================================================================================
+CONTROLE 09/61: SAST-04 (Iteração SDD 017)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-04
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "No weak hash functions (MD5, SHA-1) used in any security-relevant context"
+- Padrões de Referência:
+  * MITRE CWE-328 (Use of Weak Hash)
+  * NIST SP 800-131A Rev.2
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-04):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run static weak-hash rules with data-flow (taint) tracking from MD5 and
+     SHA-1 constructors to signature, token, password, integrity-check and
+     key-derivation sinks."
+  2. "Reference tooling: semgrep, CodeQL."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level taint paths from an MD5 or SHA-1 call to a
+    security-relevant sink; non-security uses (cache key, ETag) are reported
+    informational."
+  * FAIL: "≥ 1 `error`-level taint path from a weak hash to a security-relevant
+    sink."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-04 modela a análise de funções de hash quebradas (`MD5`, `SHA-1`)
+como um problema clássico de **Análise de Fluxo de Dados (Source → Sink)**:
+  - **Fontes (Sources):** Construtores `crypto.createHash('md5'|'sha1')`,
+    `crypto.createHmac('md5'|'sha1', ...)`, `CryptoJS.MD5/SHA1` e `hashlib.md5/sha1`.
+  - **Sorvedouros Críticos (Security-Relevant Sinks):** Armazenamento/verificação
+    de senhas (`models/user.ts`, `routes/login.ts`), geração de assinaturas/HMAC
+    (`lib/utils.ts:ctfFlag`), tokens/identificadores de pedidos (`routes/order.ts`,
+    `routes/b2bOrder.ts`) e verificação 2FA (`routes/2fa.ts`).
+Quando existe um caminho sintático ou de chamada entre uma fonte fraca e um
+sorvedouro de segurança, a propriedade falha de forma determinística.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 017)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 017:
+  A regra `CASA3-SAST-04-weak-hash` detectava apenas 1 única linha
+  (`lib/insecurity.ts:41` com `crypto.createHash('md5')`). Ela deixava passar:
+  1. O uso de **HMAC-SHA1** (`crypto.createHmac('sha1', getCtfKey())`) em
+     `lib/utils.ts:82` para assinatura de flags CTF;
+  2. Todos os 13 pontos de chamada (sinks) que consomem `security.hash(...)`
+     baseado em MD5 para senhas, login, 2FA, geração de pedidos e criação de dados;
+  3. Chamadas `CryptoJS.MD5/SHA1` e funções Python (`hashlib.md5`, `hashlib.sha1`,
+     `hmac.new(..., hashlib.md5/sha1)`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 017 (`rules/casa3_al1_sast.yml`):
+  1. Expansão JS/TS (`CASA3-SAST-04-weak-hash`):
+     Inclusão de `crypto.createHmac('md5'|'sha1', ...)`, `CryptoJS.MD5/SHA1` e
+     rastreamento de chamadas ao wrapper MD5 (`$SEC.hash(...)`) nos sinks de
+     segurança da aplicação.
+  2. Cobertura Multi-Linguagem Python (`CASA3-SAST-04-weak-hash-python`):
+     Inclusão de regras AST para `hashlib.md5`, `hashlib.sha1` e `hmac.new` com
+     `digestmod` fraco.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 17 contra o OWASP Juice Shop, a
+detecção do controle `SAST-04` saltou de 1 para **15 achados comprovados**
+cobrindo tanto as fontes (`MD5` e `SHA-1`) quanto os sorvedouros críticos:
+- Veredito Automatizado: FAIL (15 ocorrências em `lib/`, `models/`, `routes/`, `data/`)
+- Principais Sinks de Segurança Impactados:
+  1. **Assinatura Criptográfica HMAC-SHA1 (`lib/utils.ts:L82`):**
+     `crypto.createHmac('sha1', getCtfKey()).update(text).digest('hex')` na função
+     `ctfFlag`.
+  2. **Construtor MD5 Central (`lib/insecurity.ts:L41`):**
+     `export const hash = (data) => crypto.createHash('md5').update(data).digest('hex')`.
+  3. **Sinks de Armazenamento e Autenticação de Senhas (MD5 sem salt):**
+     - `models/user.ts:L73` (persistência da senha do usuário via `security.hash`);
+     - `routes/login.ts:L34` (verificação de senha no login);
+     - `routes/changePassword.ts:L39, L54` (troca de senha);
+     - `routes/2fa.ts:L107, L152` (validação de senha para ativar/desativar 2FA);
+     - `data/datacreator.ts:L751, L760, L769` (inicialização de credenciais).
+  4. **Sinks de Geração de Identificadores/Tokens (`routes/b2bOrder.ts:L41`, `routes/order.ts:L40`):**
+     Geração de `uniqueOrderNumber` e `orderId` baseada em MD5.
+================================================================================

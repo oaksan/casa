@@ -66,6 +66,9 @@ class TestCasa3Iteration1(unittest.TestCase):
         # SCA-01 and SAST-01 apply to All -> must be evaluated (PASS or FAIL)
         self.assertIn(results["SCA-01"]["verdict"], {"PASS", "FAIL"})
         self.assertIn(results["SAST-01"]["verdict"], {"PASS", "FAIL"})
+        for cid, r in results.items():
+            self.assertNotIn("... and ", r["log"], f"{cid} log is truncated")
+            self.assertNotIn("... (+", r["log"], f"{cid} log is truncated")
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)

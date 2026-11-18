@@ -81,7 +81,7 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
     if req_txt.exists():
         req_files = [req_txt]
     else:
-        req_files = [p for p in repo.rglob("requirements*.txt") if "node_modules" not in p.parts][:5]
+        req_files = [p for p in repo.rglob("requirements*.txt") if "node_modules" not in p.parts]
 
     for rf in req_files:
         try:
@@ -126,7 +126,7 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
     if deps:
         batch_queries = [
             {"package": {"name": name, "ecosystem": eco}, "version": ver}
-            for eco, name, ver in deps[:120]
+            for eco, name, ver in deps
         ]
         osv_queried = len(batch_queries)
         try:
@@ -146,7 +146,7 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                         for vid in ids:
                             if vid.startswith("MAL-"):
                                 malicious_findings.append(f"{name}@{ver} ({vid})")
-                        vuln_findings.append(f"{name}@{ver}: {', '.join(ids[:4])} ({len(ids)} advisories)")
+                        vuln_findings.append(f"{name}@{ver}: {', '.join(ids)} ({len(ids)} advisories)")
         except Exception as exc:
             vuln_findings.append(f"OSV API query warning: {exc}")
 
@@ -157,8 +157,7 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
             "tool": f"OSV.dev API + CycloneDX SBOM ({osv_queried} packages queried)",
             "log": (
                 f"[FAIL] {len(vuln_findings)} vulnerable packages identified via OSV.dev in {repo.name}:\n  - "
-                + "\n  - ".join(vuln_findings[:12])
-                + (f"\n  ... and {len(vuln_findings) - 12} more." if len(vuln_findings) > 12 else "")
+                + "\n  - ".join(vuln_findings)
                 + f"\nGenerated SBOM: {sbom_path}"
             ),
         }
@@ -328,8 +327,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                 "tool": tool_label,
                 "log": (
                     f"[FAIL] {len(f_list)} Semgrep AST finding(s) for {sid}:\n  - "
-                    + "\n  - ".join(f_list[:8])
-                    + (f"\n  ... (+{len(f_list) - 8} more)" if len(f_list) > 8 else "")
+                    + "\n  - ".join(f_list)
                     + f"\nSARIF Evidence: {sarif_out}"
                 ),
             }
@@ -706,7 +704,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         "verdict": "FAIL" if local_storage_hits else "PASS",
         "tool": "Client Storage Inspector",
         "log": (
-            f"[FAIL] Authentication Bearer token stored in plaintext browser localStorage in: {', '.join(local_storage_hits[:5])}"
+            f"[FAIL] Authentication Bearer token stored in plaintext browser localStorage in: {', '.join(local_storage_hits)}"
             if local_storage_hits
             else "[PASS] No sensitive authentication tokens stored in browser localStorage/sessionStorage."
         ),
@@ -736,7 +734,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         "verdict": "FAIL" if dom_xss_hits else "PASS",
         "tool": "DOM & Reflected XSS Scanner",
         "log": (
-            f"[FAIL] Unsanitized DOM XSS sink (bypassSecurityTrustHtml) confirmed in Angular frontend: {', '.join(dom_xss_hits[:5])} (CWE-79)."
+            f"[FAIL] Unsanitized DOM XSS sink (bypassSecurityTrustHtml) confirmed in Angular frontend: {', '.join(dom_xss_hits)} (CWE-79)."
             if dom_xss_hits
             else "[PASS] Zero reflected, stored, or DOM XSS sinks detected."
         ),
@@ -859,7 +857,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         "verdict": "FAIL" if local_storage_hits else "PASS",
         "tool": "OAuth Token Storage Inspector",
         "log": (
-            f"[FAIL] OAuth/access tokens stored in insecure browser localStorage ({', '.join(local_storage_hits[:3])}) instead of HttpOnly Secure cookies (CWE-922)."
+            f"[FAIL] OAuth/access tokens stored in insecure browser localStorage ({', '.join(local_storage_hits)}) instead of HttpOnly Secure cookies (CWE-922)."
             if local_storage_hits
             else "[PASS] Tokens held in platform secure storage / HttpOnly Secure cookies."
         ),

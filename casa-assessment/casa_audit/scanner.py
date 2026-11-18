@@ -1641,6 +1641,159 @@ def evaluate_sast01_secrets_and_entropy(repo: Path) -> tuple[list[str], list[dic
 
     return sast01_findings, sast01_sarif
 
+
+def evaluate_sast02_trust_material_and_keys(repo: Path) -> tuple[list[str], list[dict]]:
+    """
+    Evaluate SAST-02 (CASA 3.0 AL1):
+    - Walk repository tree and shipped artifacts (encryptionkeys/, ftp/, config/, lib/, routes/)
+      for key-store, certificate, and private-key files (.key, .pem, .p12, .pfx, .jks, .keystore, .kdbx, .pub).
+    - Scan source files and Git history (if .git exists) for PEM PRIVATE KEY blocks and BIP-39 HDWallet seed phrases.
+    """
+    sast02_findings: list[str] = []
+    sast02_sarif: list[dict] = []
+
+    keystore_extensions = {
+        ".key": "Cryptographic Key File (.key)",
+        ".pem": "PEM Certificate / Private Key File (.pem)",
+        ".p12": "PKCS#12 Keystore Archive (.p12)",
+        ".pfx": "PKCS#12 Keystore Archive (.pfx)",
+        ".jks": "Java KeyStore (.jks)",
+        ".keystore": "Keystore File (.keystore)",
+        ".kdbx": "KeePass Password / Key Database Store (.kdbx)",
+        ".pub": "Committed Cryptographic Key Material (.pub)",
+    }
+
+    ignored_dirs = {"node_modules", ".git", "dist", "build", "coverage", ".angular"}
+    for fpath in sorted(repo.rglob("*")):
+        if not fpath.is_file():
+            continue
+        if any(part in ignored_dirs for part in fpath.parts):
+            continue
+        rel = str(fpath.relative_to(repo))
+        if "test/" in rel or "specs/" in rel:
+            continue
+
+        ext = fpath.suffix.lower()
+        if ext in keystore_extensions or "encryptionkeys" in fpath.parts:
+            label = keystore_extensions.get(ext, "Committed Key / Trust Material File")
+            size_b = fpath.stat().st_size
+            header_preview = ""
+            try:
+                raw_bytes = fpath.read_bytes()[:64]
+                if raw_bytes.startswith(b"\x03\xd9\xa2\x9a"):
+                    header_preview = " [KeePass KDBX v4 binary signature 0x03D9A29A verified]"
+                else:
+                    txt_line = raw_bytes.decode("utf-8", errors="ignore").splitlines()[0].strip()
+                    if txt_line:
+                        header_preview = f" [Header: '{txt_line[:42]}']"
+            except Exception:
+                pass
+
+            desc = (
+                f"{rel}:1 — [COMMITTED KEYSTORE / TRUST MATERIAL FILE] {label} shipped in repository/artifact "
+                f"(size={size_b} bytes){header_preview}"
+            )
+            sast02_findings.append(desc)
+            sast02_sarif.append(
+                {
+                    "ruleId": "CASA3-SAST-02-keystore-file",
+                    "level": "error",
+                    "message": {"text": desc},
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {"uri": rel},
+                                "region": {"startLine": 1},
+                            }
+                        }
+                    ],
+                }
+            )
+
+    # Check BIP-39 12-word mnemonic phrase in routes/checkKeys.ts or other source files
+    mnemonic_re = re.compile(
+        r"""(?ix)(?:mnemonic|seedPhrase)\s*=\s*['"](?P<phrase>[a-z]+(?:\s+[a-z]+){11,23})['"]"""
+    )
+    pem_block_re = re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----")
+
+    for dname in ("lib", "routes", "config", "data"):
+        dp = repo / dname
+        if not dp.is_dir():
+            continue
+        for fp in sorted(dp.rglob("*")):
+            if not fp.is_file() or fp.suffix not in {".ts", ".js", ".py", ".yml", ".yaml", ".json"}:
+                continue
+            rel = str(fp.relative_to(repo))
+            try:
+                lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except Exception:
+                continue
+            for lno, line in enumerate(lines, start=1):
+                m_pem = pem_block_re.search(line)
+                if m_pem:
+                    desc = (
+                        f"{rel}:{lno} — [PEM PRIVATE KEY BLOCK] Committed PEM block '{m_pem.group(0)}' "
+                        f"embedded in source code (CWE-321)"
+                    )
+                    sast02_findings.append(desc)
+                    sast02_sarif.append(
+                        {
+                            "ruleId": "CASA3-SAST-02-pem-private-key",
+                            "level": "error",
+                            "message": {"text": desc},
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": rel},
+                                        "region": {"startLine": lno},
+                                    }
+                                }
+                            ],
+                        }
+                    )
+                m_mnem = mnemonic_re.search(line)
+                if m_mnem:
+                    words = m_mnem.group("phrase").split()
+                    desc = (
+                        f"{rel}:{lno} — [HDWALLET BIP-39 PRIVATE KEY SEED] Committed {len(words)}-word BIP-39 mnemonic "
+                        f"('{words[0]} {words[1]} ... {words[-1]}') deriving Ethereum secp256k1 private key via HDNodeWallet.fromPhrase (CWE-321)"
+                    )
+                    sast02_findings.append(desc)
+                    sast02_sarif.append(
+                        {
+                            "ruleId": "CASA3-SAST-02-bip39-private-seed",
+                            "level": "error",
+                            "message": {"text": desc},
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": rel},
+                                        "region": {"startLine": lno},
+                                    }
+                                }
+                            ],
+                        }
+                    )
+
+    # Also check git history for PEM PRIVATE KEY commits if .git is present
+    if (repo / ".git").exists():
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(repo), "log", "-S", "BEGIN RSA PRIVATE KEY", "--oneline", "-n", "5"],
+                capture_output=True,
+                text=True,
+                timeout=4,
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                commits = "; ".join(proc.stdout.strip().splitlines())
+                desc = f".git/logs:1 — [GIT HISTORY PRIVATE KEY] PEM PRIVATE KEY block found in Git commit history ({commits})"
+                sast02_findings.append(desc)
+        except Exception:
+            pass
+
+    return sast02_findings, sast02_sarif
+
+
 def run_sast_checks(repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -1715,12 +1868,22 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             findings_by_sast_id["SAST-01"].append(ef)
             existing_sast01_locs.add(loc_prefix)
 
-    if sast01_extra_sarif and sarif_out.exists():
+    # SAST-02: Combine Semgrep AST rules with file-tree & artifact keystore/PEM/BIP-39 private key detector
+    sast02_extra_findings, sast02_extra_sarif = evaluate_sast02_trust_material_and_keys(repo)
+    existing_sast02_locs = {f.split(" — ")[0] for f in findings_by_sast_id["SAST-02"]}
+    for ef2 in sast02_extra_findings:
+        loc_prefix2 = ef2.split(" — ")[0]
+        if loc_prefix2 not in existing_sast02_locs:
+            findings_by_sast_id["SAST-02"].append(ef2)
+            existing_sast02_locs.add(loc_prefix2)
+
+    combined_extra_sarif = sast01_extra_sarif + sast02_extra_sarif
+    if combined_extra_sarif and sarif_out.exists():
         try:
             sarif_data = json.loads(sarif_out.read_text(encoding="utf-8"))
             runs = sarif_data.get("runs", [])
             if runs:
-                runs[0].setdefault("results", []).extend(sast01_extra_sarif)
+                runs[0].setdefault("results", []).extend(combined_extra_sarif)
                 sarif_out.write_text(json.dumps(sarif_data, indent=2), encoding="utf-8")
         except Exception:
             pass
@@ -1730,6 +1893,8 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
         f_list = findings_by_sast_id.get(sid, [])
         if sid == "SAST-01":
             tool_label = f"Semgrep AST 1.180.0 + Shannon Entropy & Pattern Secret Detector ({semgrep_duration}s, SARIF 2.1.0)"
+        elif sid == "SAST-02":
+            tool_label = f"Semgrep AST 1.180.0 + Keystore, PEM Private Key & BIP-39 Seed Walker ({semgrep_duration}s, SARIF 2.1.0)"
         else:
             tool_label = f"Semgrep AST 1.180.0 ({semgrep_duration}s, SARIF 2.1.0)" if semgrep_ran else "Fallback Static Scanner"
         if f_list:

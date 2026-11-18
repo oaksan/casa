@@ -672,3 +672,114 @@ e arquivos de recursos:
        82 caracteres), linha 107 (`5.18 bits/char`, 60 caracteres) e linha 115
        (`4.77 bits/char`, 30 caracteres).
 ================================================================================
+
+================================================================================
+CONTROLE 07/61: SAST-02 (Iteração SDD 015)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-02
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "No private keys, certificates or trust material committed to the repository
+   or shipped in artifacts"
+- Padrões de Referência:
+  * MITRE CWE-321 (Use of Hard-coded Cryptographic Key)
+  * MITRE CWE-798 (Use of Hard-coded Credentials)
+  * ADA-defined (O OWASP ASVS 4.0.3 não possui requisito específico para material
+    de confiança/keystores comitados no repositório, razão pela qual o CASA 3.0
+    introduziu este requisito determinístico no AL1)
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-02):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run private-key detection over the full repository history, and walk every
+     shipped artifact for key-store and certificate files and for PEM
+     private-key blocks."
+  2. "Reference tooling: gitleaks."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero private-key or keystore files and zero PEM `PRIVATE KEY` blocks
+    in repository history or in any shipped artifact."
+  * FAIL: "≥ 1 such file or block."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-02 é um dos 3 novos requisitos determinísticos de código estático
+introduzidos pela App Defense Alliance no CASA 3.0 (conforme Tabela 2 da
+Especificação: *"No committed private keys"*). Sua verificação é 100% decidível
+por inspeção léxica, binária e de sistema de arquivos em três frentes:
+  1. Varredura de Blocos PEM ASN.1 (`-----BEGIN [RSA|EC|OPENSSH|DSA|ENCRYPTED] PRIVATE KEY-----`)
+     no código-fonte e no histórico do repositório Git (`git log -S`);
+  2. Varredura da Árvore de Arquivos e Artefatos Distribuídos (`encryptionkeys/`,
+     `ftp/`, raiz) em busca de arquivos de chave e keystores (`.key`, `.pem`,
+     `.p12`, `.pfx`, `.jks`, `.keystore`, `.kdbx`, `.pub`), incluindo validação
+     de assinatura mágica binária (ex.: `0x03D9A29A` para bancos de chaves KeePass
+     KDBX v4);
+  3. Detecção AST de Sementes Criptográficas Determinísticas (BIP-39 HDWallet
+     mnemonics passadas para `HDNodeWallet.fromPhrase(...)` para derivar chaves
+     privadas `secp256k1`).
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 015)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 015:
+  O scanner possuía apenas uma expressão regular simples no Semgrep
+  (`-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----`) que detectava 1 única
+  linha (`lib/insecurity.ts:21`). Ele NÃO percorria os artefatos distribuídos em
+  busca de arquivos de keystore e chaves (`.key`, `.kdbx`, `.pub`), NÃO inspecionava
+  o diretório `encryptionkeys/` nem `ftp/`, NÃO verificava o histórico Git e NÃO
+  detectava sementes mnemônicas BIP-39 que derivam chaves privadas Ethereum em
+  tempo de execução (`routes/checkKeys.ts`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 015 (`casa_audit/scanner.py`
+  e `rules/casa3_al1_sast.yml`):
+  1. Walker de Keystores, Chaves e Material de Confiança (`evaluate_sast02_trust_material_and_keys`):
+     Percorre recursivamente o repositório e diretórios de artefatos (`encryptionkeys/`,
+     `ftp/`, raiz) identificando arquivos `.key`, `.pem`, `.p12`, `.pfx`, `.jks`,
+     `.keystore`, `.kdbx` e `.pub`, inspecionando inclusive os magic bytes binários
+     (como a assinatura `0x03D9A29A` do formato KeePass KDBX).
+  2. Detecção AST e Léxica de Sementes BIP-39 HDWallet (`routes/checkKeys.ts`):
+     Identifica frases mnemônicas BIP-39 de 12/24 palavras e chamadas AST
+     `HDNodeWallet.fromPhrase(...)` que derivam chaves privadas `secp256k1`.
+  3. Auditoria do Histórico Git (`git log -S "BEGIN RSA PRIVATE KEY"`):
+     Inspeciona commits históricos caso o diretório `.git` esteja presente.
+  4. Consolidação em SARIF 2.1.0 (`output/semgrep-sast.sarif`):
+     Registra todos os achados com localização física exata.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 015 contra o OWASP Juice Shop, a
+detecção do controle `SAST-02` evoluiu de 1 para **7 achados críticos comprovados**
+cobrindo todas as modalidades de material criptográfico e keystores da aplicação:
+- Veredito Automatizado: FAIL (7 materiais criptográficos/keystores comitados)
+  1. **Bloco PEM de Chave Privada RSA-1024 Inline (`lib/insecurity.ts:L21`):**
+     `-----BEGIN RSA PRIVATE KEY-----` comitado diretamente no código-fonte para
+     assinar tokens JWT (`RS256`).
+  2. **Arquivo de Chave Criptográfica de CTF na Raiz (`ctf.key:L1`):**
+     Arquivo `.key` de 30 bytes (`TRwzkRJnHOTckssAeyJbysWgP!Qc2T`) comitado na
+     raiz do repositório para geração de flags HMAC-SHA1.
+  3. **Arquivo de Chave Privada/Simétrica Premium (`encryptionkeys/premium.key:L1`):**
+     Arquivo `.key` de 50 bytes (`1337133713371337.EA99A61D92D2955B1E9285B55BF2AD42`)
+     distribuído no diretório `encryptionkeys/`.
+  4. **Material de Confiança RSA Público (`encryptionkeys/jwt.pub:L1`):**
+     Chave PEM `-----BEGIN RSA PUBLIC KEY-----` (248 bytes) comitada em
+     `encryptionkeys/jwt.pub`.
+  5. **Keystore Binário KeePass KDBX Distribuído (`ftp/incident-support.kdbx:L1`):**
+     Banco de chaves e senhas KeePass (3.246 bytes, assinatura binária KDBX v4
+     `0x03D9A29A` verificada) exposto no diretório público `ftp/`.
+  6. **Semente Mnemônica BIP-39 de 12 Palavras (`routes/checkKeys.ts:L10`):**
+     Frase mnemônica `'purpose betray marriage blame crunch monitor spin slide donate sport lift clutch'`
+     comitada no código-fonte.
+  7. **Derivação AST de Chave Privada Ethereum (`routes/checkKeys.ts:L11`):**
+     Chamada `HDNodeWallet.fromPhrase(mnemonic)` derivando `mnemonicWallet.privateKey`
+     diretamente a partir da semente hardcoded.
+================================================================================

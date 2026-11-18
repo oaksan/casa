@@ -17,9 +17,12 @@ rules:
 
   - id: CASA3-SAST-02-committed-private-key
     languages: [typescript, javascript, python]
-    message: "SAST-02: Private key or trust material committed in source code (CWE-321)"
+    message: "SAST-02: Private key, HDWallet BIP-39 mnemonic seed or trust material committed in source code (CWE-321)"
     severity: ERROR
-    pattern-regex: "-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
+    pattern-either:
+      - pattern-regex: "-----BEGIN (RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----"
+      - pattern: HDNodeWallet.fromPhrase("...")
+      - pattern: ethers.Wallet.fromPhrase("...")
 
   - id: CASA3-SAST-03-weak-cipher
     languages: [typescript, javascript]

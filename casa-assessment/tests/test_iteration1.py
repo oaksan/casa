@@ -76,7 +76,7 @@ class TestCasa3Iteration1(unittest.TestCase):
             self.assertNotIn("... and ", r["log"], f"{cid} log is truncated")
             self.assertNotIn("... (+", r["log"], f"{cid} log is truncated")
 
-        # Iteration 9-14: Verify CVSS v3.1 calculator, Levenshtein distance, Shannon entropy, SARIF generation, and docs/justificativa.txt
+        # Iteration 9-15: Verify CVSS v3.1 calculator, Levenshtein distance, Shannon entropy, SARIF generation, and docs/justificativa.txt
         self.assertEqual(compute_cvss3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"), 9.8)
         self.assertEqual(compute_levenshtein_distance("ngy-cookie", "ngx-cookie"), 1)
         self.assertEqual(compute_levenshtein_distance("express", "express"), 0)
@@ -89,6 +89,7 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertIn("CONTROLE 04/61: SCA-04", just_txt)
         self.assertIn("CONTROLE 05/61: SCA-05", just_txt)
         self.assertIn("CONTROLE 06/61: SAST-01", just_txt)
+        self.assertIn("CONTROLE 07/61: SAST-02", just_txt)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)

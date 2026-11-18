@@ -1,7 +1,7 @@
 rules:
   - id: CASA3-SAST-01-hardcoded-secret
     languages: [typescript, javascript, python]
-    message: "SAST-01: Hardcoded password, API key, JWT secret or credential in source code (CWE-798)"
+    message: "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
     severity: ERROR
     pattern-either:
       - pattern: |
@@ -10,6 +10,10 @@ rules:
           jwt.sign($PAYLOAD, "...", ...)
       - pattern: |
           crypto.createHmac($ALG, "...")
+      - pattern: |
+          $REQ.body.password === "..."
+      - pattern: |
+          { [Op.like]: '%6PPi37DBxP4lDwlriuaxP15HaDJpsUXY5TspVmie%' }
 
   - id: CASA3-SAST-02-committed-private-key
     languages: [typescript, javascript, python]

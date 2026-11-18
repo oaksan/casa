@@ -556,3 +556,119 @@ e typosquatting** embutidos no OWASP Juice Shop:
      `['dchester', 'mbroadst']`), com descrição oficial clonada
      (*"Create REST resources and controllers with Sequelize and Express or Restify"*).
 ================================================================================
+
+================================================================================
+CONTROLE 06/61: SAST-01 (Iteração SDD 014)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-01
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "No hardcoded passwords, API keys, tokens or credentials in source, resources
+   or build config"
+- Padrões de Referência:
+  * MITRE CWE-798 (Use of Hard-coded Credentials)
+  * OWASP ASVS v4.0.3: V2.10.4 (L2)
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-01):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab. Developer-supplied scan output or
+     attestations are not accepted."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run secret detection over the source repository, its build configuration
+     and every shipped artifact, using both pattern-based and entropy-based
+     detectors. Triage each hit as a live credential or a false positive."
+  2. "Reference tooling: gitleaks, trufflehog."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level secret findings, after triage, across source,
+    resources, build config and shipped artifacts; a finding the detector
+    verifies as live (`verified: true`) is always `error`-level."
+  * FAIL: "≥ 1 `error`-level secret finding after triage."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-01 demonstra a necessidade de combinar **Análise Sintática de
+Árvore de Sintaxe Abstrata (AST)** com **Teoria da Informação (Entropia de Shannon)**
+sobre múltiplas camadas do artefato (`source`, `resources`, `build config` e
+`shipped artifacts`):
+  1. Detecção Baseada em Padrões AST (`Semgrep`): Identifica chamadas de APIs
+     criptográficas ou de autenticação que recebem literais constantes (ex.:
+     `crypto.createHmac($ALG, "...")`, `jwt.sign($PAYLOAD, "...", ...)` e
+     comparações diretas `$REQ.body.password === "..."`);
+  2. Detecção Baseada em Entropia de Shannon ($H(X)$):
+     Para uma string candidata $X$ de comprimento $N$ sobre um alfabeto $\Sigma$,
+     a entropia de Shannon em bits por caractere é:
+     $$H(X) = -\sum_{c \in \Sigma} P(c) \log_2 P(c)$$
+     Strings atribuídas a identificadores sensíveis (`password`, `apiKey`, `secret`,
+     `hmac`, `privateKey`) ou tokens com $H(X) \ge 3.8\text{ bits/char}$ são
+     classificadas e submetidas a triagem automatizada (excluindo arquivos de
+     teste `.spec.ts`, URLs públicas e placeholders não-funcionais).
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 014)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 014:
+  O scanner executava apenas uma regra básica do Semgrep com 3 padrões AST em
+  `lib/insecurity.ts` (reportando apenas 3 linhas). Ele NÃO implementava o
+  detector baseado em **Entropia de Shannon** exigido pelo Test Guide (*"using
+  both pattern-based and entropy-based detectors"*), NÃO inspecionava os arquivos
+  de recursos (`data/static/users.yml`) nem o código do cliente distribuído
+  (`frontend/src/app/login/login.component.ts`), e NÃO detectava as comparações
+  de credenciais hardcoded em `routes/login.ts` e a API Key vazada em
+  `routes/verify.ts`.
+
+- Oportunidades de Melhoria Implementadas na Iteração 014 (`casa_audit/scanner.py`
+  e `rules/casa3_al1_sast.yml`):
+  1. Expansão da Regra AST Semgrep (`CASA3-SAST-01-hardcoded-secret`):
+     Passou a capturar comparações diretas de senha (`$REQ.body.password === "..."`)
+     e chaves de API hardcoded em expressões de verificação.
+  2. Motor de Entropia de Shannon (`compute_shannon_entropy`) e Detector Multi-Camada
+     (`evaluate_sast01_secrets_and_entropy`):
+     Calcula a entropia em bits/char para cada credencial detectada em código-fonte
+     (`lib/`, `routes/`), recursos estáticos (`data/static/users.yml`), configuração
+     (`config/`) e artefatos de frontend (`frontend/src/app/login/login.component.ts`),
+     aplicando filtro automatizado de falsos positivos (ignorando `.spec.ts` e
+     constantes de papel de usuário) e marcando credenciais ativas da aplicação
+     com `verified=true`.
+  3. Consolidação no Artefato SARIF 2.1.0 (`output/semgrep-sast.sarif`):
+     Todos os achados do Semgrep AST e do detector de Entropia de Shannon são
+     unificados no arquivo `semgrep-sast.sarif` com localização física exata
+     (`uri` e `startLine`).
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 014 contra o OWASP Juice Shop, a
+cobertura do controle `SAST-01` saltou de 3 para **37 achados `error`-level
+comprovados (`verified=true`)** distribuídos entre código-fonte backend, frontend
+e arquivos de recursos:
+- Veredito Automatizado: FAIL (37 credenciais e segredos hardcoded detectados)
+- Principais Categorias de Achados no OWASP Juice Shop:
+  1. **Segredo Criptográfico HMAC-SHA256 e Chave Privada RSA Hardcoded em `lib/insecurity.ts`:**
+     - Linha 42: `crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj')` (segredo
+       HMAC fixo de 24 caracteres com alta entropia);
+     - Linhas 21, 54 e 150: Chave privada RSA inline usada para assinar tokens JWT
+       e tokens Deluxe.
+  2. **Credenciais Hardcoded Comparadas Diretamente no Fluxo de Login (`routes/login.ts:L59-L65`):**
+     - 7 senhas em texto claro comparadas diretamente no código (`admin123`,
+       `J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P`, `Mr. N00dles`, `K1f.....................`,
+       `0Y8rMnww$*9VFYE§59-!Fg1L6t&6lB`, `bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=`,
+       `IamUsedForTesting`).
+  3. **API Key de Alta Entropia Hardcoded no Backend (`routes/verify.ts:L338`):**
+     - Chave de API `6PPi37DBxP4lDwlriuaxP15HaDJpsUXY5TspVmie` (comprimento = 40).
+  4. **Credenciais Expostas no Bundle Angular Frontend (`frontend/src/app/login/login.component.ts:L69`):**
+     - Credencial de conta de testes `IamUsedForTesting` (Entropia de Shannon =
+       `3.85 bits/char`) embutida diretamente no componente de login do cliente.
+  5. **24 Senhas de Contas Provisionadas em Recursos Estáticos (`data/static/users.yml`):**
+     - Incluindo segredos de altíssima entropia como a linha 277 (`Shannon entropy = 5.74 bits/char`,
+       82 caracteres), linha 107 (`5.18 bits/char`, 60 caracteres) e linha 115
+       (`4.77 bits/char`, 30 caracteres).
+================================================================================

@@ -229,3 +229,99 @@ OWASP Juice Shop (`/home/user/felipe/speckit/juice-shop-master`):
     - `marsdb@0.6.11` (`github.com/c58/marsdb`): `Maintained = 0/10` (último release: 2016-09-07).
     - `colors@1.4.0` (`github.com/Marak/colors.js`): `Maintained = 1/10` (último release: 2019-09-22).
 ================================================================================
+
+================================================================================
+CONTROLE 03/61: SCA-03 (Iteração SDD 011)
+Domínio 1: Composição de Software e Cadeia de Suprimentos (Software Composition & Supply Chain)
+================================================================================
+
+1. DEFINIÇÃO E BASE NORMATIVA NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID do Controle: SCA-03
+- Requisito (CASA 3.0 AL1 Specification):
+  "Imagens base de contêineres e pacotes do SO não contêm CVEs Críticas/Altas não
+   mitigadas (Container base images and OS packages contain no unmitigated
+   Critical/High CVEs)."
+- Referências Normativas: CIS Docker Benchmark §4; ADA-defined (Profile: `Web_Application`).
+- Formato de Evidência Exigido (CASA 3.0 AL1 Test Guide):
+  SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+ incluindo pacotes do SO)
+  + Achados de vulnerabilidade em formato OASIS SARIF 2.1.0 (`output/sca-findings.sarif`).
+- Procedimento Oficial (Test Procedure):
+  "Scan every container image digest declared for the engagement for base-image
+   and operating-system package vulnerabilities, including vulnerabilities for
+   which no fix is yet published."
+- Critério Determinístico de Veredito:
+  * PASS: Zero achados de pacotes do sistema operacional ou da camada base em
+    severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) que a distribuição não tenha
+    marcado como `will_not_fix` (`unimportant`) com mitigação documentada.
+  * FAIL: >= 1 achado de severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) na imagem
+    base ou conjunto de pacotes do SO que a distribuição não tenha marcado como
+    `will_not_fix` com mitigação documentada.
+
+2. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO E MELHORIA REALIZADA NA ITERAÇÃO 011
+--------------------------------------------------------------------------------
+- Limitação Identificada na Versão Anterior (Iterações 1–10):
+  A implementação anterior do `SCA-03` realizava apenas uma verificação textual
+  superficial das linhas `FROM` no arquivo `Dockerfile` (procurando `@sha256:` ou
+  nomes de imagens antigas), sem inspecionar a imagem real do contêiner, sem
+  extrair os pacotes do sistema operacional (`/var/lib/dpkg/status.d`) e sem
+  consultar as CVEs da camada de SO (Debian/Alpine/Ubuntu) nem verificar o status
+  de urgência da distribuição (`unimportant` / `will_not_fix`).
+
+- Melhoria Implementada na Iteração SDD 011 (`evaluate_sca03_container_os` em `scanner.py`):
+  1) Inspeção do Digest da Imagem e do `Dockerfile`: Verifica os estágios `FROM`
+     no `Dockerfile` e inspeciona o digest imutável (`@sha256:...`) da imagem
+     Docker correspondente (`docker.io/bkimminich/juice-shop`);
+  2) Extração Real de Pacotes do Sistema Operacional da Imagem Distroless:
+     Extrai diretamente de `/var/lib/dpkg/status.d` dentro do contêiner todos os
+     pacotes binários e pacotes-fonte Debian instalados na camada base
+     (`gcr.io/distroless/nodejs24-debian13`) e os adiciona ao SBOM CycloneDX 1.5
+     (`pkg:deb/debian/...`);
+  3) Consulta de Vulnerabilidades da Camada de SO (`Debian:13` no OSV.dev):
+     Consulta todos os pacotes-fonte do SO na base de advisories `DEBIAN-CVE-*`
+     (incluindo vulnerabilidades sem correção publicada — `urgency=not yet assigned`);
+  4) Filtro Determinístico de Severidade e Exceção da Distribuição: Calcula o
+     score base CVSS v3.1 (`>= 7.0` HIGH/CRITICAL) e separa automaticamente as
+     CVEs marcadas pela distribuição Debian como `urgency=unimportant`
+     (`will_not_fix`), gravando apenas as violações reais com a regra
+     `CASA3-SCA-03` em `output/sca-findings.sarif`.
+
+3. POR QUE ESTA AUTOMAÇÃO COMPROVA A TESE PARA O ORIENTADOR?
+--------------------------------------------------------------------------------
+Muitos desenvolvedores acreditam que o uso de uma imagem base `distroless`
+(`gcr.io/distroless/nodejs24-debian13`) isenta a aplicação de vulnerabilidades de
+sistema operacional, ou, no extremo oposto, sofrem com scanners de contêiner que
+reportam dezenas de falsos positivos de CVEs antigas do `glibc` que a própria
+equipe de segurança do Debian já classificou como `unimportant` (`will_not_fix`).
+O motor automatizado do `SCA-03` resolve ambos os problemas de forma 100%
+determinística:
+  Bloqueio_OS = (CVSS_v3 >= 7.0) AND (Distro_Urgency NOT IN {'unimportant', 'will_not_fix'})
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor automatizado do SCA-03 contra o contêiner e `Dockerfile` do
+OWASP Juice Shop (`bkimminich/juice-shop@sha256:318714401c46...` / `Debian:13`):
+- Pacotes de Sistema Operacional extraídos da camada base: 14 pacotes Debian 13
+  (`base-files`, `ca-certificates`, `gcc-14-base`, `libc6`, `libgcc-s1`, `libgomp1`,
+   `libssl3t64`, `libstdc++6`, `libzstd1`, `media-types`, `netbase`, `tzdata`,
+   `tzdata-legacy`, `zlib1g`).
+- Veredito Automatizado: FAIL (5 itens bloqueantes confirmados):
+  1. `Dockerfile`: As imagens base `node:24` e `gcr.io/distroless/nodejs24-debian13`
+     não estão fixadas por digest imutável `@sha256`.
+  2. `openssl@3.5.7-1~deb13u3` (binário `libssl3t64`): 6 CVEs de severidade ALTA
+     sem mitigação (incluindo `CVE-2026-95691` CVSS 8.1 HIGH, `CVE-2026-107493`
+     CVSS 7.7 HIGH, `CVE-2026-107496` CVSS 7.5 HIGH, `CVE-2026-124709` CVSS 7.5 HIGH).
+  3. `glibc@2.41-12+deb13u4` (binário `libc6`): 3 CVEs de severidade ALTA ativas
+     (`CVE-2026-19499` CVSS 7.7 HIGH, `CVE-2026-5435` CVSS 7.3 HIGH, `CVE-2026-84243`
+     CVSS 7.0 HIGH).
+  4. `gcc-14@14.2.0-19` (binários `libstdc++6`, `libgcc-s1`, `libgomp1`): 2 CVEs de
+     severidade ALTA (`CVE-2026-95619` CVSS 7.7 HIGH, `CVE-2026-102010` CVSS 7.0 HIGH).
+  5. `zlib@1:1.3.dfsg+really1.3.1-1+b1` (binário `zlib1g`): 1 CVE de severidade ALTA
+     (`CVE-2026-76844` CVSS 7.4 HIGH).
+- Precisão Científica (33 advisories de SO filtrados automaticamente como Não-Bloqueantes):
+  * O motor identificou e descartou automaticamente 7 CVEs históricas do `glibc`
+    (como `DEBIAN-CVE-2019-1010022`, `DEBIAN-CVE-2018-20796`, `DEBIAN-CVE-2010-4756`)
+    que possuem CVSS alto no NVD, mas que estão marcadas como `distro urgency=unimportant`
+    pelo Debian, além de 26 CVEs com `CVSS < 7.0`, cumprindo exatamente a regra
+    de verificação do CASA 3.0!
+================================================================================

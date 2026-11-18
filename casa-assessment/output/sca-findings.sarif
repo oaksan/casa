@@ -5,7 +5,7 @@
     {
       "tool": {
         "driver": {
-          "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date)",
+          "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS Inspector)",
           "version": "3.0.0",
           "rules": [
             {
@@ -18,6 +18,12 @@
               "id": "CASA3-SCA-02",
               "shortDescription": {
                 "text": "SCA-02: No component is end-of-life, unmaintained (OpenSSF Scorecard Maintained < 5), or sourced from an untrusted repository"
+              }
+            },
+            {
+              "id": "CASA3-SCA-03",
+              "shortDescription": {
+                "text": "SCA-03: Container base images and OS packages contain no unmitigated Critical/High CVEs"
               }
             }
           ]

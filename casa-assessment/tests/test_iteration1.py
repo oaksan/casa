@@ -76,6 +76,7 @@ class TestCasa3Iteration1(unittest.TestCase):
         just_txt = (ROOT_DIR / "docs" / "justificativa.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 01/61: SCA-01", just_txt)
         self.assertIn("CONTROLE 02/61: SCA-02", just_txt)
+        self.assertIn("CONTROLE 03/61: SCA-03", just_txt)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)

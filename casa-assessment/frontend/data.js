@@ -73,7 +73,7 @@ window.CASA3_DATA = {
         "Generate a dependency inventory (SBOM) from the application's lockfiles and container image digests. Match every component against the vulnerability databases (NVD, OSV.dev). For each Critical or High finding, run call-graph reachability analysis to determine whether the vulnerable symbol is reachable from an application entry point. Check every component against the CISA Known Exploited Vulnerabilities catalogue."
       ],
       "procedure_items_pt": [
-        "Generate a dependency inventory (SBOM) from the application's lockfiles and container image digests. Match every component against the vulnerability databases (NVD, OSV.dev). For each Critical or High finding, run call-graph reachability analysis to determine whether the vulnerable symbol is reachable from an application entry point. Check every component against the CISA Known Exploited Vulnerabilities catalogue."
+        "Gerar um inventário de dependências (SBOM) a partir dos lockfiles e imagens de contêiner da aplicação, consultar as bases de vulnerabilidades (NVD, OSV.dev), verificar a alcançabilidade no grafo de chamadas para achados Críticos/Altos e confrontar todos os componentes com o catálogo CISA KEV."
       ],
       "reference_tooling": [
         "syft",
@@ -81,9 +81,9 @@ window.CASA3_DATA = {
         "NVD / OSV.dev / CISA KEV feeds"
       ],
       "pass_criteria": "Zero findings whose CVSS v3.1 base ≥ 7.0 and whose vulnerable symbol is call-graph reachable, and zero components matching a CISA KEV identifier.",
-      "pass_criteria_pt": "Zero achados com CVSS v3.1 base ≥ 7.0 and whose vulnerable symbol is call-graph reachable, and zero components matching a CISA KEV identifier.",
+      "pass_criteria_pt": "Zero achados com CVSS v3.1 base ≥ 7.0 cujo símbolo vulnerável seja alcançável no grafo de chamadas (call-graph), e zero componentes correspondentes a um identificador do catálogo CISA KEV.",
       "fail_criteria": "≥ 1 reachable finding at CVSS ≥ 7.0, or ≥ 1 KEV-listed component whether reachable or not.",
-      "fail_criteria_pt": "≥ 1 reachable finding at CVSS ≥ 7.0, or ≥ 1 KEV-listed component whether reachable or not.",
+      "fail_criteria_pt": "≥ 1 achado alcançável com CVSS ≥ 7.0, ou ≥ 1 componente listado no catálogo CISA KEV (seja alcançável ou não).",
       "verification_checklist": [
         "Evidence collected: Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability findings in SARIF 2.1.0.",
         "Generate a dependency inventory (SBOM) from the application's lockfiles and container image digests.",
@@ -94,11 +94,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) e achados de vulnerabilidade em SARIF 2.1.0.",
-        "Generate a dependency inventory (SBOM) from the application's lockfiles and container image digests.",
-        "Match every component against the vulnerability databases (NVD, OSV.dev).",
-        "For each Critical or High finding, run call-graph reachability analysis to determine whether the vulnerable symbol is reachable from an application entry point.",
-        "Check every component against the CISA Known Exploited Vulnerabilities catalogue.",
-        "Critério de PASS verificado: Zero achados com CVSS v3.1 base ≥ 7.0 and whose vulnerable symbol is call-graph reachable, and zero components matching a CISA KEV identifier."
+        "Gerar um inventário de dependências (SBOM) a partir dos lockfiles e imagens de contêiner da aplicação, consultar as bases de vulnerabilidades (NVD, OSV.dev), verificar a alcançabilidade no grafo de chamadas para achados Críticos/Altos e confrontar todos os componentes com o catálogo CISA KEV.",
+        "Critério de PASS verificado: Zero achados com CVSS v3.1 base ≥ 7.0 cujo símbolo vulnerável seja alcançável no grafo de chamadas (call-graph), e zero componentes correspondentes a um identificador do catálogo CISA KEV."
       ]
     },
     {
@@ -128,16 +125,16 @@ window.CASA3_DATA = {
         "For every direct dependency, resolve its source registry from the lockfile, check its maintainer-activity signal, and check the component version against its published end-of-life date."
       ],
       "procedure_items_pt": [
-        "For every direct dependency, resolve its source registry from the lockfile, check its maintainer-activity signal, and check the component version against its published end-of-life date."
+        "Para cada dependência direta, resolver seu registro de origem a partir do lockfile, verificar o sinal de manutenção no OpenSSF Scorecard e confrontar a versão com a data publicada de fim de vida útil (EOL)."
       ],
       "reference_tooling": [
         "OpenSSF Scorecard",
         "endoflife.date"
       ],
       "pass_criteria": "Every direct dependency is not past its published EOL date, resolves to the canonical public registry or a developer-controlled mirror pinned by digest, and — where a Scorecard result exists — has `Maintained` of 5 or more.",
-      "pass_criteria_pt": "Every direct dependency is not past its published EOL date, resolves to the canonical public registry or a developer-controlled mirror pinned by digest, and — where a Scorecard result exists — has `Maintained` of 5 or more.",
+      "pass_criteria_pt": "Nenhuma dependência direta ultrapassou sua data publicada de fim de vida útil (EOL), todas resolvem para o registro público canônico ou espelho controlado pelo desenvolvedor fixado por digest e — quando houver resultado no OpenSSF Scorecard — possuem nota de manutenção (`Maintained`) ≥ 5.",
       "fail_criteria": "Any direct dependency past EOL, resolved from any other source, or with a Scorecard `Maintained` below 5.",
-      "fail_criteria_pt": "Any direct dependency past EOL, resolved from any other source, or with a Scorecard `Maintained` below 5.",
+      "fail_criteria_pt": "Qualquer dependência direta que tenha ultrapassado sua data de EOL, seja resolvida de fonte não confiável ou possua nota `Maintained` abaixo de 5 no OpenSSF Scorecard.",
       "verification_checklist": [
         "Evidence collected: Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability findings in SARIF 2.1.0.",
         "For every direct dependency, resolve its source registry from the lockfile, check its maintainer-activity signal, and check the component version against its published end-of-life date.",
@@ -145,8 +142,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) e achados de vulnerabilidade em SARIF 2.1.0.",
-        "For every direct dependency, resolve its source registry from the lockfile, check its maintainer-activity signal, and check the component version against its published end-of-life date.",
-        "Critério de PASS verificado: Every direct dependency is not past its published EOL date, resolves to the canonical public registry or a developer-controlled mirror pinned by digest, and — where a Scorecard result exists — has `Maintained` of 5 or more."
+        "Para cada dependência direta, resolver seu registro de origem a partir do lockfile, verificar o sinal de manutenção no OpenSSF Scorecard e confrontar a versão com a data publicada de fim de vida útil (EOL).",
+        "Critério de PASS verificado: Nenhuma dependência direta ultrapassou sua data publicada de fim de vida útil (EOL), todas resolvem para o registro público canônico ou espelho controlado pelo desenvolvedor fixado por digest e — quando houver resultado no OpenSSF Scorecard — possuem nota de manutenção (`Maintained`) ≥ 5."
       ]
     },
     {
@@ -176,16 +173,16 @@ window.CASA3_DATA = {
         "Scan every container image digest declared for the engagement for base-image and operating-system package vulnerabilities, including vulnerabilities for which no fix is yet published."
       ],
       "procedure_items_pt": [
-        "Scan every container image digest declared for the engagement for base-image and operating-system package vulnerabilities, including vulnerabilities for which no fix is yet published."
+        "Escanear todas as imagens de contêiner declaradas em busca de vulnerabilidades em pacotes do sistema operacional e camadas base."
       ],
       "reference_tooling": [
         "trivy",
         "grype"
       ],
       "pass_criteria": "Zero OS-package or base-layer findings at HIGH or CRITICAL that the distribution has not marked `will_not_fix` with a documented mitigation.",
-      "pass_criteria_pt": "Zero OS-package or base-layer findings at HIGH or CRITICAL that the distribution has not marked `will_not_fix` with a documented mitigation.",
+      "pass_criteria_pt": "Zero achados de pacotes do sistema operacional ou da camada base em severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) que a distribuição não tenha marcado como `will_not_fix` com mitigação documentada.",
       "fail_criteria": "≥ 1 HIGH or CRITICAL finding in the base image or OS package set that the distribution has not marked `will_not_fix` with a documented mitigation.",
-      "fail_criteria_pt": "≥ 1 HIGH or CRITICAL finding in the base image or OS package set that the distribution has not marked `will_not_fix` with a documented mitigation.",
+      "fail_criteria_pt": "≥ 1 achado de severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) na imagem base ou pacotes do SO sem marcação `will_not_fix` e mitigação documentada.",
       "verification_checklist": [
         "Evidence collected: Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability findings in SARIF 2.1.0.",
         "Scan every container image digest declared for the engagement for base-image and operating-system package vulnerabilities, including vulnerabilities for which no fix is yet published.",
@@ -193,8 +190,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) e achados de vulnerabilidade em SARIF 2.1.0.",
-        "Scan every container image digest declared for the engagement for base-image and operating-system package vulnerabilities, including vulnerabilities for which no fix is yet published.",
-        "Critério de PASS verificado: Zero OS-package or base-layer findings at HIGH or CRITICAL that the distribution has not marked `will_not_fix` with a documented mitigation."
+        "Escanear todas as imagens de contêiner declaradas em busca de vulnerabilidades em pacotes do sistema operacional e camadas base.",
+        "Critério de PASS verificado: Zero achados de pacotes do sistema operacional ou da camada base em severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) que a distribuição não tenha marcado como `will_not_fix` com mitigação documentada."
       ]
     },
     {
@@ -224,16 +221,16 @@ window.CASA3_DATA = {
         "Generate an SBOM independently from the application's lockfiles and image digests, obtain the SBOM the developer publishes for the same build, and compare the two component lists."
       ],
       "procedure_items_pt": [
-        "Generate an SBOM independently from the application's lockfiles and image digests, obtain the SBOM the developer publishes for the same build, and compare the two component lists."
+        "Gerar um SBOM de forma independente a partir dos lockfiles e imagens da aplicação, obter o SBOM publicado pelo desenvolvedor para a mesma build e comparar as duas listas de componentes."
       ],
       "reference_tooling": [
         "syft",
         "cyclonedx-cli"
       ],
       "pass_criteria": "Published SBOM parses as CycloneDX 1.5+ or SPDX 2.3+, every component carries all NTIA minimum elements, and the set difference (assessor SBOM − published SBOM) is empty.",
-      "pass_criteria_pt": "Published SBOM parses as CycloneDX 1.5+ or SPDX 2.3+, every component carries all NTIA minimum elements, and the set difference (assessor SBOM − published SBOM) is empty.",
+      "pass_criteria_pt": "O SBOM publicado é válido como CycloneDX 1.5+ ou SPDX 2.3+, todos os componentes contêm os elementos mínimos da NTIA, e a diferença entre conjuntos (SBOM do avaliador − SBOM publicado) é vazia.",
       "fail_criteria": "SBOM absent, unparseable, or not CycloneDX 1.5+ / SPDX 2.3+; any component missing an NTIA minimum element; or ≥ 1 component present in the assessor-generated SBOM and absent from the published one.",
-      "fail_criteria_pt": "SBOM absent, unparseable, or not CycloneDX 1.5+ / SPDX 2.3+; any component missing an NTIA minimum element; or ≥ 1 component present in the assessor-generated SBOM and absent from the published one.",
+      "fail_criteria_pt": "SBOM publicado ausente, inválido ou fora do padrão CycloneDX 1.5+ / SPDX 2.3+; componente sem elementos mínimos da NTIA; ou ≥ 1 componente presente no SBOM gerado pelo avaliador e ausente no publicado.",
       "verification_checklist": [
         "Evidence collected: Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability findings in SARIF 2.1.0.",
         "Generate an SBOM independently from the application's lockfiles and image digests, obtain the SBOM the developer publishes for the same build, and compare the two component lists.",
@@ -241,8 +238,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) e achados de vulnerabilidade em SARIF 2.1.0.",
-        "Generate an SBOM independently from the application's lockfiles and image digests, obtain the SBOM the developer publishes for the same build, and compare the two component lists.",
-        "Critério de PASS verificado: Published SBOM parses as CycloneDX 1.5+ or SPDX 2.3+, every component carries all NTIA minimum elements, and the set difference (assessor SBOM − published SBOM) is empty."
+        "Gerar um SBOM de forma independente a partir dos lockfiles e imagens da aplicação, obter o SBOM publicado pelo desenvolvedor para a mesma build e comparar as duas listas de componentes.",
+        "Critério de PASS verificado: O SBOM publicado é válido como CycloneDX 1.5+ ou SPDX 2.3+, todos os componentes contêm os elementos mínimos da NTIA, e a diferença entre conjuntos (SBOM do avaliador − SBOM publicado) é vazia."
       ]
     },
     {
@@ -272,16 +269,16 @@ window.CASA3_DATA = {
         "Match every dependency against the OpenSSF malicious-package advisories, and check every package name for close-distance similarity to the most popular package names in its registry."
       ],
       "procedure_items_pt": [
-        "Match every dependency against the OpenSSF malicious-package advisories, and check every package name for close-distance similarity to the most popular package names in its registry."
+        "Confrontar todas as dependências com o feed de pacotes maliciosos do OpenSSF (`MAL-*`) e verificar a distância de edição dos nomes de pacotes em relação aos pacotes mais populares do registro."
       ],
       "reference_tooling": [
         "osv-scanner",
         "OpenSSF malicious-packages feed"
       ],
       "pass_criteria": "Zero components match a `MAL-` advisory, and zero components are within Levenshtein distance 1 of a top-10k package name under a different maintainer.",
-      "pass_criteria_pt": "Zero components match a `MAL-` advisory, and zero components are within Levenshtein distance 1 of a top-10k package name under a different maintainer.",
+      "pass_criteria_pt": "Zero componentes correspondem a um alerta de pacote malicioso (`MAL-`), e zero componentes estão a uma distância de Levenshtein 1 de um pacote entre os 10 mil mais populares sob mantenedor diferente (typosquatting).",
       "fail_criteria": "≥ 1 component matches a `MAL-` advisory or the typosquat predicate.",
-      "fail_criteria_pt": "≥ 1 component matches a `MAL-` advisory or the typosquat predicate.",
+      "fail_criteria_pt": "≥ 1 componente corresponde a um alerta `MAL-` ou ao critério de similaridade de typosquatting.",
       "verification_checklist": [
         "Evidence collected: Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability findings in SARIF 2.1.0.",
         "Match every dependency against the OpenSSF malicious-package advisories, and check every package name for close-distance similarity to the most popular package names in its registry.",
@@ -289,8 +286,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) e achados de vulnerabilidade em SARIF 2.1.0.",
-        "Match every dependency against the OpenSSF malicious-package advisories, and check every package name for close-distance similarity to the most popular package names in its registry.",
-        "Critério de PASS verificado: Zero components match a `MAL-` advisory, and zero components are within Levenshtein distance 1 of a top-10k package name under a different maintainer."
+        "Confrontar todas as dependências com o feed de pacotes maliciosos do OpenSSF (`MAL-*`) e verificar a distância de edição dos nomes de pacotes em relação aos pacotes mais populares do registro.",
+        "Critério de PASS verificado: Zero componentes correspondem a um alerta de pacote malicioso (`MAL-`), e zero componentes estão a uma distância de Levenshtein 1 de um pacote entre os 10 mil mais populares sob mantenedor diferente (typosquatting)."
       ]
     },
     {
@@ -320,16 +317,16 @@ window.CASA3_DATA = {
         "Run secret detection over the source repository, its build configuration and every shipped artifact, using both pattern-based and entropy-based detectors. Triage each hit as a live credential or a false positive."
       ],
       "procedure_items_pt": [
-        "Run secret detection over the source repository, its build configuration and every shipped artifact, using both pattern-based and entropy-based detectors. Triage each hit as a live credential or a false positive."
+        "Executar detecção de segredos sobre o repositório de código-fonte, configurações de build e artefatos distribuídos usando detectores baseados em padrões e entropia, realizando a triagem de cada achado."
       ],
       "reference_tooling": [
         "gitleaks",
         "trufflehog"
       ],
       "pass_criteria": "Zero `error`-level secret findings, after triage, across source, resources, build config and shipped artifacts; a finding the detector verifies as live (`verified: true`) is always `error`-level.",
-      "pass_criteria_pt": "Zero `error`-level secret findings, after triage, across source, resources, build config and shipped artifacts; a finding the detector verifies as live (`verified: true`) is always `error`-level.",
+      "pass_criteria_pt": "Zero achados de segredos em nível `error`, após triagem, no código-fonte, recursos, configurações de build e artefatos distribuídos; qualquer segredo verificado como ativo (`verified: true`) pelo detector é sempre classificado como `error`.",
       "fail_criteria": "≥ 1 `error`-level secret finding after triage.",
-      "fail_criteria_pt": "≥ 1 `error`-level secret finding after triage.",
+      "fail_criteria_pt": "≥ 1 achado de segredo fixado (hardcoded) em nível `error` após triagem.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run secret detection over the source repository, its build configuration and every shipped artifact, using both pattern-based and entropy-based detectors.",
@@ -338,9 +335,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run secret detection over the source repository, its build configuration and every shipped artifact, using both pattern-based and entropy-based detectors.",
-        "Triage each hit as a live credential or a false positive.",
-        "Critério de PASS verificado: Zero `error`-level secret findings, after triage, across source, resources, build config and shipped artifacts; a finding the detector verifies as live (`verified: true`) is always `error`-level."
+        "Executar detecção de segredos sobre o repositório de código-fonte, configurações de build e artefatos distribuídos usando detectores baseados em padrões e entropia, realizando a triagem de cada achado.",
+        "Critério de PASS verificado: Zero achados de segredos em nível `error`, após triagem, no código-fonte, recursos, configurações de build e artefatos distribuídos; qualquer segredo verificado como ativo (`verified: true`) pelo detector é sempre classificado como `error`."
       ]
     },
     {
@@ -370,15 +366,15 @@ window.CASA3_DATA = {
         "Run private-key detection over the full repository history, and walk every shipped artifact for key-store and certificate files and for PEM private-key blocks."
       ],
       "procedure_items_pt": [
-        "Run private-key detection over the full repository history, and walk every shipped artifact for key-store and certificate files and for PEM private-key blocks."
+        "Executar detecção de chaves privadas em todo o histórico do repositório e inspecionar os artefatos distribuídos em busca de arquivos de certificado/keystore e blocos PEM `PRIVATE KEY`."
       ],
       "reference_tooling": [
         "gitleaks"
       ],
       "pass_criteria": "Zero private-key or keystore files and zero PEM `PRIVATE KEY` blocks in repository history or in any shipped artifact.",
-      "pass_criteria_pt": "Zero private-key or keystore files and zero PEM `PRIVATE KEY` blocks in repository history or in any shipped artifact.",
+      "pass_criteria_pt": "Zero arquivos de chave privada ou keystore e zero blocos PEM `PRIVATE KEY` no histórico do repositório ou em qualquer artefato distribuído.",
       "fail_criteria": "≥ 1 such file or block.",
-      "fail_criteria_pt": "≥ 1 such file or block.",
+      "fail_criteria_pt": "≥ 1 arquivo de chave privada/keystore ou bloco PEM `PRIVATE KEY` encontrado no repositório ou artefatos.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run private-key detection over the full repository history, and walk every shipped artifact for key-store and certificate files and for PEM private-key blocks.",
@@ -386,8 +382,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run private-key detection over the full repository history, and walk every shipped artifact for key-store and certificate files and for PEM private-key blocks.",
-        "Critério de PASS verificado: Zero private-key or keystore files and zero PEM `PRIVATE KEY` blocks in repository history or in any shipped artifact."
+        "Executar detecção de chaves privadas em todo o histórico do repositório e inspecionar os artefatos distribuídos em busca de arquivos de certificado/keystore e blocos PEM `PRIVATE KEY`.",
+        "Critério de PASS verificado: Zero arquivos de chave privada ou keystore e zero blocos PEM `PRIVATE KEY` no histórico do repositório ou em qualquer artefato distribuído."
       ]
     },
     {
@@ -417,16 +413,16 @@ window.CASA3_DATA = {
         "Run static cryptography rules over the source code (or the decompiled artifact) to find uses of deprecated or broken cipher algorithms and ECB mode."
       ],
       "procedure_items_pt": [
-        "Run static cryptography rules over the source code (or the decompiled artifact) to find uses of deprecated or broken cipher algorithms and ECB mode."
+        "Executar regras de análise estática de criptografia sobre o código-fonte para localizar usos de algoritmos de cifra obsoletos/quebrados (DES, 3DES, RC4, Blowfish) ou modo ECB."
       ],
       "reference_tooling": [
         "semgrep",
         "CodeQL"
       ],
       "pass_criteria": "Zero `error`-level findings from the banned-algorithm rule set (DES, 3DES, RC4, Blowfish, or any cipher instantiated in `ECB` mode).",
-      "pass_criteria_pt": "Zero `error`-level findings from the banned-algorithm rule set (DES, 3DES, RC4, Blowfish, or any cipher instantiated in `ECB` mode).",
+      "pass_criteria_pt": "Zero achados em nível `error` no conjunto de regras de algoritmos banidos (DES, 3DES, RC4, Blowfish ou qualquer cifra instanciada em modo `ECB`).",
       "fail_criteria": "≥ 1 `error`-level finding from the banned-algorithm rule set.",
-      "fail_criteria_pt": "≥ 1 `error`-level finding from the banned-algorithm rule set.",
+      "fail_criteria_pt": "≥ 1 achado em nível `error` de uso de algoritmo de cifra banido (DES, 3DES, RC4, Blowfish ou modo ECB).",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run static cryptography rules over the source code (or the decompiled artifact) to find uses of deprecated or broken cipher algorithms and ECB mode.",
@@ -434,8 +430,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run static cryptography rules over the source code (or the decompiled artifact) to find uses of deprecated or broken cipher algorithms and ECB mode.",
-        "Critério de PASS verificado: Zero `error`-level findings from the banned-algorithm rule set (DES, 3DES, RC4, Blowfish, or any cipher instantiated in `ECB` mode)."
+        "Executar regras de análise estática de criptografia sobre o código-fonte para localizar usos de algoritmos de cifra obsoletos/quebrados (DES, 3DES, RC4, Blowfish) ou modo ECB.",
+        "Critério de PASS verificado: Zero achados em nível `error` no conjunto de regras de algoritmos banidos (DES, 3DES, RC4, Blowfish ou qualquer cifra instanciada em modo `ECB`)."
       ]
     },
     {
@@ -465,16 +461,16 @@ window.CASA3_DATA = {
         "Run static weak-hash rules with data-flow (taint) tracking from MD5 and SHA-1 constructors to signature, token, password, integrity-check and key-derivation sinks."
       ],
       "procedure_items_pt": [
-        "Run static weak-hash rules with data-flow (taint) tracking from MD5 and SHA-1 constructors to signature, token, password, integrity-check and key-derivation sinks."
+        "Executar regras de análise estática com rastreamento de fluxo de dados (taint tracking) partindo de chamadas MD5 e SHA-1 até pontos de assinatura, geração de tokens, senhas, verificação de integridade e derivação de chaves."
       ],
       "reference_tooling": [
         "semgrep",
         "CodeQL"
       ],
       "pass_criteria": "Zero `error`-level taint paths from an MD5 or SHA-1 call to a security-relevant sink; non-security uses (cache key, ETag) are reported informational.",
-      "pass_criteria_pt": "Zero `error`-level taint paths from an MD5 or SHA-1 call to a security-relevant sink; non-security uses (cache key, ETag) are reported informational.",
+      "pass_criteria_pt": "Zero fluxos de dados (taint paths) em nível `error` partindo de uma chamada MD5 ou SHA-1 até um ponto sensível de segurança (sink); usos não relacionados a segurança (chave de cache, ETag) são reportados apenas como informativos.",
       "fail_criteria": "≥ 1 `error`-level taint path from a weak hash to a security-relevant sink.",
-      "fail_criteria_pt": "≥ 1 `error`-level taint path from a weak hash to a security-relevant sink.",
+      "fail_criteria_pt": "≥ 1 fluxo de dados em nível `error` partindo de um hash fraco (MD5 ou SHA-1) para um contexto relevante de segurança.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run static weak-hash rules with data-flow (taint) tracking from MD5 and SHA-1 constructors to signature, token, password, integrity-check and key-derivation sinks.",
@@ -482,8 +478,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run static weak-hash rules with data-flow (taint) tracking from MD5 and SHA-1 constructors to signature, token, password, integrity-check and key-derivation sinks.",
-        "Critério de PASS verificado: Zero `error`-level taint paths from an MD5 or SHA-1 call to a security-relevant sink; non-security uses (cache key, ETag) are reported informational."
+        "Executar regras de análise estática com rastreamento de fluxo de dados (taint tracking) partindo de chamadas MD5 e SHA-1 até pontos de assinatura, geração de tokens, senhas, verificação de integridade e derivação de chaves.",
+        "Critério de PASS verificado: Zero fluxos de dados (taint paths) em nível `error` partindo de uma chamada MD5 ou SHA-1 até um ponto sensível de segurança (sink); usos não relacionados a segurança (chave de cache, ETag) são reportados apenas como informativos."
       ]
     },
     {
@@ -513,15 +509,15 @@ window.CASA3_DATA = {
         "Locate every place where a password is persisted and extract the key-derivation function and its parameters from the surrounding code."
       ],
       "procedure_items_pt": [
-        "Locate every place where a password is persisted and extract the key-derivation function and its parameters from the surrounding code."
+        "Localizar todos os pontos onde senhas são persistidas no código e extrair a função de derivação de chave (KDF), seus parâmetros de custo/memória e a geração de salt via CSPRNG."
       ],
       "reference_tooling": [
         "semgrep"
       ],
       "pass_criteria": "Every password-persistence sink uses Argon2id, scrypt, bcrypt or PBKDF2-HMAC-SHA256 and meets the NIST SP 800-63B floor — Argon2id `m` ≥ 19456 KiB with `t` ≥ 2, scrypt `N` ≥ 32768, bcrypt cost ≥ 10, PBKDF2 ≥ 600000 iterations — and uses a per-record CSPRNG salt (generated internally by the library, or passed as an argument from a CSPRNG).",
-      "pass_criteria_pt": "Every password-persistence sink uses Argon2id, scrypt, bcrypt or PBKDF2-HMAC-SHA256 and meets the NIST SP 800-63B floor — Argon2id `m` ≥ 19456 KiB with `t` ≥ 2, scrypt `N` ≥ 32768, bcrypt cost ≥ 10, PBKDF2 ≥ 600000 iterations — and uses a per-record CSPRNG salt (generated internally by the library, or passed as an argument from a CSPRNG).",
+      "pass_criteria_pt": "Todo ponto de persistência de senha utiliza Argon2id, scrypt, bcrypt ou PBKDF2-HMAC-SHA256 atendendo ao piso mínimo do NIST SP 800-63B (Argon2id `m` ≥ 19456 KiB com `t` ≥ 2, scrypt `N` ≥ 32768, custo bcrypt ≥ 10, PBKDF2 ≥ 600000 iterações) e aplica um salt único por registro gerado via CSPRNG.",
       "fail_criteria": "Any sink using an algorithm outside that set; any cost parameter or salt whose value or provenance is not determinable statically; any cost parameter below the floor; or a salt that is not a per-record CSPRNG value.",
-      "fail_criteria_pt": "Any sink using an algorithm outside that set; any cost parameter or salt whose value or provenance is not determinable statically; any cost parameter below the floor; or a salt that is not a per-record CSPRNG value.",
+      "fail_criteria_pt": "Qualquer ponto de persistência de senha usando função fora da lista aprovada, parâmetros abaixo do piso do NIST SP 800-63B, ou salt ausente/constante/não-CSPRNG.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Locate every place where a password is persisted and extract the key-derivation function and its parameters from the surrounding code.",
@@ -529,8 +525,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Locate every place where a password is persisted and extract the key-derivation function and its parameters from the surrounding code.",
-        "Critério de PASS verificado: Every password-persistence sink uses Argon2id, scrypt, bcrypt or PBKDF2-HMAC-SHA256 and meets the NIST SP 800-63B floor — Argon2id `m` ≥ 19456 KiB with `t` ≥ 2, scrypt `N` ≥ 32768, bcrypt cost ≥ 10, PBKDF2 ≥ 600000 iterations — and uses a per-record CSPRNG salt (generated internally by the library, or passed as an argument from a CSPRNG)."
+        "Localizar todos os pontos onde senhas são persistidas no código e extrair a função de derivação de chave (KDF), seus parâmetros de custo/memória e a geração de salt via CSPRNG.",
+        "Critério de PASS verificado: Todo ponto de persistência de senha utiliza Argon2id, scrypt, bcrypt ou PBKDF2-HMAC-SHA256 atendendo ao piso mínimo do NIST SP 800-63B (Argon2id `m` ≥ 19456 KiB com `t` ≥ 2, scrypt `N` ≥ 32768, custo bcrypt ≥ 10, PBKDF2 ≥ 600000 iterações) e aplica um salt único por registro gerado via CSPRNG."
       ]
     },
     {
@@ -560,15 +556,15 @@ window.CASA3_DATA = {
         "Run static rules that find non-cryptographic random sources and time-based seeds, with data-flow tracking to token, key, nonce, salt, IV and password-reset sinks."
       ],
       "procedure_items_pt": [
-        "Run static rules that find non-cryptographic random sources and time-based seeds, with data-flow tracking to token, key, nonce, salt, IV and password-reset sinks."
+        "Executar regras estáticas que identificam fontes de aleatoriedade não criptográficas (`Math.random()`, seeds baseadas em tempo) até pontos de geração de tokens, chaves, nonces, salts, IVs e links de redefinição."
       ],
       "reference_tooling": [
         "semgrep"
       ],
       "pass_criteria": "Zero `error`-level taint paths from a non-CSPRNG source to a security-relevant sink.",
-      "pass_criteria_pt": "Zero `error`-level taint paths from a non-CSPRNG source to a security-relevant sink.",
+      "pass_criteria_pt": "Zero fluxos de dados (taint paths) em nível `error` partindo de uma fonte não criptográfica (não-CSPRNG) para um ponto relevante de segurança (geração de tokens, chaves, nonces, salts, IVs ou códigos de redefinição).",
       "fail_criteria": "≥ 1 `error`-level taint path from a non-CSPRNG source to a security-relevant sink.",
-      "fail_criteria_pt": "≥ 1 `error`-level taint path from a non-CSPRNG source to a security-relevant sink.",
+      "fail_criteria_pt": "≥ 1 fluxo de dados em nível `error` de uma fonte não-CSPRNG (ex.: `Math.random()`) para um contexto relevante de segurança.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run static rules that find non-cryptographic random sources and time-based seeds, with data-flow tracking to token, key, nonce, salt, IV and password-reset sinks.",
@@ -576,8 +572,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run static rules that find non-cryptographic random sources and time-based seeds, with data-flow tracking to token, key, nonce, salt, IV and password-reset sinks.",
-        "Critério de PASS verificado: Zero `error`-level taint paths from a non-CSPRNG source to a security-relevant sink."
+        "Executar regras estáticas que identificam fontes de aleatoriedade não criptográficas (`Math.random()`, seeds baseadas em tempo) até pontos de geração de tokens, chaves, nonces, salts, IVs e links de redefinição.",
+        "Critério de PASS verificado: Zero fluxos de dados (taint paths) em nível `error` partindo de uma fonte não criptográfica (não-CSPRNG) para um ponto relevante de segurança (geração de tokens, chaves, nonces, salts, IVs ou códigos de redefinição)."
       ]
     },
     {
@@ -607,7 +603,7 @@ window.CASA3_DATA = {
         "Run framework-binding rules over the source to find binders that accept arbitrary fields. Then, with the lab account, send update requests carrying injected privileged fields and read the record back through an endpoint that exposes those fields."
       ],
       "procedure_items_pt": [
-        "Run framework-binding rules over the source to find binders that accept arbitrary fields. Then, with the lab account, send update requests carrying injected privileged fields and read the record back through an endpoint that exposes those fields."
+        "Executar regras estáticas para identificar auto-binding irrestrito de modelos ORM e enviar requisições de atualização contendo campos privilegiados injetados para verificar se persistem."
       ],
       "reference_tooling": [
         "semgrep",
@@ -615,9 +611,9 @@ window.CASA3_DATA = {
         "Burp Suite"
       ],
       "pass_criteria": "Zero `error`-level unrestricted-binder findings, and no injected privileged field reads back as changed.",
-      "pass_criteria_pt": "Zero `error`-level unrestricted-binder findings, and no injected privileged field reads back as changed.",
+      "pass_criteria_pt": "Zero achados em nível `error` de auto-binding irrestrito no código, e nenhum campo privilegiado injetado nas requisições de atualização persiste ou retorna alterado.",
       "fail_criteria": "≥ 1 `error`-level unrestricted-binder finding, or ≥ 1 injected privileged field that reads back as changed.",
-      "fail_criteria_pt": "≥ 1 `error`-level unrestricted-binder finding, or ≥ 1 injected privileged field that reads back as changed.",
+      "fail_criteria_pt": "≥ 1 achado em nível `error` de auto-binding irrestrito, ou ≥ 1 campo privilegiado injetado que persista como alterado.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run framework-binding rules over the source to find binders that accept arbitrary fields.",
@@ -626,9 +622,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run framework-binding rules over the source to find binders that accept arbitrary fields.",
-        "Then, with the lab account, send update requests carrying injected privileged fields and read the record back through an endpoint that exposes those fields.",
-        "Critério de PASS verificado: Zero `error`-level unrestricted-binder findings, and no injected privileged field reads back as changed."
+        "Executar regras estáticas para identificar auto-binding irrestrito de modelos ORM e enviar requisições de atualização contendo campos privilegiados injetados para verificar se persistem.",
+        "Critério de PASS verificado: Zero achados em nível `error` de auto-binding irrestrito no código, e nenhum campo privilegiado injetado nas requisições de atualização persiste ou retorna alterado."
       ]
     },
     {
@@ -658,16 +653,16 @@ window.CASA3_DATA = {
         "Run static SQL-injection rules across every database access path in the source code or, where only a build artifact is available, over the application code extracted from it."
       ],
       "procedure_items_pt": [
-        "Run static SQL-injection rules across every database access path in the source code or, where only a build artifact is available, over the application code extracted from it."
+        "Executar regras de análise estática de injeção de SQL/NoSQL em todos os caminhos de acesso a banco de dados no código-fonte."
       ],
       "reference_tooling": [
         "CodeQL",
         "semgrep"
       ],
       "pass_criteria": "Zero `error`-level findings of query construction by concatenation or interpolation on a tainted value.",
-      "pass_criteria_pt": "Zero `error`-level findings of query construction by concatenation or interpolation on a tainted value.",
+      "pass_criteria_pt": "Zero achados em nível `error` de construção de consultas SQL/NoSQL por concatenação ou interpolação de strings com valores não confiáveis.",
       "fail_criteria": "≥ 1 `error`-level SQL/NoSQL construction finding on tainted input.",
-      "fail_criteria_pt": "≥ 1 `error`-level SQL/NoSQL construction finding on tainted input.",
+      "fail_criteria_pt": "≥ 1 achado em nível `error` de construção de consulta SQL/NoSQL com entrada não confiável concatenada ou interpolada.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run static SQL-injection rules across every database access path in the source code or, where only a build artifact is available, over the application code extracted from it.",
@@ -675,8 +670,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run static SQL-injection rules across every database access path in the source code or, where only a build artifact is available, over the application code extracted from it.",
-        "Critério de PASS verificado: Zero `error`-level findings of query construction by concatenation or interpolation on a tainted value."
+        "Executar regras de análise estática de injeção de SQL/NoSQL em todos os caminhos de acesso a banco de dados no código-fonte.",
+        "Critério de PASS verificado: Zero achados em nível `error` de construção de consultas SQL/NoSQL por concatenação ou interpolação de strings com valores não confiáveis."
       ]
     },
     {
@@ -706,16 +701,16 @@ window.CASA3_DATA = {
         "Run static deserialization rules over every deserialization call site for native object streams, pickle, YAML, PHP unserialize, .NET formatters and equivalents."
       ],
       "procedure_items_pt": [
-        "Run static deserialization rules over every deserialization call site for native object streams, pickle, YAML, PHP unserialize, .NET formatters and equivalents."
+        "Executar regras estáticas de desserialização em todos os pontos que processam fluxos de objetos nativos, YAML, XML, pickle ou equivalentes."
       ],
       "reference_tooling": [
         "semgrep",
         "CodeQL"
       ],
       "pass_criteria": "Zero `error`-level findings of an untrusted-input deserialization sink without a type allowlist, `ObjectInputFilter`, or a verified integrity check on the serialized blob.",
-      "pass_criteria_pt": "Zero `error`-level findings of an untrusted-input deserialization sink without a type allowlist, `ObjectInputFilter`, or a verified integrity check on the serialized blob.",
+      "pass_criteria_pt": "Zero achados em nível `error` de desserialização de entradas não confiáveis sem lista de tipos permitidos (allowlist), `ObjectInputFilter` ou verificação criptográfica de integridade prévia.",
       "fail_criteria": "≥ 1 `error`-level finding of an untrusted-input deserialization sink that lacks a type allowlist, `ObjectInputFilter`, or a verified integrity check.",
-      "fail_criteria_pt": "≥ 1 `error`-level finding of an untrusted-input deserialization sink that lacks a type allowlist, `ObjectInputFilter`, or a verified integrity check.",
+      "fail_criteria_pt": "≥ 1 achado em nível `error` de desserialização de entrada não confiável sem allowlist de tipos, `ObjectInputFilter` ou verificação de integridade.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run static deserialization rules over every deserialization call site for native object streams, pickle, YAML, PHP unserialize, .NET formatters and equivalents.",
@@ -723,8 +718,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run static deserialization rules over every deserialization call site for native object streams, pickle, YAML, PHP unserialize, .NET formatters and equivalents.",
-        "Critério de PASS verificado: Zero `error`-level findings of an untrusted-input deserialization sink without a type allowlist, `ObjectInputFilter`, or a verified integrity check on the serialized blob."
+        "Executar regras estáticas de desserialização em todos os pontos que processam fluxos de objetos nativos, YAML, XML, pickle ou equivalentes.",
+        "Critério de PASS verificado: Zero achados em nível `error` de desserialização de entradas não confiáveis sem lista de tipos permitidos (allowlist), `ObjectInputFilter` ou verificação criptográfica de integridade prévia."
       ]
     },
     {
@@ -754,15 +749,15 @@ window.CASA3_DATA = {
         "Run static rules for dynamic code execution, command execution and reflective class loading, with data-flow tracking from request sources."
       ],
       "procedure_items_pt": [
-        "Run static rules for dynamic code execution, command execution and reflective class loading, with data-flow tracking from request sources."
+        "Executar regras estáticas para execução dinâmica de código (`eval`, `Function`, `vm.runInContext`), execução de comandos e reflexão com rastreamento de fluxo de dados a partir das entradas da requisição."
       ],
       "reference_tooling": [
         "semgrep"
       ],
       "pass_criteria": "Zero `error`-level taint paths from an untrusted source into a dynamic-execution sink.",
-      "pass_criteria_pt": "Zero `error`-level taint paths from an untrusted source into a dynamic-execution sink.",
+      "pass_criteria_pt": "Zero fluxos de dados (taint paths) em nível `error` partindo de uma fonte não confiável até um ponto de execução dinâmica de código (`eval`, `Function`, `exec`, `vm.runInContext` ou reflexão).",
       "fail_criteria": "≥ 1 `error`-level taint path into a dynamic-execution sink.",
-      "fail_criteria_pt": "≥ 1 `error`-level taint path into a dynamic-execution sink.",
+      "fail_criteria_pt": "≥ 1 fluxo de dados em nível `error` de entrada não confiável para um ponto de execução dinâmica de código.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run static rules for dynamic code execution, command execution and reflective class loading, with data-flow tracking from request sources.",
@@ -770,8 +765,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run static rules for dynamic code execution, command execution and reflective class loading, with data-flow tracking from request sources.",
-        "Critério de PASS verificado: Zero `error`-level taint paths from an untrusted source into a dynamic-execution sink."
+        "Executar regras estáticas para execução dinâmica de código (`eval`, `Function`, `vm.runInContext`), execução de comandos e reflexão com rastreamento de fluxo de dados a partir das entradas da requisição.",
+        "Critério de PASS verificado: Zero fluxos de dados (taint paths) em nível `error` partindo de uma fonte não confiável até um ponto de execução dinâmica de código (`eval`, `Function`, `exec`, `vm.runInContext` ou reflexão)."
       ]
     },
     {
@@ -801,16 +796,16 @@ window.CASA3_DATA = {
         "Run static path-traversal rules with data-flow tracking from request parameters, uploaded filenames and archive entries to file-system APIs, over the source code or the application code extracted from the build artifact."
       ],
       "procedure_items_pt": [
-        "Run static path-traversal rules with data-flow tracking from request parameters, uploaded filenames and archive entries to file-system APIs, over the source code or the application code extracted from the build artifact."
+        "Executar regras estáticas de Path Traversal com rastreamento de fluxo de dados partindo de parâmetros de requisição e nomes de arquivos enviados até APIs do sistema de arquivos."
       ],
       "reference_tooling": [
         "semgrep",
         "CodeQL"
       ],
       "pass_criteria": "Zero `error`-level findings of a file-system path built from user-supplied metadata without validation before use.",
-      "pass_criteria_pt": "Zero `error`-level findings of a file-system path built from user-supplied metadata without validation before use.",
+      "pass_criteria_pt": "Zero achados em nível `error` de caminhos de sistema de arquivos construídos a partir de metadados fornecidos pelo usuário sem validação estrita e canonização antes do uso.",
       "fail_criteria": "≥ 1 `error`-level path-traversal finding on user-supplied metadata.",
-      "fail_criteria_pt": "≥ 1 `error`-level path-traversal finding on user-supplied metadata.",
+      "fail_criteria_pt": "≥ 1 achado em nível `error` de Path Traversal em metadados ou caminhos fornecidos pelo usuário.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run static path-traversal rules with data-flow tracking from request parameters, uploaded filenames and archive entries to file-system APIs, over the source code or the application code extracted from the build artifact.",
@@ -818,8 +813,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run static path-traversal rules with data-flow tracking from request parameters, uploaded filenames and archive entries to file-system APIs, over the source code or the application code extracted from the build artifact.",
-        "Critério de PASS verificado: Zero `error`-level findings of a file-system path built from user-supplied metadata without validation before use."
+        "Executar regras estáticas de Path Traversal com rastreamento de fluxo de dados partindo de parâmetros de requisição e nomes de arquivos enviados até APIs do sistema de arquivos.",
+        "Critério de PASS verificado: Zero achados em nível `error` de caminhos de sistema de arquivos construídos a partir de metadados fornecidos pelo usuário sem validação estrita e canonização antes do uso."
       ]
     },
     {
@@ -850,8 +845,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Run secret detectors and configuration and infrastructure-as-code rules over the repository, dump the environment layers of every container image, and confirm each candidate live by presenting it to its issuing service or by the detector's verification flag. For each live secret, establish where it is held and inventory the secrets-manager SDK call sites.",
-        "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
+        "Executar detectores de segredos e regras de configuração/IaC sobre o repositório e camadas de imagem, verificando se os segredos são carregados via cofre gerenciado (secrets manager) ou montagem em tempo de execução."
       ],
       "reference_tooling": [
         "semgrep",
@@ -859,9 +853,9 @@ window.CASA3_DATA = {
         "docker"
       ],
       "pass_criteria": "Every literal matching the detectors' secret patterns that the assessor confirms live (accepted by the issuing service, or `verified: true`) resolves through a secrets-manager SDK call or an injected runtime mount; none is present in config files, IaC, or image environment layers.",
-      "pass_criteria_pt": "Every literal matching the detectors' secret patterns that the assessor confirms live (accepted by the issuing service, or `verified: true`) resolves through a secrets-manager SDK call or an injected runtime mount; none is present in config files, IaC, or image environment layers.",
+      "pass_criteria_pt": "Todo literal detectado como segredo ativo resolve por meio de chamada de SDK de cofre de segredos (secrets manager) ou montagem injetada em tempo de execução; nenhum segredo está presente em arquivos de configuração, IaC ou camadas de ambiente da imagem.",
       "fail_criteria": "≥ 1 confirmed-live secret that does not resolve through a secrets-manager SDK call or an injected runtime mount.",
-      "fail_criteria_pt": "≥ 1 confirmed-live secret that does not resolve through a secrets-manager SDK call or an injected runtime mount.",
+      "fail_criteria_pt": "≥ 1 segredo ativo confirmado que esteja fixado em arquivos de configuração, código, IaC ou camadas de imagem em vez de um cofre de segredos.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run secret detectors and configuration and infrastructure-as-code rules over the repository, dump the environment layers of every container image, and confirm each candidate live by presenting it to its issuing service or by the detector's verification flag.",
@@ -870,9 +864,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run secret detectors and configuration and infrastructure-as-code rules over the repository, dump the environment layers of every container image, and confirm each candidate live by presenting it to its issuing service or by the detector's verification flag.",
-        "For each live secret, establish where it is held and inventory the secrets-manager SDK call sites.",
-        "Critério de PASS verificado: Every literal matching the detectors' secret patterns that the assessor confirms live (accepted by the issuing service, or `verified: true`) resolves through a secrets-manager SDK call or an injected runtime mount; none is present in config files, IaC, or image environment layers."
+        "Executar detectores de segredos e regras de configuração/IaC sobre o repositório e camadas de imagem, verificando se os segredos são carregados via cofre gerenciado (secrets manager) ou montagem em tempo de execução.",
+        "Critério de PASS verificado: Todo literal detectado como segredo ativo resolve por meio de chamada de SDK de cofre de segredos (secrets manager) ou montagem injetada em tempo de execução; nenhum segredo está presente em arquivos de configuração, IaC ou camadas de ambiente da imagem."
       ]
     },
     {
@@ -902,16 +895,16 @@ window.CASA3_DATA = {
         "Run static log-sink rules with data-flow tracking from credential, token and card-number sources. Then replay the authentication, token-refresh and payment flows with unique canary values and search the application's log sink, to which the developer provides read access, for those values."
       ],
       "procedure_items_pt": [
-        "Run static log-sink rules with data-flow tracking from credential, token and card-number sources. Then replay the authentication, token-refresh and payment flows with unique canary values and search the application's log sink, to which the developer provides read access, for those values."
+        "Executar regras estáticas de pontos de log a partir de fontes de credenciais, tokens e cartões, e reproduzir fluxos de autenticação com valores canário verificando se aparecem nos logs."
       ],
       "reference_tooling": [
         "semgrep",
         "scripted replay harness"
       ],
       "pass_criteria": "No canary value appears literally in any log record, and zero `error`-level taint paths from a credential, token or payment source to a logging sink without an intervening masking or hashing function.",
-      "pass_criteria_pt": "No canary value appears literally in any log record, and zero `error`-level taint paths from a credential, token or payment source to a logging sink without an intervening masking or hashing function.",
+      "pass_criteria_pt": "Nenhum valor canário aparece literalmente em qualquer registro de log, e há zero fluxos de dados em nível `error` partindo de credenciais, tokens ou dados de pagamento para logs sem mascaramento ou hash irreversível.",
       "fail_criteria": "≥ 1 canary value present literally in the log sink, or ≥ 1 `error`-level unmasked taint path to a logging sink.",
-      "fail_criteria_pt": "≥ 1 canary value present literally in the log sink, or ≥ 1 `error`-level unmasked taint path to a logging sink.",
+      "fail_criteria_pt": "≥ 1 valor sensível/canário gravado em texto claro nos logs, ou ≥ 1 fluxo de dados não mascarado de credenciais/tokens para um ponto de log.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run static log-sink rules with data-flow tracking from credential, token and card-number sources.",
@@ -920,9 +913,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run static log-sink rules with data-flow tracking from credential, token and card-number sources.",
-        "Then replay the authentication, token-refresh and payment flows with unique canary values and search the application's log sink, to which the developer provides read access, for those values.",
-        "Critério de PASS verificado: No canary value appears literally in any log record, and zero `error`-level taint paths from a credential, token or payment source to a logging sink without an intervening masking or hashing function."
+        "Executar regras estáticas de pontos de log a partir de fontes de credenciais, tokens e cartões, e reproduzir fluxos de autenticação com valores canário verificando se aparecem nos logs.",
+        "Critério de PASS verificado: Nenhum valor canário aparece literalmente em qualquer registro de log, e há zero fluxos de dados em nível `error` partindo de credenciais, tokens ou dados de pagamento para logs sem mascaramento ou hash irreversível."
       ]
     },
     {
@@ -953,7 +945,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Run back-door and logic-bomb rules over the source: hardcoded account comparisons and date- or time-triggered branches in security paths. Build the application from source and compare the resulting artifact digest with the shipped artifact.",
+        "Executar regras de detecção de backdoors e bombas lógicas sobre o código-fonte (comparações fixas de contas e desvios ativados por data/hora em fluxos de segurança) e comparar o digest da build gerada a partir do código com o artefato distribuído.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -962,9 +954,9 @@ window.CASA3_DATA = {
         "reproducible-build toolchain"
       ],
       "pass_criteria": "Zero constructs survive assessor triage as an authentication bypass, an undocumented account, or a time- or date-triggered branch in a security-relevant path, and the shipped artifact digest reproduces from source.",
-      "pass_criteria_pt": "Zero constructs survive assessor triage as an authentication bypass, an undocumented account, or a time- or date-triggered branch in a security-relevant path, and the shipped artifact digest reproduces from source.",
+      "pass_criteria_pt": "Nenhuma construção sobrevive à triagem do avaliador como bypass de autenticação, conta não documentada ou desvio condicional ativado por data/hora em fluxo de segurança, e o digest do artefato distribuído é reprodutível a partir do código-fonte.",
       "fail_criteria": "≥ 1 triage-confirmed back door, undocumented account or logic bomb, or a shipped artifact that does not reproduce from the source provided.",
-      "fail_criteria_pt": "≥ 1 triage-confirmed back door, undocumented account or logic bomb, or a shipped artifact that does not reproduce from the source provided.",
+      "fail_criteria_pt": "≥ 1 backdoor, conta não documentada ou bomba lógica confirmada na triagem, ou artefato distribuído que não pode ser reproduzido a partir do código-fonte fornecido.",
       "verification_checklist": [
         "Evidence collected: Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
         "Run back-door and logic-bomb rules over the source: hardcoded account comparisons and date- or time-triggered branches in security paths.",
@@ -973,9 +965,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
-        "Run back-door and logic-bomb rules over the source: hardcoded account comparisons and date- or time-triggered branches in security paths.",
-        "Build the application from source and compare the resulting artifact digest with the shipped artifact.",
-        "Critério de PASS verificado: Zero constructs survive assessor triage as an authentication bypass, an undocumented account, or a time- or date-triggered branch in a security-relevant path, and the shipped artifact digest reproduces from source."
+        "Executar regras de detecção de backdoors e bombas lógicas sobre o código-fonte (comparações fixas de contas e desvios ativados por data/hora em fluxos de segurança) e comparar o digest da build gerada a partir do código com o artefato distribuído.",
+        "Critério de PASS verificado: Nenhuma construção sobrevive à triagem do avaliador como bypass de autenticação, conta não documentada ou desvio condicional ativado por data/hora em fluxo de segurança, e o digest do artefato distribuído é reprodutível a partir do código-fonte."
       ]
     },
     {
@@ -1005,16 +996,16 @@ window.CASA3_DATA = {
         "Run a TLS assessment against every declared host and probe port 80 to observe whether cleartext is served or redirected."
       ],
       "procedure_items_pt": [
-        "Run a TLS assessment against every declared host and probe port 80 to observe whether cleartext is served or redirected."
+        "Executar avaliação TLS contra todos os hosts declarados e testar a porta 80 para verificar se o tráfego em texto claro é recusado ou redirecionado para HTTPS."
       ],
       "reference_tooling": [
         "testssl.sh",
         "Qualys SSL Labs"
       ],
       "pass_criteria": "Every declared host completes a TLS handshake on 443, and on port 80 either the connection is refused or times out, or every request returns a 3xx `Location` to the same host over `https`.",
-      "pass_criteria_pt": "Every declared host completes a TLS handshake on 443, and on port 80 either the connection is refused or times out, or every request returns a 3xx `Location` to the same host over `https`.",
+      "pass_criteria_pt": "Todo host declarado conclui handshake TLS na porta 443 e, na porta 80, a conexão é recusada/expira ou todas as requisições retornam redirecionamento `3xx Location` para o mesmo host sobre `https`.",
       "fail_criteria": "A declared host does not complete a TLS handshake on 443; ≥ 1 port-80 request is answered other than by a 3xx `Location` to the same host over `https`; or application content is served over cleartext.",
-      "fail_criteria_pt": "A declared host does not complete a TLS handshake on 443; ≥ 1 port-80 request is answered other than by a 3xx `Location` to the same host over `https`; or application content is served over cleartext.",
+      "fail_criteria_pt": "Um host declarado não conclui handshake TLS na porta 443; ≥ 1 requisição na porta 80 é respondida sem redirecionamento `3xx` para `https`; ou conteúdo da aplicação é servido em texto claro (HTTP).",
       "verification_checklist": [
         "Evidence collected: Machine-readable (JSON) TLS scanner output, for every declared host.",
         "Run a TLS assessment against every declared host and probe port 80 to observe whether cleartext is served or redirected.",
@@ -1022,8 +1013,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Machine-readable (JSON) TLS scanner output, for every declared host.",
-        "Run a TLS assessment against every declared host and probe port 80 to observe whether cleartext is served or redirected.",
-        "Critério de PASS verificado: Every declared host completes a TLS handshake on 443, and on port 80 either the connection is refused or times out, or every request returns a 3xx `Location` to the same host over `https`."
+        "Executar avaliação TLS contra todos os hosts declarados e testar a porta 80 para verificar se o tráfego em texto claro é recusado ou redirecionado para HTTPS.",
+        "Critério de PASS verificado: Todo host declarado conclui handshake TLS na porta 443 e, na porta 80, a conexão é recusada/expira ou todas as requisições retornam redirecionamento `3xx Location` para o mesmo host sobre `https`."
       ]
     },
     {
@@ -1053,16 +1044,16 @@ window.CASA3_DATA = {
         "From the TLS assessment, read the protocol versions each declared host offers."
       ],
       "procedure_items_pt": [
-        "From the TLS assessment, read the protocol versions each declared host offers."
+        "Na avaliação TLS, inspecionar as versões de protocolo oferecidas por cada host declarado (exigindo TLS 1.2/1.3 e rejeitando SSLv2, SSLv3, TLS 1.0 e TLS 1.1)."
       ],
       "reference_tooling": [
         "testssl.sh",
         "Qualys SSL Labs"
       ],
       "pass_criteria": "`.protocols` reports TLS 1.2 or TLS 1.3 `offered` on every declared host, and SSLv2, SSLv3, TLS 1.0 and TLS 1.1 all `not offered`.",
-      "pass_criteria_pt": "`.protocols` reports TLS 1.2 or TLS 1.3 `offered` on every declared host, and SSLv2, SSLv3, TLS 1.0 and TLS 1.1 all `not offered`.",
+      "pass_criteria_pt": "A avaliação TLS reporta apenas TLS 1.2 ou TLS 1.3 habilitados (`offered`) em todos os hosts declarados, e SSLv2, SSLv3, TLS 1.0 e TLS 1.1 como desabilitados (`not offered`).",
       "fail_criteria": "Any of SSLv2, SSLv3, TLS 1.0 or TLS 1.1 reported `offered`, or a declared host does not complete a TLS 1.2 or 1.3 handshake.",
-      "fail_criteria_pt": "Any of SSLv2, SSLv3, TLS 1.0 or TLS 1.1 reported `offered`, or a declared host does not complete a TLS 1.2 or 1.3 handshake.",
+      "fail_criteria_pt": "Qualquer protocolo legado (SSLv2, SSLv3, TLS 1.0 ou TLS 1.1) está habilitado, ou o host não conclui handshake com TLS 1.2 ou TLS 1.3.",
       "verification_checklist": [
         "Evidence collected: Machine-readable (JSON) TLS scanner output, for every declared host.",
         "From the TLS assessment, read the protocol versions each declared host offers.",
@@ -1070,8 +1061,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Machine-readable (JSON) TLS scanner output, for every declared host.",
-        "From the TLS assessment, read the protocol versions each declared host offers.",
-        "Critério de PASS verificado: `.protocols` reports TLS 1.2 or TLS 1.3 `offered` on every declared host, and SSLv2, SSLv3, TLS 1.0 and TLS 1.1 all `not offered`."
+        "Na avaliação TLS, inspecionar as versões de protocolo oferecidas por cada host declarado (exigindo TLS 1.2/1.3 e rejeitando SSLv2, SSLv3, TLS 1.0 e TLS 1.1).",
+        "Critério de PASS verificado: A avaliação TLS reporta apenas TLS 1.2 ou TLS 1.3 habilitados (`offered`) em todos os hosts declarados, e SSLv2, SSLv3, TLS 1.0 e TLS 1.1 como desabilitados (`not offered`)."
       ]
     },
     {
@@ -1101,16 +1092,16 @@ window.CASA3_DATA = {
         "From the TLS assessment, read the cipher suites each declared host offers and whether forward-secrecy suites are preferred."
       ],
       "procedure_items_pt": [
-        "From the TLS assessment, read the cipher suites each declared host offers and whether forward-secrecy suites are preferred."
+        "Na avaliação TLS, verificar as suítes de cifra oferecidas por cada host declarado e confirmar a preferência por suítes com Forward Secrecy."
       ],
       "reference_tooling": [
         "testssl.sh",
         "Qualys SSL Labs"
       ],
       "pass_criteria": "No NULL, EXPORT, anonymous, RC4, 3DES or CBC-SHA1 suite is offered, and every TLS 1.2 suite offered provides forward secrecy.",
-      "pass_criteria_pt": "No NULL, EXPORT, anonymous, RC4, 3DES or CBC-SHA1 suite is offered, and every TLS 1.2 suite offered provides forward secrecy.",
+      "pass_criteria_pt": "Nenhuma suíte NULL, EXPORT, anônima, RC4, 3DES ou CBC-SHA1 é oferecida, e todas as suítes TLS 1.2 oferecidas garantem sigilo perfeito de encaminhamento (Forward Secrecy).",
       "fail_criteria": "≥ 1 suite from the banned list (NULL, EXPORT, anonymous, RC4, 3DES, CBC-SHA1) is offered, or ≥ 1 TLS 1.2 suite without forward secrecy is offered.",
-      "fail_criteria_pt": "≥ 1 suite from the banned list (NULL, EXPORT, anonymous, RC4, 3DES, CBC-SHA1) is offered, or ≥ 1 TLS 1.2 suite without forward secrecy is offered.",
+      "fail_criteria_pt": "≥ 1 suíte de cifra banida (NULL, EXPORT, anônima, RC4, 3DES, CBC-SHA1) é oferecida, ou ≥ 1 suíte TLS 1.2 sem Forward Secrecy é aceita.",
       "verification_checklist": [
         "Evidence collected: Machine-readable (JSON) TLS scanner output, for every declared host.",
         "From the TLS assessment, read the cipher suites each declared host offers and whether forward-secrecy suites are preferred.",
@@ -1118,8 +1109,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Machine-readable (JSON) TLS scanner output, for every declared host.",
-        "From the TLS assessment, read the cipher suites each declared host offers and whether forward-secrecy suites are preferred.",
-        "Critério de PASS verificado: No NULL, EXPORT, anonymous, RC4, 3DES or CBC-SHA1 suite is offered, and every TLS 1.2 suite offered provides forward secrecy."
+        "Na avaliação TLS, verificar as suítes de cifra oferecidas por cada host declarado e confirmar a preferência por suítes com Forward Secrecy.",
+        "Critério de PASS verificado: Nenhuma suíte NULL, EXPORT, anônima, RC4, 3DES ou CBC-SHA1 é oferecida, e todas as suítes TLS 1.2 oferecidas garantem sigilo perfeito de encaminhamento (Forward Secrecy)."
       ]
     },
     {
@@ -1149,16 +1140,16 @@ window.CASA3_DATA = {
         "From the TLS assessment, validate the certificate chain of each declared host against a public root store and check hostname match and expiry."
       ],
       "procedure_items_pt": [
-        "From the TLS assessment, validate the certificate chain of each declared host against a public root store and check hostname match and expiry."
+        "Validar a cadeia de certificados de cada host declarado contra uma raiz pública confiável e verificar a correspondência do hostname (CN/SAN) e a data de expiração."
       ],
       "reference_tooling": [
         "testssl.sh",
         "Qualys SSL Labs"
       ],
       "pass_criteria": "Chain validates to a public root, the certificate is not expired at scan time, and CN/SAN matches every host tested; remaining lifetime under 30 days is reported informational.",
-      "pass_criteria_pt": "Chain validates to a public root, the certificate is not expired at scan time, and CN/SAN matches every host tested; remaining lifetime under 30 days is reported informational.",
+      "pass_criteria_pt": "A cadeia de certificados valida até uma raiz pública confiável, o certificado não está expirado no momento do scan e o CN/SAN corresponde a cada host testado.",
       "fail_criteria": "Any chain validation error, expired certificate, or hostname mismatch.",
-      "fail_criteria_pt": "Any chain validation error, expired certificate, or hostname mismatch.",
+      "fail_criteria_pt": "Qualquer erro de validação na cadeia de certificados, certificado expirado ou divergência de hostname (CN/SAN).",
       "verification_checklist": [
         "Evidence collected: Machine-readable (JSON) TLS scanner output, for every declared host.",
         "From the TLS assessment, validate the certificate chain of each declared host against a public root store and check hostname match and expiry.",
@@ -1166,8 +1157,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Machine-readable (JSON) TLS scanner output, for every declared host.",
-        "From the TLS assessment, validate the certificate chain of each declared host against a public root store and check hostname match and expiry.",
-        "Critério de PASS verificado: Chain validates to a public root, the certificate is not expired at scan time, and CN/SAN matches every host tested; remaining lifetime under 30 days is reported informational."
+        "Validar a cadeia de certificados de cada host declarado contra uma raiz pública confiável e verificar a correspondência do hostname (CN/SAN) e a data de expiração.",
+        "Critério de PASS verificado: A cadeia de certificados valida até uma raiz pública confiável, o certificado não está expirado no momento do scan e o CN/SAN corresponde a cada host testado."
       ]
     },
     {
@@ -1197,15 +1188,15 @@ window.CASA3_DATA = {
         "From the TLS assessment, read the Strict-Transport-Security header and its max-age on each declared host."
       ],
       "procedure_items_pt": [
-        "From the TLS assessment, read the Strict-Transport-Security header and its max-age on each declared host."
+        "Ler o cabeçalho `Strict-Transport-Security` e validar se a diretiva `max-age` é ≥ 31536000 em todos os hosts declarados."
       ],
       "reference_tooling": [
         "testssl.sh"
       ],
       "pass_criteria": "`HSTS_time` ≥ 31536000 on every host.",
-      "pass_criteria_pt": "`HSTS_time` ≥ 31536000 on every host.",
+      "pass_criteria_pt": "O cabeçalho `Strict-Transport-Security` está presente com `max-age` (`HSTS_time`) ≥ 31536000 em todos os hosts declarados.",
       "fail_criteria": "Header absent on any host, or `max-age` below 31536000.",
-      "fail_criteria_pt": "Header absent on any host, or `max-age` below 31536000.",
+      "fail_criteria_pt": "Cabeçalho `Strict-Transport-Security` ausente em qualquer host, ou diretiva `max-age` inferior a 31536000.",
       "verification_checklist": [
         "Evidence collected: Machine-readable (JSON) TLS scanner output, for every declared host.",
         "From the TLS assessment, read the Strict-Transport-Security header and its max-age on each declared host.",
@@ -1213,8 +1204,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Machine-readable (JSON) TLS scanner output, for every declared host.",
-        "From the TLS assessment, read the Strict-Transport-Security header and its max-age on each declared host.",
-        "Critério de PASS verificado: `HSTS_time` ≥ 31536000 on every host."
+        "Ler o cabeçalho `Strict-Transport-Security` e validar se a diretiva `max-age` é ≥ 31536000 em todos os hosts declarados.",
+        "Critério de PASS verificado: O cabeçalho `Strict-Transport-Security` está presente com `max-age` (`HSTS_time`) ≥ 31536000 em todos os hosts declarados."
       ]
     },
     {
@@ -1244,15 +1235,15 @@ window.CASA3_DATA = {
         "Run the known-vulnerability checks of the TLS assessment against every declared host."
       ],
       "procedure_items_pt": [
-        "Run the known-vulnerability checks of the TLS assessment against every declared host."
+        "Executar verificações de vulnerabilidades conhecidas de implementação TLS (Heartbleed, ROBOT, renegociação insegura, CRIME) contra cada host declarado."
       ],
       "reference_tooling": [
         "testssl.sh"
       ],
       "pass_criteria": "No entry in the vulnerability section is reported at severity HIGH or CRITICAL (`heartbleed`, `ROBOT`, `secure_renego`, `secure_client_renego`, `CRIME_TLS`, `ticketbleed` included); entries at lower severity are reported informational.",
-      "pass_criteria_pt": "No entry in the vulnerability section is reported at severity HIGH or CRITICAL (`heartbleed`, `ROBOT`, `secure_renego`, `secure_client_renego`, `CRIME_TLS`, `ticketbleed` included); entries at lower severity are reported informational.",
+      "pass_criteria_pt": "Nenhuma vulnerabilidade de implementação TLS é reportada em severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) (incluindo `heartbleed`, `ROBOT`, `secure_renego`, `secure_client_renego`, `CRIME_TLS` e `ticketbleed`).",
       "fail_criteria": "≥ 1 vulnerability entry at severity HIGH or CRITICAL.",
-      "fail_criteria_pt": "≥ 1 vulnerability entry at severity HIGH or CRITICAL.",
+      "fail_criteria_pt": "≥ 1 vulnerabilidade de implementação TLS reportada em severidade ALTA (HIGH) ou CRÍTICA (CRITICAL).",
       "verification_checklist": [
         "Evidence collected: Machine-readable (JSON) TLS scanner output, for every declared host.",
         "Run the known-vulnerability checks of the TLS assessment against every declared host.",
@@ -1260,8 +1251,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Machine-readable (JSON) TLS scanner output, for every declared host.",
-        "Run the known-vulnerability checks of the TLS assessment against every declared host.",
-        "Critério de PASS verificado: No entry in the vulnerability section is reported at severity HIGH or CRITICAL (`heartbleed`, `ROBOT`, `secure_renego`, `secure_client_renego`, `CRIME_TLS`, `ticketbleed` included); entries at lower severity are reported informational."
+        "Executar verificações de vulnerabilidades conhecidas de implementação TLS (Heartbleed, ROBOT, renegociação insegura, CRIME) contra cada host declarado.",
+        "Critério de PASS verificado: Nenhuma vulnerabilidade de implementação TLS é reportada em severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) (incluindo `heartbleed`, `ROBOT`, `secure_renego`, `secure_client_renego`, `CRIME_TLS` e `ticketbleed`)."
       ]
     },
     {
@@ -1291,16 +1282,16 @@ window.CASA3_DATA = {
         "Spider every declared web origin, then request every directory prefix discovered in the crawl and observe whether a listing is returned."
       ],
       "procedure_items_pt": [
-        "Spider every declared web origin, then request every directory prefix discovered in the crawl and observe whether a listing is returned."
+        "Mapear as rotas da aplicação web e requisitar cada prefixo de diretório descoberto (ex.: `/ftp`, `/assets`) observando se uma listagem de diretórios é retornada."
       ],
       "reference_tooling": [
         "ZAP",
         "Burp Suite"
       ],
       "pass_criteria": "No response body parses as a directory index (autoindex markup or S3 `ListBucketResult`).",
-      "pass_criteria_pt": "No response body parses as a directory index (autoindex markup or S3 `ListBucketResult`).",
+      "pass_criteria_pt": "Nenhum corpo de resposta é interpretado como índice de listagem de diretório (marcação autoindex ou `ListBucketResult` de S3).",
       "fail_criteria": "≥ 1 response body parses as a directory index.",
-      "fail_criteria_pt": "≥ 1 response body parses as a directory index.",
+      "fail_criteria_pt": "≥ 1 corpo de resposta expõe listagem de diretórios.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Spider every declared web origin, then request every directory prefix discovered in the crawl and observe whether a listing is returned.",
@@ -1308,8 +1299,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Spider every declared web origin, then request every directory prefix discovered in the crawl and observe whether a listing is returned.",
-        "Critério de PASS verificado: No response body parses as a directory index (autoindex markup or S3 `ListBucketResult`)."
+        "Mapear as rotas da aplicação web e requisitar cada prefixo de diretório descoberto (ex.: `/ftp`, `/assets`) observando se uma listagem de diretórios é retornada.",
+        "Critério de PASS verificado: Nenhum corpo de resposta é interpretado como índice de listagem de diretório (marcação autoindex ou `ListBucketResult` de S3)."
       ]
     },
     {
@@ -1339,16 +1330,16 @@ window.CASA3_DATA = {
         "Request the known debug and diagnostic endpoints of common frameworks on every declared host."
       ],
       "procedure_items_pt": [
-        "Request the known debug and diagnostic endpoints of common frameworks on every declared host."
+        "Requisitar endpoints conhecidos de depuração, diagnóstico, profiler e métricas (ex.: `/metrics`, `/actuator`, consoles de debug) em todos os hosts declarados."
       ],
       "reference_tooling": [
         "ZAP",
         "nuclei"
       ],
       "pass_criteria": "No debug console, profiler or actuator endpoint returns 2xx unauthenticated, and no response carries a framework debug marker (a framework debug or traceback page signature — for example Werkzeug or Django `DEBUG` pages, Rails exception pages, ASP.NET detailed error pages).",
-      "pass_criteria_pt": "No debug console, profiler or actuator endpoint returns 2xx unauthenticated, and no response carries a framework debug marker (a framework debug or traceback page signature — for example Werkzeug or Django `DEBUG` pages, Rails exception pages, ASP.NET detailed error pages).",
+      "pass_criteria_pt": "Nenhum console de depuração (debug), profiler ou endpoint de telemetria/actuator retorna status `2xx` sem autenticação, e nenhuma resposta contém assinaturas de páginas de debug de frameworks (ex.: Werkzeug, Django `DEBUG`, Rails, ASP.NET).",
       "fail_criteria": "≥ 1 debug console, profiler or actuator endpoint returns 2xx unauthenticated, or ≥ 1 response carries a framework debug marker.",
-      "fail_criteria_pt": "≥ 1 debug console, profiler or actuator endpoint returns 2xx unauthenticated, or ≥ 1 response carries a framework debug marker.",
+      "fail_criteria_pt": "≥ 1 console de debug, profiler ou endpoint de métricas/actuator retorna `2xx` sem autenticação, ou ≥ 1 resposta contém assinatura de página de debug de framework.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Request the known debug and diagnostic endpoints of common frameworks on every declared host.",
@@ -1356,8 +1347,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Request the known debug and diagnostic endpoints of common frameworks on every declared host.",
-        "Critério de PASS verificado: No debug console, profiler or actuator endpoint returns 2xx unauthenticated, and no response carries a framework debug marker (a framework debug or traceback page signature — for example Werkzeug or Django `DEBUG` pages, Rails exception pages, ASP.NET detailed error pages)."
+        "Requisitar endpoints conhecidos de depuração, diagnóstico, profiler e métricas (ex.: `/metrics`, `/actuator`, consoles de debug) em todos os hosts declarados.",
+        "Critério de PASS verificado: Nenhum console de depuração (debug), profiler ou endpoint de telemetria/actuator retorna status `2xx` sem autenticação, e nenhuma resposta contém assinaturas de páginas de debug de frameworks (ex.: Werkzeug, Django `DEBUG`, Rails, ASP.NET)."
       ]
     },
     {
@@ -1387,16 +1378,16 @@ window.CASA3_DATA = {
         "Inspect the response headers and bodies across the crawl for server, framework and version identifiers."
       ],
       "procedure_items_pt": [
-        "Inspect the response headers and bodies across the crawl for server, framework and version identifiers."
+        "Inspecionar os cabeçalhos e corpos de resposta em busca de identificadores detalhados de versão de servidor, framework e runtime."
       ],
       "reference_tooling": [
         "ZAP",
         "Burp Suite"
       ],
       "pass_criteria": "No header or body discloses a product version token matching `[A-Za-z-]+/[0-9]+\\.[0-9]+`.",
-      "pass_criteria_pt": "No header or body discloses a product version token matching `[A-Za-z-]+/[0-9]+\\.[0-9]+`.",
+      "pass_criteria_pt": "Nenhum cabeçalho ou corpo de resposta expõe tokens de versão de produto no formato `[A-Za-z-]+/[0-9]+\\.[0-9]+` ou métricas internas de versão do runtime.",
       "fail_criteria": "≥ 1 version token disclosed.",
-      "fail_criteria_pt": "≥ 1 version token disclosed.",
+      "fail_criteria_pt": "≥ 1 token de versão de servidor, framework ou runtime exposto nos cabeçalhos ou corpos de resposta.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Inspect the response headers and bodies across the crawl for server, framework and version identifiers.",
@@ -1404,8 +1395,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Inspect the response headers and bodies across the crawl for server, framework and version identifiers.",
-        "Critério de PASS verificado: No header or body discloses a product version token matching `[A-Za-z-]+/[0-9]+\\.[0-9]+`."
+        "Inspecionar os cabeçalhos e corpos de resposta em busca de identificadores detalhados de versão de servidor, framework e runtime.",
+        "Critério de PASS verificado: Nenhum cabeçalho ou corpo de resposta expõe tokens de versão de produto no formato `[A-Za-z-]+/[0-9]+\\.[0-9]+` ou métricas internas de versão do runtime."
       ]
     },
     {
@@ -1435,15 +1426,15 @@ window.CASA3_DATA = {
         "Fetch the response headers of every HTML route and evaluate the Content-Security-Policy with a policy evaluator."
       ],
       "procedure_items_pt": [
-        "Fetch the response headers of every HTML route and evaluate the Content-Security-Policy with a policy evaluator."
+        "Coletar os cabeçalhos de todas as rotas HTML e avaliar a política `Content-Security-Policy` quanto à ausência de `unsafe-inline`, `unsafe-eval`, `*` e `data:` em `script-src`."
       ],
       "reference_tooling": [
         "csp-evaluator"
       ],
       "pass_criteria": "Every HTML response carries a `Content-Security-Policy`, and the effective `script-src` (or `default-src` fallback) contains none of `unsafe-inline`, `unsafe-eval`, `*`, `data:`.",
-      "pass_criteria_pt": "Every HTML response carries a `Content-Security-Policy`, and the effective `script-src` (or `default-src` fallback) contains none of `unsafe-inline`, `unsafe-eval`, `*`, `data:`.",
+      "pass_criteria_pt": "Toda resposta HTML contém um cabeçalho `Content-Security-Policy` válido, e a diretiva `script-src` efetiva (ou `default-src`) não contém `unsafe-inline`, `unsafe-eval`, `*` ou `data:`.",
       "fail_criteria": "CSP absent on any HTML response, or any of those tokens present in the effective `script-src`.",
-      "fail_criteria_pt": "CSP absent on any HTML response, or any of those tokens present in the effective `script-src`.",
+      "fail_criteria_pt": "Cabeçalho CSP ausente em qualquer resposta HTML, ou presença de `unsafe-inline`, `unsafe-eval`, `*` ou `data:` na diretiva `script-src` efetiva.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Fetch the response headers of every HTML route and evaluate the Content-Security-Policy with a policy evaluator.",
@@ -1451,8 +1442,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Fetch the response headers of every HTML route and evaluate the Content-Security-Policy with a policy evaluator.",
-        "Critério de PASS verificado: Every HTML response carries a `Content-Security-Policy`, and the effective `script-src` (or `default-src` fallback) contains none of `unsafe-inline`, `unsafe-eval`, `*`, `data:`."
+        "Coletar os cabeçalhos de todas as rotas HTML e avaliar a política `Content-Security-Policy` quanto à ausência de `unsafe-inline`, `unsafe-eval`, `*` e `data:` em `script-src`.",
+        "Critério de PASS verificado: Toda resposta HTML contém um cabeçalho `Content-Security-Policy` válido, e a diretiva `script-src` efetiva (ou `default-src`) não contém `unsafe-inline`, `unsafe-eval`, `*` ou `data:`."
       ]
     },
     {
@@ -1482,16 +1473,16 @@ window.CASA3_DATA = {
         "Inspect the response headers across the crawl for frame-ancestors and X-Frame-Options."
       ],
       "procedure_items_pt": [
-        "Inspect the response headers across the crawl for frame-ancestors and X-Frame-Options."
+        "Inspecionar os cabeçalhos de resposta em todas as rotas HTML verificando a presença de `frame-ancestors` no CSP ou `X-Frame-Options` (`DENY` / `SAMEORIGIN`)."
       ],
       "reference_tooling": [
         "ZAP",
         "Burp Suite"
       ],
       "pass_criteria": "Every HTML response carries `frame-ancestors` with `'none'`, `'self'` or an explicit origin list, or `X-Frame-Options: DENY` or `SAMEORIGIN`.",
-      "pass_criteria_pt": "Every HTML response carries `frame-ancestors` with `'none'`, `'self'` or an explicit origin list, or `X-Frame-Options: DENY` or `SAMEORIGIN`.",
+      "pass_criteria_pt": "Toda resposta HTML contém a diretiva CSP `frame-ancestors` com `'none'`, `'self'` ou lista explícita de origens, ou o cabeçalho `X-Frame-Options` definido como `DENY` ou `SAMEORIGIN`.",
       "fail_criteria": "≥ 1 HTML response that does not carry one of those directives in one of those forms.",
-      "fail_criteria_pt": "≥ 1 HTML response that does not carry one of those directives in one of those forms.",
+      "fail_criteria_pt": "≥ 1 resposta HTML sem `frame-ancestors` restritivo e sem `X-Frame-Options: DENY` ou `SAMEORIGIN`.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Inspect the response headers across the crawl for frame-ancestors and X-Frame-Options.",
@@ -1499,8 +1490,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Inspect the response headers across the crawl for frame-ancestors and X-Frame-Options.",
-        "Critério de PASS verificado: Every HTML response carries `frame-ancestors` with `'none'`, `'self'` or an explicit origin list, or `X-Frame-Options: DENY` or `SAMEORIGIN`."
+        "Inspecionar os cabeçalhos de resposta em todas as rotas HTML verificando a presença de `frame-ancestors` no CSP ou `X-Frame-Options` (`DENY` / `SAMEORIGIN`).",
+        "Critério de PASS verificado: Toda resposta HTML contém a diretiva CSP `frame-ancestors` com `'none'`, `'self'` ou lista explícita de origens, ou o cabeçalho `X-Frame-Options` definido como `DENY` ou `SAMEORIGIN`."
       ]
     },
     {
@@ -1530,16 +1521,16 @@ window.CASA3_DATA = {
         "Inspect the response headers across the crawl for X-Content-Type-Options."
       ],
       "procedure_items_pt": [
-        "Inspect the response headers across the crawl for X-Content-Type-Options."
+        "Inspecionar os cabeçalhos de todas as respostas verificando a presença de `X-Content-Type-Options: nosniff`."
       ],
       "reference_tooling": [
         "ZAP",
         "Burp Suite"
       ],
       "pass_criteria": "`X-Content-Type-Options: nosniff` present on 100% of responses.",
-      "pass_criteria_pt": "`X-Content-Type-Options: nosniff` present on 100% of responses.",
+      "pass_criteria_pt": "O cabeçalho `X-Content-Type-Options: nosniff` está presente em 100% das respostas HTTP.",
       "fail_criteria": "Present on fewer than 100% of responses.",
-      "fail_criteria_pt": "Present on fewer than 100% of responses.",
+      "fail_criteria_pt": "Cabeçalho `X-Content-Type-Options: nosniff` ausente em qualquer resposta.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Inspect the response headers across the crawl for X-Content-Type-Options.",
@@ -1547,8 +1538,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Inspect the response headers across the crawl for X-Content-Type-Options.",
-        "Critério de PASS verificado: `X-Content-Type-Options: nosniff` present on 100% of responses."
+        "Inspecionar os cabeçalhos de todas as respostas verificando a presença de `X-Content-Type-Options: nosniff`.",
+        "Critério de PASS verificado: O cabeçalho `X-Content-Type-Options: nosniff` está presente em 100% das respostas HTTP."
       ]
     },
     {
@@ -1578,16 +1569,16 @@ window.CASA3_DATA = {
         "Inspect the response headers of every authenticated response in the crawl for cache-control directives."
       ],
       "procedure_items_pt": [
-        "Inspect the response headers of every authenticated response in the crawl for cache-control directives."
+        "Inspecionar os cabeçalhos de todas as respostas autenticadas e sensíveis verificando a presença de `Cache-Control: no-store`."
       ],
       "reference_tooling": [
         "ZAP",
         "Burp Suite"
       ],
       "pass_criteria": "Every authenticated response carries `Cache-Control` including `no-store`.",
-      "pass_criteria_pt": "Every authenticated response carries `Cache-Control` including `no-store`.",
+      "pass_criteria_pt": "Toda resposta autenticada ou sensível inclui o cabeçalho `Cache-Control` contendo a diretiva `no-store`.",
       "fail_criteria": "≥ 1 authenticated response without `no-store`.",
-      "fail_criteria_pt": "≥ 1 authenticated response without `no-store`.",
+      "fail_criteria_pt": "≥ 1 resposta autenticada ou sensível sem a diretiva `Cache-Control: no-store`.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Inspect the response headers of every authenticated response in the crawl for cache-control directives.",
@@ -1595,8 +1586,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Inspect the response headers of every authenticated response in the crawl for cache-control directives.",
-        "Critério de PASS verificado: Every authenticated response carries `Cache-Control` including `no-store`."
+        "Inspecionar os cabeçalhos de todas as respostas autenticadas e sensíveis verificando a presença de `Cache-Control: no-store`.",
+        "Critério de PASS verificado: Toda resposta autenticada ou sensível inclui o cabeçalho `Cache-Control` contendo a diretiva `no-store`."
       ]
     },
     {
@@ -1626,7 +1617,7 @@ window.CASA3_DATA = {
         "Send requests to every endpoint with a foreign origin, a null origin and an origin that only shares a suffix with the application's domain, and inspect the CORS response headers."
       ],
       "procedure_items_pt": [
-        "Send requests to every endpoint with a foreign origin, a null origin and an origin that only shares a suffix with the application's domain, and inspect the CORS response headers."
+        "Enviar requisições com cabeçalhos `Origin` externos arbitrários e origem `null`, inspecionando os cabeçalhos CORS (`Access-Control-Allow-Origin` e `Access-Control-Allow-Credentials`)."
       ],
       "reference_tooling": [
         "ZAP",
@@ -1634,9 +1625,9 @@ window.CASA3_DATA = {
         "Schemathesis"
       ],
       "pass_criteria": "No probe origin is reflected in `Access-Control-Allow-Origin`; no response combines `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true`; `null` origin is not accepted.",
-      "pass_criteria_pt": "No probe origin is reflected in `Access-Control-Allow-Origin`; no response combines `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true`; `null` origin is not accepted.",
+      "pass_criteria_pt": "Nenhuma origem arbitrária testada é refletida em `Access-Control-Allow-Origin`; nenhuma resposta combina `Access-Control-Allow-Origin: *` com `Access-Control-Allow-Credentials: true`; e a origem `null` não é aceita.",
       "fail_criteria": "Any probe origin reflected, `null` accepted, or wildcard combined with credentials.",
-      "fail_criteria_pt": "Any probe origin reflected, `null` accepted, or wildcard combined with credentials.",
+      "fail_criteria_pt": "Qualquer origem arbitrária refletida em `Access-Control-Allow-Origin`, origem `null` aceita, ou curinga (`*`) combinado com `Access-Control-Allow-Credentials: true`.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Send requests to every endpoint with a foreign origin, a null origin and an origin that only shares a suffix with the application's domain, and inspect the CORS response headers.",
@@ -1644,8 +1635,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Send requests to every endpoint with a foreign origin, a null origin and an origin that only shares a suffix with the application's domain, and inspect the CORS response headers.",
-        "Critério de PASS verificado: No probe origin is reflected in `Access-Control-Allow-Origin`; no response combines `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true`; `null` origin is not accepted."
+        "Enviar requisições com cabeçalhos `Origin` externos arbitrários e origem `null`, inspecionando os cabeçalhos CORS (`Access-Control-Allow-Origin` e `Access-Control-Allow-Credentials`).",
+        "Critério de PASS verificado: Nenhuma origem arbitrária testada é refletida em `Access-Control-Allow-Origin`; nenhuma resposta combina `Access-Control-Allow-Origin: *` com `Access-Control-Allow-Credentials: true`; e a origem `null` não é aceita."
       ]
     },
     {
@@ -1675,7 +1666,7 @@ window.CASA3_DATA = {
         "Send malformed types, oversize bodies and inputs that force server errors across the crawl, and inspect the error responses returned."
       ],
       "procedure_items_pt": [
-        "Send malformed types, oversize bodies and inputs that force server errors across the crawl, and inspect the error responses returned."
+        "Enviar entradas malformadas e caracteres especiais (ex.: `'`, `'))`) que forcem erros no servidor e inspecionar se as respostas `4xx`/`5xx` vazam stack traces ou erros de banco de dados."
       ],
       "reference_tooling": [
         "ZAP",
@@ -1683,9 +1674,9 @@ window.CASA3_DATA = {
         "Schemathesis"
       ],
       "pass_criteria": "No 4xx or 5xx body contains a stack frame, file-system path, SQL fragment, or internal route name.",
-      "pass_criteria_pt": "No 4xx or 5xx body contains a stack frame, file-system path, SQL fragment, or internal route name.",
+      "pass_criteria_pt": "Nenhum corpo de resposta de erro `4xx` ou `5xx` contém stack traces, caminhos internos do sistema de arquivos, fragmentos de erros SQL ou detalhes internos de roteamento.",
       "fail_criteria": "≥ 1 4xx or 5xx body containing any of those elements.",
-      "fail_criteria_pt": "≥ 1 4xx or 5xx body containing any of those elements.",
+      "fail_criteria_pt": "≥ 1 resposta de erro `4xx` ou `5xx` contendo stack trace, caminho interno de arquivo, erro de sintaxe SQL ou detalhe interno de roteamento.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Send malformed types, oversize bodies and inputs that force server errors across the crawl, and inspect the error responses returned.",
@@ -1693,8 +1684,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Send malformed types, oversize bodies and inputs that force server errors across the crawl, and inspect the error responses returned.",
-        "Critério de PASS verificado: No 4xx or 5xx body contains a stack frame, file-system path, SQL fragment, or internal route name."
+        "Enviar entradas malformadas e caracteres especiais (ex.: `'`, `'))`) que forcem erros no servidor e inspecionar se as respostas `4xx`/`5xx` vazam stack traces ou erros de banco de dados.",
+        "Critério de PASS verificado: Nenhum corpo de resposta de erro `4xx` ou `5xx` contém stack traces, caminhos internos do sistema de arquivos, fragmentos de erros SQL ou detalhes internos de roteamento."
       ]
     },
     {
@@ -1724,7 +1715,7 @@ window.CASA3_DATA = {
         "Replay the authenticated route set with credentials removed on every declared host. Request a wordlist of common administrative paths both with and without credentials, and compare the two response bodies for each path."
       ],
       "procedure_items_pt": [
-        "Replay the authenticated route set with credentials removed on every declared host. Request a wordlist of common administrative paths both with and without credentials, and compare the two response bodies for each path."
+        "Reproduzir as rotas autenticadas e uma lista de caminhos administrativos comuns sem credenciais, verificando se o acesso é negado."
       ],
       "reference_tooling": [
         "ZAP",
@@ -1732,9 +1723,9 @@ window.CASA3_DATA = {
         "SecLists"
       ],
       "pass_criteria": "Every route in the authenticated set is denied when requested without credentials, and no wordlist path returns 2xx unauthenticated with body similarity ≥ 0.90 to its authenticated response (similarity = longest-common-subsequence ratio over lines after whitespace normalisation).",
-      "pass_criteria_pt": "Every route in the authenticated set is denied when requested without credentials, and no wordlist path returns 2xx unauthenticated with body similarity ≥ 0.90 to its authenticated response (similarity = longest-common-subsequence ratio over lines after whitespace normalisation).",
+      "pass_criteria_pt": "Todas as rotas autenticadas e caminhos administrativos são negados quando requisitados sem credenciais válidas.",
       "fail_criteria": "≥ 1 route in the authenticated set accepted without credentials, or ≥ 1 wordlist path returning 2xx unauthenticated with body similarity ≥ 0.90 to its authenticated response.",
-      "fail_criteria_pt": "≥ 1 route in the authenticated set accepted without credentials, or ≥ 1 wordlist path returning 2xx unauthenticated with body similarity ≥ 0.90 to its authenticated response.",
+      "fail_criteria_pt": "≥ 1 rota autenticada ou interface administrativa acessível sem credenciais válidas.",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Replay the authenticated route set with credentials removed on every declared host.",
@@ -1743,9 +1734,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Replay the authenticated route set with credentials removed on every declared host.",
-        "Request a wordlist of common administrative paths both with and without credentials, and compare the two response bodies for each path.",
-        "Critério de PASS verificado: Every route in the authenticated set is denied when requested without credentials, and no wordlist path returns 2xx unauthenticated with body similarity ≥ 0.90 to its authenticated response (similarity = longest-common-subsequence ratio over lines after whitespace normalisation)."
+        "Reproduzir as rotas autenticadas e uma lista de caminhos administrativos comuns sem credenciais, verificando se o acesso é negado.",
+        "Critério de PASS verificado: Todas as rotas autenticadas e caminhos administrativos são negados quando requisitados sem credenciais válidas."
       ]
     },
     {
@@ -1775,16 +1765,16 @@ window.CASA3_DATA = {
         "Resolve every declared host, follow each CNAME chain to its terminal target, and check every host and chain target against known takeover fingerprints."
       ],
       "procedure_items_pt": [
-        "Resolve every declared host, follow each CNAME chain to its terminal target, and check every host and chain target against known takeover fingerprints."
+        "Resolver o DNS de cada host declarado, seguir toda a cadeia CNAME e verificar se algum alvo aponta para serviços externos não reivindicados."
       ],
       "reference_tooling": [
         "dnsx",
         "nuclei"
       ],
       "pass_criteria": "Zero DNS records of any type on a declared host or in its CNAME chain match an unclaimed-provider takeover fingerprint.",
-      "pass_criteria_pt": "Zero DNS records of any type on a declared host or in its CNAME chain match an unclaimed-provider takeover fingerprint.",
+      "pass_criteria_pt": "Zero registros DNS em qualquer host declarado ou em sua cadeia CNAME correspondem a assinaturas de provedores externos não reivindicados (vulneráveis a Subdomain Takeover).",
       "fail_criteria": "≥ 1 record on a declared host or in its CNAME chain matches an unclaimed-provider takeover fingerprint.",
-      "fail_criteria_pt": "≥ 1 record on a declared host or in its CNAME chain matches an unclaimed-provider takeover fingerprint.",
+      "fail_criteria_pt": "≥ 1 registro DNS em um host declarado ou em sua cadeia CNAME aponta para serviço externo não reivindicado (Subdomain Takeover).",
       "verification_checklist": [
         "Evidence collected: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
         "Resolve every declared host, follow each CNAME chain to its terminal target, and check every host and chain target against known takeover fingerprints.",
@@ -1792,8 +1782,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: DAST findings in SARIF 2.1.0 and a HAR 1.2 capture of the probed requests and responses.",
-        "Resolve every declared host, follow each CNAME chain to its terminal target, and check every host and chain target against known takeover fingerprints.",
-        "Critério de PASS verificado: Zero DNS records of any type on a declared host or in its CNAME chain match an unclaimed-provider takeover fingerprint."
+        "Resolver o DNS de cada host declarado, seguir toda a cadeia CNAME e verificar se algum alvo aponta para serviços externos não reivindicados.",
+        "Critério de PASS verificado: Zero registros DNS em qualquer host declarado ou em sua cadeia CNAME correspondem a assinaturas de provedores externos não reivindicados (vulneráveis a Subdomain Takeover)."
       ]
     },
     {
@@ -1823,16 +1813,16 @@ window.CASA3_DATA = {
         "Replay a corpus of default credentials, plus the vendor defaults for every product identified in the version-disclosure check, against every authentication endpoint."
       ],
       "procedure_items_pt": [
-        "Replay a corpus of default credentials, plus the vendor defaults for every product identified in the version-disclosure check, against every authentication endpoint."
+        "Testar um corpus de credenciais padrão e credenciais default do fabricante contra todos os endpoints de autenticação da aplicação."
       ],
       "reference_tooling": [
         "SecLists",
         "scripted replay harness"
       ],
       "pass_criteria": "Zero credential pairs from the corpus authenticate on any login surface.",
-      "pass_criteria_pt": "Zero credential pairs from the corpus authenticate on any login surface.",
+      "pass_criteria_pt": "Zero pares de credenciais padrão, compartilhadas ou de fabricante autenticam com sucesso em qualquer superfície de login.",
       "fail_criteria": "≥ 1 pair authenticates.",
-      "fail_criteria_pt": "≥ 1 pair authenticates.",
+      "fail_criteria_pt": "≥ 1 par de credenciais padrão ou de fabricante autentica com sucesso.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Replay a corpus of default credentials, plus the vendor defaults for every product identified in the version-disclosure check, against every authentication endpoint.",
@@ -1840,8 +1830,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Replay a corpus of default credentials, plus the vendor defaults for every product identified in the version-disclosure check, against every authentication endpoint.",
-        "Critério de PASS verificado: Zero credential pairs from the corpus authenticate on any login surface."
+        "Testar um corpus de credenciais padrão e credenciais default do fabricante contra todos os endpoints de autenticação da aplicação.",
+        "Critério de PASS verificado: Zero pares de credenciais padrão, compartilhadas ou de fabricante autenticam com sucesso em qualquer superfície de login."
       ]
     },
     {
@@ -1871,16 +1861,16 @@ window.CASA3_DATA = {
         "Collect 200 session tokens from fresh authentications and compute a min-entropy estimate over them."
       ],
       "procedure_items_pt": [
-        "Collect 200 session tokens from fresh authentications and compute a min-entropy estimate over them."
+        "Coletar 200 tokens de sessão de novas autenticações e calcular a estimativa de entropia mínima (≥ 64 bits)."
       ],
       "reference_tooling": [
         "Burp Sequencer",
         "SP 800-90B entropy estimator"
       ],
       "pass_criteria": "All 200 tokens distinct and min-entropy estimate ≥ 64 bits.",
-      "pass_criteria_pt": "All 200 tokens distinct and min-entropy estimate ≥ 64 bits.",
+      "pass_criteria_pt": "Todos os 200 tokens de sessão coletados são distintos e possuem estimativa de entropia mínima ≥ 64 bits.",
       "fail_criteria": "Any repeated token, or a min-entropy estimate below 64 bits.",
-      "fail_criteria_pt": "Any repeated token, or a min-entropy estimate below 64 bits.",
+      "fail_criteria_pt": "Qualquer token de sessão repetido na amostra, ou entropia mínima estimada inferior a 64 bits.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Collect 200 session tokens from fresh authentications and compute a min-entropy estimate over them.",
@@ -1888,8 +1878,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Collect 200 session tokens from fresh authentications and compute a min-entropy estimate over them.",
-        "Critério de PASS verificado: All 200 tokens distinct and min-entropy estimate ≥ 64 bits."
+        "Coletar 200 tokens de sessão de novas autenticações e calcular a estimativa de entropia mínima (≥ 64 bits).",
+        "Critério de PASS verificado: Todos os 200 tokens de sessão coletados são distintos e possuem estimativa de entropia mínima ≥ 64 bits."
       ]
     },
     {
@@ -1919,15 +1909,15 @@ window.CASA3_DATA = {
         "Capture the session identifier before authentication, authenticate, capture it again, and replay the pre-authentication identifier against an authenticated route."
       ],
       "procedure_items_pt": [
-        "Capture the session identifier before authentication, authenticate, capture it again, and replay the pre-authentication identifier against an authenticated route."
+        "Capturar o identificador de sessão antes da autenticação, realizar o login, capturar o novo identificador e testar se o identificador antigo foi invalidado."
       ],
       "reference_tooling": [
         "scripted harness"
       ],
       "pass_criteria": "Post-authentication session identifier differs from the pre-authentication identifier, and the pre-authentication identifier is rejected afterwards.",
-      "pass_criteria_pt": "Post-authentication session identifier differs from the pre-authentication identifier, and the pre-authentication identifier is rejected afterwards.",
+      "pass_criteria_pt": "O identificador de sessão pós-autenticação difere do identificador pré-autenticação, e o identificador pré-autenticação é rejeitado após o login.",
       "fail_criteria": "Identifier unchanged across authentication, or the pre-authentication identifier remains valid.",
-      "fail_criteria_pt": "Identifier unchanged across authentication, or the pre-authentication identifier remains valid.",
+      "fail_criteria_pt": "Identificador de sessão permanece inalterado após o login, ou o identificador pré-autenticação continua válido.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Capture the session identifier before authentication, authenticate, capture it again, and replay the pre-authentication identifier against an authenticated route.",
@@ -1935,8 +1925,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Capture the session identifier before authentication, authenticate, capture it again, and replay the pre-authentication identifier against an authenticated route.",
-        "Critério de PASS verificado: Post-authentication session identifier differs from the pre-authentication identifier, and the pre-authentication identifier is rejected afterwards."
+        "Capturar o identificador de sessão antes da autenticação, realizar o login, capturar o novo identificador e testar se o identificador antigo foi invalidado.",
+        "Critério de PASS verificado: O identificador de sessão pós-autenticação difere do identificador pré-autenticação, e o identificador pré-autenticação é rejeitado após o login."
       ]
     },
     {
@@ -1966,16 +1956,16 @@ window.CASA3_DATA = {
         "Scan the proxy log of the authenticated crawl, including outbound Referer headers, for session tokens and credentials."
       ],
       "procedure_items_pt": [
-        "Scan the proxy log of the authenticated crawl, including outbound Referer headers, for session tokens and credentials."
+        "Analisar o registro de tráfego HTTP (HAR), incluindo cabeçalhos `Referer` de saída, procurando tokens de sessão ou credenciais expostos na URL."
       ],
       "reference_tooling": [
         "ZAP",
         "Burp Suite"
       ],
       "pass_criteria": "No session, access or refresh token value appears in any request URL, query string, fragment or outbound `Referer`.",
-      "pass_criteria_pt": "No session, access or refresh token value appears in any request URL, query string, fragment or outbound `Referer`.",
+      "pass_criteria_pt": "Nenhum valor de token de sessão, access token ou refresh token aparece em URLs de requisição, query strings, fragmentos ou cabeçalhos `Referer` de saída.",
       "fail_criteria": "≥ 1 token value present in any of those locations.",
-      "fail_criteria_pt": "≥ 1 token value present in any of those locations.",
+      "fail_criteria_pt": "≥ 1 token de sessão, access token ou credencial exposto em URL, query string, fragmento ou cabeçalho `Referer`.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Scan the proxy log of the authenticated crawl, including outbound Referer headers, for session tokens and credentials.",
@@ -1983,8 +1973,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Scan the proxy log of the authenticated crawl, including outbound Referer headers, for session tokens and credentials.",
-        "Critério de PASS verificado: No session, access or refresh token value appears in any request URL, query string, fragment or outbound `Referer`."
+        "Analisar o registro de tráfego HTTP (HAR), incluindo cabeçalhos `Referer` de saída, procurando tokens de sessão ou credenciais expostos na URL.",
+        "Critério de PASS verificado: Nenhum valor de token de sessão, access token ou refresh token aparece em URLs de requisição, query strings, fragmentos ou cabeçalhos `Referer` de saída."
       ]
     },
     {
@@ -2014,15 +2004,15 @@ window.CASA3_DATA = {
         "Log out, then replay the session cookie and the refresh token against protected routes."
       ],
       "procedure_items_pt": [
-        "Log out, then replay the session cookie and the refresh token against protected routes."
+        "Realizar logout na aplicação e, em seguida, reproduzir (replay) o cookie de sessão e o token de autenticação contra rotas protegidas."
       ],
       "reference_tooling": [
         "scripted harness"
       ],
       "pass_criteria": "Both the replayed session cookie and the replayed refresh token are denied after logout.",
-      "pass_criteria_pt": "Both the replayed session cookie and the replayed refresh token are denied after logout.",
+      "pass_criteria_pt": "Tanto o cookie de sessão quanto o refresh token reproduzidos (replay) são negados pelo servidor após a execução do logout.",
       "fail_criteria": "Either is accepted after logout.",
-      "fail_criteria_pt": "Either is accepted after logout.",
+      "fail_criteria_pt": "O cookie de sessão ou o token de autenticação continua sendo aceito pelo servidor após o logout.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Log out, then replay the session cookie and the refresh token against protected routes.",
@@ -2030,8 +2020,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Log out, then replay the session cookie and the refresh token against protected routes.",
-        "Critério de PASS verificado: Both the replayed session cookie and the replayed refresh token are denied after logout."
+        "Realizar logout na aplicação e, em seguida, reproduzir (replay) o cookie de sessão e o token de autenticação contra rotas protegidas.",
+        "Critério de PASS verificado: Tanto o cookie de sessão quanto o refresh token reproduzidos (replay) são negados pelo servidor após a execução do logout."
       ]
     },
     {
@@ -2061,16 +2051,16 @@ window.CASA3_DATA = {
         "From the authenticated crawl, identify the session cookies — those whose removal ends the authenticated session — and inspect every Set-Cookie header that sets one of them for the Secure, HttpOnly and SameSite attributes."
       ],
       "procedure_items_pt": [
-        "From the authenticated crawl, identify the session cookies — those whose removal ends the authenticated session — and inspect every Set-Cookie header that sets one of them for the Secure, HttpOnly and SameSite attributes."
+        "Identificar os cookies de sessão e inspecionar todos os cabeçalhos `Set-Cookie` correspondentes quanto à presença dos atributos `Secure`, `HttpOnly` e `SameSite` (`Lax` ou `Strict`)."
       ],
       "reference_tooling": [
         "ZAP",
         "Burp Suite"
       ],
       "pass_criteria": "Every Set-Cookie header that sets a session cookie carries `Secure`, `HttpOnly`, and `SameSite=Lax` or `SameSite=Strict`.",
-      "pass_criteria_pt": "Every Set-Cookie header that sets a session cookie carries `Secure`, `HttpOnly`, and `SameSite=Lax` or `SameSite=Strict`.",
+      "pass_criteria_pt": "Todo cabeçalho `Set-Cookie` que define um cookie de sessão inclui os atributos `Secure`, `HttpOnly` e `SameSite=Lax` ou `SameSite=Strict`.",
       "fail_criteria": "≥ 1 Set-Cookie header setting a session cookie that is missing `Secure` or `HttpOnly`, or whose `SameSite` attribute is absent or is neither `Lax` nor `Strict`.",
-      "fail_criteria_pt": "≥ 1 Set-Cookie header setting a session cookie that is missing `Secure` or `HttpOnly`, or whose `SameSite` attribute is absent or is neither `Lax` nor `Strict`.",
+      "fail_criteria_pt": "≥ 1 cookie de sessão definido sem `Secure`, sem `HttpOnly`, ou sem `SameSite=Lax`/`Strict`.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "From the authenticated crawl, identify the session cookies — those whose removal ends the authenticated session — and inspect every Set-Cookie header that sets one of them for the Secure, HttpOnly and SameSite attributes.",
@@ -2078,8 +2068,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "From the authenticated crawl, identify the session cookies — those whose removal ends the authenticated session — and inspect every Set-Cookie header that sets one of them for the Secure, HttpOnly and SameSite attributes.",
-        "Critério de PASS verificado: Every Set-Cookie header that sets a session cookie carries `Secure`, `HttpOnly`, and `SameSite=Lax` or `SameSite=Strict`."
+        "Identificar os cookies de sessão e inspecionar todos os cabeçalhos `Set-Cookie` correspondentes quanto à presença dos atributos `Secure`, `HttpOnly` e `SameSite` (`Lax` ou `Strict`).",
+        "Critério de PASS verificado: Todo cabeçalho `Set-Cookie` que define um cookie de sessão inclui os atributos `Secure`, `HttpOnly` e `SameSite=Lax` ou `SameSite=Strict`."
       ]
     },
     {
@@ -2109,15 +2099,15 @@ window.CASA3_DATA = {
         "Submit crafted tokens to protected routes: unsigned, algorithm-confused, foreign key identifier, injected key URL, and modified payload with the original signature. Read the signing algorithm, iat and exp from a genuine token. Where source code or a build artifact is available, read the HMAC key length."
       ],
       "procedure_items_pt": [
-        "Submit crafted tokens to protected routes: unsigned, algorithm-confused, foreign key identifier, injected key URL, and modified payload with the original signature. Read the signing algorithm, iat and exp from a genuine token. Where source code or a build artifact is available, read the HMAC key length."
+        "Submeter tokens JWT forjados (sem assinatura, com confusão de algoritmo RS256→HS256, chave externa e payload modificado) a rotas protegidas e verificar o algoritmo e tempo de expiração (`exp` ≤ 24h)."
       ],
       "reference_tooling": [
         "jwt_tool"
       ],
       "pass_criteria": "Every crafted token is denied; the signing algorithm is in {RS256, RS384, RS512, ES256, ES384, PS256, EdDSA, HS256} (for HS256 the key is ≥ 256 bits where source or artifact is available, otherwise key length is recorded `Not_Covered`); and every token that is accepted after the AUT-05 logout replay carries `exp` with a lifetime ≤ 86400 seconds, measured from `iat` or, where `iat` is absent, from the time of issuance observed in the capture.",
-      "pass_criteria_pt": "Every crafted token is denied; the signing algorithm is in {RS256, RS384, RS512, ES256, ES384, PS256, EdDSA, HS256} (for HS256 the key is ≥ 256 bits where source or artifact is available, otherwise key length is recorded `Not_Covered`); and every token that is accepted after the AUT-05 logout replay carries `exp` with a lifetime ≤ 86400 seconds, measured from `iat` or, where `iat` is absent, from the time of issuance observed in the capture.",
+      "pass_criteria_pt": "Todos os tokens forjados (sem assinatura, com confusão de algoritmo RS256→HS256, chave externa ou payload adulterado) são negados; o algoritmo pertence à lista permitida ({RS256, RS384, RS512, ES256, ES384, PS256, EdDSA, HS256 com chave ≥ 256 bits}); e qualquer token stateless aceito possui tempo de vida (`exp`) ≤ 86400 segundos (24 horas).",
       "fail_criteria": "Any crafted token accepted; an algorithm outside the allowlist; an HS256 key below 256 bits where measured; or a token that is accepted after the AUT-05 logout replay with no `exp` or with a lifetime above 86400 seconds.",
-      "fail_criteria_pt": "Any crafted token accepted; an algorithm outside the allowlist; an HS256 key below 256 bits where measured; or a token that is accepted after the AUT-05 logout replay with no `exp` or with a lifetime above 86400 seconds.",
+      "fail_criteria_pt": "Qualquer token forjado é aceito; uso de algoritmo fora da lista permitida; chave HMAC < 256 bits; ou token stateless sem expiração (`exp`) ou com validade superior a 86400 segundos (24h).",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Submit crafted tokens to protected routes: unsigned, algorithm-confused, foreign key identifier, injected key URL, and modified payload with the original signature.",
@@ -2127,10 +2117,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Submit crafted tokens to protected routes: unsigned, algorithm-confused, foreign key identifier, injected key URL, and modified payload with the original signature.",
-        "Read the signing algorithm, iat and exp from a genuine token.",
-        "Where source code or a build artifact is available, read the HMAC key length.",
-        "Critério de PASS verificado: Every crafted token is denied; the signing algorithm is in {RS256, RS384, RS512, ES256, ES384, PS256, EdDSA, HS256} (for HS256 the key is ≥ 256 bits where source or artifact is available, otherwise key length is recorded `Not_Covered`); and every token that is accepted after the AUT-05 logout replay carries `exp` with a lifetime ≤ 86400 seconds, measured from `iat` or, where `iat` is absent, from the time of issuance observed in the capture."
+        "Submeter tokens JWT forjados (sem assinatura, com confusão de algoritmo RS256→HS256, chave externa e payload modificado) a rotas protegidas e verificar o algoritmo e tempo de expiração (`exp` ≤ 24h).",
+        "Critério de PASS verificado: Todos os tokens forjados (sem assinatura, com confusão de algoritmo RS256→HS256, chave externa ou payload adulterado) são negados; o algoritmo pertence à lista permitida ({RS256, RS384, RS512, ES256, ES384, PS256, EdDSA, HS256 com chave ≥ 256 bits}); e qualquer token stateless aceito possui tempo de vida (`exp`) ≤ 86400 segundos (24 horas)."
       ]
     },
     {
@@ -2160,15 +2148,15 @@ window.CASA3_DATA = {
         "With a headless browser, dump browser storage (localStorage, sessionStorage, IndexedDB and non-HttpOnly cookies) before and after logout, and match the contents against the canary values seeded on the lab's test account and every field value returned by the identity provider during the authorization flow."
       ],
       "procedure_items_pt": [
-        "With a headless browser, dump browser storage (localStorage, sessionStorage, IndexedDB and non-HttpOnly cookies) before and after logout, and match the contents against the canary values seeded on the lab's test account and every field value returned by the identity provider during the authorization flow."
+        "Inspecionar o armazenamento do navegador (`localStorage`, `sessionStorage`, `IndexedDB` e cookies não-HttpOnly) antes e após o logout em busca de tokens ou dados sensíveis."
       ],
       "reference_tooling": [
         "Playwright"
       ],
       "pass_criteria": "No stored value equals an observed session, access or refresh token, matches a JWT or Luhn-valid PAN pattern, equals a seeded canary value, or equals any identity-provider profile field value observed in the authorization-flow capture; and no authentication material (session identifier, access, refresh or ID token, password, or any value from the authorization-flow capture) survives logout.",
-      "pass_criteria_pt": "No stored value equals an observed session, access or refresh token, matches a JWT or Luhn-valid PAN pattern, equals a seeded canary value, or equals any identity-provider profile field value observed in the authorization-flow capture; and no authentication material (session identifier, access, refresh or ID token, password, or any value from the authorization-flow capture) survives logout.",
+      "pass_criteria_pt": "Nenhum valor armazenado no navegador (`localStorage`, `sessionStorage`, `IndexedDB` ou cookies não-HttpOnly) contém tokens de sessão/acesso/refresh, JWTs, números de cartão (PAN) ou dados sensíveis do perfil, e nenhum material de autenticação sobrevive ao logout.",
       "fail_criteria": "≥ 1 stored value matches any of those, or ≥ 1 item of authentication material persists after logout.",
-      "fail_criteria_pt": "≥ 1 stored value matches any of those, or ≥ 1 item of authentication material persists after logout.",
+      "fail_criteria_pt": "≥ 1 token de autenticação, JWT, credencial ou dado sensível armazenado em `localStorage`/`sessionStorage`/`IndexedDB`/cookie não-HttpOnly, ou material de autenticação que persiste após o logout.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "With a headless browser, dump browser storage (localStorage, sessionStorage, IndexedDB and non-HttpOnly cookies) before and after logout, and match the contents against the canary values seeded on the lab's test account and every field value returned by the identity provider during the authorization flow.",
@@ -2176,8 +2164,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "With a headless browser, dump browser storage (localStorage, sessionStorage, IndexedDB and non-HttpOnly cookies) before and after logout, and match the contents against the canary values seeded on the lab's test account and every field value returned by the identity provider during the authorization flow.",
-        "Critério de PASS verificado: No stored value equals an observed session, access or refresh token, matches a JWT or Luhn-valid PAN pattern, equals a seeded canary value, or equals any identity-provider profile field value observed in the authorization-flow capture; and no authentication material (session identifier, access, refresh or ID token, password, or any value from the authorization-flow capture) survives logout."
+        "Inspecionar o armazenamento do navegador (`localStorage`, `sessionStorage`, `IndexedDB` e cookies não-HttpOnly) antes e após o logout em busca de tokens ou dados sensíveis.",
+        "Critério de PASS verificado: Nenhum valor armazenado no navegador (`localStorage`, `sessionStorage`, `IndexedDB` ou cookies não-HttpOnly) contém tokens de sessão/acesso/refresh, JWTs, números de cartão (PAN) ou dados sensíveis do perfil, e nenhum material de autenticação sobrevive ao logout."
       ]
     },
     {
@@ -2208,16 +2196,16 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Issue 120 failed authentications against a lab-owned account within 60 minutes and record every response.",
+        "Disparar 120 tentativas falhas de autenticação contra uma conta de teste em até 60 minutos e registrar todas as respostas para verificar o bloqueio até a 101ª tentativa.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
         "scripted harness"
       ],
       "pass_criteria": "Attempt 101 is denied by an enforcement response — HTTP 429, a CAPTCHA challenge, an MFA step-up, or a lockout.",
-      "pass_criteria_pt": "Attempt 101 is denied by an enforcement response — HTTP 429, a CAPTCHA challenge, an MFA step-up, or a lockout.",
+      "pass_criteria_pt": "A 101ª tentativa falha de autenticação dentro de 60 minutos na mesma conta é bloqueada por uma resposta de contenção — HTTP 429, desafio CAPTCHA, exigência de segundo fator (MFA) ou bloqueio temporário da conta.",
       "fail_criteria": "Attempt 101 is not denied by an enforcement response — it is accepted, or receives an ordinary authentication-failure response, or any other response that is not a throttle, challenge or lockout.",
-      "fail_criteria_pt": "Attempt 101 is not denied by an enforcement response — it is accepted, or receives an ordinary authentication-failure response, or any other response that is not a throttle, challenge or lockout.",
+      "fail_criteria_pt": "A 101ª tentativa falha de login não é contida por bloqueio, HTTP 429, CAPTCHA ou MFA.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Issue 120 failed authentications against a lab-owned account within 60 minutes and record every response.",
@@ -2225,8 +2213,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Issue 120 failed authentications against a lab-owned account within 60 minutes and record every response.",
-        "Critério de PASS verificado: Attempt 101 is denied by an enforcement response — HTTP 429, a CAPTCHA challenge, an MFA step-up, or a lockout."
+        "Disparar 120 tentativas falhas de autenticação contra uma conta de teste em até 60 minutos e registrar todas as respostas para verificar o bloqueio até a 101ª tentativa.",
+        "Critério de PASS verificado: A 101ª tentativa falha de autenticação dentro de 60 minutos na mesma conta é bloqueada por uma resposta de contenção — HTTP 429, desafio CAPTCHA, exigência de segundo fator (MFA) ou bloqueio temporário da conta."
       ]
     },
     {
@@ -2257,16 +2245,16 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Obtain the application's stated idle-session window. Hold an authenticated session idle until the window has elapsed, then until twice the window has elapsed (or 15 minutes, 1 hour, 4 hours and 8 hours where no window is stated), replaying a protected request at the HTTP layer at each step and observing whether the server, not client-side script, enforces expiry.",
+        "Obter a janela de timeout de inatividade declarada, manter uma sessão autenticada ociosa até ultrapassar a janela e reproduzir uma requisição protegida para verificar se o servidor impõe a expiração.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
         "scripted harness"
       ],
       "pass_criteria": "The protected request is denied at the first replay after the stated idle window (or at the 8-hour replay where none is stated).",
-      "pass_criteria_pt": "The protected request is denied at the first replay after the stated idle window (or at the 8-hour replay where none is stated).",
+      "pass_criteria_pt": "A requisição protegida é negada pelo servidor na primeira reprodução após o tempo de inatividade declarado (ou após 8 horas quando não declarado).",
       "fail_criteria": "The protected request is accepted at the first replay after the stated idle window (or at the 8-hour replay where none is stated), or expiry is enforced only by client-side script.",
-      "fail_criteria_pt": "The protected request is accepted at the first replay after the stated idle window (or at the 8-hour replay where none is stated), or expiry is enforced only by client-side script.",
+      "fail_criteria_pt": "A requisição protegida continua sendo aceita após a janela de inatividade declarada (ou 8h), ou a expiração ocorre apenas no código cliente.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Obtain the application's stated idle-session window.",
@@ -2275,9 +2263,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Obtain the application's stated idle-session window.",
-        "Hold an authenticated session idle until the window has elapsed, then until twice the window has elapsed (or 15 minutes, 1 hour, 4 hours and 8 hours where no window is stated), replaying a protected request at the HTTP layer at each step and observing whether the server, not client-side script, enforces expiry.",
-        "Critério de PASS verificado: The protected request is denied at the first replay after the stated idle window (or at the 8-hour replay where none is stated)."
+        "Obter a janela de timeout de inatividade declarada, manter uma sessão autenticada ociosa até ultrapassar a janela e reproduzir uma requisição protegida para verificar se o servidor impõe a expiração.",
+        "Critério de PASS verificado: A requisição protegida é negada pelo servidor na primeira reprodução após o tempo de inatividade declarado (ou após 8 horas quando não declarado)."
       ]
     },
     {
@@ -2308,16 +2295,16 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "In session A change the password and replay session B. Request an out-of-band code and a reset link; use each twice; use the code after 10 minutes and the link after 60 minutes. Collect 200 of each verifier and compute a min-entropy estimate.",
+        "Na sessão A alterar a senha e reproduzir a sessão B; solicitar código out-of-band e link de redefinição, tentando reutilizá-los uma segunda vez e após os limites de 10 min e 60 min; coletar 200 amostras para estimar a entropia (≥ 20 bits).",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
         "scripted harness"
       ],
       "pass_criteria": "Session B is invalidated by the password change; the out-of-band code is rejected on second use and after 10 minutes; the reset link is rejected on second use and after 60 minutes; both values pass a 200-sample min-entropy estimate ≥ 20 bits.",
-      "pass_criteria_pt": "Session B is invalidated by the password change; the out-of-band code is rejected on second use and after 10 minutes; the reset link is rejected on second use and after 60 minutes; both values pass a 200-sample min-entropy estimate ≥ 20 bits.",
+      "pass_criteria_pt": "A sessão concorrente B é invalidada após a troca de senha na sessão A; o código out-of-band é rejeitado no segundo uso e após 10 minutos; o link de redefinição de senha é rejeitado no segundo uso e após 60 minutos; e ambos apresentam entropia mínima ≥ 20 bits em amostra de 200 valores.",
       "fail_criteria": "Session B survives, either verifier is accepted twice, either is accepted past its threshold, or entropy is below 20 bits.",
-      "fail_criteria_pt": "Session B survives, either verifier is accepted twice, either is accepted past its threshold, or entropy is below 20 bits.",
+      "fail_criteria_pt": "A sessão secundária sobrevive à troca de senha; o código out-of-band ou link de reset é aceito mais de uma vez ou após expirar (10 min / 60 min); ou a entropia é inferior a 20 bits.",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "In session A change the password and replay session B.",
@@ -2327,10 +2314,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "In session A change the password and replay session B.",
-        "Request an out-of-band code and a reset link; use each twice; use the code after 10 minutes and the link after 60 minutes.",
-        "Collect 200 of each verifier and compute a min-entropy estimate.",
-        "Critério de PASS verificado: Session B is invalidated by the password change; the out-of-band code is rejected on second use and after 10 minutes; the reset link is rejected on second use and after 60 minutes; both values pass a 200-sample min-entropy estimate ≥ 20 bits."
+        "Na sessão A alterar a senha e reproduzir a sessão B; solicitar código out-of-band e link de redefinição, tentando reutilizá-los uma segunda vez e após os limites de 10 min e 60 min; coletar 200 amostras para estimar a entropia (≥ 20 bits).",
+        "Critério de PASS verificado: A sessão concorrente B é invalidada após a troca de senha na sessão A; o código out-of-band é rejeitado no segundo uso e após 10 minutos; o link de redefinição de senha é rejeitado no segundo uso e após 60 minutos; e ambos apresentam entropia mínima ≥ 20 bits em amostra de 200 valores."
       ]
     },
     {
@@ -2361,7 +2346,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Sign in to each declared administrative interface with the developer-provisioned administrative account. After the correct password is accepted and before the second factor is completed, replay requests to administrative routes and functions through the intercepting proxy and record every response. Complete the second factor and confirm the same routes now succeed.",
+        "Fazer login em cada interface administrativa declarada com conta administrativa; após a senha ser aceita e antes de concluir o segundo fator (MFA), reproduzir requisições para rotas administrativas pelo proxy e verificar se são negadas.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -2370,9 +2355,9 @@ window.CASA3_DATA = {
         "Playwright"
       ],
       "pass_criteria": "For every declared administrative interface, after the correct password is accepted and before the second factor is completed, every replayed request to an administrative route is denied.",
-      "pass_criteria_pt": "For every declared administrative interface, after the correct password is accepted and before the second factor is completed, every replayed request to an administrative route is denied.",
+      "pass_criteria_pt": "Para todas as interfaces administrativas declaradas, após a senha correta ser aceita e antes da conclusão do segundo fator (MFA), todas as requisições reproduzidas para rotas administrativas são negadas.",
       "fail_criteria": "≥ 1 administrative route accepted — administrative data returned or an administrative function performed — after the password alone.",
-      "fail_criteria_pt": "≥ 1 administrative route accepted — administrative data returned or an administrative function performed — after the password alone.",
+      "fail_criteria_pt": "≥ 1 rota ou função administrativa é acessível apenas com a senha, antes da validação do segundo fator (MFA).",
       "verification_checklist": [
         "Evidence collected: Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
         "Sign in to each declared administrative interface with the developer-provisioned administrative account.",
@@ -2382,10 +2367,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
-        "Sign in to each declared administrative interface with the developer-provisioned administrative account.",
-        "After the correct password is accepted and before the second factor is completed, replay requests to administrative routes and functions through the intercepting proxy and record every response.",
-        "Complete the second factor and confirm the same routes now succeed.",
-        "Critério de PASS verificado: For every declared administrative interface, after the correct password is accepted and before the second factor is completed, every replayed request to an administrative route is denied."
+        "Fazer login em cada interface administrativa declarada com conta administrativa; após a senha ser aceita e antes de concluir o segundo fator (MFA), reproduzir requisições para rotas administrativas pelo proxy e verificar se são negadas.",
+        "Critério de PASS verificado: Para todas as interfaces administrativas declaradas, após a senha correta ser aceita e antes da conclusão do segundo fator (MFA), todas as requisições reproduzidas para rotas administrativas são negadas."
       ]
     },
     {
@@ -2415,16 +2398,16 @@ window.CASA3_DATA = {
         "Replay every state-changing authenticated request with the anti-CSRF token removed, with it replaced, and with a token taken from a second session."
       ],
       "procedure_items_pt": [
-        "Replay every state-changing authenticated request with the anti-CSRF token removed, with it replaced, and with a token taken from a second session."
+        "Reproduzir todas as requisições autenticadas que alteram estado removendo o token anti-CSRF, substituindo-o por valor inválido e usando token de outra sessão."
       ],
       "reference_tooling": [
         "scripted harness",
         "Burp Suite"
       ],
       "pass_criteria": "Every such request is denied with no state change observable on re-read, and the session cookie is not `SameSite=None`.",
-      "pass_criteria_pt": "Every such request is denied with no state change observable on re-read, and the session cookie is not `SameSite=None`.",
+      "pass_criteria_pt": "Toda requisição autenticada que altera estado enviada sem token anti-CSRF válido (removido, substituído ou de outra sessão) é negada sem produzir efeito colateral, e o cookie de sessão não utiliza `SameSite=None`.",
       "fail_criteria": "≥ 1 state-changing request accepted without a valid, session-bound anti-CSRF token, or the session cookie is `SameSite=None`.",
-      "fail_criteria_pt": "≥ 1 state-changing request accepted without a valid, session-bound anti-CSRF token, or the session cookie is `SameSite=None`.",
+      "fail_criteria_pt": "≥ 1 requisição que altera estado é aceita sem token anti-CSRF válido vinculado à sessão, ou o cookie de sessão usa `SameSite=None`.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Replay every state-changing authenticated request with the anti-CSRF token removed, with it replaced, and with a token taken from a second session.",
@@ -2432,8 +2415,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Replay every state-changing authenticated request with the anti-CSRF token removed, with it replaced, and with a token taken from a second session.",
-        "Critério de PASS verificado: Every such request is denied with no state change observable on re-read, and the session cookie is not `SameSite=None`."
+        "Reproduzir todas as requisições autenticadas que alteram estado removendo o token anti-CSRF, substituindo-o por valor inválido e usando token de outra sessão.",
+        "Critério de PASS verificado: Toda requisição autenticada que altera estado enviada sem token anti-CSRF válido (removido, substituído ou de outra sessão) é negada sem produzir efeito colateral, e o cookie de sessão não utiliza `SameSite=None`."
       ]
     },
     {
@@ -2464,8 +2447,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Run an authenticated active cross-site-scripting scan and a DOM-based scan across the crawl, with an out-of-band callback that confirms script execution.",
-        "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
+        "Executar varredura ativa autenticada de Cross-Site Scripting (refletido, armazenado e DOM-based) em todas as rotas e entradas da aplicação."
       ],
       "reference_tooling": [
         "ZAP",
@@ -2474,9 +2456,9 @@ window.CASA3_DATA = {
         "Schemathesis"
       ],
       "pass_criteria": "Zero findings confirmed by execution callback, and no unconfirmed candidate that the assessor attempts reproduces as exploitable (candidates that cannot be reproduced either way are recorded as inconclusive).",
-      "pass_criteria_pt": "Zero achados confirmed by execution callback, and no unconfirmed candidate that the assessor attempts reproduces as exploitable (candidates that cannot be reproduced either way are recorded as inconclusive).",
+      "pass_criteria_pt": "Zero achados de Cross-Site Scripting (refletido, armazenado ou DOM-based) confirmados por execução ou reprodução pelo avaliador.",
       "fail_criteria": "≥ 1 callback-confirmed execution, or ≥ 1 unconfirmed candidate the assessor reproduces as exploitable.",
-      "fail_criteria_pt": "≥ 1 callback-confirmed execution, or ≥ 1 unconfirmed candidate the assessor reproduces as exploitable.",
+      "fail_criteria_pt": "≥ 1 vulnerabilidade de Cross-Site Scripting (XSS) confirmada por execução ou reproduzida como explorável.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Run an authenticated active cross-site-scripting scan and a DOM-based scan across the crawl, with an out-of-band callback that confirms script execution.",
@@ -2484,8 +2466,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Run an authenticated active cross-site-scripting scan and a DOM-based scan across the crawl, with an out-of-band callback that confirms script execution.",
-        "Critério de PASS verificado: Zero achados confirmed by execution callback, and no unconfirmed candidate that the assessor attempts reproduces as exploitable (candidates that cannot be reproduced either way are recorded as inconclusive)."
+        "Executar varredura ativa autenticada de Cross-Site Scripting (refletido, armazenado e DOM-based) em todas as rotas e entradas da aplicação.",
+        "Critério de PASS verificado: Zero achados de Cross-Site Scripting (refletido, armazenado ou DOM-based) confirmados por execução ou reprodução pelo avaliador."
       ]
     },
     {
@@ -2515,7 +2497,7 @@ window.CASA3_DATA = {
         "Run an authenticated SQL-injection scan over the crawl, and a NoSQL operator-injection payload set over every parameter."
       ],
       "procedure_items_pt": [
-        "Run an authenticated SQL-injection scan over the crawl, and a NoSQL operator-injection payload set over every parameter."
+        "Executar varredura ativa de injeção de SQL e payloads de injeção de operadores NoSQL em todos os parâmetros e endpoints de login/busca."
       ],
       "reference_tooling": [
         "sqlmap",
@@ -2524,9 +2506,9 @@ window.CASA3_DATA = {
         "Schemathesis"
       ],
       "pass_criteria": "`sqlmap` reports no injectable parameter and no NoSQL payload alters the result set of a query.",
-      "pass_criteria_pt": "`sqlmap` reports no injectable parameter and no NoSQL payload alters the result set of a query.",
+      "pass_criteria_pt": "Nenhum parâmetro é reportado como vulnerável a injeção de SQL e nenhum payload de operadores NoSQL altera o conjunto de resultados ou contorna a lógica da consulta.",
       "fail_criteria": "≥ 1 parameter reported injectable, or ≥ 1 NoSQL payload alters results.",
-      "fail_criteria_pt": "≥ 1 parameter reported injectable, or ≥ 1 NoSQL payload alters results.",
+      "fail_criteria_pt": "≥ 1 parâmetro vulnerável a injeção de SQL ou NoSQL.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Run an authenticated SQL-injection scan over the crawl, and a NoSQL operator-injection payload set over every parameter.",
@@ -2534,8 +2516,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Run an authenticated SQL-injection scan over the crawl, and a NoSQL operator-injection payload set over every parameter.",
-        "Critério de PASS verificado: `sqlmap` reports no injectable parameter and no NoSQL payload alters the result set of a query."
+        "Executar varredura ativa de injeção de SQL e payloads de injeção de operadores NoSQL em todos os parâmetros e endpoints de login/busca.",
+        "Critério de PASS verificado: Nenhum parâmetro é reportado como vulnerável a injeção de SQL e nenhum payload de operadores NoSQL altera o conjunto de resultados ou contorna a lógica da consulta."
       ]
     },
     {
@@ -2565,7 +2547,7 @@ window.CASA3_DATA = {
         "Send a command-injection payload set with out-of-band DNS and HTTP callbacks to every parameter."
       ],
       "procedure_items_pt": [
-        "Send a command-injection payload set with out-of-band DNS and HTTP callbacks to every parameter."
+        "Enviar payloads de injeção de comandos do sistema operacional (com callbacks DNS/HTTP e marcadores de saída) em todos os parâmetros."
       ],
       "reference_tooling": [
         "ZAP",
@@ -2574,9 +2556,9 @@ window.CASA3_DATA = {
         "Schemathesis"
       ],
       "pass_criteria": "No out-of-band callback is received and no response contains command output markers.",
-      "pass_criteria_pt": "No out-of-band callback is received and no response contains command output markers.",
+      "pass_criteria_pt": "Nenhum callback out-of-band (DNS/HTTP) é recebido e nenhuma resposta contém marcadores de execução de comandos do sistema operacional.",
       "fail_criteria": "≥ 1 callback or command-output marker.",
-      "fail_criteria_pt": "≥ 1 callback or command-output marker.",
+      "fail_criteria_pt": "≥ 1 execução de comando do sistema operacional ou código confirmada via callback ou saída na resposta.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Send a command-injection payload set with out-of-band DNS and HTTP callbacks to every parameter.",
@@ -2584,8 +2566,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Send a command-injection payload set with out-of-band DNS and HTTP callbacks to every parameter.",
-        "Critério de PASS verificado: No out-of-band callback is received and no response contains command output markers."
+        "Enviar payloads de injeção de comandos do sistema operacional (com callbacks DNS/HTTP e marcadores de saída) em todos os parâmetros.",
+        "Critério de PASS verificado: Nenhum callback out-of-band (DNS/HTTP) é recebido e nenhuma resposta contém marcadores de execução de comandos do sistema operacional."
       ]
     },
     {
@@ -2615,7 +2597,7 @@ window.CASA3_DATA = {
         "Send a traversal and file-inclusion payload set (encoded, double-encoded, null-byte, absolute and UNC forms) to every parameter that influences a path."
       ],
       "procedure_items_pt": [
-        "Send a traversal and file-inclusion payload set (encoded, double-encoded, null-byte, absolute and UNC forms) to every parameter that influences a path."
+        "Enviar payloads de Path Traversal e inclusão de arquivos (codificados, duplamente codificados, com null-byte `%00`, caminhos absolutos) em todos os parâmetros e rotas de arquivos."
       ],
       "reference_tooling": [
         "ZAP",
@@ -2623,9 +2605,9 @@ window.CASA3_DATA = {
         "Schemathesis"
       ],
       "pass_criteria": "No response returns content from outside the document root and no remote inclusion marker appears.",
-      "pass_criteria_pt": "No response returns content from outside the document root and no remote inclusion marker appears.",
+      "pass_criteria_pt": "Nenhuma resposta retorna conteúdo de arquivos fora do diretório raiz permitido (Path Traversal / LFI) e nenhum marcador de inclusão remota (RFI) é observado.",
       "fail_criteria": "≥ 1 response containing out-of-root file content or an inclusion marker.",
-      "fail_criteria_pt": "≥ 1 response containing out-of-root file content or an inclusion marker.",
+      "fail_criteria_pt": "≥ 1 resposta retorna conteúdo de arquivos fora do diretório permitido (Path Traversal / LFI) ou permite inclusão remota.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Send a traversal and file-inclusion payload set (encoded, double-encoded, null-byte, absolute and UNC forms) to every parameter that influences a path.",
@@ -2633,8 +2615,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Send a traversal and file-inclusion payload set (encoded, double-encoded, null-byte, absolute and UNC forms) to every parameter that influences a path.",
-        "Critério de PASS verificado: No response returns content from outside the document root and no remote inclusion marker appears."
+        "Enviar payloads de Path Traversal e inclusão de arquivos (codificados, duplamente codificados, com null-byte `%00`, caminhos absolutos) em todos os parâmetros e rotas de arquivos.",
+        "Critério de PASS verificado: Nenhuma resposta retorna conteúdo de arquivos fora do diretório raiz permitido (Path Traversal / LFI) e nenhum marcador de inclusão remota (RFI) é observado."
       ]
     },
     {
@@ -2664,16 +2646,16 @@ window.CASA3_DATA = {
         "Send an open-redirect payload set to every parameter that influences a redirect, and duplicated-parameter requests to authorization-relevant endpoints."
       ],
       "procedure_items_pt": [
-        "Send an open-redirect payload set to every parameter that influences a redirect, and duplicated-parameter requests to authorization-relevant endpoints."
+        "Enviar payloads de redirecionamento aberto (Open Redirect) em todos os parâmetros de destino de URL e testar parâmetros duplicados (HPP) em endpoints de autorização."
       ],
       "reference_tooling": [
         "ZAP",
         "Burp Suite"
       ],
       "pass_criteria": "No 3xx `Location`, meta-refresh or JavaScript redirect resolves to a host outside the scope-record allowlist, and duplicate parameters do not change an authorization decision.",
-      "pass_criteria_pt": "No 3xx `Location`, meta-refresh or JavaScript redirect resolves to a host outside the scope-record allowlist, and duplicate parameters do not change an authorization decision.",
+      "pass_criteria_pt": "Nenhum redirecionamento `3xx Location`, meta-refresh ou via JavaScript resolve para um host fora da lista de domínios permitidos (allowlist), e parâmetros HTTP duplicados (HPP) não alteram decisões de autorização.",
       "fail_criteria": "≥ 1 off-allowlist redirect, or a duplicated parameter changes an authorization outcome.",
-      "fail_criteria_pt": "≥ 1 off-allowlist redirect, or a duplicated parameter changes an authorization outcome.",
+      "fail_criteria_pt": "≥ 1 redirecionamento para domínio externo não autorizado (Open Redirect), ou manipulação de parâmetros duplicados (HPP) que contorne autorização.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Send an open-redirect payload set to every parameter that influences a redirect, and duplicated-parameter requests to authorization-relevant endpoints.",
@@ -2681,8 +2663,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Send an open-redirect payload set to every parameter that influences a redirect, and duplicated-parameter requests to authorization-relevant endpoints.",
-        "Critério de PASS verificado: No 3xx `Location`, meta-refresh or JavaScript redirect resolves to a host outside the scope-record allowlist, and duplicate parameters do not change an authorization decision."
+        "Enviar payloads de redirecionamento aberto (Open Redirect) em todos os parâmetros de destino de URL e testar parâmetros duplicados (HPP) em endpoints de autorização.",
+        "Critério de PASS verificado: Nenhum redirecionamento `3xx Location`, meta-refresh ou via JavaScript resolve para um host fora da lista de domínios permitidos (allowlist), e parâmetros HTTP duplicados (HPP) não alteram decisões de autorização."
       ]
     },
     {
@@ -2713,7 +2695,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "From the authenticated crawl, inventory every client-side control and compare, endpoint by endpoint, the server's behaviour when that control is bypassed. Where source is available, scan client code for authorization decisions.",
+        "Inventariar controles de acesso visíveis no cliente e comparar, endpoint por endpoint, o comportamento do servidor quando chamados diretamente por um perfil de menor privilégio.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -2721,9 +2703,9 @@ window.CASA3_DATA = {
         "semgrep"
       ],
       "pass_criteria": "Every affordance whose visibility differs between the two provisioned roles is also refused by the server when the lower role invokes it directly, and no authorization decision found in client code lacks a server-side counterpart.",
-      "pass_criteria_pt": "Every affordance whose visibility differs between the two provisioned roles is also refused by the server when the lower role invokes it directly, and no authorization decision found in client code lacks a server-side counterpart.",
+      "pass_criteria_pt": "Toda funcionalidade cuja visibilidade difere entre perfis de acesso também é recusada pelo servidor quando invocada diretamente pelo perfil de menor privilégio, e nenhuma decisão de autorização no código cliente carece de validação correspondente no servidor.",
       "fail_criteria": "≥ 1 such affordance whose direct invocation by the lower role is accepted, or ≥ 1 authorization decision found in client code with no server-side counterpart.",
-      "fail_criteria_pt": "≥ 1 such affordance whose direct invocation by the lower role is accepted, or ≥ 1 authorization decision found in client code with no server-side counterpart.",
+      "fail_criteria_pt": "≥ 1 funcionalidade restrita na interface cuja chamada direta pela API com perfil de menor privilégio seja aceita pelo servidor.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "From the authenticated crawl, inventory every client-side control and compare, endpoint by endpoint, the server's behaviour when that control is bypassed.",
@@ -2732,9 +2714,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "From the authenticated crawl, inventory every client-side control and compare, endpoint by endpoint, the server's behaviour when that control is bypassed.",
-        "Where source is available, scan client code for authorization decisions.",
-        "Critério de PASS verificado: Every affordance whose visibility differs between the two provisioned roles is also refused by the server when the lower role invokes it directly, and no authorization decision found in client code lacks a server-side counterpart."
+        "Inventariar controles de acesso visíveis no cliente e comparar, endpoint por endpoint, o comportamento do servidor quando chamados diretamente por um perfil de menor privilégio.",
+        "Critério de PASS verificado: Toda funcionalidade cuja visibilidade difere entre perfis de acesso também é recusada pelo servidor quando invocada diretamente pelo perfil de menor privilégio, e nenhuma decisão de autorização no código cliente carece de validação correspondente no servidor."
       ]
     },
     {
@@ -2765,7 +2746,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Using two provisioned tenants, create objects with each account during the crawl and record their identifiers. Replay every identifier of an object created by an account in tenant A from a tenant B session, from a second account of the same role in tenant A, and from a lower-role account in tenant A.",
+        "Usando dois locatários (tenants) e múltiplas contas, criar objetos em cada conta e reproduzir os identificadores do Tenant A a partir de uma sessão do Tenant B e de outra conta de mesmo nível ou nível inferior.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -2774,9 +2755,9 @@ window.CASA3_DATA = {
         "Schemathesis"
       ],
       "pass_criteria": "Every request for an object created by another account is denied with no object content returned, for every object class exercised.",
-      "pass_criteria_pt": "Every request for an object created by another account is denied with no object content returned, for every object class exercised.",
+      "pass_criteria_pt": "Toda requisição para ler, criar, atualizar ou excluir um objeto pertencente a outra conta ou a outro locatário (cross-tenant) é negada sem retornar conteúdo do objeto.",
       "fail_criteria": "≥ 1 object created by another account is readable or writable.",
-      "fail_criteria_pt": "≥ 1 object created by another account is readable or writable.",
+      "fail_criteria_pt": "≥ 1 objeto criado por outra conta ou outro locatário (tenant) pode ser lido, modificado ou excluído indevidamente (IDOR / BOLA).",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Using two provisioned tenants, create objects with each account during the crawl and record their identifiers.",
@@ -2785,9 +2766,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Using two provisioned tenants, create objects with each account during the crawl and record their identifiers.",
-        "Replay every identifier of an object created by an account in tenant A from a tenant B session, from a second account of the same role in tenant A, and from a lower-role account in tenant A.",
-        "Critério de PASS verificado: Every request for an object created by another account is denied with no object content returned, for every object class exercised."
+        "Usando dois locatários (tenants) e múltiplas contas, criar objetos em cada conta e reproduzir os identificadores do Tenant A a partir de uma sessão do Tenant B e de outra conta de mesmo nível ou nível inferior.",
+        "Critério de PASS verificado: Toda requisição para ler, criar, atualizar ou excluir um objeto pertencente a outra conta ou a outro locatário (cross-tenant) é negada sem retornar conteúdo do objeto."
       ]
     },
     {
@@ -2818,7 +2798,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Build a role matrix from the provisioned roles and accounts, exercise every function from every role, and invoke administrator-only routes directly from a low-privilege session.",
+        "Construir a matriz de papéis (roles) da aplicação, exercitar cada função a partir de todos os papéis e invocar rotas exclusivas de administrador a partir de uma sessão de baixo privilégio.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -2827,9 +2807,9 @@ window.CASA3_DATA = {
         "Schemathesis"
       ],
       "pass_criteria": "No function is executable by a role the matrix does not grant it to, horizontally or vertically.",
-      "pass_criteria_pt": "No function is executable by a role the matrix does not grant it to, horizontally or vertically.",
+      "pass_criteria_pt": "Nenhuma função é executável por um papel (role) ao qual a matriz de controle de acesso não conceda permissão, seja horizontal ou verticalmente.",
       "fail_criteria": "≥ 1 function executable from an unauthorised role.",
-      "fail_criteria_pt": "≥ 1 function executable from an unauthorised role.",
+      "fail_criteria_pt": "≥ 1 função administrativa ou de outro perfil pode ser executada por um papel não autorizado (escalonamento horizontal ou vertical).",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Build a role matrix from the provisioned roles and accounts, exercise every function from every role, and invoke administrator-only routes directly from a low-privilege session.",
@@ -2837,8 +2817,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Build a role matrix from the provisioned roles and accounts, exercise every function from every role, and invoke administrator-only routes directly from a low-privilege session.",
-        "Critério de PASS verificado: No function is executable by a role the matrix does not grant it to, horizontally or vertically."
+        "Construir a matriz de papéis (roles) da aplicação, exercitar cada função a partir de todos os papéis e invocar rotas exclusivas de administrador a partir de uma sessão de baixo privilégio.",
+        "Critério de PASS verificado: Nenhuma função é executável por um papel (role) ao qual a matriz de controle de acesso não conceda permissão, seja horizontal ou verticalmente."
       ]
     },
     {
@@ -2869,7 +2849,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "On every endpoint, tamper with access-control attributes (role, tenant identifier, scope, token claims) and inject faults that force the authorization layer to raise an exception.",
+        "Em cada endpoint, adulterar atributos de controle de acesso (role, tenant ID, escopo, claims) e injetar falhas que forcem exceções na camada de autorização para verificar se o acesso é negado.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -2877,9 +2857,9 @@ window.CASA3_DATA = {
         "jwt_tool"
       ],
       "pass_criteria": "No tampered attribute grants access that the untampered request would not, and every induced exception results in denial.",
-      "pass_criteria_pt": "No tampered attribute grants access that the untampered request would not, and every induced exception results in denial.",
+      "pass_criteria_pt": "Nenhum atributo de controle de acesso adulterado (role, tenant ID, escopo, claims de token) concede acesso não autorizado, e toda exceção induzida na camada de autorização resulta em negação de acesso (fail-closed).",
       "fail_criteria": "≥ 1 tampered attribute grants access that the untampered request would not, or an induced exception results in allow.",
-      "fail_criteria_pt": "≥ 1 tampered attribute grants access that the untampered request would not, or an induced exception results in allow.",
+      "fail_criteria_pt": "≥ 1 atributo de controle de acesso adulterado pelo usuário concede acesso indevido, ou uma exceção forçada resulta em liberação de acesso.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "On every endpoint, tamper with access-control attributes (role, tenant identifier, scope, token claims) and inject faults that force the authorization layer to raise an exception.",
@@ -2887,8 +2867,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "On every endpoint, tamper with access-control attributes (role, tenant identifier, scope, token claims) and inject faults that force the authorization layer to raise an exception.",
-        "Critério de PASS verificado: No tampered attribute grants access that the untampered request would not, and every induced exception results in denial."
+        "Em cada endpoint, adulterar atributos de controle de acesso (role, tenant ID, escopo, claims) e injetar falhas que forcem exceções na camada de autorização para verificar se o acesso é negado.",
+        "Critério de PASS verificado: Nenhum atributo de controle de acesso adulterado (role, tenant ID, escopo, claims de token) concede acesso não autorizado, e toda exceção induzida na camada de autorização resulta em negação de acesso (fail-closed)."
       ]
     },
     {
@@ -2919,7 +2899,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Exercise every URL-accepting parameter against an out-of-band interaction server, cloud-metadata addresses, redirect chains and DNS-rebinding payloads.",
+        "Testar todos os parâmetros que aceitam URLs contra servidor de interação out-of-band, endereços internos de loopback/rede privada, metadados de nuvem (`169.254.169.254`), cadeias de redirecionamento e DNS rebinding.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -2927,9 +2907,9 @@ window.CASA3_DATA = {
         "interactsh"
       ],
       "pass_criteria": "No payload causes the application to fetch an internal or metadata address (the WHK-03 list), as evidenced by an interaction-server callback reached through a redirect or DNS-rebinding payload, or by metadata content in the response.",
-      "pass_criteria_pt": "No payload causes the application to fetch an internal or metadata address (the WHK-03 list), as evidenced by an interaction-server callback reached through a redirect or DNS-rebinding payload, or by metadata content in the response.",
+      "pass_criteria_pt": "Nenhum payload faz com que a aplicação busque endereços internos ou de metadados de nuvem (SSRF), nem por acesso direto, nem via cadeias de redirecionamento ou DNS rebinding.",
       "fail_criteria": "≥ 1 payload produces such a callback or reflects metadata content.",
-      "fail_criteria_pt": "≥ 1 payload produces such a callback or reflects metadata content.",
+      "fail_criteria_pt": "≥ 1 payload faz o servidor buscar um endereço interno ou serviço de metadados em nuvem (SSRF).",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Exercise every URL-accepting parameter against an out-of-band interaction server, cloud-metadata addresses, redirect chains and DNS-rebinding payloads.",
@@ -2937,8 +2917,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Exercise every URL-accepting parameter against an out-of-band interaction server, cloud-metadata addresses, redirect chains and DNS-rebinding payloads.",
-        "Critério de PASS verificado: No payload causes the application to fetch an internal or metadata address (the WHK-03 list), as evidenced by an interaction-server callback reached through a redirect or DNS-rebinding payload, or by metadata content in the response."
+        "Testar todos os parâmetros que aceitam URLs contra servidor de interação out-of-band, endereços internos de loopback/rede privada, metadados de nuvem (`169.254.169.254`), cadeias de redirecionamento e DNS rebinding.",
+        "Critério de PASS verificado: Nenhum payload faz com que a aplicação busque endereços internos ou de metadados de nuvem (SSRF), nem por acesso direto, nem via cadeias de redirecionamento ou DNS rebinding."
       ]
     },
     {
@@ -2969,7 +2949,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Craft template-injection, XPath and XML payloads, including external-entity sets, for every parameter that reaches a template or XML parser.",
+        "Submeter payloads de Server-Side Template Injection (SSTI), XPath e XML/XXE (incluindo entidades externas) em todos os parâmetros processados por templates ou parsers XML.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -2979,9 +2959,9 @@ window.CASA3_DATA = {
         "graphql-cop"
       ],
       "pass_criteria": "No payload evaluates: no arithmetic evaluation marker, no entity expansion, no out-of-band XXE callback.",
-      "pass_criteria_pt": "No payload evaluates: no arithmetic evaluation marker, no entity expansion, no out-of-band XXE callback.",
+      "pass_criteria_pt": "Nenhum payload de Server-Side Template Injection (SSTI), XPath ou XML/XXE é avaliado ou expande entidades externas.",
       "fail_criteria": "≥ 1 payload evaluates or triggers an out-of-band callback.",
-      "fail_criteria_pt": "≥ 1 payload evaluates or triggers an out-of-band callback.",
+      "fail_criteria_pt": "≥ 1 payload de Template Injection (SSTI), XPath ou XML/XXE é executado ou expande entidades externas.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Craft template-injection, XPath and XML payloads, including external-entity sets, for every parameter that reaches a template or XML parser.",
@@ -2989,8 +2969,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Craft template-injection, XPath and XML payloads, including external-entity sets, for every parameter that reaches a template or XML parser.",
-        "Critério de PASS verificado: No payload evaluates: no arithmetic evaluation marker, no entity expansion, no out-of-band XXE callback."
+        "Submeter payloads de Server-Side Template Injection (SSTI), XPath e XML/XXE (incluindo entidades externas) em todos os parâmetros processados por templates ou parsers XML.",
+        "Critério de PASS verificado: Nenhum payload de Server-Side Template Injection (SSTI), XPath ou XML/XXE é avaliado ou expande entidades externas."
       ]
     },
     {
@@ -3021,7 +3001,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Obtain the developer-declared upload type allowlist. Upload a crafted file matrix — polyglot files, double extensions, MIME mismatches, oversize files and archive bombs — then attempt to retrieve each accepted file and observe how it is served.",
+        "Obter a lista de tipos de arquivo permitidos, enviar uma matriz de arquivos maliciosos (poliglotas, dupla extensão, divergência de MIME, HTML/SVG/JS) e observar se são bloqueados ou servidos com `Content-Disposition: attachment` e `nosniff`.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -3029,9 +3009,9 @@ window.CASA3_DATA = {
         "scripted upload harness"
       ],
       "pass_criteria": "Every upload outside the declared allowlist is rejected; every accepted upload that is retrievable is served with `Content-Disposition: attachment`, or with a `Content-Type` other than `text/html`, `application/javascript`, `image/svg+xml` and `X-Content-Type-Options: nosniff` present.",
-      "pass_criteria_pt": "Every upload outside the declared allowlist is rejected; every accepted upload that is retrievable is served with `Content-Disposition: attachment`, or with a `Content-Type` other than `text/html`, `application/javascript`, `image/svg+xml` and `X-Content-Type-Options: nosniff` present.",
+      "pass_criteria_pt": "Todo upload fora da lista de tipos permitidos é rejeitado; e todo arquivo aceito que possa ser recuperado é servido com `Content-Disposition: attachment` ou com `Content-Type` seguro (diferente de `text/html`, `application/javascript`, `image/svg+xml`) acompanhado de `X-Content-Type-Options: nosniff`.",
       "fail_criteria": "≥ 1 disallowed type accepted, or ≥ 1 retrievable upload served inline as `text/html`, `application/javascript` or `image/svg+xml`, or without `nosniff` and without `Content-Disposition: attachment`.",
-      "fail_criteria_pt": "≥ 1 disallowed type accepted, or ≥ 1 retrievable upload served inline as `text/html`, `application/javascript` or `image/svg+xml`, or without `nosniff` and without `Content-Disposition: attachment`.",
+      "fail_criteria_pt": "≥ 1 tipo de arquivo não permitido é aceito no upload, ou ≥ 1 arquivo enviado é servido inline como HTML/JS/SVG executável sem `Content-Disposition: attachment` e `nosniff`.",
       "verification_checklist": [
         "Evidence collected: Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
         "Obtain the developer-declared upload type allowlist.",
@@ -3040,9 +3020,8 @@ window.CASA3_DATA = {
       ],
       "verification_checklist_pt": [
         "Evidência coletada: Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
-        "Obtain the developer-declared upload type allowlist.",
-        "Upload a crafted file matrix — polyglot files, double extensions, MIME mismatches, oversize files and archive bombs — then attempt to retrieve each accepted file and observe how it is served.",
-        "Critério de PASS verificado: Every upload outside the declared allowlist is rejected; every accepted upload that is retrievable is served with `Content-Disposition: attachment`, or with a `Content-Type` other than `text/html`, `application/javascript`, `image/svg+xml` and `X-Content-Type-Options: nosniff` present."
+        "Obter a lista de tipos de arquivo permitidos, enviar uma matriz de arquivos maliciosos (poliglotas, dupla extensão, divergência de MIME, HTML/SVG/JS) e observar se são bloqueados ou servidos com `Content-Disposition: attachment` e `nosniff`.",
+        "Critério de PASS verificado: Todo upload fora da lista de tipos permitidos é rejeitado; e todo arquivo aceito que possa ser recuperado é servido com `Content-Disposition: attachment` ou com `Content-Type` seguro (diferente de `text/html`, `application/javascript`, `image/svg+xml`) acompanhado de `X-Content-Type-Options: nosniff`."
       ]
     },
     {
@@ -3065,14 +3044,14 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Complete the application's identity-provider sign-in through an intercepting proxy and read the grant type from the captured authorization and token requests. Where source code or a build artifact is available, scan it for password-grant token requests."
       ],
       "procedure_items_pt": [
-        "Complete the application's identity-provider sign-in through an intercepting proxy and read the grant type from the captured authorization and token requests. Where source code or a build artifact is available, scan it for password-grant token requests."
+        "Concluir o fluxo de login OAuth pelo proxy interceptador e verificar o `response_type` e `grant_type`, além de inspecionar o código-fonte em busca de fluxos Implicit ou ROPC."
       ],
       "reference_tooling": [
         "mitmproxy",
@@ -3080,9 +3059,9 @@ window.CASA3_DATA = {
         "semgrep"
       ],
       "pass_criteria": "Captured authorization request carries `response_type` exactly equal to `code`; no token request uses `grant_type=password`.",
-      "pass_criteria_pt": "Captured authorization request carries `response_type` exactly equal to `code`; no token request uses `grant_type=password`.",
+      "pass_criteria_pt": "A requisição de autorização capturada utiliza `response_type` exatamente igual a `code`; nenhuma requisição de token utiliza `grant_type=password` (ROPC) ou fluxo Implicit.",
       "fail_criteria": "`response_type` is anything other than exactly `code` (including hybrid values), or any ROPC token request.",
-      "fail_criteria_pt": "`response_type` is anything other than exactly `code` (including hybrid values), or any ROPC token request.",
+      "fail_criteria_pt": "Uso de `response_type` diferente de `code` (como `token` no fluxo Implicit) ou uso de `grant_type=password` (ROPC).",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Complete the application's identity-provider sign-in through an intercepting proxy and read the grant type from the captured authorization and token requests.",
@@ -3090,10 +3069,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: Captured authorization request carries `response_type` exactly equal to `code`; no token request uses `grant_type=password`."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Complete the application's identity-provider sign-in through an intercepting proxy and read the grant type from the captured authorization and token requests.",
-        "Where source code or a build artifact is available, scan it for password-grant token requests.",
-        "Critério de PASS verificado: Captured authorization request carries `response_type` exactly equal to `code`; no token request uses `grant_type=password`."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Concluir o fluxo de login OAuth pelo proxy interceptador e verificar o `response_type` e `grant_type`, além de inspecionar o código-fonte em busca de fluxos Implicit ou ROPC.",
+        "Critério de PASS verificado: A requisição de autorização capturada utiliza `response_type` exatamente igual a `code`; nenhuma requisição de token utiliza `grant_type=password` (ROPC) ou fluxo Implicit."
       ]
     },
     {
@@ -3116,14 +3094,14 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "From the captured authorization flow, read the PKCE parameters on the authorization and token requests. Where client code is available, scan it for the PKCE parameters."
       ],
       "procedure_items_pt": [
-        "From the captured authorization flow, read the PKCE parameters on the authorization and token requests. Where client code is available, scan it for the PKCE parameters."
+        "A partir do fluxo de autorização OAuth capturado e do código cliente, verificar a presença dos parâmetros PKCE (`code_challenge`, `code_challenge_method=S256` e `code_verifier`)."
       ],
       "reference_tooling": [
         "mitmproxy",
@@ -3131,9 +3109,9 @@ window.CASA3_DATA = {
         "semgrep"
       ],
       "pass_criteria": "Every captured authorization request carries `code_challenge_method=S256` and a `code_challenge` of ≥ 43 characters, and the token exchange carries a matching `code_verifier`.",
-      "pass_criteria_pt": "Every captured authorization request carries `code_challenge_method=S256` and a `code_challenge` of ≥ 43 characters, and the token exchange carries a matching `code_verifier`.",
+      "pass_criteria_pt": "Toda requisição de autorização capturada contém `code_challenge_method=S256` e um `code_challenge` com ≥ 43 caracteres, e a troca de token exige o `code_verifier` correspondente.",
       "fail_criteria": "`code_challenge` absent, `code_challenge_method` anything other than `S256`, a `code_challenge` shorter than 43 characters, or a token exchange that succeeds without a `code_verifier` matching the challenge.",
-      "fail_criteria_pt": "`code_challenge` absent, `code_challenge_method` anything other than `S256`, a `code_challenge` shorter than 43 characters, or a token exchange that succeeds without a `code_verifier` matching the challenge.",
+      "fail_criteria_pt": "Ausência de `code_challenge`, uso de método diferente de `S256`, desafio com menos de 43 caracteres ou troca de token aceita sem `code_verifier` válido.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "From the captured authorization flow, read the PKCE parameters on the authorization and token requests.",
@@ -3141,10 +3119,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: Every captured authorization request carries `code_challenge_method=S256` and a `code_challenge` of ≥ 43 characters, and the token exchange carries a matching `code_verifier`."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "From the captured authorization flow, read the PKCE parameters on the authorization and token requests.",
-        "Where client code is available, scan it for the PKCE parameters.",
-        "Critério de PASS verificado: Every captured authorization request carries `code_challenge_method=S256` and a `code_challenge` of ≥ 43 characters, and the token exchange carries a matching `code_verifier`."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "A partir do fluxo de autorização OAuth capturado e do código cliente, verificar a presença dos parâmetros PKCE (`code_challenge`, `code_challenge_method=S256` e `code_verifier`).",
+        "Critério de PASS verificado: Toda requisição de autorização capturada contém `code_challenge_method=S256` e um `code_challenge` com ≥ 43 caracteres, e a troca de token exige o `code_verifier` correspondente."
       ]
     },
     {
@@ -3167,23 +3144,23 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "From the captured authorization flow, read the registered redirect URIs. Fuzz the redirect, next, continue, return_to and RelayState parameters of the application's callback endpoint."
       ],
       "procedure_items_pt": [
-        "From the captured authorization flow, read the registered redirect URIs. Fuzz the redirect, next, continue, return_to and RelayState parameters of the application's callback endpoint."
+        "Verificar as URIs de redirecionamento registradas e realizar fuzzing nos parâmetros `redirect`, `next`, `continue`, `return_to` e `RelayState` do endpoint de callback."
       ],
       "reference_tooling": [
         "mitmproxy",
         "Burp Suite"
       ],
       "pass_criteria": "No observed redirect URI contains a wildcard or uses `http:` other than a loopback address (`127.0.0.1`, `[::1]`, `localhost`) on a `Mobile` or `Native` surface, and no callback fuzz produces a 3xx `Location`, meta-refresh or script redirect to a host outside the hosts of the observed redirect URIs.",
-      "pass_criteria_pt": "No observed redirect URI contains a wildcard or uses `http:` other than a loopback address (`127.0.0.1`, `[::1]`, `localhost`) on a `Mobile` or `Native` surface, and no callback fuzz produces a 3xx `Location`, meta-refresh or script redirect to a host outside the hosts of the observed redirect URIs.",
+      "pass_criteria_pt": "Nenhuma URI de redirecionamento observada contém curingas (`*`) ou usa `http:` (exceto loopback em superfícies `Mobile`/`Native`), e nenhum fuzzing no endpoint de callback produz redirecionamento para fora dos hosts registrados.",
       "fail_criteria": "≥ 1 wildcard redirect URI, ≥ 1 `http:` redirect URI that is not a loopback address on a `Mobile` or `Native` surface, or ≥ 1 callback redirect to a host outside the hosts of the observed redirect URIs.",
-      "fail_criteria_pt": "≥ 1 wildcard redirect URI, ≥ 1 `http:` redirect URI that is not a loopback address on a `Mobile` or `Native` surface, or ≥ 1 callback redirect to a host outside the hosts of the observed redirect URIs.",
+      "fail_criteria_pt": "Presença de curinga (`*`) ou `http:` não-loopback em `redirect_uri`, ou redirecionamento aberto no endpoint de callback.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "From the captured authorization flow, read the registered redirect URIs.",
@@ -3191,10 +3168,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: No observed redirect URI contains a wildcard or uses `http:` other than a loopback address (`127.0.0.1`, `[::1]`, `localhost`) on a `Mobile` or `Native` surface, and no callback fuzz produces a 3xx `Location`, meta-refresh or script redirect to a host outside the hosts of the observed redirect URIs."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "From the captured authorization flow, read the registered redirect URIs.",
-        "Fuzz the redirect, next, continue, return_to and RelayState parameters of the application's callback endpoint.",
-        "Critério de PASS verificado: No observed redirect URI contains a wildcard or uses `http:` other than a loopback address (`127.0.0.1`, `[::1]`, `localhost`) on a `Mobile` or `Native` surface, and no callback fuzz produces a 3xx `Location`, meta-refresh or script redirect to a host outside the hosts of the observed redirect URIs."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Verificar as URIs de redirecionamento registradas e realizar fuzzing nos parâmetros `redirect`, `next`, `continue`, `return_to` e `RelayState` do endpoint de callback.",
+        "Critério de PASS verificado: Nenhuma URI de redirecionamento observada contém curingas (`*`) ou usa `http:` (exceto loopback em superfícies `Mobile`/`Native`), e nenhum fuzzing no endpoint de callback produz redirecionamento para fora dos hosts registrados."
       ]
     },
     {
@@ -3217,14 +3193,14 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Capture 200 scripted authorization requests and compute a min-entropy estimate over the state values. Replay the callback with the state omitted, replayed, modified, and taken from a different user-agent session. Where an ID token is requested, repeat the callback with the nonce omitted and with a nonce from a different request."
       ],
       "procedure_items_pt": [
-        "Capture 200 scripted authorization requests and compute a min-entropy estimate over the state values. Replay the callback with the state omitted, replayed, modified, and taken from a different user-agent session. Where an ID token is requested, repeat the callback with the nonce omitted and with a nonce from a different request."
+        "Capturar 200 requisições de autorização para estimar a entropia do parâmetro `state` (≥ 128 bits) e reproduzir o callback omitindo, repetindo ou alterando o `state` e o `nonce`."
       ],
       "reference_tooling": [
         "mitmproxy",
@@ -3232,9 +3208,9 @@ window.CASA3_DATA = {
         "SP 800-90B entropy estimator"
       ],
       "pass_criteria": "All 200 `state` values distinct, with min-entropy ≥ 128 bits estimated as per-character min-entropy over the 200 samples multiplied by value length; the callback issues no session when `state` is omitted, replayed, modified, or presented from a different user-agent session; where an ID token is requested, no ID token is accepted with an omitted or foreign `nonce`.",
-      "pass_criteria_pt": "All 200 `state` values distinct, with min-entropy ≥ 128 bits estimated as per-character min-entropy over the 200 samples multiplied by value length; the callback issues no session when `state` is omitted, replayed, modified, or presented from a different user-agent session; where an ID token is requested, no ID token is accepted with an omitted or foreign `nonce`.",
+      "pass_criteria_pt": "Todos os 200 valores de `state` são distintos com entropia mínima ≥ 128 bits; o callback não emite sessão quando o `state` é omitido, reutilizado, modificado ou enviado de outra sessão; e nenhum ID token é aceito com `nonce` omitido ou de outra requisição.",
       "fail_criteria": "Entropy below 128 bits, any repeat, any of the four callback manipulations yields an authenticated session, or an ID token is accepted with an omitted or foreign `nonce`.",
-      "fail_criteria_pt": "Entropy below 128 bits, any repeat, any of the four callback manipulations yields an authenticated session, or an ID token is accepted with an omitted or foreign `nonce`.",
+      "fail_criteria_pt": "Entropia do parâmetro `state` < 128 bits, repetição de valores, aceitação de callback sem `state` válido vinculado à sessão, ou aceitação de ID token sem validação de `nonce`.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Capture 200 scripted authorization requests and compute a min-entropy estimate over the state values.",
@@ -3243,11 +3219,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: All 200 `state` values distinct, with min-entropy ≥ 128 bits estimated as per-character min-entropy over the 200 samples multiplied by value length; the callback issues no session when `state` is omitted, replayed, modified, or presented from a different user-agent session; where an ID token is requested, no ID token is accepted with an omitted or foreign `nonce`."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Capture 200 scripted authorization requests and compute a min-entropy estimate over the state values.",
-        "Replay the callback with the state omitted, replayed, modified, and taken from a different user-agent session.",
-        "Where an ID token is requested, repeat the callback with the nonce omitted and with a nonce from a different request.",
-        "Critério de PASS verificado: All 200 `state` values distinct, with min-entropy ≥ 128 bits estimated as per-character min-entropy over the 200 samples multiplied by value length; the callback issues no session when `state` is omitted, replayed, modified, or presented from a different user-agent session; where an ID token is requested, no ID token is accepted with an omitted or foreign `nonce`."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Capturar 200 requisições de autorização para estimar a entropia do parâmetro `state` (≥ 128 bits) e reproduzir o callback omitindo, repetindo ou alterando o `state` e o `nonce`.",
+        "Critério de PASS verificado: Todos os 200 valores de `state` são distintos com entropia mínima ≥ 128 bits; o callback não emite sessão quando o `state` é omitido, reutilizado, modificado ou enviado de outra sessão; e nenhum ID token é aceito com `nonce` omitido ou de outra requisição."
       ]
     },
     {
@@ -3271,14 +3245,14 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Observe which surface presents the authorization page during the captured flow. Scan the client binary for embedded web views that load the identity provider's authorization endpoint."
       ],
       "procedure_items_pt": [
-        "Observe which surface presents the authorization page during the captured flow. Scan the client binary for embedded web views that load the identity provider's authorization endpoint."
+        "Observar qual componente apresenta a tela de autorização em clientes móveis/nativos e inspecionar o binário em busca de WebViews embutidas."
       ],
       "reference_tooling": [
         "mitmproxy",
@@ -3286,9 +3260,9 @@ window.CASA3_DATA = {
         "semgrep"
       ],
       "pass_criteria": "The authorization URL is presented by Custom Tabs, `ASWebAuthenticationSession` or the external system browser, and no in-app web view class loads the authorization endpoint.",
-      "pass_criteria_pt": "The authorization URL is presented by Custom Tabs, `ASWebAuthenticationSession` or the external system browser, and no in-app web view class loads the authorization endpoint.",
+      "pass_criteria_pt": "A URL de autorização é apresentada via Custom Tabs, `ASWebAuthenticationSession` ou navegador externo do sistema, e nenhuma classe de WebView embutida carrega o endpoint de autorização.",
       "fail_criteria": "The authorization endpoint is loaded in any in-app web view (`WebView`, `WKWebView`, `SFSafariViewController` or equivalent).",
-      "fail_criteria_pt": "The authorization endpoint is loaded in any in-app web view (`WebView`, `WKWebView`, `SFSafariViewController` or equivalent).",
+      "fail_criteria_pt": "O endpoint de autorização OAuth é carregado dentro de uma WebView embutida no aplicativo (`WebView`, `WKWebView`, `SFSafariViewController`).",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Observe which surface presents the authorization page during the captured flow.",
@@ -3296,10 +3270,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: The authorization URL is presented by Custom Tabs, `ASWebAuthenticationSession` or the external system browser, and no in-app web view class loads the authorization endpoint."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Observe which surface presents the authorization page during the captured flow.",
-        "Scan the client binary for embedded web views that load the identity provider's authorization endpoint.",
-        "Critério de PASS verificado: The authorization URL is presented by Custom Tabs, `ASWebAuthenticationSession` or the external system browser, and no in-app web view class loads the authorization endpoint."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Observar qual componente apresenta a tela de autorização em clientes móveis/nativos e inspecionar o binário em busca de WebViews embutidas.",
+        "Critério de PASS verificado: A URL de autorização é apresentada via Custom Tabs, `ASWebAuthenticationSession` ou navegador externo do sistema, e nenhuma classe de WebView embutida carrega o endpoint de autorização."
       ]
     },
     {
@@ -3323,14 +3296,14 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Extract strings, resources and constant pools from the shipped binary, bundle or extension package and collect every candidate client secret (known issuer formats, any value assigned to a client-secret key, and high-entropy strings adjacent to the client identifier). Present each candidate to the identity provider's token endpoint with the application's client identifier."
       ],
       "procedure_items_pt": [
-        "Extract strings, resources and constant pools from the shipped binary, bundle or extension package and collect every candidate client secret (known issuer formats, any value assigned to a client-secret key, and high-entropy strings adjacent to the client identifier). Present each candidate to the identity provider's token endpoint with the application's client identifier."
+        "Extrair strings e constantes do binário/pacote cliente público em busca de segredos OAuth (`client_secret`) e testar candidatos contra o endpoint de token."
       ],
       "reference_tooling": [
         "MobSF",
@@ -3338,9 +3311,9 @@ window.CASA3_DATA = {
         "strings"
       ],
       "pass_criteria": "No candidate extracted from a public-client artifact is accepted by the identity provider's token endpoint as the client secret.",
-      "pass_criteria_pt": "No candidate extracted from a public-client artifact is accepted by the identity provider's token endpoint as the client secret.",
+      "pass_criteria_pt": "Nenhum candidato a segredo extraído de um artefato de cliente público é aceito pelo endpoint de token do provedor de identidade como `client_secret`.",
       "fail_criteria": "≥ 1 candidate extracted from a public-client artifact is accepted by the token endpoint as the client secret.",
-      "fail_criteria_pt": "≥ 1 candidate extracted from a public-client artifact is accepted by the token endpoint as the client secret.",
+      "fail_criteria_pt": "≥ 1 segredo extraído do binário/pacote de cliente público é aceito como `client_secret` pelo provedor de identidade.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Extract strings, resources and constant pools from the shipped binary, bundle or extension package and collect every candidate client secret (known issuer formats, any value assigned to a client-secret key, and high-entropy strings adjacent to the client identifier).",
@@ -3348,10 +3321,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: No candidate extracted from a public-client artifact is accepted by the identity provider's token endpoint as the client secret."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Extract strings, resources and constant pools from the shipped binary, bundle or extension package and collect every candidate client secret (known issuer formats, any value assigned to a client-secret key, and high-entropy strings adjacent to the client identifier).",
-        "Present each candidate to the identity provider's token endpoint with the application's client identifier.",
-        "Critério de PASS verificado: No candidate extracted from a public-client artifact is accepted by the identity provider's token endpoint as the client secret."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Extrair strings e constantes do binário/pacote cliente público em busca de segredos OAuth (`client_secret`) e testar candidatos contra o endpoint de token.",
+        "Critério de PASS verificado: Nenhum candidato a segredo extraído de um artefato de cliente público é aceito pelo endpoint de token do provedor de identidade como `client_secret`."
       ]
     },
     {
@@ -3374,32 +3346,32 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Enumerate browser storage on web surfaces and, from the mobile binary, the preference stores, property lists, keychain calls and caches; match the contents exactly against the token values observed in the captured flow."
       ],
       "procedure_items_pt": [
-        "Enumerate browser storage on web surfaces and, from the mobile binary, the preference stores, property lists, keychain calls and caches; match the contents exactly against the token values observed in the captured flow."
+        "Enumerar o armazenamento do navegador (`localStorage`, `sessionStorage`, `IndexedDB`) e de aplicativos móveis para verificar se access/refresh tokens estão salvos fora de cookies `HttpOnly; Secure` ou Keystore/Keychain."
       ],
       "reference_tooling": [
         "Playwright",
         "MobSF"
       ],
       "pass_criteria": "No observed access or refresh token value appears in `localStorage`, `sessionStorage`, IndexedDB, `SharedPreferences`, `NSUserDefaults`, a plist or an on-disk cache; web tokens are carried in `HttpOnly; Secure` cookies or held only in memory; mobile token writes resolve to Keystore or Keychain APIs.",
-      "pass_criteria_pt": "No observed access or refresh token value appears in `localStorage`, `sessionStorage`, IndexedDB, `SharedPreferences`, `NSUserDefaults`, a plist or an on-disk cache; web tokens are carried in `HttpOnly; Secure` cookies or held only in memory; mobile token writes resolve to Keystore or Keychain APIs.",
+      "pass_criteria_pt": "Nenhum valor de access token ou refresh token aparece em `localStorage`, `sessionStorage`, `IndexedDB`, `SharedPreferences`, `NSUserDefaults`, plist ou cache em disco; na web, tokens são transportados em cookies `HttpOnly; Secure` ou mantidos apenas em memória.",
       "fail_criteria": "≥ 1 observed token value stored anywhere other than Keystore- or Keychain-backed storage or an `HttpOnly; Secure` cookie, or a token-bearing cookie lacking `HttpOnly` or `Secure`.",
-      "fail_criteria_pt": "≥ 1 observed token value stored anywhere other than Keystore- or Keychain-backed storage or an `HttpOnly; Secure` cookie, or a token-bearing cookie lacking `HttpOnly` or `Secure`.",
+      "fail_criteria_pt": "≥ 1 access token ou refresh token armazenado em `localStorage`, `sessionStorage`, `IndexedDB` ou cookie sem `HttpOnly; Secure`.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Enumerate browser storage on web surfaces and, from the mobile binary, the preference stores, property lists, keychain calls and caches; match the contents exactly against the token values observed in the captured flow.",
         "Verified PASS criterion: No observed access or refresh token value appears in `localStorage`, `sessionStorage`, IndexedDB, `SharedPreferences`, `NSUserDefaults`, a plist or an on-disk cache; web tokens are carried in `HttpOnly; Secure` cookies or held only in memory; mobile token writes resolve to Keystore or Keychain APIs."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Enumerate browser storage on web surfaces and, from the mobile binary, the preference stores, property lists, keychain calls and caches; match the contents exactly against the token values observed in the captured flow.",
-        "Critério de PASS verificado: No observed access or refresh token value appears in `localStorage`, `sessionStorage`, IndexedDB, `SharedPreferences`, `NSUserDefaults`, a plist or an on-disk cache; web tokens are carried in `HttpOnly; Secure` cookies or held only in memory; mobile token writes resolve to Keystore or Keychain APIs."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Enumerar o armazenamento do navegador (`localStorage`, `sessionStorage`, `IndexedDB`) e de aplicativos móveis para verificar se access/refresh tokens estão salvos fora de cookies `HttpOnly; Secure` ou Keystore/Keychain.",
+        "Critério de PASS verificado: Nenhum valor de access token ou refresh token aparece em `localStorage`, `sessionStorage`, `IndexedDB`, `SharedPreferences`, `NSUserDefaults`, plist ou cache em disco; na web, tokens são transportados em cookies `HttpOnly; Secure` ou mantidos apenas em memória."
       ]
     },
     {
@@ -3422,32 +3394,32 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Scan the proxy log of the captured and crawled traffic for every request bearing an identity-provider-issued token and record where in the request the token appears."
       ],
       "procedure_items_pt": [
-        "Scan the proxy log of the captured and crawled traffic for every request bearing an identity-provider-issued token and record where in the request the token appears."
+        "Analisar o tráfego capturado (HAR) para todas as requisições que transportam access tokens e verificar se aparecem exclusivamente no cabeçalho `Authorization`."
       ],
       "reference_tooling": [
         "mitmproxy",
         "Burp Suite"
       ],
       "pass_criteria": "Every access token presented to a resource endpoint (any endpoint other than the identity provider's token, revocation and introspection endpoints) is carried in the `Authorization` header (`Bearer` or `DPoP` scheme).",
-      "pass_criteria_pt": "Every access token presented to a resource endpoint (any endpoint other than the identity provider's token, revocation and introspection endpoints) is carried in the `Authorization` header (`Bearer` or `DPoP` scheme).",
+      "pass_criteria_pt": "Todo access token apresentado a um endpoint de recurso é transportado exclusivamente no cabeçalho `Authorization` (`Bearer` ou `DPoP`), nunca em query strings ou fragmentos de URL.",
       "fail_criteria": "≥ 1 access token presented to a resource endpoint anywhere other than the `Authorization` header with the `Bearer` or `DPoP` scheme.",
-      "fail_criteria_pt": "≥ 1 access token presented to a resource endpoint anywhere other than the `Authorization` header with the `Bearer` or `DPoP` scheme.",
+      "fail_criteria_pt": "≥ 1 access token transmitido em query string de URL, fragmento ou corpo em vez do cabeçalho `Authorization`.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Scan the proxy log of the captured and crawled traffic for every request bearing an identity-provider-issued token and record where in the request the token appears.",
         "Verified PASS criterion: Every access token presented to a resource endpoint (any endpoint other than the identity provider's token, revocation and introspection endpoints) is carried in the `Authorization` header (`Bearer` or `DPoP` scheme)."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Scan the proxy log of the captured and crawled traffic for every request bearing an identity-provider-issued token and record where in the request the token appears.",
-        "Critério de PASS verificado: Every access token presented to a resource endpoint (any endpoint other than the identity provider's token, revocation and introspection endpoints) is carried in the `Authorization` header (`Bearer` or `DPoP` scheme)."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Analisar o tráfego capturado (HAR) para todas as requisições que transportam access tokens e verificar se aparecem exclusivamente no cabeçalho `Authorization`.",
+        "Critério de PASS verificado: Todo access token apresentado a um endpoint de recurso é transportado exclusivamente no cabeçalho `Authorization` (`Bearer` ou `DPoP`), nunca em query strings ou fragmentos de URL."
       ]
     },
     {
@@ -3470,7 +3442,7 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
@@ -3478,17 +3450,16 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Replay crafted tokens against every endpoint observed to accept an identity-provider token: unsigned, foreign signing key, expired, wrong audience, wrong issuer and insufficient scope. Confirm each rejection is a validation failure.",
-        "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
+        "Reproduzir tokens forjados (sem assinatura, chave externa, expirado, `aud` incorreto, `iss` incorreto e `scope` insuficiente) contra os endpoints do backend e confirmar a rejeição."
       ],
       "reference_tooling": [
         "jwt_tool",
         "scripted harness"
       ],
       "pass_criteria": "Every endpoint that accepts a valid identity-provider token denies all six crafted tokens.",
-      "pass_criteria_pt": "Every endpoint that accepts a valid identity-provider token denies all six crafted tokens.",
+      "pass_criteria_pt": "Todo endpoint do backend que aceita tokens do provedor de identidade recusa os seis tipos de tokens forjados (sem assinatura, assinado com chave externa, expirado, `aud` incorreto, `iss` incorreto e `scope` insuficiente).",
       "fail_criteria": "≥ 1 crafted token accepted at any endpoint that accepts a valid identity-provider token.",
-      "fail_criteria_pt": "≥ 1 crafted token accepted at any endpoint that accepts a valid identity-provider token.",
+      "fail_criteria_pt": "≥ 1 token forjado (sem assinatura, chave externa, expirado, `aud`/`iss` inválidos ou escopo insuficiente) é aceito pelo backend.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Replay crafted tokens against every endpoint observed to accept an identity-provider token: unsigned, foreign signing key, expired, wrong audience, wrong issuer and insufficient scope.",
@@ -3496,10 +3467,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: Every endpoint that accepts a valid identity-provider token denies all six crafted tokens."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Replay crafted tokens against every endpoint observed to accept an identity-provider token: unsigned, foreign signing key, expired, wrong audience, wrong issuer and insufficient scope.",
-        "Confirm each rejection is a validation failure.",
-        "Critério de PASS verificado: Every endpoint that accepts a valid identity-provider token denies all six crafted tokens."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Reproduzir tokens forjados (sem assinatura, chave externa, expirado, `aud` incorreto, `iss` incorreto e `scope` insuficiente) contra os endpoints do backend e confirmar a rejeição.",
+        "Critério de PASS verificado: Todo endpoint do backend que aceita tokens do provedor de identidade recusa os seis tipos de tokens forjados (sem assinatura, assinado com chave externa, expirado, `aud` incorreto, `iss` incorreto e `scope` insuficiente)."
       ]
     },
     {
@@ -3522,7 +3492,7 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
@@ -3530,7 +3500,7 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Refresh the token repeatedly, induce a refresh failure, revoke the token server-side, and enumerate every storage location after each cycle.",
+        "Renovar o refresh token repetidamente, induzir falha de renovação, revogar o token no servidor e inspecionar todos os locais de armazenamento após cada ciclo.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
@@ -3539,18 +3509,18 @@ window.CASA3_DATA = {
         "MobSF"
       ],
       "pass_criteria": "After each rotation at most one refresh token exists across all storage locations and the superseded value is rejected; a token revoked server-side is rejected on its next use; a refresh failure does not trigger a silent background re-authorization.",
-      "pass_criteria_pt": "After each rotation at most one refresh token exists across all storage locations and the superseded value is rejected; a token revoked server-side is rejected on its next use; a refresh failure does not trigger a silent background re-authorization.",
+      "pass_criteria_pt": "Após cada rotação, existe no máximo um refresh token ativo nos armazenamentos e o token anterior é rejeitado; tokens revogados no servidor são recusados no próximo uso; e falhas de refresh não disparam reautorização silenciosa em segundo plano.",
       "fail_criteria": "A superseded or server-side-revoked refresh token remains usable, a superseded token remains stored, a token is duplicated across locations, or a refresh failure triggers silent re-authorization.",
-      "fail_criteria_pt": "A superseded or server-side-revoked refresh token remains usable, a superseded token remains stored, a token is duplicated across locations, or a refresh failure triggers silent re-authorization.",
+      "fail_criteria_pt": "Um refresh token substituído ou revogado continua válido, tokens são duplicados em múltiplos armazenamentos, ou falha de refresh dispara reautorização silenciosa.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Refresh the token repeatedly, induce a refresh failure, revoke the token server-side, and enumerate every storage location after each cycle.",
         "Verified PASS criterion: After each rotation at most one refresh token exists across all storage locations and the superseded value is rejected; a token revoked server-side is rejected on its next use; a refresh failure does not trigger a silent background re-authorization."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Refresh the token repeatedly, induce a refresh failure, revoke the token server-side, and enumerate every storage location after each cycle.",
-        "Critério de PASS verificado: After each rotation at most one refresh token exists across all storage locations and the superseded value is rejected; a token revoked server-side is rejected on its next use; a refresh failure does not trigger a silent background re-authorization."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Renovar o refresh token repetidamente, induzir falha de renovação, revogar o token no servidor e inspecionar todos os locais de armazenamento após cada ciclo.",
+        "Critério de PASS verificado: Após cada rotação, existe no máximo um refresh token ativo nos armazenamentos e o token anterior é rejeitado; tokens revogados no servidor são recusados no próximo uso; e falhas de refresh não disparam reautorização silenciosa em segundo plano."
       ]
     },
     {
@@ -3573,7 +3543,7 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
@@ -3581,25 +3551,25 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Perform logout, in-application revocation and account deletion, and after each replay the access and refresh tokens against an identity-provider API and against the application backend.",
+        "Executar logout, revogação na aplicação e exclusão de conta e, após cada evento, reproduzir o access token e o refresh token contra a API do provedor de identidade e o backend da aplicação.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
         "scripted harness"
       ],
       "pass_criteria": "After each of the three events the access token and the refresh token are both rejected by the identity provider and denied by the application backend.",
-      "pass_criteria_pt": "After each of the three events the access token and the refresh token are both rejected by the identity provider and denied by the application backend.",
+      "pass_criteria_pt": "Após logout, revogação iniciada pelo usuário ou exclusão da conta, tanto o access token quanto o refresh token são rejeitados pelo provedor de identidade e negados pelo backend da aplicação.",
       "fail_criteria": "≥ 1 token still accepted after logout, revocation or account deletion.",
-      "fail_criteria_pt": "≥ 1 token still accepted after logout, revocation or account deletion.",
+      "fail_criteria_pt": "≥ 1 access token ou refresh token continua sendo aceito após logout, revogação ou exclusão da conta.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
         "Perform logout, in-application revocation and account deletion, and after each replay the access and refresh tokens against an identity-provider API and against the application backend.",
         "Verified PASS criterion: After each of the three events the access token and the refresh token are both rejected by the identity provider and denied by the application backend."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente.",
-        "Perform logout, in-application revocation and account deletion, and after each replay the access and refresh tokens against an identity-provider API and against the application backend.",
-        "Critério de PASS verificado: After each of the three events the access token and the refresh token are both rejected by the identity provider and denied by the application backend."
+        "Evidência coletada: Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+        "Executar logout, revogação na aplicação e exclusão de conta e, após cada evento, reproduzir o access token e o refresh token contra a API do provedor de identidade e o backend da aplicação.",
+        "Critério de PASS verificado: Após logout, revogação iniciada pelo usuário ou exclusão da conta, tanto o access token quanto o refresh token são rejeitados pelo provedor de identidade e negados pelo backend da aplicação."
       ]
     },
     {
@@ -3622,32 +3592,32 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
+        "Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Attempt delivery to each declared receiver over cleartext HTTP and over TLS 1.0 and 1.1, and run a TLS assessment against the receiver host."
       ],
       "procedure_items_pt": [
-        "Attempt delivery to each declared receiver over cleartext HTTP and over TLS 1.0 and 1.1, and run a TLS assessment against the receiver host."
+        "Tentar entregar eventos em cada receptor de webhook declarado usando HTTP em texto claro e TLS 1.0/1.1, e executar avaliação TLS no host receptor."
       ],
       "reference_tooling": [
         "testssl.sh",
         "scripted delivery harness"
       ],
       "pass_criteria": "Every cleartext delivery is denied (a 3xx to the HTTPS receiver counts as denied) and the receiver negotiates only TLS 1.2 or 1.3.",
-      "pass_criteria_pt": "Every cleartext delivery is denied (a 3xx to the HTTPS receiver counts as denied) and the receiver negotiates only TLS 1.2 or 1.3.",
+      "pass_criteria_pt": "Toda tentativa de entrega de webhook em HTTP texto claro é recusada e o endpoint receptor negocia exclusivamente TLS 1.2 ou TLS 1.3.",
       "fail_criteria": "≥ 1 cleartext delivery accepted, or a legacy TLS version negotiated.",
-      "fail_criteria_pt": "≥ 1 cleartext delivery accepted, or a legacy TLS version negotiated.",
+      "fail_criteria_pt": "≥ 1 entrega de webhook aceita sobre HTTP em texto claro ou negociação de versão legada de TLS (1.0/1.1).",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
         "Attempt delivery to each declared receiver over cleartext HTTP and over TLS 1.0 and 1.1, and run a TLS assessment against the receiver host.",
         "Verified PASS criterion: Every cleartext delivery is denied (a 3xx to the HTTPS receiver counts as denied) and the receiver negotiates only TLS 1.2 or 1.3."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
-        "Attempt delivery to each declared receiver over cleartext HTTP and over TLS 1.0 and 1.1, and run a TLS assessment against the receiver host.",
-        "Critério de PASS verificado: Every cleartext delivery is denied (a 3xx to the HTTPS receiver counts as denied) and the receiver negotiates only TLS 1.2 or 1.3."
+        "Evidência coletada: Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
+        "Tentar entregar eventos em cada receptor de webhook declarado usando HTTP em texto claro e TLS 1.0/1.1, e executar avaliação TLS no host receptor.",
+        "Critério de PASS verificado: Toda tentativa de entrega de webhook em HTTP texto claro é recusada e o endpoint receptor negocia exclusivamente TLS 1.2 ou TLS 1.3."
       ]
     },
     {
@@ -3670,23 +3640,23 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
+        "Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Deliver payloads with an absent, truncated, modified and foreign-key signature to each receiver. Where source code or a build artifact is available, inspect the signature-verification call site for the comparison function and MAC algorithm."
       ],
       "procedure_items_pt": [
-        "Deliver payloads with an absent, truncated, modified and foreign-key signature to each receiver. Where source code or a build artifact is available, inspect the signature-verification call site for the comparison function and MAC algorithm."
+        "Entregar payloads de webhook sem assinatura, com assinatura truncada, modificada e com chave externa, além de inspecionar no código o algoritmo HMAC-SHA256+ e o uso de função de comparação em tempo constante."
       ],
       "reference_tooling": [
         "scripted delivery harness",
         "semgrep"
       ],
       "pass_criteria": "Every payload with an absent, truncated, modified or foreign-key signature is denied and produces no side effect; the MAC, as declared by the signature header or read from source, is HMAC-SHA256 or stronger; and the signature comparison is constant-time (for example `hmac.compare_digest`, `MessageDigest.isEqual`, `crypto.timingSafeEqual`). A clause that cannot be established without source code or a build artifact is recorded `Not_Covered` and the remaining clauses decide the verdict.",
-      "pass_criteria_pt": "Every payload with an absent, truncated, modified or foreign-key signature is denied and produces no side effect; the MAC, as declared by the signature header or read from source, is HMAC-SHA256 or stronger; and the signature comparison is constant-time (for example `hmac.compare_digest`, `MessageDigest.isEqual`, `crypto.timingSafeEqual`). A clause that cannot be established without source code or a build artifact is recorded `Not_Covered` and the remaining clauses decide the verdict.",
+      "pass_criteria_pt": "Todo payload de webhook sem assinatura, com assinatura truncada, modificada ou assinada por chave externa é recusado sem produzir efeitos colaterais; o MAC utiliza HMAC-SHA256 ou superior; e a verificação de assinatura ocorre em tempo constante (`hmac.compare_digest` / `crypto.timingSafeEqual`).",
       "fail_criteria": "Any invalid-signature payload accepted or producing a side effect, a MAC weaker than HMAC-SHA256, or a signature comparison that is not constant-time.",
-      "fail_criteria_pt": "Any invalid-signature payload accepted or producing a side effect, a MAC weaker than HMAC-SHA256, or a signature comparison that is not constant-time.",
+      "fail_criteria_pt": "Aceitação de payload de webhook sem assinatura válida, uso de algoritmo inferior ao HMAC-SHA256, ou comparação de assinatura vulnerável a ataque de tempo (timing attack).",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
         "Deliver payloads with an absent, truncated, modified and foreign-key signature to each receiver.",
@@ -3694,10 +3664,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: Every payload with an absent, truncated, modified or foreign-key signature is denied and produces no side effect; the MAC, as declared by the signature header or read from source, is HMAC-SHA256 or stronger; and the signature comparison is constant-time (for example `hmac.compare_digest`, `MessageDigest.isEqual`, `crypto.timingSafeEqual`). A clause that cannot be established without source code or a build artifact is recorded `Not_Covered` and the remaining clauses decide the verdict."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
-        "Deliver payloads with an absent, truncated, modified and foreign-key signature to each receiver.",
-        "Where source code or a build artifact is available, inspect the signature-verification call site for the comparison function and MAC algorithm.",
-        "Critério de PASS verificado: Every payload with an absent, truncated, modified or foreign-key signature is denied and produces no side effect; the MAC, as declared by the signature header or read from source, is HMAC-SHA256 or stronger; and the signature comparison is constant-time (for example `hmac.compare_digest`, `MessageDigest.isEqual`, `crypto.timingSafeEqual`). A clause that cannot be established without source code or a build artifact is recorded `Not_Covered` and the remaining clauses decide the verdict."
+        "Evidência coletada: Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
+        "Entregar payloads de webhook sem assinatura, com assinatura truncada, modificada e com chave externa, além de inspecionar no código o algoritmo HMAC-SHA256+ e o uso de função de comparação em tempo constante.",
+        "Critério de PASS verificado: Todo payload de webhook sem assinatura, com assinatura truncada, modificada ou assinada por chave externa é recusado sem produzir efeitos colaterais; o MAC utiliza HMAC-SHA256 ou superior; e a verificação de assinatura ocorre em tempo constante (`hmac.compare_digest` / `crypto.timingSafeEqual`)."
       ]
     },
     {
@@ -3720,14 +3689,14 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
+        "Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
         "Through each declared callback-registration facility, attempt to register callback URLs pointing at private, loopback, link-local and cloud-metadata addresses, including via redirect chains and DNS rebinding. Run secret detection over the signing-secret material."
       ],
       "procedure_items_pt": [
-        "Through each declared callback-registration facility, attempt to register callback URLs pointing at private, loopback, link-local and cloud-metadata addresses, including via redirect chains and DNS rebinding. Run secret detection over the signing-secret material."
+        "Tentar registrar URLs de callback apontando para endereços privados, loopback, link-local e metadados em nuvem (incluindo redirecionamentos e DNS rebinding) e escanear o código em busca de segredos de webhook fixados."
       ],
       "reference_tooling": [
         "scripted harness",
@@ -3735,9 +3704,9 @@ window.CASA3_DATA = {
         "gitleaks"
       ],
       "pass_criteria": "No fetch is issued to an internal or metadata address (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`, `::1`, `fc00::/7`, `fe80::/10` and the cloud metadata addresses `169.254.169.254` / `fd00:ec2::254`) for any callback URL, whether the address is reached directly, after redirect, or by DNS re-resolution at fetch time; no signing secret appears in source or artifacts.",
-      "pass_criteria_pt": "No fetch is issued to an internal or metadata address (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`, `::1`, `fc00::/7`, `fe80::/10` and the cloud metadata addresses `169.254.169.254` / `fd00:ec2::254`) for any callback URL, whether the address is reached directly, after redirect, or by DNS re-resolution at fetch time; no signing secret appears in source or artifacts.",
+      "pass_criteria_pt": "Nenhuma requisição é disparada para endereços IP privados, de loopback, link-local ou de metadados em nuvem (`169.254.169.254`, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, etc.) a partir de URLs de callback, mesmo via redirecionamento ou DNS rebinding; e nenhum segredo de assinatura está fixado no código.",
       "fail_criteria": "≥ 1 fetch issued to an address in that list, or ≥ 1 signing secret found in source or artifacts.",
-      "fail_criteria_pt": "≥ 1 fetch issued to an address in that list, or ≥ 1 signing secret found in source or artifacts.",
+      "fail_criteria_pt": "≥ 1 requisição de webhook disparada para endereço interno/metadados (SSRF) ou segredo de assinatura de webhook fixado no código-fonte.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
         "Through each declared callback-registration facility, attempt to register callback URLs pointing at private, loopback, link-local and cloud-metadata addresses, including via redirect chains and DNS rebinding.",
@@ -3745,10 +3714,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: No fetch is issued to an internal or metadata address (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`, `::1`, `fc00::/7`, `fe80::/10` and the cloud metadata addresses `169.254.169.254` / `fd00:ec2::254`) for any callback URL, whether the address is reached directly, after redirect, or by DNS re-resolution at fetch time; no signing secret appears in source or artifacts."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
-        "Through each declared callback-registration facility, attempt to register callback URLs pointing at private, loopback, link-local and cloud-metadata addresses, including via redirect chains and DNS rebinding.",
-        "Run secret detection over the signing-secret material.",
-        "Critério de PASS verificado: No fetch is issued to an internal or metadata address (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`, `::1`, `fc00::/7`, `fe80::/10` and the cloud metadata addresses `169.254.169.254` / `fd00:ec2::254`) for any callback URL, whether the address is reached directly, after redirect, or by DNS re-resolution at fetch time; no signing secret appears in source or artifacts."
+        "Evidência coletada: Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
+        "Tentar registrar URLs de callback apontando para endereços privados, loopback, link-local e metadados em nuvem (incluindo redirecionamentos e DNS rebinding) e escanear o código em busca de segredos de webhook fixados.",
+        "Critério de PASS verificado: Nenhuma requisição é disparada para endereços IP privados, de loopback, link-local ou de metadados em nuvem (`169.254.169.254`, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, etc.) a partir de URLs de callback, mesmo via redirecionamento ou DNS rebinding; e nenhum segredo de assinatura está fixado no código."
       ]
     },
     {
@@ -3771,7 +3739,7 @@ window.CASA3_DATA = {
         "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted."
       ],
       "evidence_items_pt": [
-        "Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
+        "Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
         "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."
       ],
       "procedure_items": [
@@ -3779,16 +3747,16 @@ window.CASA3_DATA = {
         "Lab adjudication of the tool output decides the verdict."
       ],
       "procedure_items_pt": [
-        "Obtain the acceptance window from the developer's webhook documentation. Re-deliver a captured, validly signed payload immediately, at the window boundary and beyond it, and deliver payloads with duplicate idempotency keys.",
+        "Obter a janela de aceitação na documentação do webhook, reenviar um payload validamente assinado imediatamente, no limite da janela e após sua expiração, e enviar payloads com chaves de idempotência duplicadas.",
         "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."
       ],
       "reference_tooling": [
         "scripted delivery harness"
       ],
       "pass_criteria": "A validly signed payload replayed after the documented acceptance window is rejected (a replay exactly at the boundary counts as inside the window), and a duplicate delivery inside the window produces exactly one state change.",
-      "pass_criteria_pt": "A validly signed payload replayed after the documented acceptance window is rejected (a replay exactly at the boundary counts as inside the window), and a duplicate delivery inside the window produces exactly one state change.",
+      "pass_criteria_pt": "Um payload com assinatura válida reproduzido (replay) após a janela de aceitação documentada é rejeitado, e uma entrega duplicada dentro da janela produz no máximo uma única mudança de estado (idempotência).",
       "fail_criteria": "A payload is accepted after the window, or a duplicate delivery produces a second state change.",
-      "fail_criteria_pt": "A payload is accepted after the window, or a duplicate delivery produces a second state change.",
+      "fail_criteria_pt": "Um payload de webhook reproduzido após a janela de tempo permitida é aceito, ou uma entrega duplicada provoca mudança de estado em duplicidade.",
       "verification_checklist": [
         "Evidence collected: Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
         "Obtain the acceptance window from the developer's webhook documentation.",
@@ -3796,10 +3764,9 @@ window.CASA3_DATA = {
         "Verified PASS criterion: A validly signed payload replayed after the documented acceptance window is rejected (a replay exactly at the boundary counts as inside the window), and a duplicate delivery inside the window produces exactly one state change."
       ],
       "verification_checklist_pt": [
-        "Evidência coletada: Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
-        "Obtain the acceptance window from the developer's webhook documentation.",
-        "Re-deliver a captured, validly signed payload immediately, at the window boundary and beyond it, and deliver payloads with duplicate idempotency keys.",
-        "Critério de PASS verificado: A validly signed payload replayed after the documented acceptance window is rejected (a replay exactly at the boundary counts as inside the window), and a duplicate delivery inside the window produces exactly one state change."
+        "Evidência coletada: Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
+        "Obter a janela de aceitação na documentação do webhook, reenviar um payload validamente assinado imediatamente, no limite da janela e após sua expiração, e enviar payloads com chaves de idempotência duplicadas.",
+        "Critério de PASS verificado: Um payload com assinatura válida reproduzido (replay) após a janela de aceitação documentada é rejeitado, e uma entrega duplicada dentro da janela produz no máximo uma única mudança de estado (idempotência)."
       ]
     }
   ]

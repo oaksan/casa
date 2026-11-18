@@ -1,8 +1,6 @@
-"""Brazilian Portuguese (PT-BR) technical translations for the 8 domains and 76 controls of ADA CASA 3.0."""
+"""Complete Brazilian Portuguese (PT-BR) technical translations for all 8 domains and 76 controls of ADA CASA 3.0."""
 
 from __future__ import annotations
-
-import re
 
 DOMAINS_PT: dict[str, str] = {
     "Software Composition & Supply Chain": "Composição de Software e Cadeia de Suprimentos",
@@ -102,26 +100,318 @@ TITLES_PT: dict[str, str] = {
     "WHK-04": "Proteção contra replay via timestamps assinados com janela de aceitação limitada e tratamento de idempotência",
 }
 
-PHRASE_REPLACEMENTS: list[tuple[str, str]] = [
-    ("Evidence collected:", "Evidência coletada:"),
-    ("Verified PASS criterion:", "Critério de PASS verificado:"),
-    ("Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted.", "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas."),
-    ("Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability findings in SARIF 2.1.0.", "SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) e achados de vulnerabilidade em SARIF 2.1.0."),
-    ("Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.", "Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos."),
-    ("Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.", "Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas."),
-    ("Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.", "Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida."),
-    ("Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.", "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando artefatos clientes são analisados estaticamente."),
-    ("Zero findings whose CVSS v3.1 base ≥ 7.0", "Zero achados com CVSS v3.1 base ≥ 7.0"),
-    ("Zero findings", "Zero achados"),
-    ("≥ 1 finding", "≥ 1 achado"),
-    ("Lab adjudication of the tool output decides the verdict.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."),
+PASS_CRITERIA_PT: dict[str, str] = {
+    # SCA
+    "SCA-01": "Zero achados com CVSS v3.1 base ≥ 7.0 cujo símbolo vulnerável seja alcançável no grafo de chamadas (call-graph), e zero componentes correspondentes a um identificador do catálogo CISA KEV.",
+    "SCA-02": "Nenhuma dependência direta ultrapassou sua data publicada de fim de vida útil (EOL), todas resolvem para o registro público canônico ou espelho controlado pelo desenvolvedor fixado por digest e — quando houver resultado no OpenSSF Scorecard — possuem nota de manutenção (`Maintained`) ≥ 5.",
+    "SCA-03": "Zero achados de pacotes do sistema operacional ou da camada base em severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) que a distribuição não tenha marcado como `will_not_fix` com mitigação documentada.",
+    "SCA-04": "O SBOM publicado é válido como CycloneDX 1.5+ ou SPDX 2.3+, todos os componentes contêm os elementos mínimos da NTIA, e a diferença entre conjuntos (SBOM do avaliador − SBOM publicado) é vazia.",
+    "SCA-05": "Zero componentes correspondem a um alerta de pacote malicioso (`MAL-`), e zero componentes estão a uma distância de Levenshtein 1 de um pacote entre os 10 mil mais populares sob mantenedor diferente (typosquatting).",
+    # SAST
+    "SAST-01": "Zero achados de segredos em nível `error`, após triagem, no código-fonte, recursos, configurações de build e artefatos distribuídos; qualquer segredo verificado como ativo (`verified: true`) pelo detector é sempre classificado como `error`.",
+    "SAST-02": "Zero arquivos de chave privada ou keystore e zero blocos PEM `PRIVATE KEY` no histórico do repositório ou em qualquer artefato distribuído.",
+    "SAST-03": "Zero achados em nível `error` no conjunto de regras de algoritmos banidos (DES, 3DES, RC4, Blowfish ou qualquer cifra instanciada em modo `ECB`).",
+    "SAST-04": "Zero fluxos de dados (taint paths) em nível `error` partindo de uma chamada MD5 ou SHA-1 até um ponto sensível de segurança (sink); usos não relacionados a segurança (chave de cache, ETag) são reportados apenas como informativos.",
+    "SAST-05": "Todo ponto de persistência de senha utiliza Argon2id, scrypt, bcrypt ou PBKDF2-HMAC-SHA256 atendendo ao piso mínimo do NIST SP 800-63B (Argon2id `m` ≥ 19456 KiB com `t` ≥ 2, scrypt `N` ≥ 32768, custo bcrypt ≥ 10, PBKDF2 ≥ 600000 iterações) e aplica um salt único por registro gerado via CSPRNG.",
+    "SAST-06": "Zero fluxos de dados (taint paths) em nível `error` partindo de uma fonte não criptográfica (não-CSPRNG) para um ponto relevante de segurança (geração de tokens, chaves, nonces, salts, IVs ou códigos de redefinição).",
+    "SAST-07": "Zero achados em nível `error` de auto-binding irrestrito no código, e nenhum campo privilegiado injetado nas requisições de atualização persiste ou retorna alterado.",
+    "SAST-08": "Zero achados em nível `error` de construção de consultas SQL/NoSQL por concatenação ou interpolação de strings com valores não confiáveis.",
+    "SAST-09": "Zero achados em nível `error` de desserialização de entradas não confiáveis sem lista de tipos permitidos (allowlist), `ObjectInputFilter` ou verificação criptográfica de integridade prévia.",
+    "SAST-10": "Zero fluxos de dados (taint paths) em nível `error` partindo de uma fonte não confiável até um ponto de execução dinâmica de código (`eval`, `Function`, `exec`, `vm.runInContext` ou reflexão).",
+    "SAST-11": "Zero achados em nível `error` de caminhos de sistema de arquivos construídos a partir de metadados fornecidos pelo usuário sem validação estrita e canonização antes do uso.",
+    "SAST-12": "Todo literal detectado como segredo ativo resolve por meio de chamada de SDK de cofre de segredos (secrets manager) ou montagem injetada em tempo de execução; nenhum segredo está presente em arquivos de configuração, IaC ou camadas de ambiente da imagem.",
+    "SAST-13": "Nenhum valor canário aparece literalmente em qualquer registro de log, e há zero fluxos de dados em nível `error` partindo de credenciais, tokens ou dados de pagamento para logs sem mascaramento ou hash irreversível.",
+    "SAST-14": "Nenhuma construção sobrevive à triagem do avaliador como bypass de autenticação, conta não documentada ou desvio condicional ativado por data/hora em fluxo de segurança, e o digest do artefato distribuído é reprodutível a partir do código-fonte.",
+    # TLS
+    "TLS-01": "Todo host declarado conclui handshake TLS na porta 443 e, na porta 80, a conexão é recusada/expira ou todas as requisições retornam redirecionamento `3xx Location` para o mesmo host sobre `https`.",
+    "TLS-02": "A avaliação TLS reporta apenas TLS 1.2 ou TLS 1.3 habilitados (`offered`) em todos os hosts declarados, e SSLv2, SSLv3, TLS 1.0 e TLS 1.1 como desabilitados (`not offered`).",
+    "TLS-03": "Nenhuma suíte NULL, EXPORT, anônima, RC4, 3DES ou CBC-SHA1 é oferecida, e todas as suítes TLS 1.2 oferecidas garantem sigilo perfeito de encaminhamento (Forward Secrecy).",
+    "TLS-04": "A cadeia de certificados valida até uma raiz pública confiável, o certificado não está expirado no momento do scan e o CN/SAN corresponde a cada host testado.",
+    "TLS-05": "O cabeçalho `Strict-Transport-Security` está presente com `max-age` (`HSTS_time`) ≥ 31536000 em todos os hosts declarados.",
+    "TLS-06": "Nenhuma vulnerabilidade de implementação TLS é reportada em severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) (incluindo `heartbleed`, `ROBOT`, `secure_renego`, `secure_client_renego`, `CRIME_TLS` e `ticketbleed`).",
+    # CFG
+    "CFG-01": "Nenhum corpo de resposta é interpretado como índice de listagem de diretório (marcação autoindex ou `ListBucketResult` de S3).",
+    "CFG-02": "Nenhum console de depuração (debug), profiler ou endpoint de telemetria/actuator retorna status `2xx` sem autenticação, e nenhuma resposta contém assinaturas de páginas de debug de frameworks (ex.: Werkzeug, Django `DEBUG`, Rails, ASP.NET).",
+    "CFG-03": "Nenhum cabeçalho ou corpo de resposta expõe tokens de versão de produto no formato `[A-Za-z-]+/[0-9]+\\.[0-9]+` ou métricas internas de versão do runtime.",
+    "CFG-04": "Toda resposta HTML contém um cabeçalho `Content-Security-Policy` válido, e a diretiva `script-src` efetiva (ou `default-src`) não contém `unsafe-inline`, `unsafe-eval`, `*` ou `data:`.",
+    "CFG-05": "Toda resposta HTML contém a diretiva CSP `frame-ancestors` com `'none'`, `'self'` ou lista explícita de origens, ou o cabeçalho `X-Frame-Options` definido como `DENY` ou `SAMEORIGIN`.",
+    "CFG-06": "O cabeçalho `X-Content-Type-Options: nosniff` está presente em 100% das respostas HTTP.",
+    "CFG-07": "Toda resposta autenticada ou sensível inclui o cabeçalho `Cache-Control` contendo a diretiva `no-store`.",
+    "CFG-08": "Nenhuma origem arbitrária testada é refletida em `Access-Control-Allow-Origin`; nenhuma resposta combina `Access-Control-Allow-Origin: *` com `Access-Control-Allow-Credentials: true`; e a origem `null` não é aceita.",
+    "CFG-09": "Nenhum corpo de resposta de erro `4xx` ou `5xx` contém stack traces, caminhos internos do sistema de arquivos, fragmentos de erros SQL ou detalhes internos de roteamento.",
+    "CFG-10": "Todas as rotas autenticadas e caminhos administrativos são negados quando requisitados sem credenciais válidas.",
+    "CFG-11": "Zero registros DNS em qualquer host declarado ou em sua cadeia CNAME correspondem a assinaturas de provedores externos não reivindicados (vulneráveis a Subdomain Takeover).",
+    # AUT
+    "AUT-01": "Zero pares de credenciais padrão, compartilhadas ou de fabricante autenticam com sucesso em qualquer superfície de login.",
+    "AUT-02": "Todos os 200 tokens de sessão coletados são distintos e possuem estimativa de entropia mínima ≥ 64 bits.",
+    "AUT-03": "O identificador de sessão pós-autenticação difere do identificador pré-autenticação, e o identificador pré-autenticação é rejeitado após o login.",
+    "AUT-04": "Nenhum valor de token de sessão, access token ou refresh token aparece em URLs de requisição, query strings, fragmentos ou cabeçalhos `Referer` de saída.",
+    "AUT-05": "Tanto o cookie de sessão quanto o refresh token reproduzidos (replay) são negados pelo servidor após a execução do logout.",
+    "AUT-06": "Todo cabeçalho `Set-Cookie` que define um cookie de sessão inclui os atributos `Secure`, `HttpOnly` e `SameSite=Lax` ou `SameSite=Strict`.",
+    "AUT-07": "Todos os tokens forjados (sem assinatura, com confusão de algoritmo RS256→HS256, chave externa ou payload adulterado) são negados; o algoritmo pertence à lista permitida ({RS256, RS384, RS512, ES256, ES384, PS256, EdDSA, HS256 com chave ≥ 256 bits}); e qualquer token stateless aceito possui tempo de vida (`exp`) ≤ 86400 segundos (24 horas).",
+    "AUT-08": "Nenhum valor armazenado no navegador (`localStorage`, `sessionStorage`, `IndexedDB` ou cookies não-HttpOnly) contém tokens de sessão/acesso/refresh, JWTs, números de cartão (PAN) ou dados sensíveis do perfil, e nenhum material de autenticação sobrevive ao logout.",
+    "AUT-09": "A 101ª tentativa falha de autenticação dentro de 60 minutos na mesma conta é bloqueada por uma resposta de contenção — HTTP 429, desafio CAPTCHA, exigência de segundo fator (MFA) ou bloqueio temporário da conta.",
+    "AUT-10": "A requisição protegida é negada pelo servidor na primeira reprodução após o tempo de inatividade declarado (ou após 8 horas quando não declarado).",
+    "AUT-11": "A sessão concorrente B é invalidada após a troca de senha na sessão A; o código out-of-band é rejeitado no segundo uso e após 10 minutos; o link de redefinição de senha é rejeitado no segundo uso e após 60 minutos; e ambos apresentam entropia mínima ≥ 20 bits em amostra de 200 valores.",
+    "AUT-12": "Para todas as interfaces administrativas declaradas, após a senha correta ser aceita e antes da conclusão do segundo fator (MFA), todas as requisições reproduzidas para rotas administrativas são negadas.",
+    # AZI
+    "AZI-01": "Toda requisição autenticada que altera estado enviada sem token anti-CSRF válido (removido, substituído ou de outra sessão) é negada sem produzir efeito colateral, e o cookie de sessão não utiliza `SameSite=None`.",
+    "AZI-02": "Zero achados de Cross-Site Scripting (refletido, armazenado ou DOM-based) confirmados por execução ou reprodução pelo avaliador.",
+    "AZI-03": "Nenhum parâmetro é reportado como vulnerável a injeção de SQL e nenhum payload de operadores NoSQL altera o conjunto de resultados ou contorna a lógica da consulta.",
+    "AZI-04": "Nenhum callback out-of-band (DNS/HTTP) é recebido e nenhuma resposta contém marcadores de execução de comandos do sistema operacional.",
+    "AZI-05": "Nenhuma resposta retorna conteúdo de arquivos fora do diretório raiz permitido (Path Traversal / LFI) e nenhum marcador de inclusão remota (RFI) é observado.",
+    "AZI-06": "Nenhum redirecionamento `3xx Location`, meta-refresh ou via JavaScript resolve para um host fora da lista de domínios permitidos (allowlist), e parâmetros HTTP duplicados (HPP) não alteram decisões de autorização.",
+    "AZI-07": "Toda funcionalidade cuja visibilidade difere entre perfis de acesso também é recusada pelo servidor quando invocada diretamente pelo perfil de menor privilégio, e nenhuma decisão de autorização no código cliente carece de validação correspondente no servidor.",
+    "AZI-08": "Toda requisição para ler, criar, atualizar ou excluir um objeto pertencente a outra conta ou a outro locatário (cross-tenant) é negada sem retornar conteúdo do objeto.",
+    "AZI-09": "Nenhuma função é executável por um papel (role) ao qual a matriz de controle de acesso não conceda permissão, seja horizontal ou verticalmente.",
+    "AZI-10": "Nenhum atributo de controle de acesso adulterado (role, tenant ID, escopo, claims de token) concede acesso não autorizado, e toda exceção induzida na camada de autorização resulta em negação de acesso (fail-closed).",
+    "AZI-11": "Nenhum payload faz com que a aplicação busque endereços internos ou de metadados de nuvem (SSRF), nem por acesso direto, nem via cadeias de redirecionamento ou DNS rebinding.",
+    "AZI-12": "Nenhum payload de Server-Side Template Injection (SSTI), XPath ou XML/XXE é avaliado ou expande entidades externas.",
+    "AZI-13": "Todo upload fora da lista de tipos permitidos é rejeitado; e todo arquivo aceito que possa ser recuperado é servido com `Content-Disposition: attachment` ou com `Content-Type` seguro (diferente de `text/html`, `application/javascript`, `image/svg+xml`) acompanhado de `X-Content-Type-Options: nosniff`.",
+    # OAU
+    "OAU-01": "A requisição de autorização capturada utiliza `response_type` exatamente igual a `code`; nenhuma requisição de token utiliza `grant_type=password` (ROPC) ou fluxo Implicit.",
+    "OAU-02": "Toda requisição de autorização capturada contém `code_challenge_method=S256` e um `code_challenge` com ≥ 43 caracteres, e a troca de token exige o `code_verifier` correspondente.",
+    "OAU-03": "Nenhuma URI de redirecionamento observada contém curingas (`*`) ou usa `http:` (exceto loopback em superfícies `Mobile`/`Native`), e nenhum fuzzing no endpoint de callback produz redirecionamento para fora dos hosts registrados.",
+    "OAU-04": "Todos os 200 valores de `state` são distintos com entropia mínima ≥ 128 bits; o callback não emite sessão quando o `state` é omitido, reutilizado, modificado ou enviado de outra sessão; e nenhum ID token é aceito com `nonce` omitido ou de outra requisição.",
+    "OAU-05": "A URL de autorização é apresentada via Custom Tabs, `ASWebAuthenticationSession` ou navegador externo do sistema, e nenhuma classe de WebView embutida carrega o endpoint de autorização.",
+    "OAU-06": "Nenhum candidato a segredo extraído de um artefato de cliente público é aceito pelo endpoint de token do provedor de identidade como `client_secret`.",
+    "OAU-07": "Nenhum valor de access token ou refresh token aparece em `localStorage`, `sessionStorage`, `IndexedDB`, `SharedPreferences`, `NSUserDefaults`, plist ou cache em disco; na web, tokens são transportados em cookies `HttpOnly; Secure` ou mantidos apenas em memória.",
+    "OAU-08": "Todo access token apresentado a um endpoint de recurso é transportado exclusivamente no cabeçalho `Authorization` (`Bearer` ou `DPoP`), nunca em query strings ou fragmentos de URL.",
+    "OAU-09": "Todo endpoint do backend que aceita tokens do provedor de identidade recusa os seis tipos de tokens forjados (sem assinatura, assinado com chave externa, expirado, `aud` incorreto, `iss` incorreto e `scope` insuficiente).",
+    "OAU-10": "Após cada rotação, existe no máximo um refresh token ativo nos armazenamentos e o token anterior é rejeitado; tokens revogados no servidor são recusados no próximo uso; e falhas de refresh não disparam reautorização silenciosa em segundo plano.",
+    "OAU-11": "Após logout, revogação iniciada pelo usuário ou exclusão da conta, tanto o access token quanto o refresh token são rejeitados pelo provedor de identidade e negados pelo backend da aplicação.",
+    # WHK
+    "WHK-01": "Toda tentativa de entrega de webhook em HTTP texto claro é recusada e o endpoint receptor negocia exclusivamente TLS 1.2 ou TLS 1.3.",
+    "WHK-02": "Todo payload de webhook sem assinatura, com assinatura truncada, modificada ou assinada por chave externa é recusado sem produzir efeitos colaterais; o MAC utiliza HMAC-SHA256 ou superior; e a verificação de assinatura ocorre em tempo constante (`hmac.compare_digest` / `crypto.timingSafeEqual`).",
+    "WHK-03": "Nenhuma requisição é disparada para endereços IP privados, de loopback, link-local ou de metadados em nuvem (`169.254.169.254`, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, etc.) a partir de URLs de callback, mesmo via redirecionamento ou DNS rebinding; e nenhum segredo de assinatura está fixado no código.",
+    "WHK-04": "Um payload com assinatura válida reproduzido (replay) após a janela de aceitação documentada é rejeitado, e uma entrega duplicada dentro da janela produz no máximo uma única mudança de estado (idempotência).",
+}
+
+FAIL_CRITERIA_PT: dict[str, str] = {
+    # SCA
+    "SCA-01": "≥ 1 achado alcançável com CVSS ≥ 7.0, ou ≥ 1 componente listado no catálogo CISA KEV (seja alcançável ou não).",
+    "SCA-02": "Qualquer dependência direta que tenha ultrapassado sua data de EOL, seja resolvida de fonte não confiável ou possua nota `Maintained` abaixo de 5 no OpenSSF Scorecard.",
+    "SCA-03": "≥ 1 achado de severidade ALTA (HIGH) ou CRÍTICA (CRITICAL) na imagem base ou pacotes do SO sem marcação `will_not_fix` e mitigação documentada.",
+    "SCA-04": "SBOM publicado ausente, inválido ou fora do padrão CycloneDX 1.5+ / SPDX 2.3+; componente sem elementos mínimos da NTIA; ou ≥ 1 componente presente no SBOM gerado pelo avaliador e ausente no publicado.",
+    "SCA-05": "≥ 1 componente corresponde a um alerta `MAL-` ou ao critério de similaridade de typosquatting.",
+    # SAST
+    "SAST-01": "≥ 1 achado de segredo fixado (hardcoded) em nível `error` após triagem.",
+    "SAST-02": "≥ 1 arquivo de chave privada/keystore ou bloco PEM `PRIVATE KEY` encontrado no repositório ou artefatos.",
+    "SAST-03": "≥ 1 achado em nível `error` de uso de algoritmo de cifra banido (DES, 3DES, RC4, Blowfish ou modo ECB).",
+    "SAST-04": "≥ 1 fluxo de dados em nível `error` partindo de um hash fraco (MD5 ou SHA-1) para um contexto relevante de segurança.",
+    "SAST-05": "Qualquer ponto de persistência de senha usando função fora da lista aprovada, parâmetros abaixo do piso do NIST SP 800-63B, ou salt ausente/constante/não-CSPRNG.",
+    "SAST-06": "≥ 1 fluxo de dados em nível `error` de uma fonte não-CSPRNG (ex.: `Math.random()`) para um contexto relevante de segurança.",
+    "SAST-07": "≥ 1 achado em nível `error` de auto-binding irrestrito, ou ≥ 1 campo privilegiado injetado que persista como alterado.",
+    "SAST-08": "≥ 1 achado em nível `error` de construção de consulta SQL/NoSQL com entrada não confiável concatenada ou interpolada.",
+    "SAST-09": "≥ 1 achado em nível `error` de desserialização de entrada não confiável sem allowlist de tipos, `ObjectInputFilter` ou verificação de integridade.",
+    "SAST-10": "≥ 1 fluxo de dados em nível `error` de entrada não confiável para um ponto de execução dinâmica de código.",
+    "SAST-11": "≥ 1 achado em nível `error` de Path Traversal em metadados ou caminhos fornecidos pelo usuário.",
+    "SAST-12": "≥ 1 segredo ativo confirmado que esteja fixado em arquivos de configuração, código, IaC ou camadas de imagem em vez de um cofre de segredos.",
+    "SAST-13": "≥ 1 valor sensível/canário gravado em texto claro nos logs, ou ≥ 1 fluxo de dados não mascarado de credenciais/tokens para um ponto de log.",
+    "SAST-14": "≥ 1 backdoor, conta não documentada ou bomba lógica confirmada na triagem, ou artefato distribuído que não pode ser reproduzido a partir do código-fonte fornecido.",
+    # TLS
+    "TLS-01": "Um host declarado não conclui handshake TLS na porta 443; ≥ 1 requisição na porta 80 é respondida sem redirecionamento `3xx` para `https`; ou conteúdo da aplicação é servido em texto claro (HTTP).",
+    "TLS-02": "Qualquer protocolo legado (SSLv2, SSLv3, TLS 1.0 ou TLS 1.1) está habilitado, ou o host não conclui handshake com TLS 1.2 ou TLS 1.3.",
+    "TLS-03": "≥ 1 suíte de cifra banida (NULL, EXPORT, anônima, RC4, 3DES, CBC-SHA1) é oferecida, ou ≥ 1 suíte TLS 1.2 sem Forward Secrecy é aceita.",
+    "TLS-04": "Qualquer erro de validação na cadeia de certificados, certificado expirado ou divergência de hostname (CN/SAN).",
+    "TLS-05": "Cabeçalho `Strict-Transport-Security` ausente em qualquer host, ou diretiva `max-age` inferior a 31536000.",
+    "TLS-06": "≥ 1 vulnerabilidade de implementação TLS reportada em severidade ALTA (HIGH) ou CRÍTICA (CRITICAL).",
+    # CFG
+    "CFG-01": "≥ 1 corpo de resposta expõe listagem de diretórios.",
+    "CFG-02": "≥ 1 console de debug, profiler ou endpoint de métricas/actuator retorna `2xx` sem autenticação, ou ≥ 1 resposta contém assinatura de página de debug de framework.",
+    "CFG-03": "≥ 1 token de versão de servidor, framework ou runtime exposto nos cabeçalhos ou corpos de resposta.",
+    "CFG-04": "Cabeçalho CSP ausente em qualquer resposta HTML, ou presença de `unsafe-inline`, `unsafe-eval`, `*` ou `data:` na diretiva `script-src` efetiva.",
+    "CFG-05": "≥ 1 resposta HTML sem `frame-ancestors` restritivo e sem `X-Frame-Options: DENY` ou `SAMEORIGIN`.",
+    "CFG-06": "Cabeçalho `X-Content-Type-Options: nosniff` ausente em qualquer resposta.",
+    "CFG-07": "≥ 1 resposta autenticada ou sensível sem a diretiva `Cache-Control: no-store`.",
+    "CFG-08": "Qualquer origem arbitrária refletida em `Access-Control-Allow-Origin`, origem `null` aceita, ou curinga (`*`) combinado com `Access-Control-Allow-Credentials: true`.",
+    "CFG-09": "≥ 1 resposta de erro `4xx` ou `5xx` contendo stack trace, caminho interno de arquivo, erro de sintaxe SQL ou detalhe interno de roteamento.",
+    "CFG-10": "≥ 1 rota autenticada ou interface administrativa acessível sem credenciais válidas.",
+    "CFG-11": "≥ 1 registro DNS em um host declarado ou em sua cadeia CNAME aponta para serviço externo não reivindicado (Subdomain Takeover).",
+    # AUT
+    "AUT-01": "≥ 1 par de credenciais padrão ou de fabricante autentica com sucesso.",
+    "AUT-02": "Qualquer token de sessão repetido na amostra, ou entropia mínima estimada inferior a 64 bits.",
+    "AUT-03": "Identificador de sessão permanece inalterado após o login, ou o identificador pré-autenticação continua válido.",
+    "AUT-04": "≥ 1 token de sessão, access token ou credencial exposto em URL, query string, fragmento ou cabeçalho `Referer`.",
+    "AUT-05": "O cookie de sessão ou o token de autenticação continua sendo aceito pelo servidor após o logout.",
+    "AUT-06": "≥ 1 cookie de sessão definido sem `Secure`, sem `HttpOnly`, ou sem `SameSite=Lax`/`Strict`.",
+    "AUT-07": "Qualquer token forjado é aceito; uso de algoritmo fora da lista permitida; chave HMAC < 256 bits; ou token stateless sem expiração (`exp`) ou com validade superior a 86400 segundos (24h).",
+    "AUT-08": "≥ 1 token de autenticação, JWT, credencial ou dado sensível armazenado em `localStorage`/`sessionStorage`/`IndexedDB`/cookie não-HttpOnly, ou material de autenticação que persiste após o logout.",
+    "AUT-09": "A 101ª tentativa falha de login não é contida por bloqueio, HTTP 429, CAPTCHA ou MFA.",
+    "AUT-10": "A requisição protegida continua sendo aceita após a janela de inatividade declarada (ou 8h), ou a expiração ocorre apenas no código cliente.",
+    "AUT-11": "A sessão secundária sobrevive à troca de senha; o código out-of-band ou link de reset é aceito mais de uma vez ou após expirar (10 min / 60 min); ou a entropia é inferior a 20 bits.",
+    "AUT-12": "≥ 1 rota ou função administrativa é acessível apenas com a senha, antes da validação do segundo fator (MFA).",
+    # AZI
+    "AZI-01": "≥ 1 requisição que altera estado é aceita sem token anti-CSRF válido vinculado à sessão, ou o cookie de sessão usa `SameSite=None`.",
+    "AZI-02": "≥ 1 vulnerabilidade de Cross-Site Scripting (XSS) confirmada por execução ou reproduzida como explorável.",
+    "AZI-03": "≥ 1 parâmetro vulnerável a injeção de SQL ou NoSQL.",
+    "AZI-04": "≥ 1 execução de comando do sistema operacional ou código confirmada via callback ou saída na resposta.",
+    "AZI-05": "≥ 1 resposta retorna conteúdo de arquivos fora do diretório permitido (Path Traversal / LFI) ou permite inclusão remota.",
+    "AZI-06": "≥ 1 redirecionamento para domínio externo não autorizado (Open Redirect), ou manipulação de parâmetros duplicados (HPP) que contorne autorização.",
+    "AZI-07": "≥ 1 funcionalidade restrita na interface cuja chamada direta pela API com perfil de menor privilégio seja aceita pelo servidor.",
+    "AZI-08": "≥ 1 objeto criado por outra conta ou outro locatário (tenant) pode ser lido, modificado ou excluído indevidamente (IDOR / BOLA).",
+    "AZI-09": "≥ 1 função administrativa ou de outro perfil pode ser executada por um papel não autorizado (escalonamento horizontal ou vertical).",
+    "AZI-10": "≥ 1 atributo de controle de acesso adulterado pelo usuário concede acesso indevido, ou uma exceção forçada resulta em liberação de acesso.",
+    "AZI-11": "≥ 1 payload faz o servidor buscar um endereço interno ou serviço de metadados em nuvem (SSRF).",
+    "AZI-12": "≥ 1 payload de Template Injection (SSTI), XPath ou XML/XXE é executado ou expande entidades externas.",
+    "AZI-13": "≥ 1 tipo de arquivo não permitido é aceito no upload, ou ≥ 1 arquivo enviado é servido inline como HTML/JS/SVG executável sem `Content-Disposition: attachment` e `nosniff`.",
+    # OAU
+    "OAU-01": "Uso de `response_type` diferente de `code` (como `token` no fluxo Implicit) ou uso de `grant_type=password` (ROPC).",
+    "OAU-02": "Ausência de `code_challenge`, uso de método diferente de `S256`, desafio com menos de 43 caracteres ou troca de token aceita sem `code_verifier` válido.",
+    "OAU-03": "Presença de curinga (`*`) ou `http:` não-loopback em `redirect_uri`, ou redirecionamento aberto no endpoint de callback.",
+    "OAU-04": "Entropia do parâmetro `state` < 128 bits, repetição de valores, aceitação de callback sem `state` válido vinculado à sessão, ou aceitação de ID token sem validação de `nonce`.",
+    "OAU-05": "O endpoint de autorização OAuth é carregado dentro de uma WebView embutida no aplicativo (`WebView`, `WKWebView`, `SFSafariViewController`).",
+    "OAU-06": "≥ 1 segredo extraído do binário/pacote de cliente público é aceito como `client_secret` pelo provedor de identidade.",
+    "OAU-07": "≥ 1 access token ou refresh token armazenado em `localStorage`, `sessionStorage`, `IndexedDB` ou cookie sem `HttpOnly; Secure`.",
+    "OAU-08": "≥ 1 access token transmitido em query string de URL, fragmento ou corpo em vez do cabeçalho `Authorization`.",
+    "OAU-09": "≥ 1 token forjado (sem assinatura, chave externa, expirado, `aud`/`iss` inválidos ou escopo insuficiente) é aceito pelo backend.",
+    "OAU-10": "Um refresh token substituído ou revogado continua válido, tokens são duplicados em múltiplos armazenamentos, ou falha de refresh dispara reautorização silenciosa.",
+    "OAU-11": "≥ 1 access token ou refresh token continua sendo aceito após logout, revogação ou exclusão da conta.",
+    # WHK
+    "WHK-01": "≥ 1 entrega de webhook aceita sobre HTTP em texto claro ou negociação de versão legada de TLS (1.0/1.1).",
+    "WHK-02": "Aceitação de payload de webhook sem assinatura válida, uso de algoritmo inferior ao HMAC-SHA256, ou comparação de assinatura vulnerável a ataque de tempo (timing attack).",
+    "WHK-03": "≥ 1 requisição de webhook disparada para endereço interno/metadados (SSRF) ou segredo de assinatura de webhook fixado no código-fonte.",
+    "WHK-04": "Um payload de webhook reproduzido após a janela de tempo permitida é aceito, ou uma entrega duplicada provoca mudança de estado em duplicidade.",
+}
+
+PROCEDURES_PT: dict[str, list[str]] = {
+    "SCA-01": ["Gerar um inventário de dependências (SBOM) a partir dos lockfiles e imagens de contêiner da aplicação, consultar as bases de vulnerabilidades (NVD, OSV.dev), verificar a alcançabilidade no grafo de chamadas para achados Críticos/Altos e confrontar todos os componentes com o catálogo CISA KEV."],
+    "SCA-02": ["Para cada dependência direta, resolver seu registro de origem a partir do lockfile, verificar o sinal de manutenção no OpenSSF Scorecard e confrontar a versão com a data publicada de fim de vida útil (EOL)."],
+    "SCA-03": ["Escanear todas as imagens de contêiner declaradas em busca de vulnerabilidades em pacotes do sistema operacional e camadas base."],
+    "SCA-04": ["Gerar um SBOM de forma independente a partir dos lockfiles e imagens da aplicação, obter o SBOM publicado pelo desenvolvedor para a mesma build e comparar as duas listas de componentes."],
+    "SCA-05": ["Confrontar todas as dependências com o feed de pacotes maliciosos do OpenSSF (`MAL-*`) e verificar a distância de edição dos nomes de pacotes em relação aos pacotes mais populares do registro."],
+    "SAST-01": ["Executar detecção de segredos sobre o repositório de código-fonte, configurações de build e artefatos distribuídos usando detectores baseados em padrões e entropia, realizando a triagem de cada achado."],
+    "SAST-02": ["Executar detecção de chaves privadas em todo o histórico do repositório e inspecionar os artefatos distribuídos em busca de arquivos de certificado/keystore e blocos PEM `PRIVATE KEY`."],
+    "SAST-03": ["Executar regras de análise estática de criptografia sobre o código-fonte para localizar usos de algoritmos de cifra obsoletos/quebrados (DES, 3DES, RC4, Blowfish) ou modo ECB."],
+    "SAST-04": ["Executar regras de análise estática com rastreamento de fluxo de dados (taint tracking) partindo de chamadas MD5 e SHA-1 até pontos de assinatura, geração de tokens, senhas, verificação de integridade e derivação de chaves."],
+    "SAST-05": ["Localizar todos os pontos onde senhas são persistidas no código e extrair a função de derivação de chave (KDF), seus parâmetros de custo/memória e a geração de salt via CSPRNG."],
+    "SAST-06": ["Executar regras estáticas que identificam fontes de aleatoriedade não criptográficas (`Math.random()`, seeds baseadas em tempo) até pontos de geração de tokens, chaves, nonces, salts, IVs e links de redefinição."],
+    "SAST-07": ["Executar regras estáticas para identificar auto-binding irrestrito de modelos ORM e enviar requisições de atualização contendo campos privilegiados injetados para verificar se persistem."],
+    "SAST-08": ["Executar regras de análise estática de injeção de SQL/NoSQL em todos os caminhos de acesso a banco de dados no código-fonte."],
+    "SAST-09": ["Executar regras estáticas de desserialização em todos os pontos que processam fluxos de objetos nativos, YAML, XML, pickle ou equivalentes."],
+    "SAST-10": ["Executar regras estáticas para execução dinâmica de código (`eval`, `Function`, `vm.runInContext`), execução de comandos e reflexão com rastreamento de fluxo de dados a partir das entradas da requisição."],
+    "SAST-11": ["Executar regras estáticas de Path Traversal com rastreamento de fluxo de dados partindo de parâmetros de requisição e nomes de arquivos enviados até APIs do sistema de arquivos."],
+    "SAST-12": ["Executar detectores de segredos e regras de configuração/IaC sobre o repositório e camadas de imagem, verificando se os segredos são carregados via cofre gerenciado (secrets manager) ou montagem em tempo de execução."],
+    "SAST-13": ["Executar regras estáticas de pontos de log a partir de fontes de credenciais, tokens e cartões, e reproduzir fluxos de autenticação com valores canário verificando se aparecem nos logs."],
+    "SAST-14": ["Executar regras de detecção de backdoors e bombas lógicas sobre o código-fonte (comparações fixas de contas e desvios ativados por data/hora em fluxos de segurança) e comparar o digest da build gerada a partir do código com o artefato distribuído.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "TLS-01": ["Executar avaliação TLS contra todos os hosts declarados e testar a porta 80 para verificar se o tráfego em texto claro é recusado ou redirecionado para HTTPS."],
+    "TLS-02": ["Na avaliação TLS, inspecionar as versões de protocolo oferecidas por cada host declarado (exigindo TLS 1.2/1.3 e rejeitando SSLv2, SSLv3, TLS 1.0 e TLS 1.1)."],
+    "TLS-03": ["Na avaliação TLS, verificar as suítes de cifra oferecidas por cada host declarado e confirmar a preferência por suítes com Forward Secrecy."],
+    "TLS-04": ["Validar a cadeia de certificados de cada host declarado contra uma raiz pública confiável e verificar a correspondência do hostname (CN/SAN) e a data de expiração."],
+    "TLS-05": ["Ler o cabeçalho `Strict-Transport-Security` e validar se a diretiva `max-age` é ≥ 31536000 em todos os hosts declarados."],
+    "TLS-06": ["Executar verificações de vulnerabilidades conhecidas de implementação TLS (Heartbleed, ROBOT, renegociação insegura, CRIME) contra cada host declarado."],
+    "CFG-01": ["Mapear as rotas da aplicação web e requisitar cada prefixo de diretório descoberto (ex.: `/ftp`, `/assets`) observando se uma listagem de diretórios é retornada."],
+    "CFG-02": ["Requisitar endpoints conhecidos de depuração, diagnóstico, profiler e métricas (ex.: `/metrics`, `/actuator`, consoles de debug) em todos os hosts declarados."],
+    "CFG-03": ["Inspecionar os cabeçalhos e corpos de resposta em busca de identificadores detalhados de versão de servidor, framework e runtime."],
+    "CFG-04": ["Coletar os cabeçalhos de todas as rotas HTML e avaliar a política `Content-Security-Policy` quanto à ausência de `unsafe-inline`, `unsafe-eval`, `*` e `data:` em `script-src`."],
+    "CFG-05": ["Inspecionar os cabeçalhos de resposta em todas as rotas HTML verificando a presença de `frame-ancestors` no CSP ou `X-Frame-Options` (`DENY` / `SAMEORIGIN`)."],
+    "CFG-06": ["Inspecionar os cabeçalhos de todas as respostas verificando a presença de `X-Content-Type-Options: nosniff`."],
+    "CFG-07": ["Inspecionar os cabeçalhos de todas as respostas autenticadas e sensíveis verificando a presença de `Cache-Control: no-store`."],
+    "CFG-08": ["Enviar requisições com cabeçalhos `Origin` externos arbitrários e origem `null`, inspecionando os cabeçalhos CORS (`Access-Control-Allow-Origin` e `Access-Control-Allow-Credentials`)."],
+    "CFG-09": ["Enviar entradas malformadas e caracteres especiais (ex.: `'`, `'))`) que forcem erros no servidor e inspecionar se as respostas `4xx`/`5xx` vazam stack traces ou erros de banco de dados."],
+    "CFG-10": ["Reproduzir as rotas autenticadas e uma lista de caminhos administrativos comuns sem credenciais, verificando se o acesso é negado."],
+    "CFG-11": ["Resolver o DNS de cada host declarado, seguir toda a cadeia CNAME e verificar se algum alvo aponta para serviços externos não reivindicados."],
+    "AUT-01": ["Testar um corpus de credenciais padrão e credenciais default do fabricante contra todos os endpoints de autenticação da aplicação."],
+    "AUT-02": ["Coletar 200 tokens de sessão de novas autenticações e calcular a estimativa de entropia mínima (≥ 64 bits)."],
+    "AUT-03": ["Capturar o identificador de sessão antes da autenticação, realizar o login, capturar o novo identificador e testar se o identificador antigo foi invalidado."],
+    "AUT-04": ["Analisar o registro de tráfego HTTP (HAR), incluindo cabeçalhos `Referer` de saída, procurando tokens de sessão ou credenciais expostos na URL."],
+    "AUT-05": ["Realizar logout na aplicação e, em seguida, reproduzir (replay) o cookie de sessão e o token de autenticação contra rotas protegidas."],
+    "AUT-06": ["Identificar os cookies de sessão e inspecionar todos os cabeçalhos `Set-Cookie` correspondentes quanto à presença dos atributos `Secure`, `HttpOnly` e `SameSite` (`Lax` ou `Strict`)."],
+    "AUT-07": ["Submeter tokens JWT forjados (sem assinatura, com confusão de algoritmo RS256→HS256, chave externa e payload modificado) a rotas protegidas e verificar o algoritmo e tempo de expiração (`exp` ≤ 24h)."],
+    "AUT-08": ["Inspecionar o armazenamento do navegador (`localStorage`, `sessionStorage`, `IndexedDB` e cookies não-HttpOnly) antes e após o logout em busca de tokens ou dados sensíveis."],
+    "AUT-09": ["Disparar 120 tentativas falhas de autenticação contra uma conta de teste em até 60 minutos e registrar todas as respostas para verificar o bloqueio até a 101ª tentativa.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AUT-10": ["Obter a janela de timeout de inatividade declarada, manter uma sessão autenticada ociosa até ultrapassar a janela e reproduzir uma requisição protegida para verificar se o servidor impõe a expiração.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AUT-11": ["Na sessão A alterar a senha e reproduzir a sessão B; solicitar código out-of-band e link de redefinição, tentando reutilizá-los uma segunda vez e após os limites de 10 min e 60 min; coletar 200 amostras para estimar a entropia (≥ 20 bits).", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AUT-12": ["Fazer login em cada interface administrativa declarada com conta administrativa; após a senha ser aceita e antes de concluir o segundo fator (MFA), reproduzir requisições para rotas administrativas pelo proxy e verificar se são negadas.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AZI-01": ["Reproduzir todas as requisições autenticadas que alteram estado removendo o token anti-CSRF, substituindo-o por valor inválido e usando token de outra sessão."],
+    "AZI-02": ["Executar varredura ativa autenticada de Cross-Site Scripting (refletido, armazenado e DOM-based) em todas as rotas e entradas da aplicação."],
+    "AZI-03": ["Executar varredura ativa de injeção de SQL e payloads de injeção de operadores NoSQL em todos os parâmetros e endpoints de login/busca."],
+    "AZI-04": ["Enviar payloads de injeção de comandos do sistema operacional (com callbacks DNS/HTTP e marcadores de saída) em todos os parâmetros."],
+    "AZI-05": ["Enviar payloads de Path Traversal e inclusão de arquivos (codificados, duplamente codificados, com null-byte `%00`, caminhos absolutos) em todos os parâmetros e rotas de arquivos."],
+    "AZI-06": ["Enviar payloads de redirecionamento aberto (Open Redirect) em todos os parâmetros de destino de URL e testar parâmetros duplicados (HPP) em endpoints de autorização."],
+    "AZI-07": ["Inventariar controles de acesso visíveis no cliente e comparar, endpoint por endpoint, o comportamento do servidor quando chamados diretamente por um perfil de menor privilégio.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AZI-08": ["Usando dois locatários (tenants) e múltiplas contas, criar objetos em cada conta e reproduzir os identificadores do Tenant A a partir de uma sessão do Tenant B e de outra conta de mesmo nível ou nível inferior.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AZI-09": ["Construir a matriz de papéis (roles) da aplicação, exercitar cada função a partir de todos os papéis e invocar rotas exclusivas de administrador a partir de uma sessão de baixo privilégio.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AZI-10": ["Em cada endpoint, adulterar atributos de controle de acesso (role, tenant ID, escopo, claims) e injetar falhas que forcem exceções na camada de autorização para verificar se o acesso é negado.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AZI-11": ["Testar todos os parâmetros que aceitam URLs contra servidor de interação out-of-band, endereços internos de loopback/rede privada, metadados de nuvem (`169.254.169.254`), cadeias de redirecionamento e DNS rebinding.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AZI-12": ["Submeter payloads de Server-Side Template Injection (SSTI), XPath e XML/XXE (incluindo entidades externas) em todos os parâmetros processados por templates ou parsers XML.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "AZI-13": ["Obter a lista de tipos de arquivo permitidos, enviar uma matriz de arquivos maliciosos (poliglotas, dupla extensão, divergência de MIME, HTML/SVG/JS) e observar se são bloqueados ou servidos com `Content-Disposition: attachment` e `nosniff`.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "OAU-01": ["Concluir o fluxo de login OAuth pelo proxy interceptador e verificar o `response_type` e `grant_type`, além de inspecionar o código-fonte em busca de fluxos Implicit ou ROPC."],
+    "OAU-02": ["A partir do fluxo de autorização OAuth capturado e do código cliente, verificar a presença dos parâmetros PKCE (`code_challenge`, `code_challenge_method=S256` e `code_verifier`)."],
+    "OAU-03": ["Verificar as URIs de redirecionamento registradas e realizar fuzzing nos parâmetros `redirect`, `next`, `continue`, `return_to` e `RelayState` do endpoint de callback."],
+    "OAU-04": ["Capturar 200 requisições de autorização para estimar a entropia do parâmetro `state` (≥ 128 bits) e reproduzir o callback omitindo, repetindo ou alterando o `state` e o `nonce`."],
+    "OAU-05": ["Observar qual componente apresenta a tela de autorização em clientes móveis/nativos e inspecionar o binário em busca de WebViews embutidas."],
+    "OAU-06": ["Extrair strings e constantes do binário/pacote cliente público em busca de segredos OAuth (`client_secret`) e testar candidatos contra o endpoint de token."],
+    "OAU-07": ["Enumerar o armazenamento do navegador (`localStorage`, `sessionStorage`, `IndexedDB`) e de aplicativos móveis para verificar se access/refresh tokens estão salvos fora de cookies `HttpOnly; Secure` ou Keystore/Keychain."],
+    "OAU-08": ["Analisar o tráfego capturado (HAR) para todas as requisições que transportam access tokens e verificar se aparecem exclusivamente no cabeçalho `Authorization`."],
+    "OAU-09": ["Reproduzir tokens forjados (sem assinatura, chave externa, expirado, `aud` incorreto, `iss` incorreto e `scope` insuficiente) contra os endpoints do backend e confirmar a rejeição."],
+    "OAU-10": ["Renovar o refresh token repetidamente, induzir falha de renovação, revogar o token no servidor e inspecionar todos os locais de armazenamento após cada ciclo.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "OAU-11": ["Executar logout, revogação na aplicação e exclusão de conta e, após cada evento, reproduzir o access token e o refresh token contra a API do provedor de identidade e o backend da aplicação.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+    "WHK-01": ["Tentar entregar eventos em cada receptor de webhook declarado usando HTTP em texto claro e TLS 1.0/1.1, e executar avaliação TLS no host receptor."],
+    "WHK-02": ["Entregar payloads de webhook sem assinatura, com assinatura truncada, modificada e com chave externa, além de inspecionar no código o algoritmo HMAC-SHA256+ e o uso de função de comparação em tempo constante."],
+    "WHK-03": ["Tentar registrar URLs de callback apontando para endereços privados, loopback, link-local e metadados em nuvem (incluindo redirecionamentos e DNS rebinding) e escanear o código em busca de segredos de webhook fixados."],
+    "WHK-04": ["Obter a janela de aceitação na documentação do webhook, reenviar um payload validamente assinado imediatamente, no limite da janela e após sua expiração, e enviar payloads com chaves de idempotência duplicadas.", "A adjudicação do laboratório sobre a saída da ferramenta decide o veredito."],
+}
+
+EVIDENCE_TRANSLATIONS: list[tuple[str, str]] = [
+    (
+        "Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability findings in SARIF 2.1.0.",
+        "SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) e achados de vulnerabilidade em SARIF 2.1.0.",
+    ),
+    (
+        "Produced by the ADA-approved lab. Developer-supplied scan output or attestations are not accepted.",
+        "Produzido pelo laboratório/avaliador. Saídas de scan ou atestações fornecidas pelo desenvolvedor não são aceitas.",
+    ),
+    (
+        "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule identifiers and file locations.",
+        "Achados de análise estática e varredura de segredos em SARIF 2.1.0, com identificadores de regra e localização nos arquivos.",
+    ),
+    (
+        "JSON output of `testssl.sh` (or equivalent structured TLS assessment) and a redacted HAR 1.2 capture of the port-80 probe.",
+        "Saída JSON do `testssl.sh` (ou avaliação TLS estruturada equivalente) e captura HAR 1.2 redigida do teste na porta 80.",
+    ),
+    (
+        "JSON output of `testssl.sh` (or equivalent structured TLS assessment).",
+        "Saída JSON do `testssl.sh` (ou avaliação TLS estruturada equivalente).",
+    ),
+    (
+        "DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the requests and responses.",
+        "Achados de DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições e respostas.",
+    ),
+    (
+        "Harness and DAST findings in SARIF 2.1.0 and a redacted HAR 1.2 capture of the replayed requests.",
+        "Achados do harness e DAST em SARIF 2.1.0 e captura HAR 1.2 redigida das requisições reproduzidas.",
+    ),
+    (
+        "Authenticated DAST and harness findings in SARIF 2.1.0 and a redacted HAR 1.2 capture.",
+        "Achados de DAST autenticado e harness em SARIF 2.1.0 e captura HAR 1.2 redigida.",
+    ),
+    (
+        "Redacted HAR 1.2 capture of the authorization flow; SARIF 2.1.0 where a client artifact is analysed statically.",
+        "Captura HAR 1.2 redigida do fluxo de autorização; SARIF 2.1.0 quando um artefato cliente é analisado estaticamente.",
+    ),
+    (
+        "Redacted HAR 1.2 capture of delivery attempts, `testssl.sh` JSON for the receiver host, and SARIF 2.1.0 for static checks.",
+        "Captura HAR 1.2 redigida das tentativas de entrega, JSON do `testssl.sh` para o host receptor e SARIF 2.1.0 para as verificações estáticas.",
+    ),
 ]
 
 
-def translate_text_pt(text: str) -> str:
-    if not text:
-        return ""
-    out = text
-    for en_str, pt_str in PHRASE_REPLACEMENTS:
-        out = out.replace(en_str, pt_str)
+def translate_evidence_item_pt(item: str) -> str:
+    out = item.strip()
+    for en_s, pt_s in EVIDENCE_TRANSLATIONS:
+        out = out.replace(en_s, pt_s)
     return out
+
+
+def build_checklist_pt(cid: str, ev_items_pt: list[str], proc_items_pt: list[str], pass_pt: str) -> list[str]:
+    checklist: list[str] = []
+    for ev in ev_items_pt:
+        if "não são aceitas" not in ev.lower() and "not accepted" not in ev.lower():
+            checklist.append(f"Evidência coletada: {ev}")
+    for pr in proc_items_pt:
+        if "adjudicação do laboratório" not in pr.lower() and "lab adjudication" not in pr.lower():
+            checklist.append(pr)
+    if pass_pt:
+        checklist.append(f"Critério de PASS verificado: {pass_pt}")
+    return checklist

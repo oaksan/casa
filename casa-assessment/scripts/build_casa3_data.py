@@ -9,7 +9,15 @@ import json
 import re
 from pathlib import Path
 
-from pt_translations import DOMAINS_PT, TITLES_PT, translate_text_pt
+from pt_translations import (
+    DOMAINS_PT,
+    FAIL_CRITERIA_PT,
+    PASS_CRITERIA_PT,
+    PROCEDURES_PT,
+    TITLES_PT,
+    build_checklist_pt,
+    translate_evidence_item_pt,
+)
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 CASA_DIR = ROOT_DIR / "CASA"
@@ -202,21 +210,28 @@ def main() -> None:
         pass_en = case.get("pass_criteria", "")
         fail_en = case.get("fail_criteria", "")
         chk_en = case.get("verification_checklist", [])
+
+        ev_pt = [translate_evidence_item_pt(x) for x in ev_en]
+        proc_pt = PROCEDURES_PT.get(cid, proc_en)
+        pass_pt = PASS_CRITERIA_PT.get(cid, pass_en)
+        fail_pt = FAIL_CRITERIA_PT.get(cid, fail_en)
+        chk_pt = build_checklist_pt(cid, ev_pt, proc_pt, pass_pt)
+
         merged = {
             **spec,
             "domain_pt": DOMAINS_PT.get(spec["domain"], spec["domain"]),
             "title_pt": TITLES_PT.get(cid, spec["title"]),
             "evidence_items": ev_en,
-            "evidence_items_pt": [translate_text_pt(x) for x in ev_en],
+            "evidence_items_pt": ev_pt,
             "procedure_items": proc_en,
-            "procedure_items_pt": [translate_text_pt(x) for x in proc_en],
+            "procedure_items_pt": proc_pt,
             "reference_tooling": case.get("reference_tooling", []),
             "pass_criteria": pass_en,
-            "pass_criteria_pt": translate_text_pt(pass_en),
+            "pass_criteria_pt": pass_pt,
             "fail_criteria": fail_en,
-            "fail_criteria_pt": translate_text_pt(fail_en),
+            "fail_criteria_pt": fail_pt,
             "verification_checklist": chk_en,
-            "verification_checklist_pt": [translate_text_pt(x) for x in chk_en],
+            "verification_checklist_pt": chk_pt,
         }
         all_controls.append(merged)
 

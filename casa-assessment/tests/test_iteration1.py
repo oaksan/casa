@@ -35,6 +35,10 @@ class TestCasa3Iteration1(unittest.TestCase):
             self.assertTrue(c.get("domain_pt"), f"{c['id']} missing domain_pt")
             self.assertTrue(c.get("pass_criteria_pt"), f"{c['id']} missing pass_criteria_pt")
             self.assertTrue(c.get("fail_criteria_pt"), f"{c['id']} missing fail_criteria_pt")
+            self.assertNotEqual(c["pass_criteria_pt"], c["pass_criteria"], f"{c['id']} pass_criteria_pt not translated")
+            self.assertNotEqual(c["fail_criteria_pt"], c["fail_criteria"], f"{c['id']} fail_criteria_pt not translated")
+            for forbidden_en in ["and whose", "whose vulnerable", "Every direct", "findings at"]:
+                self.assertNotIn(forbidden_en, c["pass_criteria_pt"], f"{c['id']} contains untranslated '{forbidden_en}'")
 
         for c in al1:
             self.assertEqual(c["automation"], "automated")

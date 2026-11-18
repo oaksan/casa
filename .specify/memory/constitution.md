@@ -26,5 +26,8 @@ Assessment state (`localStorage`) and screenshot evidence (`IndexedDB`) persist 
 
 ## Governance
 All iterations follow the SpecKit Spec-Driven Development (SDD) lifecycle (`spec.md` → `plan.md` → `tasks.md` → implementation & validation).
+At the end of every SDD iteration `NNN`:
+1. All changes MUST be committed and pushed to `https://github.com/oaksan/casa`.
+2. A full rollback archive of `/home/user/felipe/speckit/casa` MUST be created at `/home/user/felipe/speckit/casa-NNN.zip`.
 
-**Version**: 1.1.0 | **Ratified**: 2026-11-16 | **Last Amended**: 2026-11-16
+**Version**: 1.2.0 | **Ratified**: 2026-11-16 | **Last Amended**: 2026-11-18

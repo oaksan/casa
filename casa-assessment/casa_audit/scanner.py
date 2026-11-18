@@ -4811,16 +4811,137 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-06: Session cookies set Secure, HttpOnly and SameSite
-    set_cookie = l_hdrs.get("set-cookie", "") or root_headers.get("set-cookie", "")
-    cookie_bad = not set_cookie or ("secure" not in set_cookie.lower() or "httponly" not in set_cookie.lower() or "samesite" not in set_cookie.lower())
+    # AUT-06: Session cookie attributes (Secure, HttpOnly, SameSite=Lax|Strict) across crawl + client-side cookie audit (SARIF 2.1.0 + redacted HAR 1.2)
+    def split_set_cookie_headers(raw_hdr: str) -> list[str]:
+        if not raw_hdr.strip():
+            return []
+        # Split on comma only when followed by cookie name=value (avoid breaking Expires=Wed, 18 Nov...)
+        return [c.strip() for c in re.split(r",\s*(?=[A-Za-z0-9_.-]+=)", raw_hdr.strip()) if "=" in c]
+
+    def inspect_cookie_flags(cookie_str: str) -> dict:
+        parts = [p.strip() for p in cookie_str.split(";") if p.strip()]
+        name_val = parts[0] if parts else ""
+        cname = name_val.split("=", 1)[0].strip()
+        attr_map: dict[str, str] = {}
+        for attr in parts[1:]:
+            if "=" in attr:
+                ak, av = attr.split("=", 1)
+                attr_map[ak.strip().lower()] = av.strip().lower()
+            else:
+                attr_map[attr.strip().lower()] = "true"
+        has_secure = "secure" in attr_map
+        has_httponly = "httponly" in attr_map
+        ss_val = attr_map.get("samesite", "")
+        samesite_ok = ss_val in {"lax", "strict"}
+        missing: list[str] = []
+        if not has_secure:
+            missing.append("Secure")
+        if not has_httponly:
+            missing.append("HttpOnly")
+        if not samesite_ok:
+            missing.append(f"SameSite=Lax|Strict (got '{ss_val or '<missing>'}')")
+        return {"name": cname, "missing": missing, "samesite": ss_val or "<missing>"}
+
+    session_cookie_names = {"token", "session", "sessionid", "sid", "jsessionid", "phpsessid", "connect.sid", "auth_session", "refresh_token"}
+    set_cookie_count = 0
+    session_cookies_observed: list[dict] = []
+    cfg06_aut06_findings: list[dict] = []
+    seen_aut06_keys: set[tuple[str, str]] = set()
+
+    for ex6 in crawled_exchanges:
+        raw_sc = ex6["headers"].get("set-cookie", "").strip()
+        if not raw_sc:
+            continue
+        for single_sc in split_set_cookie_headers(raw_sc):
+            set_cookie_count += 1
+            parsed_ck = inspect_cookie_flags(single_sc)
+            ck_low = parsed_ck["name"].lower()
+            if ck_low in session_cookie_names or "sess" in ck_low or "token" in ck_low or "auth" in ck_low:
+                session_cookies_observed.append({"url": ex6["url"], **parsed_ck})
+                if parsed_ck["missing"]:
+                    dk = (ex6["url"], parsed_ck["name"])
+                    if dk not in seen_aut06_keys:
+                        seen_aut06_keys.add(dk)
+                        cfg06_aut06_findings.append(
+                            {
+                                "url": ex6["url"],
+                                "cookieName": parsed_ck["name"],
+                                "missing": parsed_ck["missing"],
+                                "detail": (
+                                    f"{ex6['method']} {ex6['url']} Set-Cookie '{parsed_ck['name']}' misses required attribute(s): "
+                                    f"{', '.join(parsed_ck['missing'])} (ASVS V3.4.1–V3.4.3)."
+                                ),
+                            }
+                        )
+
+    # Probe active session-cookie usage on backend & detect client-side JS session cookie setting (cannot set HttpOnly)
+    client_cookie_hits: list[str] = []
+    for rel_ck_path in ("frontend/src/app/login/login.component.ts", "frontend/src/app/oauth/oauth.component.ts"):
+        f_ck = repo / rel_ck_path
+        if f_ck.exists():
+            txt_ck = f_ck.read_text(encoding="utf-8", errors="ignore")
+            m_ck = re.search(r"cookieService\.put\(\s*['\"]token['\"][^\n]*\)", txt_ck)
+            if m_ck:
+                lno_ck = txt_ck[: m_ck.start()].count("\n") + 1
+                client_cookie_hits.append(f"{rel_ck_path}:{lno_ck} -> {m_ck.group(0).strip()}")
+
+    cookie_auth_probe_st = 0
+    if aut05_token:
+        # Test whether removing/supplying Cookie: token controls backend session recognition (req.cookies.token)
+        ca_st_with, _, _ = http_probe("/rest/user/whoami", headers={"Cookie": f"token={aut05_token}"})
+        ca_st_without, _, ca_body_without = http_probe("/rest/user/whoami")
+        cookie_auth_probe_st = ca_st_with
+
+    if not session_cookies_observed:
+        # Login issues token in JSON body without server Set-Cookie, and frontend persists session 'token' cookie via JS
+        detail_msg = (
+            f"POST {base_url}{aut02_login_ep} issues authentication session token in JSON body without any server-side "
+            f"Set-Cookie header (observed Set-Cookie headers across crawl={set_cookie_count}), while client-side JavaScript "
+            f"writes session cookie 'token' without HttpOnly, Secure, or SameSite=Lax|Strict "
+            f"({'; '.join(client_cookie_hits) if client_cookie_hits else 'client-side document.cookie'})."
+        )
+        cfg06_aut06_findings.append(
+            {
+                "url": f"{base_url}{aut02_login_ep}",
+                "cookieName": "token",
+                "missing": ["HttpOnly", "Secure", "SameSite=Lax|Strict", "Server-Issued Set-Cookie"],
+                "detail": detail_msg,
+            }
+        )
+
+    for af6 in cfg06_aut06_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AUT-06",
+                "level": "error",
+                "message": {"text": af6["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af6["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AUT-06",
+                    "cookieName": af6["cookieName"],
+                    "missingAttributes": af6["missing"],
+                    "cookieAuthProbeStatus": cookie_auth_probe_st,
+                },
+            }
+        )
+
+    cookie_bad = len(cfg06_aut06_findings) > 0
+    aut06_lines = [af6["detail"] for af6 in cfg06_aut06_findings]
     results["AUT-06"] = {
         "verdict": "FAIL" if cookie_bad else "PASS",
-        "tool": "Cookie Attribute Inspector (HAR 1.2)",
+        "tool": f"Crawl Set-Cookie & Session Cookie Attribute Inspector ({len(crawled_exchanges)} HTTP responses, {set_cookie_count} Set-Cookie header(s), SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] Authentication session token is returned in JSON body and set via client-side document.cookie / localStorage without HttpOnly, Secure, or SameSite attributes (Set-Cookie header: '{set_cookie or '<none>'}')."
+            f"[FAIL] {len(cfg06_aut06_findings)} session cookie attribute violation(s) (ASVS V3.4.1–V3.4.3):\n  - "
+            + "\n  - ".join(aut06_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if cookie_bad
-            else f"[PASS] Session cookie enforces Secure, HttpOnly, and SameSite: {set_cookie}"
+            else f"[PASS] Inspected {len(session_cookies_observed)} session Set-Cookie header(s) across {len(crawled_exchanges)} HTTP responses; 100% carry Secure, HttpOnly, and SameSite=Lax|Strict.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

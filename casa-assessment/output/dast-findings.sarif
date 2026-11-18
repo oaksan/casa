@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-OMPtdG9w/83DHWBzBcsAXNpvyFA\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-jTb75xtOS+bzJizJDklZoBJQ+FA\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/23 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-vQ3i6HeZ5Y9jXxjNJNh3ppykeCw\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/26 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-4+6d5HytddhtXFLPX4XDgNPtlAM\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/23"
+                  "uri": "http://localhost:3000/rest/basket/26"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/42 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-l4xK/S7LhAAFdVsd2MGbgFxDhgQ\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/45 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-DzTr3IyA92bBP0rTSgXMAVErqK8\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/42"
+                  "uri": "http://localhost:3000/api/Users/45"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-ITPI8dvL8NArQBi7qw/Ut4yjmpk\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-g3IWHdq1AV2u6VXbSjns7ReES/Q\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -2026,7 +2026,7 @@
           "ruleId": "CASA3-CFG-10",
           "level": "error",
           "message": {
-            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.926 >= 0.90)"
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.906 >= 0.90)"
           },
           "locations": [
             {
@@ -2042,7 +2042,7 @@
             "findingKind": "exposed_admin_wordlist_path",
             "unauthStatus": 200,
             "authStatus": 200,
-            "lcsSimilarity": 0.926
+            "lcsSimilarity": 0.906
           }
         },
         {
@@ -2182,7 +2182,7 @@
           "ruleId": "CASA3-AUT-02",
           "level": "error",
           "message": {
-            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 8.61s: only 9/200 distinct (191 exact duplicate tokens, max identical collision=34/200; NIST SP 800-90B MCV min-entropy=2.56 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
+            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 10.43s: only 11/200 distinct (189 exact duplicate tokens, max identical collision=26/200; NIST SP 800-90B MCV min-entropy=2.94 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
           },
           "locations": [
             {
@@ -2196,10 +2196,10 @@
           "properties": {
             "controlId": "AUT-02",
             "samplesCollected": 200,
-            "distinctTokens": 9,
-            "duplicateTokens": 191,
-            "maxCollisionFrequency": 34,
-            "minEntropyBits": 2.56
+            "distinctTokens": 11,
+            "duplicateTokens": 189,
+            "maxCollisionFrequency": 26,
+            "minEntropyBits": 2.94
           }
         },
         {
@@ -2287,13 +2287,13 @@
           "ruleId": "CASA3-AUT-05",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/23 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
+            "text": "GET http://localhost:3000/rest/basket/26 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/23"
+                  "uri": "http://localhost:3000/rest/basket/26"
                 }
               }
             }
@@ -2323,6 +2323,33 @@
             "controlId": "AUT-05",
             "httpStatus": 200,
             "serverLogoutRouteFound": false
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-06",
+          "level": "error",
+          "message": {
+            "text": "POST http://localhost:3000/rest/user/login issues authentication session token in JSON body without any server-side Set-Cookie header (observed Set-Cookie headers across crawl=0), while client-side JavaScript writes session cookie 'token' without HttpOnly, Secure, or SameSite=Lax|Strict (frontend/src/app/login/login.component.ts:113 -> cookieService.put('token', authentication.token, { expires }); frontend/src/app/oauth/oauth.component.ts:51 -> cookieService.put('token', authentication.token, { expires }))."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-06",
+            "cookieName": "token",
+            "missingAttributes": [
+              "HttpOnly",
+              "Secure",
+              "SameSite=Lax|Strict",
+              "Server-Issued Set-Cookie"
+            ],
+            "cookieAuthProbeStatus": 200
           }
         }
       ]

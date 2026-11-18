@@ -1794,6 +1794,78 @@ def evaluate_sast02_trust_material_and_keys(repo: Path) -> tuple[list[str], list
     return sast02_findings, sast02_sarif
 
 
+def evaluate_sast05_password_kdf(repo: Path) -> tuple[list[str], list[dict]]:
+    """
+    Evaluate SAST-05 (CASA 3.0 AL1 / ASVS V2.4.1 / NIST SP 800-63B §5.1.1.2):
+    Verify that every password-persistence sink uses an approved memory-hard KDF
+    (Argon2id m>=19456 KiB & t>=2, scrypt N>=32768, bcrypt cost>=10, PBKDF2>=600000)
+    with a per-record CSPRNG salt.
+    """
+    sast05_findings: list[str] = []
+    sast05_sarif: list[dict] = []
+
+    bcrypt_re = re.compile(r"bcrypt\.(?:hash|hashSync|genSalt|genSaltSync)\s*\([^,]+,\s*(\d+)")
+    pbkdf2_re = re.compile(r"(?:pbkdf2|pbkdf2Sync)\s*\([^,]+,\s*([^,]+),\s*(\d+)")
+    scrypt_re = re.compile(r"scrypt(?:Sync)?\s*\([^)]*?\b(?:N|cost)\s*:\s*(\d+)")
+    argon_m_re = re.compile(r"memoryCost\s*:\s*(\d+)")
+    argon_t_re = re.compile(r"timeCost\s*:\s*(\d+)")
+
+    for dname in ("models", "routes", "lib", "src", "app"):
+        dp = repo / dname
+        if not dp.is_dir():
+            continue
+        for fp in sorted(dp.rglob("*")):
+            if not fp.is_file() or fp.suffix not in {".ts", ".js", ".py"}:
+                continue
+            rel = str(fp.relative_to(repo))
+            if ".spec." in rel or "test/" in rel:
+                continue
+            try:
+                lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except Exception:
+                continue
+
+            for lno, line in enumerate(lines, start=1):
+                # 1. bcrypt cost check (< 10)
+                m_bc = bcrypt_re.search(line)
+                if m_bc:
+                    cost = int(m_bc.group(1))
+                    if cost < 10:
+                        desc = f"{rel}:{lno} — [WEAK KDF PARAMETER] bcrypt cost={cost} is below NIST SP 800-63B floor (cost >= 10)"
+                        sast05_findings.append(desc)
+                        sast05_sarif.append({"ruleId": "CASA3-SAST-05-kdf-floor", "level": "error", "message": {"text": desc}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}]})
+
+                # 2. PBKDF2 iterations (< 600000) and static salt check
+                m_pb = pbkdf2_re.search(line)
+                if m_pb:
+                    salt_arg, iters = m_pb.group(1).strip(), int(m_pb.group(2))
+                    if iters < 600000 or salt_arg.startswith(("'", '"')):
+                        desc = f"{rel}:{lno} — [WEAK PBKDF2] iterations={iters} (min 600000) or static salt={salt_arg} violates NIST SP 800-63B"
+                        sast05_findings.append(desc)
+                        sast05_sarif.append({"ruleId": "CASA3-SAST-05-kdf-floor", "level": "error", "message": {"text": desc}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}]})
+
+                # 3. scrypt N (< 32768)
+                m_sc = scrypt_re.search(line)
+                if m_sc:
+                    n_val = int(m_sc.group(1))
+                    if n_val < 32768:
+                        desc = f"{rel}:{lno} — [WEAK SCRYPT] cost parameter N={n_val} is below NIST SP 800-63B floor (N >= 32768)"
+                        sast05_findings.append(desc)
+                        sast05_sarif.append({"ruleId": "CASA3-SAST-05-kdf-floor", "level": "error", "message": {"text": desc}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}]})
+
+                # 4. Argon2id memoryCost (< 19456 KiB) / timeCost (< 2)
+                if "argon2" in line:
+                    mm = argon_m_re.search(line)
+                    mt = argon_t_re.search(line)
+                    if (mm and int(mm.group(1)) < 19456) or (mt and int(mt.group(1)) < 2):
+                        desc = f"{rel}:{lno} — [WEAK ARGON2ID] parameters below NIST SP 800-63B floor (m >= 19456 KiB, t >= 2)"
+                        sast05_findings.append(desc)
+                        sast05_sarif.append({"ruleId": "CASA3-SAST-05-kdf-floor", "level": "error", "message": {"text": desc}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}]})
+
+    return sast05_findings, sast05_sarif
+
+
+
 def run_sast_checks(repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -1877,7 +1949,16 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             findings_by_sast_id["SAST-02"].append(ef2)
             existing_sast02_locs.add(loc_prefix2)
 
-    combined_extra_sarif = sast01_extra_sarif + sast02_extra_sarif
+    # SAST-05: Combine Semgrep AST rules with NIST SP 800-63B KDF parameter & salt inspector
+    sast05_extra_findings, sast05_extra_sarif = evaluate_sast05_password_kdf(repo)
+    existing_sast05_locs = {f.split(" — ")[0] for f in findings_by_sast_id["SAST-05"]}
+    for ef5 in sast05_extra_findings:
+        loc_prefix5 = ef5.split(" — ")[0]
+        if loc_prefix5 not in existing_sast05_locs:
+            findings_by_sast_id["SAST-05"].append(ef5)
+            existing_sast05_locs.add(loc_prefix5)
+
+    combined_extra_sarif = sast01_extra_sarif + sast02_extra_sarif + sast05_extra_sarif
     if combined_extra_sarif and sarif_out.exists():
         try:
             sarif_data = json.loads(sarif_out.read_text(encoding="utf-8"))
@@ -1895,6 +1976,8 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             tool_label = f"Semgrep AST 1.180.0 + Shannon Entropy & Pattern Secret Detector ({semgrep_duration}s, SARIF 2.1.0)"
         elif sid == "SAST-02":
             tool_label = f"Semgrep AST 1.180.0 + Keystore, PEM Private Key & BIP-39 Seed Walker ({semgrep_duration}s, SARIF 2.1.0)"
+        elif sid == "SAST-05":
+            tool_label = f"Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & Salt Inspector ({semgrep_duration}s, SARIF 2.1.0)"
         else:
             tool_label = f"Semgrep AST 1.180.0 ({semgrep_duration}s, SARIF 2.1.0)" if semgrep_ran else "Fallback Static Scanner"
         if f_list:

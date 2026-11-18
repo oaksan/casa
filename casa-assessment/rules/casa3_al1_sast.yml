@@ -74,10 +74,17 @@ rules:
 
   - id: CASA3-SAST-05-weak-password-kdf
     languages: [typescript, javascript]
-    message: "SAST-05: Passwords hashed with fast/unsalted hash (MD5) instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2)"
+    message: "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)"
     severity: ERROR
-    pattern: |
-      export const hash = ($DATA) => crypto.createHash('md5').update($DATA).digest('hex')
+    pattern-either:
+      - pattern: |
+          export const hash = ($DATA) => crypto.createHash('md5').update($DATA).digest('hex')
+      - pattern: |
+          this.setDataValue('password', $HASH_FN($PWD))
+      - pattern: |
+          crypto.pbkdf2Sync($PWD, "...", ...)
+      - pattern: |
+          crypto.pbkdf2($PWD, "...", ...)
 
   - id: CASA3-SAST-06-insecure-randomness
     languages: [typescript, javascript]

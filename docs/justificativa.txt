@@ -961,3 +961,86 @@ cobrindo tanto as fontes (`MD5` e `SHA-1`) quanto os sorvedouros críticos:
   4. **Sinks de Geração de Identificadores/Tokens (`routes/b2bOrder.ts:L41`, `routes/order.ts:L40`):**
      Geração de `uniqueOrderNumber` e `orderId` baseada em MD5.
 ================================================================================
+
+================================================================================
+CONTROLE 10/61: SAST-05 (Iteração SDD 018)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-05
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Passwords stored using an approved memory-hard KDF with per-user salt"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V2.4.1 (L2)
+  * NIST SP 800-63B §5.1.1.2 (Argon2id, scrypt, bcrypt, PBKDF2)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-05):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Locate every place where a password is persisted and extract the
+     key-derivation function and its parameters from the surrounding code."
+  2. "Reference tooling: semgrep."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Every password-persistence sink uses Argon2id, scrypt, bcrypt or
+    PBKDF2-HMAC-SHA256 **and** meets the NIST SP 800-63B floor — Argon2id
+    `m` ≥ 19456 KiB with `t` ≥ 2, scrypt `N` ≥ 32768, bcrypt cost ≥ 10,
+    PBKDF2 ≥ 600000 iterations — **and** uses a per-record CSPRNG salt
+    (generated internally by the library, or passed as an argument from a CSPRNG)."
+  * FAIL: "Any sink using an algorithm outside that set; any cost parameter or
+    salt whose value or provenance is not determinable statically; any cost
+    parameter below the floor; or a salt that is not a per-record CSPRNG value."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-05 demonstra como o CASA 3.0 transforma uma diretriz normativa
+de armazenamento de senhas em **limiares quantitativos estáticos (NIST SP 800-63B)**
+verificáveis diretamente na AST:
+  $$\text{KDF}(pwd, salt) \in \{\text{Argon2id}(m \ge 19456, t \ge 2),\ \text{scrypt}(N \ge 32768),\ \text{bcrypt}(cost \ge 10),\ \text{PBKDF2}(iter \ge 600000)\}$$
+com a condição adicional de que `salt` seja gerado por CSPRNG por registro
+(não constante/hardcoded). Qualquer uso de hash rápido (`MD5`, `SHA-1`, `SHA-256`)
+ou KDF com parâmetros abaixo do piso falha de modo determinístico.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 018)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 018:
+  A regra `CASA3-SAST-05-weak-password-kdf` verificava apenas a assinatura literal
+  de `export const hash = ($DATA) => crypto.createHash('md5')...` em
+  `lib/insecurity.ts:41`. Ela NÃO localizava o sink real de persistência de senha
+  (`models/user.ts:73`: `this.setDataValue('password', ...)`), e NÃO validava os
+  pisos numéricos do NIST SP 800-63B para `Argon2id`, `scrypt`, `bcrypt` e `PBKDF2`
+  nem verificava se o salt passado ao `PBKDF2` era uma constante hardcoded.
+
+- Oportunidades de Melhoria Implementadas na Iteração 018 (`rules/casa3_al1_sast.yml`
+  e `casa_audit/scanner.py`):
+  1. Detecção AST do Sink de Persistência de Senha (`CASA3-SAST-05-weak-password-kdf`):
+     Passou a capturar diretamente `this.setDataValue('password', $HASH_FN($PWD))`
+     e chamadas `crypto.pbkdf2`/`pbkdf2Sync` com salt literal estático.
+  2. Inspetor Estático de Parâmetros KDF NIST SP 800-63B (`evaluate_sast05_password_kdf`):
+     Extrai parâmetros numéricos de `bcrypt` (`cost < 10`), `PBKDF2`
+     (`iterations < 600000` ou salt literal), `scrypt` (`N < 32768`) e `Argon2id`
+     (`memoryCost < 19456` ou `timeCost < 2`), emitindo achados `CASA3-SAST-05-kdf-floor`
+     em `output/semgrep-sast.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 18 contra o OWASP Juice Shop:
+- Veredito Automatizado: FAIL (2 achados críticos de persistência de senha sem KDF)
+  1. **Construtor de Hash Rápido sem Salt (`lib/insecurity.ts:L41`):**
+     `export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')`
+     (MD5 puro, sem salt por usuário e sem fator de trabalho memory-hard).
+  2. **Sink de Persistência de Senha no Modelo ORM (`models/user.ts:L73`):**
+     `this.setDataValue('password', security.hash(clearTextPassword))` —
+     persistência direta da senha do usuário no banco SQLite/Sequelize usando MD5
+     rápido e determinístico (permitindo ataques instantâneos de rainbow tables e GPU).
+================================================================================

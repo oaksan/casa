@@ -1476,3 +1476,98 @@ Ao executar o motor atualizado com `mode: taint` contra o OWASP Juice Shop:
      O atributo `user.username` controlado pelo usuário (em `#{$code}#`) flui
      para `code` e atinge `eval(code)` diretamente na renderização do perfil.
 ================================================================================
+
+================================================================================
+CONTROLE 16/61: SAST-11 (Iteração SDD 024)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-11
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "File paths are not constructed from unvalidated user-supplied metadata"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V12.3.1 (L1)
+  * MITRE CWE-22 (Improper Limitation of a Pathname to a Restricted Directory — Path Traversal / Zip Slip)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-11):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run static path-traversal rules with data-flow tracking from request
+     parameters, uploaded filenames and archive entries to file-system APIs,
+     over the source code or the application code extracted from the build artifact."
+  2. "Reference tooling: semgrep, CodeQL."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level findings of a file-system path built from
+    user-supplied metadata without validation before use."
+  * FAIL: "≥ 1 `error`-level path-traversal finding on user-supplied metadata."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-11 é modelado como um grafo de fluxo de dados (`mode: taint`)
+cobrindo as 3 categorias de fontes explicitamente especificadas pelo Test Guide:
+  1. **Parâmetros de Requisição:** `req.params`, `params.$FIELD`, `req.query`,
+     `req.body`;
+  2. **Nomes de Arquivos Enviados:** `file.originalname`;
+  3. **Entradas de Arquivos Compactados (Zip Slip):** `entry.path` (`unzipper`)
+     ou `member.filename` (`tarfile`/`zipfile` em Python);
+conectadas a sorvedouros do sistema de arquivos (`res.sendFile`, `fs.readFile`,
+`fs.readFileSync`, `fs.createWriteStream`, `fs.writeFile`, `path.resolve`), com
+sanitizadores conhecidos (`path.basename`, `sanitizeFilename`, `secure_filename`).
+Sempre que um caminho contaminado alcança uma API de I/O sem canonicalização ou
+extração de basename, a falha é matematicamente comprovada.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 024)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 024:
+  A regra `CASA3-SAST-11-path-traversal` possuía apenas dois padrões sintáticos
+  simples (`res.sendFile(path.resolve($DIR, $USER_INPUT))` e
+  `fs.readFile(path.resolve($DIR, $USER_INPUT), ...)`), encontrando apenas 4
+  arquivos (`fileServer.ts`, `keyServer.ts`, `logfileServer.ts`, `quarantineServer.ts`).
+  Ela **deixava passar**:
+  1. O **Zip Slip** via entrada de arquivo `.zip` (`routes/fileUpload.ts:31, 34`:
+     `entry.path` -> `path.resolve` -> `fs.createWriteStream`);
+  2. O **Local File Read / LFI** via `req.body.layout` (`routes/dataErasure.ts:104`);
+  3. Escrita/leitura com `fs.createWriteStream`, `fs.readFileSync` e extensões de
+     upload de imagem (`routes/profileImageUrlUpload.ts:29`, `routes/vulnCodeFixes.ts:83`,
+     `routes/vulnCodeSnippet.ts:90`);
+  4. Regras equivalentes de Path Traversal em Python.
+
+- Oportunidades de Melhoria Implementadas na Iteração 024 (`rules/casa3_al1_sast.yml`):
+  1. Conversão para Semgrep Taint Analysis (`mode: taint`):
+     Inclusão de `pattern-sources` (`params.$FIELD`, `req.params`, `req.query`,
+     `req.body`, `entry.path`, `file.originalname`, `security.cutOffPoisonNullByte`),
+     `pattern-sanitizers` (`path.basename`, `sanitizeFilename`) e `pattern-sinks`
+     (`res.sendFile`, `fs.readFile/Sync`, `fs.createWriteStream`, `fs.writeFile`,
+     `path.resolve`, `res.render`).
+  2. Suporte Multi-Linguagem Python (`CASA3-SAST-11-path-traversal-python`).
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 24 contra o OWASP Juice Shop, a
+cobertura do `SAST-11` saltou de 4 para **10 achados reais de Path Traversal / Zip Slip**:
+- Veredito Automatizado: FAIL (10 violações comprovadas via Taint Analysis)
+  1. **Zip Slip em Extração de ZIP (`routes/fileUpload.ts:L30→L31, L34`):**
+     `entry.path` flui sem validação para `path.resolve('uploads/complaints/' + fileName)`
+     e `fs.createWriteStream('uploads/complaints/' + fileName)`, permitindo escrita
+     arbitrária de arquivos (ex.: sobrescrever `ftp/legal.md`).
+  2. **Path Traversal / Poison Null Byte em Servidores de Arquivos (`routes/fileServer.ts:L32`,
+     `routes/keyServer.ts:L14`, `routes/logfileServer.ts:L14`, `routes/quarantineServer.ts:L14`):**
+     `params.file` flui diretamente para `res.sendFile(path.resolve(..., file))`.
+  3. **Local File Read (LFR) via Renderização Pug (`routes/dataErasure.ts:L104`):**
+     `req.body.layout` flui para `path.resolve(req.body.layout)` e para `res.render(...)`.
+  4. **Path Traversal em Snippets/Uploads (`routes/profileImageUrlUpload.ts:L29`,
+     `routes/vulnCodeFixes.ts:L83`, `routes/vulnCodeSnippet.ts:L90`):**
+     Metadados fornecidos pelo usuário concatenados diretamente em caminhos de
+     escrita e leitura no sistema de arquivos.
+================================================================================

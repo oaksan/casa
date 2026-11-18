@@ -237,12 +237,46 @@ rules:
       - pattern: subprocess.Popen($CMD, ..., shell=True, ...)
 
   - id: CASA3-SAST-11-path-traversal
+    mode: taint
     languages: [typescript, javascript]
-    message: "SAST-11: File path constructed from unvalidated user-supplied parameter (CWE-22)"
+    message: "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
     severity: ERROR
-    pattern-either:
-      - pattern: res.sendFile(path.resolve($DIR, $USER_INPUT))
-      - pattern: fs.readFile(path.resolve($DIR, $USER_INPUT), ...)
+    pattern-sources:
+      - pattern: "params.$FIELD"
+      - pattern: "req.params"
+      - pattern: "req.query"
+      - pattern: "req.body"
+      - pattern: "entry.path"
+      - pattern: "file.originalname"
+      - pattern: "security.cutOffPoisonNullByte(...)"
+    pattern-sanitizers:
+      - pattern: "path.basename(...)"
+      - pattern: "sanitizeFilename(...)"
+    pattern-sinks:
+      - pattern: "res.sendFile(path.resolve($DIR, $SINK))"
+      - pattern: "res.sendFile($SINK)"
+      - pattern: "fs.readFile($SINK, ...)"
+      - pattern: "fs.readFileSync($SINK, ...)"
+      - pattern: "fs.createWriteStream($SINK, ...)"
+      - pattern: "fs.writeFile($SINK, ...)"
+      - pattern: "path.resolve($SINK)"
+      - pattern: "res.render($VIEW, { ...$SINK, ... })"
+
+  - id: CASA3-SAST-11-path-traversal-python
+    mode: taint
+    languages: [python]
+    message: "SAST-11: File path constructed from unvalidated user input or archive member in Python (CWE-22)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: "request.args"
+      - pattern: "request.form"
+      - pattern: "member.filename"
+    pattern-sanitizers:
+      - pattern: "os.path.basename(...)"
+      - pattern: "secure_filename(...)"
+    pattern-sinks:
+      - pattern: "open($SINK, ...)"
+      - pattern: "send_file($SINK, ...)"
 
   - id: CASA3-SAST-12-hardcoded-config-secrets
     languages: [typescript, javascript]

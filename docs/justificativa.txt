@@ -1129,3 +1129,91 @@ Ao executar o motor atualizado com `mode: taint` contra o OWASP Juice Shop:
      5 fluxos de `Math.random()` gerando os termos e operadores matemáticos do
      CAPTCHA (`firstTerm`, `secondTerm`, `thirdTerm`, `firstOperator`, `secondOperator`).
 ================================================================================
+
+================================================================================
+CONTROLE 12/61: SAST-07 (Iteração SDD 020)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-07
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Frameworks protect against mass assignment / unsafe auto-binding"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V5.1.2 (L1)
+  * MITRE CWE-915 (Improperly Controlled Modification of Dynamically-Determined Object Attributes)
+  * OWASP API Security Top 10: API6:2023 (Unrestricted Access to Sensitive Business Flows)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-07):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run framework-binding rules over the source to find binders that accept
+     arbitrary fields. Then, with the lab account, send update requests
+     carrying injected privileged fields and read the record back through an
+     endpoint that exposes those fields."
+  2. "Reference tooling: semgrep, ZAP, Burp Suite."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level unrestricted-binder findings, **and** no injected
+    privileged field reads back as changed."
+  * FAIL: "≥ 1 `error`-level unrestricted-binder finding, or ≥ 1 injected
+    privileged field that reads back as changed."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-07 (um dos 3 novos requisitos estáticos do CASA 3.0 — Tabela 2:
+*"mass-assignment protection"*) exemplifica uma verificação **híbrida SAST + DAST**
+100% automatizável:
+  1. **Análise Estática de Auto-Binders (Semgrep AST):** Identifica construtores
+     de frameworks REST/ORM que vinculam o corpo HTTP (`req.body`) diretamente
+     a modelos de banco de dados sem lista de permissão explícita (ex.:
+     `finale.resource(...)`, `$MODEL.create(req.body)`, `$MODEL.update(req.body)`,
+     `Object.assign($USER, req.body)`);
+  2. **Sonda Dinâmica de Injeção de Campo Privilegiado (Active Mass Assignment Probe):**
+     Submete uma requisição JSON contendo um campo privilegiado inesperado
+     (`"role": "admin"`) ao endpoint de criação/atualização e verifica
+     determinística e objetivamente se o campo privilegiado foi persistido e
+     retornado na resposta (`returned_role == "admin"`).
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 020)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 020:
+  O scanner executava apenas a parte estática básica (`finale.resource(...)`,
+  `$MODEL.create(req.body)` e `Object.assign($USER, req.body)`), sem executar a
+  segunda etapa obrigatória do Test Procedure (*"send update requests carrying
+  injected privileged fields and read the record back"*), e sem cobrir `.update(req.body)`,
+  spread `{ ...req.body }` ou frameworks Python (`**request.data`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 020 (`rules/casa3_al1_sast.yml`
+  e `casa_audit/scanner.py`):
+  1. Expansão das Regras AST de Auto-Binding (`CASA3-SAST-07-mass-assignment`):
+     Inclusão de `$MODEL.update(req.body, ...)`, `$MODEL.create({ ...req.body, ... })`
+     e padrões equivalentes em Python (`CASA3-SAST-07-mass-assignment-python`).
+  2. Sonda Ativa de Mass Assignment (`evaluate_sast07_mass_assignment_probe`):
+     Integrada em `run_automated_al1_scan()`, envia requisição `POST /api/Users/`
+     com `"role": "admin"` quando uma URL alvo é fornecida e comprova se o campo
+     privilegiado foi persistido e retornado no JSON.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor híbrido da Iteração 20 contra o OWASP Juice Shop:
+- Veredito Automatizado: FAIL (Confirmado tanto estática quanto dinamicamente)
+  1. **Evidência Estática (Semgrep AST — `server.ts:L529`):**
+     `const resource = finale.resource({ ... })` — o framework `finale-rest` expõe
+     endpoints REST automáticos sobre os modelos Sequelize (incluindo `UserModel`)
+     sem whitelist de campos permitidos.
+  2. **Evidência Dinâmica (Active Mass Assignment Probe — `POST http://localhost:3000/api/Users/`):**
+     Ao enviar payload de registro com o campo privilegiado `"role": "admin"`, o
+     servidor respondeu com **HTTP 201 Created** e retornou `"role": "admin"`
+     persistido no registro do usuário criado (comprovando escalonamento de
+     privilégio via Mass Assignment em tempo real).
+================================================================================

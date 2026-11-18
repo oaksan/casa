@@ -135,13 +135,23 @@ rules:
 
   - id: CASA3-SAST-07-mass-assignment
     languages: [typescript, javascript]
-    message: "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation or Finale auto-binding (CWE-915)"
+    message: "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale auto-binding (CWE-915, OWASP API6:2023)"
     severity: ERROR
     pattern-either:
       - pattern: "$MODEL.create(req.body, ...)"
       - pattern: "$MODEL.create(req.body)"
+      - pattern: "$MODEL.update(req.body, ...)"
+      - pattern: "$MODEL.create({ ...req.body, ... })"
       - pattern: "Object.assign($USER, req.body)"
       - pattern: "finale.resource(...)"
+
+  - id: CASA3-SAST-07-mass-assignment-python
+    languages: [python]
+    message: "SAST-07: Mass assignment / unguarded request payload unpacked into ORM model in Python (CWE-915)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "$MODEL.objects.create(**$REQ.data)"
+      - pattern: "$MODEL(**$REQ.json)"
 
   - id: CASA3-SAST-08-sql-injection
     languages: [typescript, javascript]

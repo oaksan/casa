@@ -2557,6 +2557,45 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     return results
 
 
+def evaluate_sast07_mass_assignment_probe(target_url: str) -> str | None:
+    """
+    Active Mass Assignment Probe for SAST-07 (CASA 3.0 AL1 Test Guide):
+    Send registration/update request carrying an injected privileged field ('role': 'admin')
+    and check whether the endpoint persists and reads back the privileged field as changed.
+    """
+    if not target_url or not target_url.strip():
+        return None
+    base = target_url.strip().rstrip("/")
+    probe_email = f"casa3_sast07_probe_{int(time.time())}@juice-sh.op"
+    payload = json.dumps(
+        {
+            "email": probe_email,
+            "password": "Casa3ProbePassword!99",
+            "passwordRepeat": "Casa3ProbePassword!99",
+            "role": "admin",
+        }
+    ).encode("utf-8")
+    try:
+        req = urllib.request.Request(
+            f"{base}/api/Users/",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            returned_role = body.get("data", {}).get("role")
+            uid = body.get("data", {}).get("id")
+            if resp.status in (200, 201) and returned_role == "admin":
+                return (
+                    f"POST {base}/api/Users/ — [ACTIVE MASS ASSIGNMENT CONFIRMED] Injected privileged field "
+                    f"\"role\": \"admin\" persisted and read back as role=\"admin\" (HTTP {resp.status}, user id={uid})"
+                )
+    except Exception:
+        pass
+    return None
+
+
 def run_automated_al1_scan(
     target_url: str = "",
     repo_path: str = "",
@@ -2576,6 +2615,17 @@ def run_automated_al1_scan(
 
     dyn_results = run_dynamic_and_protocol_checks(target_url, repo)
     merged = {**sca_results, **sast_results, **dyn_results}
+
+    # SAST-07 Hybrid Verification: Combine Semgrep AST unrestricted-binder check with active Mass Assignment probe
+    if "SAST-07" in merged and target_url and target_url.strip():
+        probe_finding = evaluate_sast07_mass_assignment_probe(target_url)
+        if probe_finding:
+            prev = merged["SAST-07"]
+            merged["SAST-07"] = {
+                "verdict": "FAIL",
+                "tool": f"{prev.get('tool', 'Semgrep AST')} + Active Mass Assignment Probe",
+                "log": f"{prev.get('log', '')}\n\nActive Mass Assignment Verification:\n  - {probe_finding}",
+            }
 
     final: dict[str, dict] = {}
     for c in controls:

@@ -2390,3 +2390,66 @@ Ao executar o motor atualizado da Iteração 34 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-CFG-02`) e `output/dast-capture.har`.
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 27/61: CFG-03 (Iteração SDD 035)
+================================================================================
+Título: No detailed version or stack disclosure in headers or response bodies
+Mapeamento Normativo: OWASP ASVS V14.3.3 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+A exposição de versões detalhadas de servidores web, frameworks, runtimes ou
+dependências em cabeçalhos HTTP ou corpos de resposta acelera o reconhecimento e
+permite o mapeamento direto para CVEs conhecidos. O Guia de Testes CASA 3.0 AL1
+estabelece para `CFG-03`:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP HAR 1.2;
+- Procedimento: Inspecionar cabeçalhos e corpos de resposta ao longo de todo o
+  crawl em busca de identificadores de servidor, framework e versão;
+- Critério de Aprovação (PASS): Nenhum cabeçalho ou corpo expõe token de versão
+  de produto compatível com `[A-Za-z-]+/[0-9]+\.[0-9]+` ou stack detalhada;
+- Critério de Falha (FAIL): >= 1 token de versão ou stack detalhada divulgado.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop omite `X-Powered-By`, porém vaza sua stack e versões exatas
+por múltiplos canais no corpo das respostas HTTP: endpoint público
+`/rest/admin/application-version` (`{"version":"20.3.0"}`), métrica Prometheus
+`nodejs_version_info{version="v24.22.0"...}` em `/metrics` e pacotes em
+`node_modules/` nos tracebacks HTTP 500 de `/rest/user/login` (`GET` e `POST`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 035:
+  O scanner verificava apenas `Server`/`X-Powered-By` da resposta `/` e a presença
+  literal de `nodejs_version_info` em `metrics_body`, ignorando todos os demais
+  cabeçalhos/corpos do crawl, o regex normativo `[A-Za-z-]+/[0-9]+\.[0-9]+`, o
+  endpoint `/rest/admin/application-version` e o vazamento de dependências em
+  tracebacks, além de não registrar achados `CFG-03` no DAST SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 035 (`casa_audit/scanner.py`):
+  1. Registro Completo do Crawl (`crawled_exchanges`):
+     Cada chamada `http_probe` passa a armazenar método, URL, status, cabeçalhos
+     e corpo da resposta para análise transversal de divulgação de versão/stack.
+  2. Scanner de Cabeçalhos & Corpos + Regex Normativo `[A-Za-z-]+/[0-9]+\.[0-9]+`:
+     Inspeciona todos os cabeçalhos de resposta (`Server`, `X-Powered-By`,
+     `X-AspNet-Version`, `X-Generator`, `X-Runtime`, etc.) e corpos de resposta
+     do crawl (removendo URLs de terceiros para evitar falsos positivos), além de
+     `/rest/admin/application-version`, `/version`, métricas `nodejs_version_info`,
+     `<meta name="generator">` e dependências em `node_modules/` via tracebacks.
+  3. Evidência DAST SARIF 2.1.0 + HAR 1.2:
+     Emite resultados `CASA3-CFG-03` em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 35 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Respostas HTTP inspecionadas ao longo do crawl: 49
+- Divulgações reais detectadas (`CASA3-CFG-03`): 4
+  1. `[Body:FrameworkStackLeak]` HTTP 500 traceback em `GET /rest/user/login` expõe stack `express` (`node_modules/express`)
+  2. `[Body:RuntimeMetric]` `GET /metrics` (HTTP 200) expõe `nodejs_version_info{version="v24.22.0",major="24",minor="22",patch="0",app="juiceshop"}`
+  3. `[Body:FrameworkStackLeak]` HTTP 500 traceback em `POST /rest/user/login` expõe `body-parser`, `express`, `raw-body`
+  4. `[Body:VersionEndpoint]` `GET /rest/admin/application-version` retorna `{"version":"20.3.0"}`
+- Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-CFG-03`) e `output/dast-capture.har`.
+- Veredito Automatizado: FAIL
+================================================================================

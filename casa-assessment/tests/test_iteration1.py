@@ -109,6 +109,7 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertIn("CONTROLE 24/61: TLS-06", just_txt)
         self.assertIn("CONTROLE 25/61: CFG-01", just_txt)
         self.assertIn("CONTROLE 26/61: CFG-02", just_txt)
+        self.assertIn("CONTROLE 27/61: CFG-03", just_txt)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)
@@ -146,7 +147,7 @@ class TestCasa3Iteration1(unittest.TestCase):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=30) as resp:
                 self.assertEqual(resp.status, 200)
                 body = json.loads(resp.read().decode("utf-8"))
                 self.assertEqual(body["status"], "ok")

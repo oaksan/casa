@@ -394,6 +394,94 @@
             "label": "Express errorhandler Stacktrace, Raw Stacktrace / Python Traceback",
             "httpStatus": 500
           }
+        },
+        {
+          "ruleId": "CASA3-CFG-03",
+          "level": "error",
+          "message": {
+            "text": "HTTP 500 traceback at GET http://localhost:3000/rest/user/login discloses server dependency stack (express)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-03",
+            "source": "Body:FrameworkStackLeak",
+            "token": "stack:express",
+            "httpStatus": 500
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-03",
+          "level": "error",
+          "message": {
+            "text": "http://localhost:3000/metrics (HTTP 200) discloses exact Node.js runtime version (nodejs_version_info{version=\"v24.22.0\",major=\"24\",minor=\"22\",patch=\"0\",app=\"juiceshop\"})"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/metrics"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-03",
+            "source": "Body:RuntimeMetric",
+            "token": "Node.js/v24.22.0",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-03",
+          "level": "error",
+          "message": {
+            "text": "HTTP 500 traceback at POST http://localhost:3000/rest/user/login discloses server dependency stack (body-parser, express, raw-body)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-03",
+            "source": "Body:FrameworkStackLeak",
+            "token": "stack:body-parser,express,raw-body",
+            "httpStatus": 500
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-03",
+          "level": "error",
+          "message": {
+            "text": "Unauthenticated version endpoint http://localhost:3000/rest/admin/application-version returns exact release version '20.3.0' ({\"version\":\"20.3.0\"})"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/admin/application-version"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-03",
+            "source": "Body:VersionEndpoint",
+            "token": "app-version/20.3.0",
+            "httpStatus": 200
+          }
         }
       ]
     }

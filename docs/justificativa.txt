@@ -3976,3 +3976,76 @@ Ao executar o motor atualizado da Iteração 60 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (6 resultados `CASA3-OAU-03`) e `output/dast-capture.har` (272 entradas redigidas).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 53/61: OAU-04 (Iteração SDD 061)
+================================================================================
+Título: state and OIDC nonce are CSPRNG-generated, bound to the user agent session, and validated on return
+Mapeamento Normativo: RFC 9700 §4.7; OIDC Core §3.1.2.1; CWE-352 | Superfície: All
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Os parâmetros `state` (anti-CSRF OAuth 2.0) e `nonce` (vinculação contra replay
+de `id_token` em OIDC) devem ser gerados por CSPRNG com entropia suficiente,
+vinculados à sessão do user-agent e validados estritamente no retorno do
+callback (RFC 9700 §4.7; OIDC Core §3.1.2.1; CWE-352). O Guia de Testes CASA 3.0
+AL1 estabelece para `OAU-04`:
+- Evidência: Captura HAR 1.2 redigida do fluxo de autorização e SARIF 2.1.0 para
+  análise de artefatos cliente;
+- Procedimento: Coletar 200 requisições de autorização scriptadas e estimar a
+  min-entropia sobre `state` (SP 800-90B por caractere x comprimento >= 128 bits),
+  além de repetir o callback com `state` omitido, reproduzido, modificado e de
+  outra sessão (e `nonce` omitido/estrangeiro quando houver ID token);
+- Critério de Aprovação (PASS): Todos os 200 valores de `state` distintos,
+  min-entropia >= 128 bits, nenhuma manipulação de callback gera sessão
+  autenticada e nenhum ID token é aceito com `nonce` omitido ou estrangeiro;
+- Critério de Falha (FAIL): Entropia < 128 bits, repetição de `state`, sessão
+  autenticada em qualquer manipulação ou aceitação de `nonce` inválido.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop constrói o fluxo OAuth inteiramente no cliente Angular tanto
+no bundle servido em runtime (`http://localhost:3000/main.js`) quanto nos fontes
+(`login.component.ts` e `oauth.component.ts`), omitindo completamente `state` na
+URL de autorização (`0` bits de entropia) e consumindo `access_token` no
+callback (`parseRedirectUrlParams().access_token`) sem validar `state` contra
+armazenamento da sessão do user-agent.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 061:
+  O controle `OAU-04` apenas checava `"state=" in login_txt and "nonce=" in login_txt`,
+  sem testar endpoints de autorização em runtime (200 amostras / min-entropia
+  >= 128 bits), sem sondar manipulações de callback em HTTP/HAR 1.2, sem
+  inspecionar bundles JS servidos (`main.js`) nem o handler de retorno
+  (`oauth.component.ts`), e sem emitir SARIF 2.1.0 (`CASA3-OAU-04`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 061 (`casa_audit/scanner.py`):
+  1. Amostrador Ativo & Estimador SP 800-90B (>= 128 bits):
+     Sonda endpoints de autorização (`/oauth/authorize`, `/authorize`,
+     `/auth/login`, `/api/auth/authorize`) para coleta de 200 valores de `state`
+     com detecção de colisões e cálculo de min-entropia por caractere x
+     comprimento >= 128 bits, além de sondas ativas de callback (`state_omitted`,
+     `state_replayed`, `state_modified`, `state_foreign_session`).
+  2. Auditoria de Bundle JS ao Vivo & Callback Handler:
+     Inspeciona `http://localhost:3000/main.js`, `login.component.ts` e
+     `oauth.component.ts` detectando ausência de `state=`, detecção de
+     `Math.random()` quando `state=` é usado sem Web Crypto CSPRNG, ausência de
+     `nonce=` em escopos `openid`/`id_token` e ausência de validação de retorno em
+     `parseRedirectUrlParams`.
+  3. Emissão SARIF 2.1.0 (`CASA3-OAU-04`) + Redacted HAR 1.2.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 61 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Artefatos cliente/bundle inspecionados: **5** | Sondas ativas: **8**
+- Violações `CASA3-OAU-04` detectadas (**4 achados**):
+  1. `[Missing_OAuth_State_Parameter]` `http://localhost:3000/main.js` constrói URL OAuth sem `state=` (0 bits).
+  2. `[Missing_Callback_State_Validation]` `http://localhost:3000/main.js` processa callback sem validar `state` na sessão.
+  3. `[Missing_OAuth_State_Parameter]` `frontend/src/app/login/login.component.ts` omite `state=` na URL de autorização.
+  4. `[Missing_Callback_State_Validation]` `frontend/src/app/oauth/oauth.component.ts` consome `parseRedirectUrlParams().access_token` sem validar `state` contra `sessionStorage`/cookies.
+- Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-OAU-04`) e `output/dast-capture.har` (280 entradas redigidas).
+- Veredito Automatizado: FAIL
+================================================================================

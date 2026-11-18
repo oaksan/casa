@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"98-Ol5Ot3PngLk2PkIPgEFi+OpvL9M\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"98-bsyvRr9qPqa6IyeY4caYHpWog24\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/85 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9c-i1bcf9ubJHyXyGBvy3YTRvhGLyM\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/93 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9c-G/OTYFmS/7l3jMhGFuBiU11xJm4\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/85"
+                  "uri": "http://localhost:3000/rest/basket/93"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/106 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14b-7fH/E8X5Ft391EznQBEhSLGLVVI\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/116 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14b-QlWD81BSYxgpJio1UH6JWTzXc90\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/106"
+                  "uri": "http://localhost:3000/api/Users/116"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-/F5r/lRx7QSsWH2cmnkyFoAo6zQ\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-Bynn9cs1SK/zFu/SaZTIiT0c6HQ\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -2182,7 +2182,7 @@
           "ruleId": "CASA3-AUT-02",
           "level": "error",
           "message": {
-            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 3.53s: only 5/200 distinct (195 exact duplicate tokens, max identical collision=58/200; NIST SP 800-90B MCV min-entropy=1.79 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
+            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 3.55s: only 5/200 distinct (195 exact duplicate tokens, max identical collision=58/200; NIST SP 800-90B MCV min-entropy=1.79 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
           },
           "locations": [
             {
@@ -2287,13 +2287,13 @@
           "ruleId": "CASA3-AUT-05",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/85 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
+            "text": "GET http://localhost:3000/rest/basket/93 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/85"
+                  "uri": "http://localhost:3000/rest/basket/93"
                 }
               }
             }
@@ -2444,7 +2444,7 @@
           "ruleId": "CASA3-AUT-08",
           "level": "error",
           "message": {
-            "text": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(88); value='88') at http://localhost:3000/#/search."
+            "text": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(96); value='96') at http://localhost:3000/#/search."
           },
           "locations": [
             {
@@ -2461,7 +2461,7 @@
             "storage": "sessionStorage",
             "key": "bid",
             "reasons": [
-              "canary(88)"
+              "canary(96)"
             ]
           }
         },
@@ -2494,7 +2494,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_removed, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_removed_1795044252' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_removed, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_removed_1795044540' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2515,7 +2515,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_replaced, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_replaced_1795044252' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_replaced, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_replaced_1795044540' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2536,7 +2536,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_second_session, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_sess2_1795044252' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_second_session, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_sess2_1795044540' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2557,7 +2557,7 @@
           "ruleId": "CASA3-AZI-02",
           "level": "error",
           "message": {
-            "text": "Headless Chrome executed injected JavaScript payload at http://localhost:3000/#/search and triggered live out-of-band HTTP callback GET 127.0.0.1:38773/cb?vec=dom_search (CWE-79 / ASVS V5.3.3)."
+            "text": "Headless Chrome executed injected JavaScript payload at http://localhost:3000/#/search and triggered live out-of-band HTTP callback GET 127.0.0.1:33955/cb?vec=dom_search (CWE-79 / ASVS V5.3.3)."
           },
           "locations": [
             {
@@ -2711,7 +2711,7 @@
           "ruleId": "CASA3-AZI-05",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile/image/url (imageUrl=http://127.0.0.1:37801/casa3_rfi_probe.svg) caused the server to fetch arbitrary remote resource(s) ['/casa3_rfi_probe.svg'] (HTTP 200, RFI/SSRF \u2014 CWE-98)."
+            "text": "POST http://localhost:3000/profile/image/url (imageUrl=http://127.0.0.1:34961/casa3_rfi_probe.svg) caused the server to fetch arbitrary remote resource(s) ['/casa3_rfi_probe.svg'] (HTTP 200, RFI/SSRF \u2014 CWE-98)."
           },
           "locations": [
             {
@@ -3051,6 +3051,94 @@
             "findingKind": "Callback_Open_Redirect_path_substring_bypass",
             "cwe": "CWE-601",
             "httpStatus": 302
+          }
+        },
+        {
+          "ruleId": "CASA3-OAU-04",
+          "level": "error",
+          "message": {
+            "text": "http://localhost:3000/main.js constructs OAuth 2.0 authorization URL `${Wx}?client_id=${this.clientId}&response_type=token&scope=email&redirect_uri=${this.redirectUri}` without a session-bound CSPRNG 'state=' parameter (0 bits entropy; violates RFC 9700 \u00a74.7 / CWE-352)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/main.js"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "OAU-04",
+            "findingKind": "Missing_OAuth_State_Parameter",
+            "cwe": "CWE-352",
+            "httpStatus": 0
+          }
+        },
+        {
+          "ruleId": "CASA3-OAU-04",
+          "level": "error",
+          "message": {
+            "text": "http://localhost:3000/main.js callback handler processes OAuth return parameters (parseRedirectUrlParams().access_token) without validating 'state' against user-agent session storage (accepts omitted, replayed, modified, or cross-session callbacks \u2014 CWE-352)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/main.js"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "OAU-04",
+            "findingKind": "Missing_Callback_State_Validation",
+            "cwe": "CWE-352",
+            "httpStatus": 0
+          }
+        },
+        {
+          "ruleId": "CASA3-OAU-04",
+          "level": "error",
+          "message": {
+            "text": "frontend/src/app/login/login.component.ts constructs OAuth 2.0 authorization URL `${oauthProviderUrl}?client_id=${this.clientId}&response_type=token&scope=email&redirect_uri=${this.redirectUri}` without a session-bound CSPRNG 'state=' parameter (0 bits entropy; violates RFC 9700 \u00a74.7 / CWE-352)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "frontend/src/app/login/login.component.ts"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "OAU-04",
+            "findingKind": "Missing_OAuth_State_Parameter",
+            "cwe": "CWE-352",
+            "httpStatus": 0
+          }
+        },
+        {
+          "ruleId": "CASA3-OAU-04",
+          "level": "error",
+          "message": {
+            "text": "frontend/src/app/oauth/oauth.component.ts callback handler processes OAuth return parameters (parseRedirectUrlParams().access_token) without validating 'state' against user-agent session storage (accepts omitted, replayed, modified, or cross-session callbacks \u2014 CWE-352)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "frontend/src/app/oauth/oauth.component.ts"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "OAU-04",
+            "findingKind": "Missing_Callback_State_Validation",
+            "cwe": "CWE-352",
+            "httpStatus": 0
           }
         }
       ]

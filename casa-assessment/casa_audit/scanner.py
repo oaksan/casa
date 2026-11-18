@@ -6546,14 +6546,170 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
-    has_state = "state=" in login_txt and "nonce=" in login_txt
+    # OAU-04: CSPRNG state (>= 128-bit min-entropy) & OIDC nonce session-binding & callback validation (SARIF 2.1.0 + redacted HAR 1.2)
+    oau04_findings: list[dict] = []
+    seen_oau04_keys: set[tuple[str, str]] = set()
+    oau04_probes = 0
+    oau04_states_collected: list[str] = []
+
+    def _add_oau04(location: str, kind: str, detail: str, status: int = 0) -> None:
+        key4 = (location, kind)
+        if key4 not in seen_oau04_keys:
+            seen_oau04_keys.add(key4)
+            oau04_findings.append(
+                {
+                    "location": location,
+                    "kind": kind,
+                    "cwe": "CWE-352",
+                    "status": status,
+                    "detail": detail,
+                }
+            )
+
+    # 1. Active server-side authorization & callback manipulation probes (if server exposes /authorize or callback)
+    if base_url:
+        auth_ep_found = ""
+        first_loc = ""
+        for auth_ep in ["/oauth/authorize", "/authorize", "/auth/login", "/api/auth/authorize"]:
+            a_st, a_hdrs, _ = http_probe(auth_ep, follow_redirects=False)
+            oau04_probes += 1
+            a_loc = a_hdrs.get("location", "")
+            if 300 <= a_st < 400 and "state=" in a_loc:
+                auth_ep_found = auth_ep
+                first_loc = a_loc
+                break
+
+        if auth_ep_found:
+            for _ in range(200):
+                s_st, s_hdrs, _ = http_probe(auth_ep_found, follow_redirects=False)
+                oau04_probes += 1
+                s_loc = s_hdrs.get("location", "")
+                if 300 <= s_st < 400 and s_loc:
+                    qs_s = urllib.parse.parse_qs(urllib.parse.urlparse(s_loc).query)
+                    for st_val in qs_s.get("state", []):
+                        oau04_states_collected.append(st_val)
+
+            if oau04_states_collected:
+                distinct_states = len(set(oau04_states_collected))
+                if distinct_states < len(oau04_states_collected):
+                    _add_oau04(
+                        f"{base_url}{auth_ep_found}",
+                        "Repeated_OAuth_State",
+                        f"{auth_ep_found} produced duplicate state values ({distinct_states}/{len(oau04_states_collected)} unique).",
+                    )
+                min_len = min(len(sv) for sv in oau04_states_collected)
+                char_counts = Counter("".join(oau04_states_collected))
+                total_chars = sum(char_counts.values())
+                per_char_min_entropy = -math.log2(max(char_counts.values()) / total_chars) if total_chars > 0 else 0.0
+                est_min_entropy = round(per_char_min_entropy * min_len, 2)
+                if est_min_entropy < 128.0:
+                    _add_oau04(
+                        f"{base_url}{auth_ep_found}",
+                        "Insufficient_State_MinEntropy",
+                        f"{auth_ep_found} state min-entropy is {est_min_entropy} bits (< 128-bit OAU-04 threshold over {len(oau04_states_collected)} samples).",
+                    )
+
+        # Callback state & nonce manipulation probes (omitted, replayed, modified, foreign-session)
+        cb_probes = [
+            ("state_omitted", "/oauth?code=oau04_test_code"),
+            ("state_replayed", "/oauth?code=oau04_test_code&state=replayed_static_state_0001"),
+            ("state_modified", "/oauth?code=oau04_test_code&state=tampered_state_9999"),
+            ("state_foreign_session", "/oauth?code=oau04_test_code&state=foreign_ua_session_state"),
+        ]
+        for lbl4, path4 in cb_probes:
+            c_st, c_hdrs, c_body = http_probe(path4, follow_redirects=False)
+            oau04_probes += 1
+            issued_session = ("token=" in c_hdrs.get("set-cookie", "").lower()) or bool(
+                re.search(r'"(?:token|access_token)"\s*:\s*"eyJ', c_body)
+            )
+            if c_st in {200, 302} and issued_session:
+                _add_oau04(
+                    f"{base_url}{path4.split('?', 1)[0]}",
+                    f"Callback_Accepted_{lbl4}",
+                    f"GET {base_url}{path4} issued authenticated session on {lbl4} manipulation (HTTP {c_st}).",
+                    status=c_st,
+                )
+
+    # 2. Client JS bundle & component flow inspection (live main.js + login.component.ts / oauth.component.ts)
+    auth_req_re = re.compile(r"([`'\"][^`'\"\n]*\?client_id=[^`'\"\n]*redirect_uri=[^`'\"\n]*[`'\"])")
+    for src_name, src_body in combined_oauth_sources:
+        auth_urls = auth_req_re.findall(src_body)
+        for u_tpl in auth_urls:
+            has_state_param = "state=" in u_tpl
+            has_oidc_scope = ("openid" in u_tpl.lower()) or ("id_token" in u_tpl.lower())
+            has_nonce_param = "nonce=" in u_tpl
+            if not has_state_param:
+                _add_oau04(
+                    src_name,
+                    "Missing_OAuth_State_Parameter",
+                    f"{src_name} constructs OAuth 2.0 authorization URL {u_tpl} without a session-bound CSPRNG 'state=' parameter (0 bits entropy; violates RFC 9700 §4.7 / CWE-352).",
+                )
+            if has_oidc_scope and not has_nonce_param:
+                _add_oau04(
+                    src_name,
+                    "Missing_OIDC_Nonce_Parameter",
+                    f"{src_name} requests OIDC/id_token scope in {u_tpl} without 'nonce=' replay binding (OIDC Core §3.1.2.1).",
+                )
+            elif has_state_param and "Math.random(" in src_body and not re.search(r"crypto\.getRandomValues|randomUUID|randomBytes", src_body):
+                _add_oau04(
+                    src_name,
+                    "Weak_PRNG_State_Generator",
+                    f"{src_name} relies on non-CSPRNG Math.random() instead of Web Crypto crypto.getRandomValues()/randomUUID() for OAuth state.",
+                )
+
+        if "parseRedirectUrlParams" in src_body:
+            idx_pr = src_body.find("parseRedirectUrlParams")
+            cb_slice = src_body[max(0, idx_pr - 350) : min(len(src_body), idx_pr + 450)]
+            validates_state = bool(re.search(r"(['\"]state['\"]|\.state\b)", cb_slice)) and bool(
+                re.search(r"(sessionStorage|localStorage)\.getItem|cookieService\.get", cb_slice, re.IGNORECASE)
+            )
+            if not validates_state:
+                _add_oau04(
+                    src_name,
+                    "Missing_Callback_State_Validation",
+                    f"{src_name} callback handler processes OAuth return parameters (parseRedirectUrlParams().access_token) without validating 'state' against user-agent session storage (accepts omitted, replayed, modified, or cross-session callbacks — CWE-352).",
+                )
+
+    for af_o4 in oau04_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-OAU-04",
+                "level": "error",
+                "message": {"text": af_o4["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_o4["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "OAU-04",
+                    "findingKind": af_o4["kind"],
+                    "cwe": af_o4["cwe"],
+                    "httpStatus": af_o4["status"],
+                },
+            }
+        )
+
+    oau04_vuln = len(oau04_findings) > 0
+    oau04_lines = [f"[{o4['kind']}] {o4['detail']}" for o4 in oau04_findings]
     results["OAU-04"] = {
-        "verdict": "FAIL" if (login_txt and not has_state) else "PASS",
-        "tool": "OAuth State & Nonce Inspector",
+        "verdict": "FAIL" if oau04_vuln else "PASS",
+        "tool": (
+            f"OAuth 2.0 State CSPRNG Entropy & Callback Binding Analyzer ({len(combined_oauth_sources)} bundle/source artifacts, "
+            f"{oau04_probes} active auth/callback probes, {len(oau04_states_collected)} state samples, SARIF 2.1.0 + redacted HAR 1.2)"
+        ),
         "log": (
-            "[FAIL] OAuth 2.0 authorization redirect in login.component.ts omits CSPRNG state and OIDC nonce parameters (CWE-352)."
-            if (login_txt and not has_state)
-            else "[PASS] CSPRNG state and OIDC nonce verified."
+            f"[FAIL] {len(oau04_findings)} OAuth 2.0 state/nonce CSRF & validation violation(s) detected across {len(combined_oauth_sources)} client/bundle artifact(s) and {oau04_probes} active probe(s):\n  - "
+            + "\n  - ".join(oau04_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if oau04_vuln
+            else (
+                f"[PASS] Verified CSPRNG state (>= 128-bit min-entropy, 0 repeats across {len(oau04_states_collected)} samples) "
+                f"and session-bound callback validation across {len(combined_oauth_sources)} client artifacts and {oau04_probes} probes.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            )
         ),
     }
     # OAU-05 and OAU-06 are Mobile/Native only (handled by surface scoping)

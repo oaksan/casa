@@ -76,6 +76,9 @@ class TestCasa3Iteration1(unittest.TestCase):
                 self.assertIn("CASA 3.0 Assessment", html)
                 self.assertIn('data-lang="pt"', html)
                 self.assertIn('data-lang="en"', html)
+                self.assertIn('id="btn-run-auto"', html)
+                self.assertNotIn('id="btn-demo-auto"', html)
+                self.assertNotIn('id="evidence-upload"', html)
                 self.assertIn("data.js", html)
                 self.assertIn("app.js", html)
 

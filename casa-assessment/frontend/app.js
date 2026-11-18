@@ -25,14 +25,12 @@
       optAL1: "AL1 — Avaliação Automatizada (61 Controles)",
       optAL2: "AL2 — Avaliação Completa de Lab (61 AL1 + 15 AL2)",
       pillAuto: "Motor Automatizado AL1",
-      autoTitle: "Execução Automatizada AL1 e Ingestão de Evidências Abertas",
+      autoTitle: "Execução Automatizada AL1",
       surfacesLbl: "Superfícies Declaradas:",
       lblUrl: "URL da Aplicação Alvo (para TLS, Headers, Cookies, DAST)",
       lblRepo: "Caminho do Repositório / Artefato (para SCA, SAST, Segredos)",
       btnRunAuto: "▶ Executar Scan Automatizado AL1",
-      btnImportTxt: "⇧ Importar Evidências (SARIF / SBOM / HAR)",
-      btnDemoAuto: "⚡ Carregar Execução Benchmark AL1",
-      statusReady: "Pronto — 61 controles AL1 aguardando execução automatizada ou importação de evidências.",
+      statusReady: "Pronto — 61 controles AL1 aguardando execução automatizada.",
       statusRunning: "Executando verificações automatizadas do AL1 (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…",
       fltAll: "Todos no Escopo",
       fltAL1: "AL1 Automatizados (61)",
@@ -158,14 +156,12 @@
       optAL1: "AL1 — Automated Assessment (61 Controls)",
       optAL2: "AL2 — Full Lab Assessment (61 AL1 + 15 AL2)",
       pillAuto: "AL1 Automated Engine",
-      autoTitle: "Automated AL1 Execution & Open Evidence Ingestion",
+      autoTitle: "Automated AL1 Execution",
       surfacesLbl: "Declared Surfaces:",
       lblUrl: "Target Application URL (for TLS, Headers, Cookies, DAST)",
       lblRepo: "Source Repository / Artifact Path (for SCA, SAST, Secrets)",
       btnRunAuto: "▶ Run Automated AL1 Scan",
-      btnImportTxt: "⇧ Import Evidence (SARIF / SBOM / HAR)",
-      btnDemoAuto: "⚡ Load Benchmark AL1 Run",
-      statusReady: "Ready — 61 AL1 controls awaiting automated run or evidence import.",
+      statusReady: "Ready — 61 AL1 controls awaiting automated scan.",
       statusRunning: "Running automated AL1 checks (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…",
       fltAll: "All in Scope",
       fltAL1: "AL1 Automated (61)",
@@ -740,8 +736,6 @@
     setTxt("i18n-lbl-url", tr.lblUrl);
     setTxt("i18n-lbl-repo", tr.lblRepo);
     setTxt("btn-run-auto", tr.btnRunAuto);
-    setTxt("i18n-btn-import-txt", tr.btnImportTxt);
-    setTxt("btn-demo-auto", tr.btnDemoAuto);
 
     setTxt("i18n-flt-all", tr.fltAll);
     setTxt("i18n-flt-al1", tr.fltAL1);
@@ -1354,233 +1348,11 @@
   });
 
   function runClientSideAutomatedScan() {
-    var results = buildBenchmarkAL1Results(state.meta.targetUrl, state.meta.repoPath, true);
-    applyScanResults(results, "Browser Static & Heuristic Scanner");
-  }
-
-  /* 2. Benchmark AL1 Run */
-  document.getElementById("btn-demo-auto").addEventListener("click", function () {
-    if (!state.meta.org) {
-      state.meta.org = "OWASP Juice Shop";
-      els.org.value = state.meta.org;
-    }
-    if (!state.meta.assessor) {
-      state.meta.assessor = "ADA Automated Lab Harness (MSc Evaluation)";
-      els.assessor.value = state.meta.assessor;
-    }
-    var results = buildBenchmarkAL1Results(
-      state.meta.targetUrl || "http://localhost:3000",
-      state.meta.repoPath || "/home/user/felipe/speckit/juice-shop-master",
-      false
-    );
-    applyScanResults(results, "CASA 3.0 AL1 Reference Tooling Suite");
-  });
-
-  function buildBenchmarkAL1Results(targetUrl, repoPath, isConservative) {
-    var url = targetUrl || "http://localhost:3000";
-    var repo = repoPath || "/home/user/felipe/speckit/juice-shop-master";
-    var declared = state.meta.surfaces || ["Web_Application"];
-    var out = {};
-
-    var demoFails = {
-      "SCA-01": {
-        tool: "OSV.dev API + CycloneDX SBOM",
-        log: "[FAIL] 16 vulnerable packages identified via OSV.dev in juice-shop-master:\n  - jsonwebtoken@0.4.0 (GHSA-8cf7-32gw-wr33, GHSA-c7hr-j4mj-j2w6)\n  - js-yaml@3.14.0 (GHSA-2883-xcg3-v3hh)\n  - express-jwt@0.1.3 (GHSA-6g6m-m6h5-w9gf)",
-      },
-      "SAST-01": {
-        tool: "Semgrep AST 1.180.0 (SARIF 2.1.0)",
-        log: "[FAIL] 3 Semgrep AST findings:\n  - lib/insecurity.ts:42, 54, 150 (Hardcoded RSA private key / JWT secret, CWE-798)",
-      },
-      "CFG-01": {
-        tool: "Active Directory Enumeration Probe (HAR 1.2)",
-        log: "[FAIL] GET " + url + "/ftp returned HTTP 200 with exposed directory listing (acquisitions.md, package.json.bak).",
-      },
-      "CFG-08": {
-        tool: "Active CORS Origin Probe (HAR 1.2)",
-        log: "[FAIL] Probe with Origin: https://evil.example.com returned Access-Control-Allow-Origin: '*' (CWE-942).",
-      },
-      "AUT-01": {
-        tool: "Default Credential Probe (HAR 1.2)",
-        log: "[FAIL] POST " + url + "/rest/user/login accepted default administrator credential (admin@juice-sh.op / admin123).",
-      },
-      "AZI-03": {
-        tool: "Active SQL Injection Probe (HAR 1.2)",
-        log: "[FAIL] POST " + url + "/rest/user/login with payload {\"email\": \"' OR 1=1--\"} bypassed authentication (HTTP 200, CWE-89).",
-      },
-    };
-
-    DATA.controls.forEach(function (c) {
-      if (c.tier !== "AL1") return;
-      var applicable = isSurfaceApplicable(c);
-      if (!applicable) {
-        out[c.id] = {
-          verdict: "NOT_APPLICABLE",
-          tool: "surface-scoping",
-          log:
-            "[NOT_APPLICABLE] Control applies to profile [" +
-            c.profile +
-            "], which is outside declared surfaces [" +
-            declared.join(", ") +
-            "].",
-        };
-        return;
-      }
-
-      if (c.id.indexOf("WHK-") === 0) {
-        out[c.id] = {
-          verdict: "Not_Covered",
-          tool: "scope-declaration",
-          log: "[Not_Covered] No webhook receiver or outbound callback URL declared in engagement parameters.",
-        };
-        return;
-      }
-
-      if (demoFails[c.id] && !isConservative) {
-        out[c.id] = {
-          verdict: "FAIL",
-          tool: demoFails[c.id].tool,
-          log: demoFails[c.id].log,
-        };
-        return;
-      }
-
-      var tools = (c.reference_tooling || ["automated-harness"]).join(", ");
-      out[c.id] = {
-        verdict: "PASS",
-        tool: tools,
-        log:
-          "[PASS] Evaluated target (" +
-          url +
-          " | " +
-          repo +
-          ") using reference tooling (" +
-          tools +
-          ").\nVerified PASS criterion: " +
-          (c.pass_criteria || "Zero violations detected in SARIF 2.1.0 / HAR 1.2 output."),
-      };
-    });
-
-    return out;
-  }
-
-  /* 3. Open Evidence File Upload (SARIF 2.1.0 / CycloneDX SBOM / W3C HAR 1.2) */
-  document.getElementById("evidence-upload").addEventListener("change", function (e) {
-    var files = Array.prototype.slice.call(e.target.files || []);
-    if (!files.length) return;
-    var results = {};
-
-    Promise.all(
-      files.map(function (file) {
-        return file.text().then(function (txt) {
-          try {
-            var json = JSON.parse(txt);
-            parseUploadedEvidenceJson(file.name, json, results);
-          } catch (err) {}
-        });
-      })
-    ).then(function () {
-      e.target.value = "";
-      if (Object.keys(results).length) {
-        applyScanResults(
-          results,
-          "Imported Evidence (" +
-            files
-              .map(function (f) {
-                return f.name;
-              })
-              .join(", ") +
-            ")"
-        );
-      } else if (els.autoStatus) {
-        els.autoStatus.textContent =
-          lang() === "pt"
-            ? "Arquivo lido, mas nenhuma estrutura SARIF/SBOM/HAR/CASA reconhecida foi encontrada."
-            : "Uploaded file parsed, but no recognized SARIF/SBOM/HAR/CASA structure found.";
-      }
-    });
-  });
-
-  function parseUploadedEvidenceJson(filename, data, out) {
-    if (data && Array.isArray(data.results) && data.standard && data.standard.indexOf("CASA") !== -1) {
-      data.results.forEach(function (r) {
-        if (r.id && r.verdict) {
-          out[r.id] = {
-            verdict: r.verdict,
-            tool: r.autoTool || "imported-casa-json",
-            log: r.autoLog || "Imported from " + filename,
-          };
-        }
-      });
-      return;
-    }
-
-    if (data && Array.isArray(data.runs)) {
-      var findings = [];
-      data.runs.forEach(function (run) {
-        var toolName = (run.tool && run.tool.driver && run.tool.driver.name) || "SARIF Tool";
-        (run.results || []).forEach(function (res) {
-          if (res.level === "error" || res.level === "warning") {
-            findings.push({
-              tool: toolName,
-              ruleId: res.ruleId || "rule",
-              msg: (res.message && res.message.text) || "",
-            });
-          }
-        });
-      });
-      DATA.controls.forEach(function (c) {
-        if (c.id.indexOf("SAST-") === 0 && c.tier === "AL1") {
-          out[c.id] = {
-            verdict: "PASS",
-            tool: "SARIF 2.1.0 (" + filename + ")",
-            log:
-              "[PASS] 0 blocking error findings for " +
-              c.id +
-              " in " +
-              filename +
-              " (" +
-              findings.length +
-              " total SARIF results inspected).",
-          };
-        }
-      });
-      findings.forEach(function (f) {
-        var matchedId = "SAST-01";
-        var m = (f.ruleId + " " + f.msg).match(/\b(SCA|SAST|TLS|CFG|AUT|AZI|OAU|WHK)-\d{2}\b/);
-        if (m) matchedId = m[0];
-        out[matchedId] = {
-          verdict: "FAIL",
-          tool: f.tool + " (" + filename + ")",
-          log: "[FAIL] SARIF finding [" + f.ruleId + "]: " + f.msg,
-        };
-      });
-      return;
-    }
-
-    if (data && (data.bomFormat === "CycloneDX" || data.spdxVersion)) {
-      var comps = (data.components || data.packages || []).length;
-      ["SCA-01", "SCA-02", "SCA-04", "SCA-05"].forEach(function (cid) {
-        out[cid] = {
-          verdict: "PASS",
-          tool: "SBOM Importer (" + filename + ")",
-          log: "[PASS] Verified machine-readable SBOM (" + comps + " components inventoried in " + filename + ").",
-        };
-      });
-      return;
-    }
-
-    if (data && data.log && Array.isArray(data.log.entries)) {
-      var entries = data.log.entries;
-      var hasHttp = entries.some(function (en) {
-        return en.request && /^http:\/\//i.test(en.request.url);
-      });
-      out["TLS-01"] = {
-        verdict: hasHttp ? "FAIL" : "PASS",
-        tool: "W3C HAR 1.2 Analyzer (" + filename + ")",
-        log: hasHttp
-          ? "[FAIL] Cleartext HTTP request observed in HAR capture (" + entries.length + " requests)."
-          : "[PASS] All " + entries.length + " captured requests in HAR use HTTPS.",
-      };
+    if (els.autoStatus) {
+      els.autoStatus.textContent =
+        lang() === "pt"
+          ? "Erro: Servidor local (/api/scan) inacessível. Inicie python3 -m casa_audit."
+          : "Error: Local scanner server (/api/scan) unreachable. Start python3 -m casa_audit.";
     }
   }
 

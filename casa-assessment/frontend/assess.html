@@ -78,7 +78,7 @@
               <span class="pill-auto" id="i18n-pill-auto">AL1 Automated Engine</span>
               <span class="auto-sub" id="level-desc">AL2 includes all 61 automated AL1 controls plus 15 interactive lab-adjudicated AL2 controls.</span>
             </div>
-            <h2 id="i18n-auto-title">Automated AL1 Execution &amp; Open Evidence Ingestion</h2>
+            <h2 id="i18n-auto-title">Automated AL1 Execution</h2>
           </div>
           <div class="surfaces-box" aria-label="Declared Application Surfaces">
             <span class="surfaces-label" id="i18n-surfaces-lbl">Declared Surfaces:</span>
@@ -103,14 +103,7 @@
           <button class="btn primary btn-sm" id="btn-run-auto" type="button">
             &#9654; Run Automated AL1 Scan
           </button>
-          <label class="btn ghost btn-sm" id="i18n-btn-import-lbl" title="Upload SARIF 2.1.0 (.sarif/.json), CycloneDX/SPDX SBOM (.json), or W3C HAR 1.2 (.har)">
-            <span id="i18n-btn-import-txt">&#8682; Import Evidence (SARIF / SBOM / HAR)</span>
-            <input type="file" id="evidence-upload" accept=".json,.sarif,.har" multiple hidden />
-          </label>
-          <button class="btn ghost btn-sm" id="btn-demo-auto" type="button" title="Simulate a full automated AL1 tool run (Semgrep, Trivy, Syft, testssl.sh, OWASP ZAP) to inspect realistic results">
-            &#9889; Load Benchmark AL1 Run
-          </button>
-          <span class="auto-status" id="auto-status">Ready &mdash; 61 AL1 controls awaiting automated run or evidence import.</span>
+          <span class="auto-status" id="auto-status">Ready &mdash; 61 AL1 controls awaiting automated scan.</span>
         </div>
       </div>
 

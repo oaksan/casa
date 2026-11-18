@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-MXZcVdgAj05byHP+uP33A71Cfao\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-TyAUsRFO/VIPTT4bF1estrylWEw\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/9 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9a-/JGyj8fTODkO18oHvE79N9sdKOQ\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/10 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-+NflLn/mAwDV5ak89k4iAqy6b7g\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/9"
+                  "uri": "http://localhost:3000/rest/basket/10"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/30 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-6C541iMDMJuEjBHbGESawpsKmKE\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/31 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-krDRT+U3erS+K5JGOT4l/VgXNzY\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/30"
+                  "uri": "http://localhost:3000/api/Users/31"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-nHPNozAR8uSDcZpJ9RkdLgi+G7Q\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-ZX7CvLyrHkHzR+dB5ZgzsnqghWc\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -2026,7 +2026,7 @@
           "ruleId": "CASA3-CFG-10",
           "level": "error",
           "message": {
-            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.926 >= 0.90)"
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.904 >= 0.90)"
           },
           "locations": [
             {
@@ -2042,7 +2042,7 @@
             "findingKind": "exposed_admin_wordlist_path",
             "unauthStatus": 200,
             "authStatus": 200,
-            "lcsSimilarity": 0.926
+            "lcsSimilarity": 0.904
           }
         },
         {

@@ -4004,11 +4004,163 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-11: Subdomain takeover DNS CNAME check
+    # CFG-11: Real DNS / CNAME chain resolver & cloud provider subdomain takeover fingerprint check (SARIF 2.1.0 + HAR 1.2)
+    takeover_fingerprints = [
+        (".github.io", ("there isn't a github pages site here.",)),
+        (".herokuapp.com", ("no such app", "herokucdn.com/error-pages/no-such-app.html")),
+        (".herokudns.com", ("no such app",)),
+        (".s3.amazonaws.com", ("nosuchbucket", "the specified bucket does not exist")),
+        (".s3-website", ("nosuchbucket", "the specified bucket does not exist")),
+        (".azurewebsites.net", ("404 web site not found",)),
+        (".trafficmanager.net", ("404 web site not found",)),
+        (".cloudapp.net", ("404 web site not found",)),
+        (".netlify.app", ("not found - request id:",)),
+        (".vercel.app", ("the deployment could not be found",)),
+        (".cloudfront.net", ("error: the request could not be satisfied",)),
+        (".fastly.net", ("fastly error: unknown domain",)),
+        (".myshopify.com", ("sorry, this shop is currently unavailable.",)),
+        (".pantheonsite.io", ("404 error unknown site",)),
+        (".readthedocs.io", ("unknown to read the docs",)),
+        (".surge.sh", ("project not found",)),
+    ]
+
+    def run_dig_query(qname: str, qtype: str) -> tuple[str, list[str]]:
+        if not shutil.which("dig"):
+            return "NODIG", []
+        try:
+            cp = subprocess.run(
+                ["dig", "+time=2", "+tries=1", "+noall", "+comments", "+answer", qtype, qname],
+                capture_output=True,
+                text=True,
+                timeout=4,
+            )
+            out = cp.stdout or ""
+            m_status = re.search(r"status:\s*([A-Z]+)", out)
+            dns_status = m_status.group(1) if m_status else "UNKNOWN"
+            answers: list[str] = []
+            for ln in out.splitlines():
+                if not ln or ln.startswith(";"):
+                    continue
+                cols = ln.split()
+                if len(cols) >= 5 and cols[3].upper() == qtype.upper():
+                    answers.append(cols[4].rstrip("."))
+            return dns_status, answers
+        except Exception:
+            return "ERROR", []
+
+    is_ip_literal = bool(re.match(r"^(?:\d{1,3}\.){3}\d{1,3}$|^\[?[0-9a-fA-F:]+\]?$", host))
+    cname_chain: list[str] = [host]
+    resolved_ips: list[str] = []
+    cfg11_findings: list[dict] = []
+
+    if not is_ip_literal:
+        # Follow CNAME chain up to 8 hops
+        cur_name = host
+        seen_cnames: set[str] = {host.lower()}
+        for _ in range(8):
+            c_st, c_ans = run_dig_query(cur_name, "CNAME")
+            if c_ans:
+                nxt = c_ans[0]
+                cname_chain.append(nxt)
+                if nxt.lower() in seen_cnames:
+                    break
+                seen_cnames.add(nxt.lower())
+                cur_name = nxt
+            else:
+                break
+
+        terminal_host = cname_chain[-1]
+        a_st, a_ans = run_dig_query(terminal_host, "A")
+        aaaa_st, aaaa_ans = run_dig_query(terminal_host, "AAAA")
+        resolved_ips.extend(a_ans + aaaa_ans)
+
+        try:
+            addr_info = socket.getaddrinfo(host, port)
+            for ai in addr_info:
+                ip_str = ai[4][0]
+                if ip_str not in resolved_ips:
+                    resolved_ips.append(ip_str)
+        except OSError:
+            pass
+
+        # Check every hop in CNAME chain + HTTP body for dangling DNS / provider takeover fingerprints
+        root_low = root_body.lower()
+        for hop in cname_chain:
+            hop_l = hop.lower()
+            for prov_suffix, fp_strings in takeover_fingerprints:
+                if hop_l.endswith(prov_suffix):
+                    if a_st == "NXDOMAIN" or (not a_ans and not aaaa_ans and len(cname_chain) > 1):
+                        cfg11_findings.append(
+                            {
+                                "url": base_url,
+                                "host": host,
+                                "hop": hop,
+                                "reason": "dangling_cname_nxdomain",
+                                "detail": f"CNAME chain {' -> '.join(cname_chain)} points to unclaimed provider '{prov_suffix}' (DNS status={a_st})",
+                            }
+                        )
+                    elif any(fp in root_low for fp in fp_strings):
+                        cfg11_findings.append(
+                            {
+                                "url": base_url,
+                                "host": host,
+                                "hop": hop,
+                                "reason": "unclaimed_provider_fingerprint",
+                                "detail": f"CNAME hop '{hop}' matches cloud provider '{prov_suffix}' AND response body contains unclaimed takeover error signature",
+                            }
+                        )
+
+        # Also inspect HTTP root response directly against unclaimed-provider takeover banners
+        for prov_suffix, fp_strings in takeover_fingerprints:
+            matched_fp = next((fp for fp in fp_strings if fp in root_low and len(cname_chain) > 1), None)
+            if matched_fp:
+                cfg11_findings.append(
+                    {
+                        "url": base_url,
+                        "host": host,
+                        "hop": terminal_host,
+                        "reason": "takeover_response_banner",
+                        "detail": f"Declared host '{host}' (CNAME {' -> '.join(cname_chain)}) serves unclaimed provider banner '{matched_fp}' ({prov_suffix})",
+                    }
+                )
+    else:
+        resolved_ips.append(host.strip("[]"))
+
+    for cf11 in cfg11_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-11",
+                "level": "error",
+                "message": {"text": cf11["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": cf11["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-11",
+                    "host": cf11["host"],
+                    "cnameChain": cname_chain,
+                    "reason": cf11["reason"],
+                },
+            }
+        )
+
+    cfg11_fail = len(cfg11_findings) > 0
+    chain_desc = " -> ".join(cname_chain) if len(cname_chain) > 1 else f"{host} (no external CNAME alias)"
+    cfg11_lines = [cf11["detail"] for cf11 in cfg11_findings]
     results["CFG-11"] = {
-        "verdict": "PASS",
-        "tool": "DNS CNAME Takeover Resolver",
-        "log": f"[PASS] Checked host '{host}'; no dangling CNAME record pointing to unclaimed third-party cloud service.",
+        "verdict": "FAIL" if cfg11_fail else "PASS",
+        "tool": f"DNS CNAME Chain & Cloud Takeover Fingerprint Resolver ({len(takeover_fingerprints)} providers, SARIF 2.1.0 + HAR 1.2)",
+        "log": (
+            f"[FAIL] {len(cfg11_findings)} dangling DNS / subdomain takeover condition(s) detected on '{host}' (chain: {chain_desc}):\n  - "
+            + "\n  - ".join(cfg11_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            if cfg11_fail
+            else f"[PASS] Resolved declared host '{host}' (CNAME chain: {chain_desc}; resolved IPs: {resolved_ips or ['<none>']}) and checked against {len(takeover_fingerprints)} cloud-provider takeover fingerprints; 0 dangling CNAME records or unclaimed provider banners detected.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+        ),
     }
 
     # ---- Domain 5: Authentication & Session Management (AUT-01 .. AUT-08) ----

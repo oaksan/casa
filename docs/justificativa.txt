@@ -2877,3 +2877,62 @@ Ao executar o motor atualizado da Iteração 42 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (6 resultados `CASA3-CFG-10`) e `output/dast-capture.har`.
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 35/61: CFG-11 (Iteração SDD 043)
+================================================================================
+Título: No dangling DNS record on any declared host or its CNAME chain permits subdomain takeover
+Mapeamento Normativo: OWASP ASVS V10.3.3 (L1); CWE-350 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Registros DNS pendentes (*dangling CNAME / DNS*), especialmente apontando para
+serviços em nuvem desprovisionados (GitHub Pages, Heroku, S3, Azure Web Apps,
+CloudFront, Netlify, Vercel, Fastly, Surge.sh, Shopify), permitem que terceiros
+assumam o recurso externo e tomem controle do subdomínio legítimo (*Subdomain
+Takeover*, CWE-350). O Guia de Testes CASA 3.0 AL1 exige para `CFG-11`:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP HAR 1.2;
+- Procedimento: Resolver cada host declarado, seguir cada cadeia `CNAME` até
+  o destino terminal e checar todos os saltos e o alvo final contra assinaturas
+  conhecidas de takeover;
+- Critério de Aprovação (PASS): Zero registros DNS do host declarado ou de sua
+  cadeia CNAME casam com assinatura de provedor não reivindicado;
+- Critério de Falha (FAIL): >= 1 registro ou salto CNAME casa com assinatura de
+  takeover / provedor não reivindicado.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Em ambiente local (`http://localhost:3000`), o host declarado `localhost` resolve
+para loopback (`127.0.0.1`, `::1`) sem cadeia CNAME externa nem assinatura de
+takeover, configurando um caso legítimo de conformidade (`PASS`) — porém exigindo
+resolução DNS real via `dig`/`getaddrinfo` em substituição ao stub fixo anterior.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 043:
+  O scanner retornava uma string estática simulada (`PASS`), sem executar `dig`,
+  sem seguir cadeias CNAME, sem validar assinaturas de provedores em nuvem e sem
+  referenciar SARIF 2.1.0 e HAR 1.2.
+
+- Oportunidades de Melhoria Implementadas na Iteração 043 (`casa_audit/scanner.py`):
+  1. Resolução DNS Real e Travessia de Cadeia CNAME (`run_dig_query` + `socket.getaddrinfo`):
+     Executa `dig` (`CNAME`, `A`, `AAAA`) seguindo até 8 saltos na cadeia CNAME e
+     captura o status DNS (`NOERROR`, `NXDOMAIN`) e os IPs resolvidos.
+  2. Base de 16 Assinaturas de Subdomain Takeover em Nuvem:
+     Cruza cada salto CNAME e o corpo HTTP contra provedores críticos (`github.io`,
+     `herokuapp.com`, `s3.amazonaws.com`, `azurewebsites.net`, `trafficmanager.net`,
+     `netlify.app`, `vercel.app`, `cloudfront.net`, `fastly.net`, `surge.sh`, etc.).
+  3. Evidência SARIF 2.1.0 (`CASA3-CFG-11`) + HAR 1.2:
+     Emite achados de takeover em `output/dast-findings.sarif` quando detectados.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 43 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Host resolvido: `localhost`
+- Cadeia CNAME observada: `localhost (no external CNAME alias)`
+- IPs resolvidos via `socket.getaddrinfo` / DNS: `['127.0.0.1', '::1']`
+- Provedores de takeover verificados: 16 assinaturas (0 ocorrências)
+- Artefatos gerados: `output/dast-findings.sarif` (0 violações `CASA3-CFG-11`) e `output/dast-capture.har`.
+- Veredito Automatizado: PASS
+================================================================================

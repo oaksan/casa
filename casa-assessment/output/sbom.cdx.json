@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:c4f9e35e-9427-4ca0-9e47-e93e8fb4db4c",
+  "serialNumber": "urn:uuid:f4d0537d-1138-4337-a4d2-51c5e5233233",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-11-18T17:19:00.318210+00:00",
+    "timestamp": "2026-11-18T17:21:53.525945+00:00",
     "tools": [
       {
         "vendor": "ADA",

@@ -2997,3 +2997,58 @@ Ao executar o motor atualizado da Iteração 44 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (5 resultados `CASA3-AUT-01`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 37/61: AUT-02 (Iteração SDD 045)
+================================================================================
+Título: Session tokens possess >= 64 bits of entropy
+Mapeamento Normativo: OWASP ASVS V3.2.2 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+A entropia de um identificador de sessão não pode ser avaliada observando uma
+única assinatura codificada: assinaturas criptográficas determinísticas sobre
+payloads previsíveis aparentam alta entropia por caractere, mas colidem sempre que
+não incorporam um nonce criptográfico aleatório (`jti` / CSPRNG). Por isso, o
+Guia de Testes CASA 3.0 AL1 exige amostragem empírica de 200 autenticações:
+- Evidência: Achados de harness/DAST em SARIF 2.1.0 e captura HAR 1.2 redigida;
+- Procedimento: Coletar **200 tokens de sessão** a partir de autenticações novas
+  e calcular estimativa de **min-entropia** (ex.: NIST SP 800-90B / Burp Sequencer);
+- Critério de Aprovação (PASS): Todos os **200 tokens distintos** **e**
+  min-entropia estimada `>= 64 bits`;
+- Critério de Falha (FAIL): Qualquer token repetido **ou** min-entropia `< 64 bits`.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Em `lib/insecurity.ts`, o OWASP Juice Shop assina JWTs RS256 apenas com `iat`
+em granularidade de 1 segundo e sem `jti` aleatório. Logins consecutivos no mesmo
+segundo recebem exatamente o **mesmo token bit-a-bit**.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 045:
+  O scanner aplicava entropia de Shannon sobre a assinatura de **1 único token**,
+  retornando um **falso `PASS`** (> 1000 bits aparentes) sem coletar 200 logins e
+  sem detectar colisões idênticas nem calcular min-entropia empírica (NIST SP 800-90B).
+
+- Oportunidades de Melhoria Implementadas na Iteração 045 (`casa_audit/scanner.py`):
+  1. Harness de Coleta de 200 Autenticações Novas (`http.client` keep-alive):
+     Executa 200 chamadas `POST /rest/user/login` e armazena os 200 tokens emitidos.
+  2. Verificação de Unicidade & Estimador MCV (NIST SP 800-90B):
+     Verifica `distinct_tokens == 200` e calcula min-entropia `H_min = -log2(p_max)`
+     (Most-Common-Value), avaliando unicidade e entropia posicional mínima `>= 64 bits`.
+  3. Evidência SARIF 2.1.0 (`CASA3-AUT-02`) + HAR 1.2 Redigido:
+     Persiste contagem de amostras, tokens únicos, duplicados, frequência máxima
+     de colisão e `minEntropyBits` em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 45 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Tokens coletados de logins recentes: **200** em **7,78s**
+- Tokens distintos: apenas **8 / 200** (**192 tokens duplicados exatos**)
+- Maior frequência de colisão idêntica (`p_max`): **34 / 200**
+- Min-entropia empírica (NIST SP 800-90B MCV): **`2,56 bits`** (`< 64,0 bits`)
+- Artefatos gerados: `output/dast-findings.sarif` (`CASA3-AUT-02`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: **FAIL** (corrigiu o falso positivo anterior).
+================================================================================

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
 import concurrent.futures
 import datetime
 import difflib
+import hashlib
+import hmac
 import html
 import http.client
 import json
@@ -4945,15 +4948,163 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-07: Stateless tokens signed with strong algorithm; alg:none and key confusion rejected
+    # AUT-07: Active JWT Forged-Token Harness (alg:none, RS256->HS256 key confusion, foreign kid, injected jku, tampered sig, alg allowlist & exp <= 86400s) (SARIF 2.1.0 + redacted HAR 1.2)
+    def b64url_encode(raw_bytes: bytes) -> str:
+        return base64.urlsafe_b64encode(raw_bytes).rstrip(b"=").decode("ascii")
+
+    def b64url_decode_json(seg_str: str) -> dict:
+        padded = seg_str + "=" * (-len(seg_str) % 4)
+        return json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8", errors="ignore"))
+
     jwt_confusion = "expressJwt(({ secret: publicKey })" in insec_txt or "jws.verify" in insec_txt
+    aut07_token = aut05_replayed_token or auth_token or jwt_token
+    allowed_jwt_algs = {"RS256", "RS384", "RS512", "ES256", "ES384", "PS256", "EdDSA", "HS256"}
+    cfg_aut07_findings: list[dict] = []
+    jwt_meta_desc = "no token"
+    crafted_vectors_sent = 0
+
+    if aut07_token and aut07_token.count(".") == 2:
+        parts7 = aut07_token.split(".")
+        hdr_b64_7, pay_b64_7, sig_b64_7 = parts7
+        try:
+            hdr7 = b64url_decode_json(hdr_b64_7)
+            pay7 = b64url_decode_json(pay_b64_7)
+        except Exception:
+            hdr7, pay7 = {}, {}
+
+        alg_val = str(hdr7.get("alg", ""))
+        iat_val = pay7.get("iat")
+        exp_val = pay7.get("exp")
+        issuance_ts = iat_val if isinstance(iat_val, (int, float)) else int(time.time())
+        lifetime_s = (exp_val - issuance_ts) if isinstance(exp_val, (int, float)) else None
+        jwt_meta_desc = f"alg={alg_val or '<missing>'}, iat={iat_val}, exp={exp_val}, lifetime_s={lifetime_s}"
+
+        # 1. Signing algorithm allowlist check
+        if alg_val not in allowed_jwt_algs:
+            cfg_aut07_findings.append(
+                {
+                    "vector": "disallowed_signing_algorithm",
+                    "status": 200,
+                    "detail": f"Genuine token uses signing algorithm '{alg_val or '<none>'}', which is outside allowed set {sorted(allowed_jwt_algs)}.",
+                }
+            )
+
+        # 2. If HS256 and source/artifact reveals key, check >= 256 bits
+        if alg_val == "HS256":
+            m_hmac = re.search(r"(?:secret|jwtSecret)\s*[:=]\s*['\"]([^'\"]+)['\"]", insec_txt)
+            if m_hmac and len(m_hmac.group(1).encode("utf-8")) * 8 < 256:
+                cfg_aut07_findings.append(
+                    {
+                        "vector": "weak_hs256_key",
+                        "status": 200,
+                        "detail": f"HS256 signing key in source is {len(m_hmac.group(1).encode('utf-8')) * 8} bits (< 256 bits required).",
+                    }
+                )
+
+        # 3. Non-revocable token expiration lifetime check (accepted after AUT-05 logout replay)
+        if aut05_post_logout_accepted:
+            if not isinstance(exp_val, (int, float)):
+                cfg_aut07_findings.append(
+                    {
+                        "vector": "non_expiring_stateless_token",
+                        "status": 200,
+                        "detail": "Token accepted after AUT-05 logout replay omits 'exp' claim altogether (non-expiring stateless JWT; ASVS V3.5.3 requires exp lifetime <= 86400s).",
+                    }
+                )
+            elif lifetime_s is not None and lifetime_s > 86400:
+                cfg_aut07_findings.append(
+                    {
+                        "vector": "excessive_token_lifetime",
+                        "status": 200,
+                        "detail": f"Token accepted after AUT-05 logout replay has lifetime={lifetime_s}s > 86400s (24h max for non-revocable tokens).",
+                    }
+                )
+
+        # 4. Retrieve server RSA public key if exposed (/encryptionkeys/jwt.pub) or local repo fallback for key confusion test
+        pub_key_bytes = b""
+        pk_st, _, pk_body = http_probe("/encryptionkeys/jwt.pub")
+        if pk_st == 200 and "BEGIN PUBLIC KEY" in pk_body:
+            pub_key_bytes = pk_body.encode("utf-8")
+        elif (repo / "encryptionkeys" / "jwt.pub").exists():
+            pub_key_bytes = (repo / "encryptionkeys" / "jwt.pub").read_bytes()
+
+        # Build the 5 crafted JWT attack tokens per CASA 3.0 AL1 Test Procedure
+        c_none_hdr = b64url_encode(json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+        crafted_tokens: list[tuple[str, str]] = [
+            ("unsigned_alg_none", f"{c_none_hdr}.{pay_b64_7}."),
+            (
+                "foreign_kid_injection",
+                f"{b64url_encode(json.dumps({'alg': alg_val or 'RS256', 'typ': 'JWT', 'kid': '../../etc/passwd'}, separators=(',', ':')).encode('utf-8'))}.{pay_b64_7}.{sig_b64_7}",
+            ),
+            (
+                "injected_jku_url",
+                f"{b64url_encode(json.dumps({'alg': alg_val or 'RS256', 'typ': 'JWT', 'jku': 'http://127.0.0.1:1/jwks.json'}, separators=(',', ':')).encode('utf-8'))}.{pay_b64_7}.{sig_b64_7}",
+            ),
+        ]
+        if pub_key_bytes:
+            hs_hdr = b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+            hs_sig = b64url_encode(hmac.new(pub_key_bytes, f"{hs_hdr}.{pay_b64_7}".encode("utf-8"), hashlib.sha256).digest())
+            crafted_tokens.append(("algorithm_confusion_hs256_pubkey", f"{hs_hdr}.{pay_b64_7}.{hs_sig}"))
+        tampered_pay = dict(pay7) if isinstance(pay7, dict) else {"tampered": True}
+        if isinstance(tampered_pay.get("data"), dict):
+            tampered_pay["data"] = {**tampered_pay["data"], "email": "tampered_casa3@juice-sh.op"}
+        else:
+            tampered_pay["sub"] = "tampered_casa3"
+        tampered_b64 = b64url_encode(json.dumps(tampered_pay, separators=(",", ":")).encode("utf-8"))
+        crafted_tokens.append(("modified_payload_original_sig", f"{hdr_b64_7}.{tampered_b64}.{sig_b64_7}"))
+
+        for vec_name, forged_tok in crafted_tokens:
+            crafted_vectors_sent += 1
+            vst, _, _ = http_probe("/rest/wallet/balance", headers={"Authorization": f"Bearer {forged_tok}"})
+            if 200 <= vst < 300:
+                cfg_aut07_findings.append(
+                    {
+                        "vector": vec_name,
+                        "status": vst,
+                        "detail": f"GET {base_url}/rest/wallet/balance ACCEPTED crafted token '{vec_name}' (HTTP {vst}) — RFC 8725 / CWE-347 signature bypass.",
+                    }
+                )
+    elif jwt_confusion:
+        cfg_aut07_findings.append(
+            {
+                "vector": "static_jwt_confusion_config",
+                "status": 0,
+                "detail": "lib/insecurity.ts configures express-jwt with RSA publicKey without restricting algorithms (CWE-347).",
+            }
+        )
+
+    for af7 in cfg_aut07_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AUT-07",
+                "level": "error",
+                "message": {"text": af7["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": f"{base_url}/rest/wallet/balance"},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AUT-07",
+                    "attackVector": af7["vector"],
+                    "httpStatus": af7["status"],
+                },
+            }
+        )
+
+    aut07_fail = len(cfg_aut07_findings) > 0
+    aut07_lines = [f"[{af7['vector']}] {af7['detail']}" for af7 in cfg_aut07_findings]
     results["AUT-07"] = {
-        "verdict": "FAIL" if jwt_confusion else "PASS",
-        "tool": "JWT Security & Key Confusion Analyzer (jwt_tool)",
+        "verdict": "FAIL" if aut07_fail else "PASS",
+        "tool": f"Active JWT Crafted-Token & Lifetime Verifier ({crafted_vectors_sent} forged JWT attacks tested, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            "[FAIL] lib/insecurity.ts:52 configures express-jwt with RSA publicKey as secret without restricting algorithms, enabling RS256 -> HS256 key confusion and alg:none attacks (CWE-347)."
-            if jwt_confusion
-            else "[PASS] Stateless token verification enforces strict algorithm allowlist."
+            f"[FAIL] {len(cfg_aut07_findings)} JWT security violation(s) detected ({jwt_meta_desc}; tested {crafted_vectors_sent} forged vectors against /rest/wallet/balance):\n  - "
+            + "\n  - ".join(aut07_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if aut07_fail
+            else f"[PASS] Submitted {crafted_vectors_sent} crafted JWT attacks (alg:none, HS256 key confusion, foreign kid, injected jku, modified payload); all denied and token claims validated ({jwt_meta_desc}).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

@@ -3302,3 +3302,65 @@ Ao executar o motor atualizado da Iteração 49 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (`CASA3-AUT-06`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 42/61: AUT-07 (Iteração SDD 050)
+================================================================================
+Título: Stateless tokens are signed with a strong algorithm; `alg:none`, algorithm confusion and key substitution rejected; non-revocable tokens expire <= 24 hours
+Mapeamento Normativo: OWASP ASVS V3.5.3 (L2); RFC 8725 (JWT BCP); CWE-347 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Tokens JWT stateless exigem validação estrita de cabeçalho e algoritmo conforme
+a RFC 8725 (JWT Best Current Practices): falhas de confusão de algoritmo
+(`RS256 -> HS256` assinando HMAC com a chave pública RSA exposta) ou aceitação de
+`alg: none` permitem forjar qualquer identidade/role sem possuir a chave privada
+(CWE-347). Além disso, tokens não revogáveis no logout (`AUT-05`) precisam de
+expiração curta (`exp - iat <= 86400s`). O Guia de Testes CASA 3.0 AL1 exige:
+- Evidência: Achados de harness/DAST em SARIF 2.1.0 e captura HAR 1.2 redigida;
+- Procedimento: Submeter **5 classes de tokens forjados** contra rotas protegidas
+  (não assinado `alg: none`, algoritmo confundido `HS256`, `kid` estrangeiro,
+  URL `jku` injetada e payload adulterado mantendo assinatura original); inspecionar
+  `alg`, `iat`, `exp` (e tamanho da chave HMAC >= 256 bits quando `HS256`);
+- Critério de Aprovação (PASS): Todos os tokens forjados negados, algoritmo dentro
+  da allowlist e todo token aceito pós-logout no `AUT-05` possui `exp` com vida
+  útil `<= 86400s`.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop expõe sua chave pública RSA em `/encryptionkeys/jwt.pub` e
+configura `express-jwt` sem restrição de `algorithms` em `lib/insecurity.ts`,
+além de emitir JWTs sem claim `exp` (`lifetime` infinito).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 050:
+  O scanner verificava apenas `expressJwt(({ secret: publicKey })` estaticamente
+  no código-fonte, sem construir nem submeter os 5 vetores de ataque JWT contra a
+  API ao vivo, sem validar `alg`, tamanho de chave HS256 nem presença/vida útil
+  de `exp` (`<= 86400s`) após o `AUT-05`, e sem emitir SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 050 (`casa_audit/scanner.py`):
+  1. Harness Ativo de 5 Ataques JWT Forjados:
+     Constrói e submete dinamicamente a `/rest/wallet/balance`: (a) `alg: none`,
+     (b) confusão `HS256` assinada via HMAC-SHA256 com `/encryptionkeys/jwt.pub`,
+     (c) `kid: ../../etc/passwd`, (d) `jku` externa e (e) payload adulterado com
+     assinatura original.
+  2. Auditoria de Algoritmo, Chave HMAC & Vida Útil Pós-Logout (`exp <= 86400s`):
+     Decodifica cabeçalho e claims do JWT legítimo e cruza com `aut05_post_logout_accepted`.
+  3. Evidência SARIF 2.1.0 (`CASA3-AUT-07`) + Redacted HAR 1.2:
+     Registra cada bypass aceito e violação de expiração em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 50 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Claims do JWT legítimo inspecionado: `alg=RS256`, `iat=1795040791`, `exp=None`
+- Violações `CASA3-AUT-07` comprovadas ao vivo em `GET /rest/wallet/balance` (**3 achados**):
+  1. `[non_expiring_stateless_token]` Token aceito pós-logout no `AUT-05` omite `exp` (sem expiração <= 86400s).
+  2. `[unsigned_alg_none]` Token não assinado (`alg: none`) **ACEITO com `HTTP 200`**.
+  3. `[algorithm_confusion_hs256_pubkey]` Token `HS256` assinado com a chave pública `/encryptionkeys/jwt.pub` **ACEITO com `HTTP 200`**.
+- (Os vetores `foreign_kid_injection`, `injected_jku_url` e `modified_payload_original_sig` foram negados com HTTP 401.)
+- Artefatos gerados: `output/dast-findings.sarif` (3 resultados `CASA3-AUT-07`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

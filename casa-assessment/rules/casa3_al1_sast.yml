@@ -26,12 +26,28 @@ rules:
 
   - id: CASA3-SAST-03-weak-cipher
     languages: [typescript, javascript]
-    message: "SAST-03: Deprecated or broken cipher algorithm or insecure cipher mode (CWE-327)"
+    message: "SAST-03: Deprecated or broken cipher algorithm (DES, 3DES, RC4, Blowfish) or insecure ECB mode (CWE-327)"
     severity: ERROR
     pattern-either:
       - pattern: crypto.createCipher($ALG, ...)
       - pattern: crypto.createDecipher($ALG, ...)
-      - pattern-regex: "createCipheriv\\(['\"](des|rc4|bf|aes-[0-9]+-ecb)"
+      - pattern: CryptoJS.DES.encrypt(...)
+      - pattern: CryptoJS.TripleDES.encrypt(...)
+      - pattern: CryptoJS.RC4.encrypt(...)
+      - pattern-regex: "(?i)(?:createCipheriv|createDecipheriv)\\s*\\(\\s*['\"](?:des|des3|des-ede|des-ede3|desx|rc4|bf|blowfish|[a-z0-9-]+-ecb)"
+      - pattern-regex: "(?i)CryptoJS\\.mode\\.ECB"
+
+  - id: CASA3-SAST-03-weak-cipher-python
+    languages: [python]
+    message: "SAST-03: Deprecated or broken cipher algorithm (DES, 3DES, RC4, Blowfish) or insecure ECB mode in Python (CWE-327)"
+    severity: ERROR
+    pattern-either:
+      - pattern: Crypto.Cipher.DES.new(...)
+      - pattern: Crypto.Cipher.DES3.new(...)
+      - pattern: Crypto.Cipher.ARC4.new(...)
+      - pattern: Crypto.Cipher.Blowfish.new(...)
+      - pattern: AES.new($KEY, AES.MODE_ECB, ...)
+      - pattern: cryptography.hazmat.primitives.ciphers.modes.ECB()
 
   - id: CASA3-SAST-04-weak-hash
     languages: [typescript, javascript]

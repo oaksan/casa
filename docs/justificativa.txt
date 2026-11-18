@@ -783,3 +783,88 @@ cobrindo todas as modalidades de material criptográfico e keystores da aplicaç
      Chamada `HDNodeWallet.fromPhrase(mnemonic)` derivando `mnemonicWallet.privateKey`
      diretamente a partir da semente hardcoded.
 ================================================================================
+
+================================================================================
+CONTROLE 08/61: SAST-03 (Iteração SDD 016)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-03
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "No deprecated or broken cipher algorithms (DES, 3DES, RC4, Blowfish, ECB mode)"
+- Padrões de Referência:
+  * MITRE CWE-327 (Use of a Broken or Risky Cryptographic Algorithm)
+  * NIST SP 800-131A Rev.2 (Transitioning the Use of Cryptographic Algorithms)
+  * OWASP ASVS v4.0.3: V6.2.5 (L2)
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-03):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run static cryptography rules over the source code (or the decompiled
+     artifact) to find uses of deprecated or broken cipher algorithms and ECB mode."
+  2. "Reference tooling: semgrep, CodeQL."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Zero `error`-level findings from the banned-algorithm rule set
+    (DES, 3DES, RC4, Blowfish, or any cipher instantiated in `ECB` mode)."
+  * FAIL: "≥ 1 `error`-level finding from the banned-algorithm rule set."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-03 é uma propriedade sintática 100% decidível por Análise
+Estática Baseada em AST (`Semgrep` / `CodeQL`). O conjunto de algoritmos e modos
+criptográficos banidos pelo NIST SP 800-131A Rev.2 é finito e enumerável:
+  $$\mathcal{B}_{cipher} = \{\text{DES}, \text{3DES}, \text{RC4}, \text{Blowfish}, \text{*-ECB}\}$$
+Toda instanciação de cifra simétrica em Node.js (`crypto.createCipheriv`),
+`CryptoJS` ou Python (`PyCryptodome` / `cryptography`) recebe o identificador do
+algoritmo e/ou modo como parâmetro explícito de chamada de API, tornando a
+verificação determinística e livre de ambiguidade.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 016)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 016:
+  A regra `CASA3-SAST-03-weak-cipher` em `rules/casa3_al1_sast.yml` cobria apenas
+  TypeScript/JavaScript com padrões básicos (`crypto.createCipher`, `createDecipher`
+  e `createCipheriv('des|rc4|bf|aes-*-ecb')`), deixando lacunas para `createDecipheriv`,
+  variantes OpenSSL (`des-ede3-cbc`, `desx`, `blowfish`, `des3`), `CryptoJS`
+  (`CryptoJS.DES`, `TripleDES`, `RC4`, `mode.ECB`) e Python (`PyCryptodome` e
+  `cryptography`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 016 (`rules/casa3_al1_sast.yml`):
+  1. Expansão Completa das Variantes JS/TS (`CASA3-SAST-03-weak-cipher`):
+     Inclusão de `createCipheriv` e `createDecipheriv` case-insensitive para todas
+     as variantes (`des`, `des3`, `des-ede`, `des-ede3`, `desx`, `rc4`, `bf`,
+     `blowfish`, `*-ecb`), além de padrões AST para `CryptoJS.DES.encrypt`,
+     `CryptoJS.TripleDES.encrypt`, `CryptoJS.RC4.encrypt` e `CryptoJS.mode.ECB`.
+  2. Cobertura Multi-Linguagem Python (`CASA3-SAST-03-weak-cipher-python`):
+     Inclusão de regras AST para `Crypto.Cipher.{DES,DES3,ARC4,Blowfish}.new`,
+     `AES.new(..., AES.MODE_ECB, ...)` e `cryptography...modes.ECB()`.
+  3. Validação Cruzada (Positivo vs. Negativo):
+     Validado com fixture sintético contendo as 5 famílias banidas (`FAIL` com
+     5/5 detecções exatas) e contra o OWASP Juice Shop (`PASS` verdadeiro).
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 16 contra o OWASP Juice Shop:
+- Veredito Automatizado: PASS (0 violações em `lib/`, `routes/`, `models/`, `data/`,
+  `server.ts`, `app.ts`, `config/`)
+- Explicação Técnica:
+  Embora o OWASP Juice Shop contenha dezenas de vulnerabilidades criptográficas
+  intencionais em outros controles (como uso de `MD5` sem salt no `SAST-04`/`SAST-05`,
+  `Math.random()` no `SAST-06` e chave privada RSA inline no `SAST-02`), o código-fonte
+  TypeScript da aplicação não instancia nenhuma das cifras simétricas banidas pelo
+  `SAST-03` (`DES`, `3DES`, `RC4`, `Blowfish` ou modo `ECB`). Para ofuscação de
+  cupons e códigos de progresso, o Juice Shop utiliza codificação `z85` e `Hashids`
+  em vez de cifras de bloco simétricas. Portanto, o veredito `PASS` para o
+  `SAST-03` comprova ausência de falsos positivos.
+================================================================================

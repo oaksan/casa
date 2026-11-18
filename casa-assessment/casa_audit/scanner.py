@@ -3576,14 +3576,108 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-07: Anti-caching headers on sensitive/API responses
-    _, whoami_hdrs, _ = http_probe("/rest/user/whoami")
-    cc = whoami_hdrs.get("cache-control", "") or root_headers.get("cache-control", "")
-    cc_ok = "no-store" in cc.lower() or "private" in cc.lower()
+    # CFG-07: Anti-caching headers (strict Cache-Control: no-store) on all authenticated and sensitive responses (SARIF 2.1.0 + HAR 1.2)
+    auth_token = ""
+    auth_bid = 1
+    auth_uid = 1
+    try:
+        sess_email = f"casa3_dast_cfg07_{int(time.time())}@juice-sh.op"
+        reg_payload = json.dumps(
+            {
+                "email": sess_email,
+                "password": "Casa3Cfg07Session!99",
+                "passwordRepeat": "Casa3Cfg07Session!99",
+            }
+        ).encode("utf-8")
+        reg_st, _, reg_body = http_probe("/api/Users/", method="POST", headers={"Content-Type": "application/json"}, body=reg_payload)
+        if 200 <= reg_st < 300 and reg_body:
+            try:
+                auth_uid = json.loads(reg_body).get("data", {}).get("id", 1) or 1
+            except Exception:
+                auth_uid = 1
+        login_payload = json.dumps({"email": sess_email, "password": "Casa3Cfg07Session!99"}).encode("utf-8")
+        login_st, _, login_body = http_probe("/rest/user/login", method="POST", headers={"Content-Type": "application/json"}, body=login_payload)
+        if 200 <= login_st < 300 and login_body:
+            auth_obj = json.loads(login_body).get("authentication", {})
+            auth_token = auth_obj.get("token", "")
+            auth_bid = auth_obj.get("bid", 1) or 1
+    except Exception:
+        auth_token = ""
+
+    auth_req_headers = (
+        {"Authorization": f"Bearer {auth_token}", "Cookie": f"token={auth_token}"}
+        if auth_token
+        else {}
+    )
+    cfg07_targets = [
+        "/rest/user/whoami",
+        f"/rest/basket/{auth_bid}",
+        f"/api/Users/{auth_uid}",
+        "/rest/wallet/balance",
+        "/api/Cards",
+        "/rest/2fa/status",
+        "/rest/admin/application-configuration",
+        "/support/logs",
+        "/encryptionkeys",
+    ]
+    cfg07_checked = 0
+    cfg07_findings: list[dict] = []
+    for ep7 in cfg07_targets:
+        st7, hdrs7, _ = http_probe(ep7, headers=auth_req_headers)
+        if not (200 <= st7 < 300):
+            continue
+        cfg07_checked += 1
+        raw_cc = hdrs7.get("cache-control", "").strip()
+        cc_directives = {d.strip().lower().split("=", 1)[0] for d in raw_cc.split(",") if d.strip()}
+        if "no-store" not in cc_directives:
+            etag_note = f", ETag={hdrs7['etag']}" if hdrs7.get("etag") else ""
+            cfg07_findings.append(
+                {
+                    "url": f"{base_url}{ep7}",
+                    "status": st7,
+                    "cacheControl": raw_cc or "<missing>",
+                    "authenticated": bool(auth_token),
+                    "detail": (
+                        f"GET {base_url}{ep7} (HTTP {st7}, authenticated={bool(auth_token)}) "
+                        f"Cache-Control='{raw_cc or '<missing>'}'{etag_note} lacks required 'no-store' directive"
+                    ),
+                }
+            )
+
+    for cf7 in cfg07_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-07",
+                "level": "error",
+                "message": {"text": cf7["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": cf7["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-07",
+                    "httpStatus": cf7["status"],
+                    "cacheControl": cf7["cacheControl"],
+                    "authenticated": cf7["authenticated"],
+                },
+            }
+        )
+
+    cc_ok = cfg07_checked > 0 and len(cfg07_findings) == 0
+    cfg07_lines = [cf7["detail"] for cf7 in cfg07_findings]
     results["CFG-07"] = {
         "verdict": "PASS" if cc_ok else "FAIL",
-        "tool": "HTTP Caching Inspector (HAR 1.2)",
-        "log": f"[{'PASS' if cc_ok else 'FAIL'}] Cache-Control header on / and /rest/user/whoami: '{cc or '<missing>'}' (requires no-store/private on sensitive responses).",
+        "tool": f"Authenticated Anti-Caching Inspector ({cfg07_checked} authenticated/sensitive 2xx routes inspected, SARIF 2.1.0 + HAR 1.2)",
+        "log": (
+            f"[PASS] All {cfg07_checked} authenticated/sensitive 2xx response(s) carry strict 'Cache-Control: no-store'.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            if cc_ok
+            else f"[FAIL] {len(cfg07_findings)}/{cfg07_checked} authenticated/sensitive 2xx response(s) omit mandatory 'Cache-Control: no-store' directive (ASVS V8.2.1):\n  - "
+            + "\n  - ".join(cfg07_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+        ),
     }
 
     # CFG-08: Strict CORS policy

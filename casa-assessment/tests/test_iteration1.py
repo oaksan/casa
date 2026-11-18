@@ -113,6 +113,7 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertIn("CONTROLE 28/61: CFG-04", just_txt)
         self.assertIn("CONTROLE 29/61: CFG-05", just_txt)
         self.assertIn("CONTROLE 30/61: CFG-06", just_txt)
+        self.assertIn("CONTROLE 31/61: CFG-07", just_txt)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)

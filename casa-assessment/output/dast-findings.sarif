@@ -1362,6 +1362,204 @@
             "httpStatus": 200,
             "observedHeader": "<missing>"
           }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-z8MvPKvemj9PNC5qj9JY8rlHZ6Y\" lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/whoami"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/basket/6 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9a-62UD0gOJIFmy/9FpG+8ngAGjMEQ\" lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/basket/6"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/api/Users/27 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-F8ON33d+/oNrzJUpszI5pHEHEVY\" lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/api/Users/27"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/wallet/balance (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1d-iBumrMzcXUGjLqkR74S/6br4l/M\" lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/wallet/balance"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/api/Cards (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1e-JkPcI+pGj7BBTxOuZTVVIm91zaY\" lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/api/Cards"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-gg0TiD/bWGn0XkbJJcsuqH7yC84\" lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/2fa/status"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/admin/application-configuration (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"8d3a-Cix2xcv1EnPBKILpdedEMIzttMw\" lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/admin/application-configuration"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/support/logs (HTTP 200, authenticated=True) Cache-Control='<missing>' lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/support/logs"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-07",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/encryptionkeys (HTTP 200, authenticated=True) Cache-Control='<missing>' lacks required 'no-store' directive"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/encryptionkeys"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-07",
+            "httpStatus": 200,
+            "cacheControl": "<missing>",
+            "authenticated": true
+          }
         }
       ]
     }

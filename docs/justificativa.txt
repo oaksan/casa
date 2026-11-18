@@ -1667,3 +1667,92 @@ Ao executar o motor atualizado da Iteração 25 contra o OWASP Juice Shop:
      Chave privada RSA inline, leitura local de `encryptionkeys/jwt.pub` e
      segredo HMAC-SHA256 hardcoded (`pa4qacea4VK9t9nGv7yZtwmj`).
 ================================================================================
+
+================================================================================
+CONTROLE 18/61: SAST-13 (Iteração SDD 026)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SAST-13
+- Domínio: 2. Static Code Analysis & Secrets
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "Credentials, payment details and tokens are never written to logs; session
+   tokens appear only in irreversible hashed form"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V7.1.1 (L1)
+  * MITRE CWE-532 (Insertion of Sensitive Information into Log File) / CWE-598
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 2 - SAST-13):
+
+- Evidência Exigida (Evidence):
+  1. "Static-analysis and secret-scan findings in SARIF 2.1.0, with rule
+     identifiers and file locations."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run static log-sink rules with data-flow tracking from credential, token
+     and card-number sources. Then replay the authentication, token-refresh and
+     payment flows with unique canary values and search the application's log
+     sink, to which the developer provides read access, for those values."
+  2. "Reference tooling: semgrep, scripted replay harness."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "No canary value appears literally in any log record, **and** zero
+    `error`-level taint paths from a credential, token or payment source to a
+    logging sink without an intervening masking or hashing function."
+  * FAIL: "≥ 1 canary value present literally in the log sink, or ≥ 1
+    `error`-level unmasked taint path to a logging sink."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SAST-13 consolida uma técnica clássica de verificação híbrida
+(Análise de Fluxo Estático + Teste Dinâmico com Canário):
+  1. **Análise de Taint Estático (`Source → Log Sink`):** Rastreia fontes
+     sensíveis (`req.body.password`, `headers.authorization`, `cookies.token`,
+     `cardNum`, `query.current`, `query.new`) até sorvedouros de log (`logger.*`,
+     `console.*`, `morgan('combined')`), com sanitizadores de hash/mascaramento;
+  2. **Canary Replay Harness:** Injeta identificadores canário únicos e
+     irrepetíveis ($\text{canary} = \text{CASA3\_CANARY\_*\_}\tau$) nos fluxos
+     de credenciais e verifica deterministicamente nos arquivos de log da
+     aplicação se $\text{canary} \in \text{LogSink}$.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 026)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 026:
+  O scanner retornava um **falso `PASS`** no OWASP Juice Shop porque a regra
+  `CASA3-SAST-13-sensitive-logging` verificava apenas `logger.info(... + $REQ.body.password)`
+  e `console.log(..., $REQ.headers.authorization, ...)`. Ele NÃO detectava
+  senhas recebidas via query string HTTP GET (`routes/changePassword.ts:14-15`)
+  gravadas pelo `morgan('combined')` no `logs/access.log.*` (`server.ts:366`) e
+  NÃO executava o **Scripted Canary Replay Harness**.
+
+- Oportunidades de Melhoria Implementadas na Iteração 026 (`rules/casa3_al1_sast.yml`
+  e `casa_audit/scanner.py`):
+  1. Regras Taint e AST no Semgrep (`CASA3-SAST-13-sensitive-logging`,
+     `CASA3-SAST-13-get-password-query-logged` e `CASA3-SAST-13-sensitive-logging-python`):
+     Rastreamento de credenciais/tokens/cartões em `logger.*`, `console.*` e
+     parâmetros `GET` (`query.current` / `query.new`) registrados em logs HTTP.
+  2. Scripted Canary Log Replay Harness (`evaluate_sast13_canary_log_replay`):
+     Executa replay automatizado com canários únicos sobre `/rest/user/change-password`
+     e `/rest/user/login` e varre `logs/access.log.*` comprovando o vazamento
+     literal nos registros de log.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor híbrido da Iteração 26 contra o OWASP Juice Shop, o veredito
+passou de falso `PASS` para **`FAIL` irrefutável**:
+- Veredito Automatizado: FAIL (Comprovado estaticamente e por Replay Canário)
+  1. **Evidência Estática (`routes/changePassword.ts:L14-15` + `server.ts:L366, L625`):**
+     A rota `GET /rest/user/change-password` lê as senhas em claro diretamente
+     da query string (`const currentPassword = query.current`, `const newPassword = query.new`),
+     enquanto `app.use(morgan('combined', { stream: accessLogStream }))` grava
+     todas as URLs + query strings em `logs/access.log.<DATA>`.
+  2. **Evidência Dinâmica (Canary Replay — `logs/access.log.2026-11-18:L15`):**
+     O harness enviou `current=CASA3_CANARY_CURPWD_...&new=CASA3_CANARY_NEWPWD_...`
+     e localizou os valores canário gravados **literalmente em texto claro** no
+     arquivo de log de acesso da aplicação.
+================================================================================

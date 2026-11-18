@@ -285,9 +285,53 @@ rules:
     pattern-regex: "(jwt\\.pub|privateKey\\s*=\\s*['\"]-----BEGIN|private_key\\s*=\\s*\"-----BEGIN|createHmac\\(['\"]sha256['\"]\\s*,\\s*['\"][A-Za-z0-9]{12,})"
 
   - id: CASA3-SAST-13-sensitive-logging
+    mode: taint
     languages: [typescript, javascript]
-    message: "SAST-13: Potential logging of sensitive user or authentication data (CWE-532)"
+    message: "SAST-13: Credentials, session tokens or payment details flow unmasked into logging/URL-logged sink (CWE-532 / ASVS V7.1.1)"
     severity: ERROR
-    pattern-either:
-      - pattern: logger.info($MSG + $REQ.body.password)
-      - pattern: console.log(..., $REQ.headers.authorization, ...)
+    pattern-sources:
+      - pattern: "$REQ.body.password"
+      - pattern: "$REQ.headers.authorization"
+      - pattern: "$REQ.cookies.token"
+      - pattern: "query.current"
+      - pattern: "query.new"
+      - pattern: "$USER.password"
+      - pattern: "$CARD.cardNum"
+    pattern-sanitizers:
+      - pattern: "sha256(...)"
+      - pattern: "mask(...)"
+      - pattern: "$X.replace(/./g, '*')"
+    pattern-sinks:
+      - pattern: "logger.info(...)"
+      - pattern: "logger.warn(...)"
+      - pattern: "logger.error(...)"
+      - pattern: "logger.debug(...)"
+      - pattern: "console.log(...)"
+      - pattern: "console.error(...)"
+      - pattern: "console.warn(...)"
+
+  - id: CASA3-SAST-13-get-password-query-logged
+    languages: [typescript, javascript]
+    message: "SAST-13: Passwords transmitted via HTTP GET query parameters (query.current/query.new) which are written verbatim to HTTP access logs (morgan combined) (CWE-532 / CWE-598)"
+    severity: ERROR
+    pattern: |
+      const $CUR = query.current as string
+      ...
+      const $NEW = query.new as string
+
+  - id: CASA3-SAST-13-sensitive-logging-python
+    mode: taint
+    languages: [python]
+    message: "SAST-13: Sensitive credential/token/card flows unmasked to log sink in Python (CWE-532)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: "password"
+      - pattern: "authorization"
+      - pattern: "access_token"
+      - pattern: "card_number"
+    pattern-sinks:
+      - pattern: "logging.info(...)"
+      - pattern: "logging.error(...)"
+      - pattern: "logging.debug(...)"
+      - pattern: "logger.info(...)"
+      - pattern: "print(...)"

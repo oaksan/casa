@@ -2751,6 +2751,59 @@ def evaluate_sast07_mass_assignment_probe(target_url: str) -> str | None:
     return None
 
 
+def evaluate_sast13_canary_log_replay(target_url: str, repo: Path) -> list[str]:
+    """
+    Scripted Canary Replay Harness for SAST-13 (CASA 3.0 AL1 Test Guide):
+    Replay authentication / credential-update / token flows with unique canary values
+    and search the application's log sinks (logs/access.log.*) for literal canary matches.
+    """
+    if not target_url or not target_url.strip():
+        return []
+    base = target_url.strip().rstrip("/")
+    ts = int(time.time())
+    canary_cur = f"CASA3_CANARY_CURPWD_{ts}"
+    canary_new = f"CASA3_CANARY_NEWPWD_{ts}"
+    canary_tok = f"CASA3_CANARY_TOKEN_{ts}"
+
+    replay_requests = [
+        urllib.request.Request(
+            f"{base}/rest/user/change-password?current={canary_cur}&new={canary_new}&repeat={canary_new}",
+            headers={"Authorization": f"Bearer {canary_tok}", "User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"},
+            method="GET",
+        ),
+        urllib.request.Request(
+            f"{base}/rest/user/login",
+            data=json.dumps({"email": "canary@juice-sh.op", "password": canary_cur}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {canary_tok}"},
+            method="POST",
+        ),
+    ]
+    for r in replay_requests:
+        try:
+            urllib.request.urlopen(r, timeout=4)
+        except Exception:
+            pass
+
+    time.sleep(0.25)
+    hits: list[str] = []
+    log_dir = repo / "logs"
+    if log_dir.is_dir():
+        for lf in sorted(log_dir.glob("access.log*")):
+            if not lf.is_file():
+                continue
+            try:
+                lines = lf.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except Exception:
+                continue
+            for lno, line in enumerate(lines, start=1):
+                if canary_cur in line or canary_new in line or canary_tok in line:
+                    hits.append(
+                        f"logs/{lf.name}:{lno} — [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary password written to HTTP access log: {line.strip()}"
+                    )
+                    break
+    return hits
+
+
 def run_automated_al1_scan(
     target_url: str = "",
     repo_path: str = "",
@@ -2780,6 +2833,17 @@ def run_automated_al1_scan(
                 "verdict": "FAIL",
                 "tool": f"{prev.get('tool', 'Semgrep AST')} + Active Mass Assignment Probe",
                 "log": f"{prev.get('log', '')}\n\nActive Mass Assignment Verification:\n  - {probe_finding}",
+            }
+
+    # SAST-13 Hybrid Verification: Combine Semgrep Taint / AST log-sink rules with Scripted Canary Log Replay Harness
+    if "SAST-13" in merged and target_url and target_url.strip():
+        canary_hits = evaluate_sast13_canary_log_replay(target_url, repo)
+        if canary_hits:
+            prev13 = merged["SAST-13"]
+            merged["SAST-13"] = {
+                "verdict": "FAIL",
+                "tool": f"{prev13.get('tool', 'Semgrep AST')} + Scripted Canary Log Replay Harness",
+                "log": f"{prev13.get('log', '')}\n\nDynamic Canary Replay Log Inspection:\n  - " + "\n  - ".join(canary_hits),
             }
 
     final: dict[str, dict] = {}

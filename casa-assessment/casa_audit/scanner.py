@@ -3680,14 +3680,113 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-08: Strict CORS policy
-    _, cors_hdrs, _ = http_probe("/rest/products/search?q=apple", headers={"Origin": "https://evil.example.com"})
-    acao = cors_hdrs.get("access-control-allow-origin", "") or root_headers.get("access-control-allow-origin", "")
-    cors_bad = acao == "*" or acao == "https://evil.example.com"
+    # CFG-08: Strict CORS allowlist, null/suffix-sharing/foreign origin reflection & wildcard+credentials audit (SARIF 2.1.0 + HAR 1.2)
+    suffix_origin = f"https://not{host}"
+    cors_probe_origins = [
+        ("foreign_origin", "https://evil.example.com"),
+        ("null_origin", "null"),
+        ("suffix_sharing_origin", suffix_origin),
+    ]
+    cors_endpoints = [
+        ("GET", "/", {}, False),
+        ("GET", "/rest/products/search?q=apple", {}, False),
+        ("GET", "/rest/user/whoami", auth_req_headers, True),
+        ("GET", "/rest/wallet/balance", auth_req_headers, True),
+        ("GET", "/api/Users/", auth_req_headers, True),
+        ("GET", "/rest/admin/application-configuration", {}, True),
+        ("OPTIONS", "/rest/user/login", {"Access-Control-Request-Method": "POST"}, True),
+    ]
+
+    cfg08_findings: list[dict] = []
+    seen_cfg08_keys: set[tuple[str, str, str]] = set()
+    cors_probes_sent = 0
+
+    for c_method, c_ep, c_base_hdrs, is_sensitive_ep in cors_endpoints:
+        for orig_kind, orig_val in cors_probe_origins:
+            hdrs_in = {**c_base_hdrs, "Origin": orig_val}
+            st8, hdrs8, _ = http_probe(c_ep, method=c_method, headers=hdrs_in)
+            cors_probes_sent += 1
+            acao = hdrs8.get("access-control-allow-origin", "").strip()
+            acac = hdrs8.get("access-control-allow-credentials", "").strip()
+            acao_l = acao.lower()
+            acac_l = acac.lower()
+
+            violation_type = None
+            detail = None
+            if acao_l == "null":
+                violation_type = "null_origin_accepted"
+                detail = f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} returned Access-Control-Allow-Origin: null (null origin accepted)"
+            elif acao_l == orig_val.lower():
+                violation_type = f"reflected_{orig_kind}"
+                detail = (
+                    f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} reflected untrusted {orig_kind} verbatim "
+                    f"(ACAO='{acao}', ACAC='{acac or 'false'}')"
+                )
+            elif acao_l == "*" and acac_l == "true":
+                violation_type = "wildcard_with_credentials"
+                detail = f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} combined Access-Control-Allow-Origin: * with Access-Control-Allow-Credentials: true"
+            elif acao_l == "*" and is_sensitive_ep:
+                violation_type = "permissive_wildcard_no_allowlist"
+                detail = (
+                    f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} returned wildcard Access-Control-Allow-Origin: * "
+                    f"on sensitive/API endpoint instead of strict allowlist (ASVS V14.5.3; ACAC='{acac or '<none>'}')"
+                )
+
+            if violation_type and detail:
+                dedup_k = (c_method, c_ep, violation_type)
+                if dedup_k not in seen_cfg08_keys:
+                    seen_cfg08_keys.add(dedup_k)
+                    cfg08_findings.append(
+                        {
+                            "url": f"{base_url}{c_ep}",
+                            "method": c_method,
+                            "status": st8,
+                            "violationType": violation_type,
+                            "originKind": orig_kind,
+                            "originSent": orig_val,
+                            "acao": acao,
+                            "acac": acac,
+                            "detail": detail,
+                        }
+                    )
+
+    for cf8 in cfg08_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-08",
+                "level": "error",
+                "message": {"text": cf8["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": cf8["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-08",
+                    "violationType": cf8["violationType"],
+                    "originTested": cf8["originSent"],
+                    "acao": cf8["acao"],
+                    "acac": cf8["acac"],
+                    "httpMethod": cf8["method"],
+                    "httpStatus": cf8["status"],
+                },
+            }
+        )
+
+    cors_bad = len(cfg08_findings) > 0
+    cfg08_lines = [f"[{cf8['violationType']}] {cf8['detail']}" for cf8 in cfg08_findings]
     results["CFG-08"] = {
         "verdict": "FAIL" if cors_bad else "PASS",
-        "tool": "Active CORS Origin Probe (HAR 1.2)",
-        "log": f"[{'FAIL' if cors_bad else 'PASS'}] Probe with Origin: https://evil.example.com returned Access-Control-Allow-Origin: '{acao or '<none>'}'.",
+        "tool": f"Multi-Origin Active CORS Allowlist Probe ({cors_probes_sent} probes across {len(cors_endpoints)} endpoints: foreign, null, suffix-sharing, SARIF 2.1.0 + HAR 1.2)",
+        "log": (
+            f"[FAIL] {len(cfg08_findings)} CORS policy violation(s) detected across {cors_probes_sent} active probes (tested Origins: https://evil.example.com, null, {suffix_origin}):\n  - "
+            + "\n  - ".join(cfg08_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            if cors_bad
+            else f"[PASS] Sent {cors_probes_sent} CORS probes across {len(cors_endpoints)} endpoints (foreign, null, and suffix-sharing '{suffix_origin}'): 0 reflected origins, 0 null acceptances, 0 wildcard+credentials, and strict allowlist enforced on sensitive endpoints.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+        ),
     }
 
     # CFG-09: 4xx/5xx responses return generic messages (no stack traces / SQL errors)

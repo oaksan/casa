@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-z8MvPKvemj9PNC5qj9JY8rlHZ6Y\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-7ymG8C2DCeH7bvrvDI7UTUxiMag\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/6 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9a-62UD0gOJIFmy/9FpG+8ngAGjMEQ\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/7 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9a-IhFv8SQ3gD1WUY/bVFSXgKtC9z0\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/6"
+                  "uri": "http://localhost:3000/rest/basket/7"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/27 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-F8ON33d+/oNrzJUpszI5pHEHEVY\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/28 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-uyLAJYmUQ6mVOiLzEICSqCA3t4Q\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/27"
+                  "uri": "http://localhost:3000/api/Users/28"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-gg0TiD/bWGn0XkbJJcsuqH7yC84\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-+WFoy6zH4AUvh3uP8Ncvov/fQFU\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1559,6 +1559,131 @@
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-08",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/user/whoami (Origin: https://evil.example.com) -> HTTP 200 returned wildcard Access-Control-Allow-Origin: * on sensitive/API endpoint instead of strict allowlist (ASVS V14.5.3; ACAC='<none>')"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/whoami"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-08",
+            "violationType": "permissive_wildcard_no_allowlist",
+            "originTested": "https://evil.example.com",
+            "acao": "*",
+            "acac": "",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-08",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/wallet/balance (Origin: https://evil.example.com) -> HTTP 200 returned wildcard Access-Control-Allow-Origin: * on sensitive/API endpoint instead of strict allowlist (ASVS V14.5.3; ACAC='<none>')"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/wallet/balance"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-08",
+            "violationType": "permissive_wildcard_no_allowlist",
+            "originTested": "https://evil.example.com",
+            "acao": "*",
+            "acac": "",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-08",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/api/Users/ (Origin: https://evil.example.com) -> HTTP 200 returned wildcard Access-Control-Allow-Origin: * on sensitive/API endpoint instead of strict allowlist (ASVS V14.5.3; ACAC='<none>')"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/api/Users/"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-08",
+            "violationType": "permissive_wildcard_no_allowlist",
+            "originTested": "https://evil.example.com",
+            "acao": "*",
+            "acac": "",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-08",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/admin/application-configuration (Origin: https://evil.example.com) -> HTTP 200 returned wildcard Access-Control-Allow-Origin: * on sensitive/API endpoint instead of strict allowlist (ASVS V14.5.3; ACAC='<none>')"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/admin/application-configuration"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-08",
+            "violationType": "permissive_wildcard_no_allowlist",
+            "originTested": "https://evil.example.com",
+            "acao": "*",
+            "acac": "",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-08",
+          "level": "error",
+          "message": {
+            "text": "OPTIONS http://localhost:3000/rest/user/login (Origin: https://evil.example.com) -> HTTP 204 returned wildcard Access-Control-Allow-Origin: * on sensitive/API endpoint instead of strict allowlist (ASVS V14.5.3; ACAC='<none>')"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-08",
+            "violationType": "permissive_wildcard_no_allowlist",
+            "originTested": "https://evil.example.com",
+            "acao": "*",
+            "acac": "",
+            "httpMethod": "OPTIONS",
+            "httpStatus": 204
           }
         }
       ]

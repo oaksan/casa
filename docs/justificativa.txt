@@ -2680,3 +2680,67 @@ Ao executar o motor atualizado da Iteração 39 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (9 resultados `CASA3-CFG-07`) e `output/dast-capture.har`.
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 32/61: CFG-08 (Iteração SDD 040)
+================================================================================
+Título: CORS uses a strict allow list; no wildcard with credentials; no unvalidated origin reflection
+Mapeamento Normativo: OWASP ASVS V14.5.3 (L1); CWE-942 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Configurações permissivas de CORS — como refletir qualquer cabeçalho `Origin`,
+aceitar a origem `"null"` (sandboxed iframes / `data:` URLs), validar apenas por
+sufixo de domínio (`endsWith`) ou aplicar `Access-Control-Allow-Origin: *` fora
+de uma allowlist estrita em endpoints autenticados ou combinado a `Allow-Credentials:
+true` — expõem APIs e sessões a leituras cross-origin não autorizadas (CWE-942).
+O Guia de Testes CASA 3.0 AL1 exige para `CFG-08`:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP HAR 1.2;
+- Procedimento: Enviar requisições para os endpoints com: (1) origem estrangeira,
+  (2) origem `null` e (3) origem que compartilha apenas o sufixo do domínio da
+  aplicação, inspecionando `Access-Control-Allow-Origin` e `Allow-Credentials`;
+- Critério de Aprovação (PASS): Nenhuma origem sondada refletida; ausência de
+  `*` com `Allow-Credentials: true`; origem `null` rejeitada; allowlist estrita.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Em `server.ts`, o OWASP Juice Shop habilita CORS irrestrito globalmente (`app.options('*', cors())`
+e `app.use(cors())`), retornando `Access-Control-Allow-Origin: *` tanto em
+endpoints públicos quanto em rotas autenticadas/administrativas (`/rest/user/whoami`,
+`/rest/wallet/balance`, `/api/Users/`, `/rest/admin/application-configuration` e
+preflight `OPTIONS /rest/user/login`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 040:
+  O scanner enviava apenas 1 sonda `GET /rest/products/search?q=apple` com
+  `Origin: https://evil.example.com`, deixando de testar `Origin: null`, origens
+  de bypass por sufixo, preflight `OPTIONS`, endpoints autenticados, combinação
+  `ACAO: *` + `ACAC: true` e geração de achados em SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 040 (`casa_audit/scanner.py`):
+  1. Matriz Multi-Origem (21 Sondas Ativas x 7 Endpoints):
+     Testa `https://evil.example.com` (estrangeira), `null` e `https://not<host>`
+     (bypass por sufixo) em rotas públicas, rotas autenticadas (`Authorization: Bearer`)
+     e preflight `OPTIONS`.
+  2. Classificação Granular (`null_origin_accepted`, `reflected_*`,
+     `wildcard_with_credentials`, `permissive_wildcard_no_allowlist`):
+     Verifica reflexão literal, aceitação de `null`, `*` + `Allow-Credentials: true`
+     e uso de wildcard `*` sem allowlist em endpoints sensíveis/autenticados (ASVS V14.5.3).
+  3. Evidência SARIF 2.1.0 (`CASA3-CFG-08`) + HAR 1.2:
+     Registra todos os achados deduplicados em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 40 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Sondas ativas enviadas: 21 requisições (`https://evil.example.com`, `null`, `https://notlocalhost`).
+- Violações `CASA3-CFG-08` detectadas (`5`):
+  - `GET /rest/user/whoami` (`HTTP 200`, autenticado) -> `Access-Control-Allow-Origin: *`
+  - `GET /rest/wallet/balance` (`HTTP 200`, autenticado) -> `Access-Control-Allow-Origin: *`
+  - `GET /api/Users/` (`HTTP 200`, autenticado) -> `Access-Control-Allow-Origin: *`
+  - `GET /rest/admin/application-configuration` (`HTTP 200`) -> `Access-Control-Allow-Origin: *`
+  - `OPTIONS /rest/user/login` (`HTTP 204`) -> `Access-Control-Allow-Origin: *`
+- Artefatos gerados: `output/dast-findings.sarif` (5 resultados `CASA3-CFG-08`) e `output/dast-capture.har`.
+- Veredito Automatizado: FAIL
+================================================================================

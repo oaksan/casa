@@ -2053,3 +2053,69 @@ Ao executar o motor atualizado da Iteração 30 contra o OWASP Juice Shop (`http
   na porta `3000` (`[SSL: RECORD_LAYER_FAILURE]`), confirmando a ausência total
   de autenticação de servidor via PKI/X.509.
 ================================================================================
+
+================================================================================
+CONTROLE 23/61: TLS-05 (Iteração SDD 031)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: TLS-05
+- Domínio: 3. Transport Security
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "`Strict-Transport-Security` present with `max-age` ≥ 31536000"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V14.4.5 (L1)
+  * IETF RFC 6797 (HTTP Strict Transport Security - HSTS)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 3 - TLS-05):
+
+- Evidência Exigida (Evidence):
+  1. "Machine-readable (JSON) TLS scanner output, for every declared host."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "From the TLS assessment, read the Strict-Transport-Security header and
+     its max-age on each declared host."
+  2. "Reference tooling: testssl.sh."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "`HSTS_time` ≥ 31536000 on every host."
+  * FAIL: "Header absent on any host, or `max-age` below 31536000."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle TLS-05 (introduzido entre os 10 novos requisitos determinísticos de
+configuração e cabeçalhos de resposta do CASA 3.0 — Tabela 2: *"HSTS"*) resume-se
+a uma desigualdade inteira sobre o cabeçalho HTTP `Strict-Transport-Security`:
+$$\text{PASS} \iff \big(\text{scheme} = \text{"https"}\big) \land \big(\min_{e \in E} \text{HSTS\_time}(e) \ge 31\,536\,000\big)$$
+onde $31\,536\,000\text{ s} = 365\text{ dias}$ e o requisito `overHttps` respeita
+a RFC 6797 §7.2 (browsers ignoram HSTS recebido por HTTP cleartext).
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 031)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 031:
+  O scanner verificava apenas `GET /` em memória sem registrar `HSTS_time` no
+  artefato JSON `output/tls-scan.json`, sem auditar consistência em endpoints de
+  API (`/api/Products`, `/rest/admin/application-configuration`) e sem verificar
+  a eficácia RFC 6797 §7.2 (`overHttps`) nem as diretivas `includeSubDomains`/`preload`.
+
+- Oportunidades de Melhoria Implementadas na Iteração 031 (`casa_audit/scanner.py`):
+  1. Auditoria Multi-Endpoint (`/` + `/api/Products` + `/rest/admin/application-configuration`):
+     Inspeciona cabeçalhos HSTS em páginas HTML e endpoints JSON/REST, calculando
+     o menor `HSTS_time` observado e checando diretivas `includeSubDomains` e `preload`.
+  2. Validação RFC 6797 §7.2 e Persistência em `output/tls-scan.json`:
+     Grava `HSTS_time` e o bloco `tls05Hsts` detalhado no relatório JSON e no `HAR 1.2`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 31 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Valor extraído em `tls-scan.json`: `HSTS_time = 0` (exigido $\ge 31\,536\,000$)
+- Veredito Automatizado: FAIL (3 violações de HSTS em HTML e APIs REST)
+  1. `GET http://localhost:3000/` — cabeçalho `Strict-Transport-Security` ausente (`HSTS_time=0`).
+  2. `GET http://localhost:3000/api/Products` — cabeçalho `Strict-Transport-Security` ausente (`HSTS_time=0`).
+  3. `GET http://localhost:3000/rest/admin/application-configuration` — cabeçalho ausente (`HSTS_time=0`).
+================================================================================

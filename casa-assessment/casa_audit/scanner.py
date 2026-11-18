@@ -2558,11 +2558,49 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         and bool(cert_audit["hostnameMatches"])
     )
 
+    # TLS-05: Strict-Transport-Security multi-endpoint audit & HSTS_time >= 31536000 persistence in TLS JSON
+    hsts_endpoints_to_probe = ["/", "/api/Products", "/rest/admin/application-configuration"]
+    hsts_results_by_ep: list[dict] = []
+    hsts_violations: list[str] = []
+    min_hsts_time: int | None = None
+
+    for ep in hsts_endpoints_to_probe:
+        st, hdrs, _ = (root_status, root_headers, root_body) if ep == "/" else http_probe(ep)
+        raw_hsts = hdrs.get("strict-transport-security", "")
+        m_age = re.search(r"max-age\s*=\s*(\d+)", raw_hsts, re.IGNORECASE)
+        age_val = int(m_age.group(1)) if m_age else None
+        inc_sub = "includesubdomains" in raw_hsts.lower()
+        preloaded = "preload" in raw_hsts.lower()
+        if age_val is not None:
+            min_hsts_time = age_val if min_hsts_time is None else min(min_hsts_time, age_val)
+        ep_ok = is_https and (age_val is not None and age_val >= 31536000)
+        hsts_results_by_ep.append(
+            {
+                "endpoint": ep,
+                "status": st,
+                "header": raw_hsts or None,
+                "HSTS_time": age_val,
+                "includeSubDomains": inc_sub,
+                "preload": preloaded,
+                "overHttps": is_https,
+                "compliant": ep_ok,
+            }
+        )
+        if not raw_hsts:
+            hsts_violations.append(f"GET {base_url}{ep} missing Strict-Transport-Security header (HSTS_time=0 < 31536000)")
+        elif age_val is None or age_val < 31536000:
+            hsts_violations.append(f"GET {base_url}{ep} HSTS_time={age_val or 0} < 31536000 ('{raw_hsts}')")
+        elif not is_https:
+            hsts_violations.append(f"GET {base_url}{ep} sent HSTS over cleartext HTTP (ignored per RFC 6797 §7.2)")
+
+    tls05_pass = len(hsts_violations) == 0 and (min_hsts_time is not None and min_hsts_time >= 31536000)
+
     tls_scan_report = {
         "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
         "scannedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "targetHost": host,
         "declaredUrl": base_url,
+        "HSTS_time": min_hsts_time or 0,
         "tlsHandshake": {
             "port": tls_port,
             "completed": tls_handshake_ok,
@@ -2593,6 +2631,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         "tls04CertificateValidation": {
             **cert_audit,
             "verdict": "PASS" if tls04_pass else "FAIL",
+        },
+        "tls05Hsts": {
+            "HSTS_time": min_hsts_time or 0,
+            "endpointsChecked": hsts_results_by_ep,
+            "violations": hsts_violations,
+            "verdict": "PASS" if tls05_pass else "FAIL",
         },
     }
     tls_json_path.write_text(json.dumps(tls_scan_report, indent=2), encoding="utf-8")
@@ -2658,13 +2702,16 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             + f".\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
         ),
     }
-    hsts = root_headers.get("strict-transport-security", "")
-    hsts_m = re.search(r"max-age=(\d+)", hsts, re.IGNORECASE)
-    hsts_ok = bool(hsts_m and int(hsts_m.group(1)) >= 31536000)
     results["TLS-05"] = {
-        "verdict": "PASS" if hsts_ok else "FAIL",
-        "tool": "HTTP Header Inspector (HAR 1.2)",
-        "log": f"[{'PASS' if hsts_ok else 'FAIL'}] Strict-Transport-Security header on GET /: '{hsts or '<missing>'}' (requires max-age >= 31536000).",
+        "verdict": "PASS" if tls05_pass else "FAIL",
+        "tool": f"Strict-Transport-Security Multi-Endpoint & HSTS_time Inspector ({len(hsts_endpoints_to_probe)} endpoints, JSON + HAR 1.2)",
+        "log": (
+            f"[PASS] Strict-Transport-Security present on all {len(hsts_endpoints_to_probe)} endpoints over HTTPS with HSTS_time={min_hsts_time} >= 31536000.\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HAR 1.2: {har_path}"
+            if tls05_pass
+            else f"[FAIL] {len(hsts_violations)} TLS-05 HSTS violation(s) detected (HSTS_time={min_hsts_time or 0}, required >= 31536000):\n  - "
+            + "\n  - ".join(hsts_violations)
+            + f"\n\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HAR 1.2: {har_path}"
+        ),
     }
     results["TLS-06"] = {
         "verdict": "PASS" if (is_https and cert_valid) else "FAIL",

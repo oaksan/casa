@@ -1,8 +1,9 @@
 {
   "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
-  "scannedAt": "2026-11-18T16:38:33.522937+00:00",
+  "scannedAt": "2026-11-18T16:42:07.289591+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
+  "HSTS_time": 0,
   "tlsHandshake": {
     "port": 443,
     "completed": true,
@@ -103,6 +104,47 @@
     "warnings": [],
     "errors": [
       "No TLS/X.509 endpoint reachable on localhost:3000 ([SSL: RECORD_LAYER_FAILURE] record layer failure (_ssl.c:1033))"
+    ],
+    "verdict": "FAIL"
+  },
+  "tls05Hsts": {
+    "HSTS_time": 0,
+    "endpointsChecked": [
+      {
+        "endpoint": "/",
+        "status": 200,
+        "header": null,
+        "HSTS_time": null,
+        "includeSubDomains": false,
+        "preload": false,
+        "overHttps": false,
+        "compliant": false
+      },
+      {
+        "endpoint": "/api/Products",
+        "status": 200,
+        "header": null,
+        "HSTS_time": null,
+        "includeSubDomains": false,
+        "preload": false,
+        "overHttps": false,
+        "compliant": false
+      },
+      {
+        "endpoint": "/rest/admin/application-configuration",
+        "status": 200,
+        "header": null,
+        "HSTS_time": null,
+        "includeSubDomains": false,
+        "preload": false,
+        "overHttps": false,
+        "compliant": false
+      }
+    ],
+    "violations": [
+      "GET http://localhost:3000/ missing Strict-Transport-Security header (HSTS_time=0 < 31536000)",
+      "GET http://localhost:3000/api/Products missing Strict-Transport-Security header (HSTS_time=0 < 31536000)",
+      "GET http://localhost:3000/rest/admin/application-configuration missing Strict-Transport-Security header (HSTS_time=0 < 31536000)"
     ],
     "verdict": "FAIL"
   }

@@ -89,13 +89,16 @@ body {
 }
 .topreset:hover { color: var(--text); border-color: var(--text-3); }
 
-/* Segmented view switch */
-.view-switch { display: inline-flex; background: var(--bg-subtle); border-radius: 980px; padding: 3px; gap: 2px; }
-.view-switch .seg {
+/* Segmented language & view switch */
+.lang-switch, .view-switch { display: inline-flex; background: var(--bg-subtle); border-radius: 980px; padding: 3px; gap: 2px; }
+.lang-switch .lang-btn, .view-switch .seg {
   border: 0; background: transparent; font-family: inherit; font-size: 13px; font-weight: 500;
   color: var(--text-2); padding: 6px 14px; border-radius: 980px; cursor: pointer; transition: all .15s ease;
 }
-.view-switch .seg[aria-pressed="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+.lang-switch .lang-btn { font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 5px 11px; }
+.lang-switch .lang-btn[aria-pressed="true"], .view-switch .seg[aria-pressed="true"] {
+  background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
 
 /* Layout */
 .wrap { max-width: var(--maxw); margin: 0 auto; padding: 36px 24px 80px; }
@@ -281,8 +284,8 @@ body {
 .disclose { margin-top: 10px; }
 .disclose summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--accent); list-style: none; user-select: none; }
 .disclose summary::-webkit-details-marker { display: none; }
-.disclose summary::before { content: "Specification & Pass/Fail Criteria \203a"; }
-.disclose[open] summary::before { content: "Hide Specification & Criteria \2039"; }
+.disclose summary::before { content: attr(data-closed-label); }
+.disclose[open] summary::before { content: attr(data-open-label); }
 .disclose .body {
   font-size: 13.5px;
   color: var(--text-2);

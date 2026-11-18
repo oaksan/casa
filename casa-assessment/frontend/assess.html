@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -13,17 +13,21 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="# view-assess" id="brand-home" title="ADA CASA 3.0 Assessment">
+      <a class="brand" href="#view-assess" id="brand-home" title="ADA CASA 3.0 Assessment">
         <span class="brand-badge">ADA</span>
         <span class="brand-divider" aria-hidden="true"></span>
         <span class="brand-mark">CASA 3.0</span>
-        <span class="brand-sub">Cloud Application Security Assessment</span>
+        <span class="brand-sub" id="i18n-brand-sub">Cloud Application Security Assessment</span>
       </a>
       <div class="top-right">
+        <div class="lang-switch" role="group" aria-label="Idioma / Language">
+          <button class="lang-btn" type="button" data-lang="pt" aria-pressed="true" title="Exibir em Português (Brasil)">PT</button>
+          <button class="lang-btn" type="button" data-lang="en" aria-pressed="false" title="Display in English">EN</button>
+        </div>
         <button class="topreset" id="topreset" type="button" title="Clear all saved verdicts, automated runs, notes and screenshots stored in this browser">Reset</button>
         <nav class="view-switch" aria-label="Views">
-          <button class="seg" data-view="assess" aria-pressed="true">Assessment</button>
-          <button class="seg" data-view="report" aria-pressed="false">Report</button>
+          <button class="seg" id="i18n-tab-assess" data-view="assess" aria-pressed="true">Assessment</button>
+          <button class="seg" id="i18n-tab-report" data-view="report" aria-pressed="false">Report</button>
         </nav>
       </div>
     </div>
@@ -34,9 +38,9 @@
     <section id="view-assess">
       <aside class="rail" id="rail" aria-label="Jump to domain"></aside>
       <div class="hero">
-        <div class="hero-kicker">App Defense Alliance &middot; Linux Foundation &middot; v3.0</div>
-        <h1>CASA 3.0 Assessment</h1>
-        <p class="lede">
+        <div class="hero-kicker" id="i18n-hero-kicker">App Defense Alliance &middot; Linux Foundation &middot; v3.0</div>
+        <h1 id="i18n-hero-title">CASA 3.0 Assessment</h1>
+        <p class="lede" id="i18n-hero-lede">
           Evaluate web applications against the 8 domains of the CASA 3.0 specification.
           <strong>AL1</strong> (61 controls) is evaluated automatically via deterministic pass/fail signals and open evidence formats (SARIF, CycloneDX, HAR).
           <strong>AL2</strong> (+15 controls) adds lab-adjudicated verification evidence checklists, assessor notes, and evidence screenshots.
@@ -46,22 +50,22 @@
       <!-- SETUP METADATA CARD -->
       <div class="setup card">
         <div class="field">
-          <label for="org">Application / Organization</label>
-          <input id="org" type="text" placeholder="e.g. Acme Web Portal v2.4" autocomplete="off" />
+          <label for="org" id="i18n-lbl-org">Application / Organization</label>
+          <input id="org" type="text" placeholder="e.g. OWASP Juice Shop" autocomplete="off" />
         </div>
         <div class="field">
-          <label for="assessor">Assessor / Security Lab</label>
+          <label for="assessor" id="i18n-lbl-assessor">Assessor / Security Lab</label>
           <input id="assessor" type="text" placeholder="e.g. Master's Research Lab" autocomplete="off" />
         </div>
         <div class="field">
-          <label for="date">Date of Evaluation</label>
+          <label for="date" id="i18n-lbl-date">Date of Evaluation</label>
           <input id="date" type="date" />
         </div>
         <div class="field">
-          <label for="target">Target Assurance Level</label>
+          <label for="target" id="i18n-lbl-target">Target Assurance Level</label>
           <select id="target">
-            <option value="AL1">AL1 &mdash; Automated Assessment (61 Controls)</option>
-            <option value="AL2" selected>AL2 &mdash; Full Lab Assessment (61 AL1 + 15 AL2)</option>
+            <option value="AL1" id="i18n-opt-al1">AL1 &mdash; Automated Assessment (61 Controls)</option>
+            <option value="AL2" id="i18n-opt-al2" selected>AL2 &mdash; Full Lab Assessment (61 AL1 + 15 AL2)</option>
           </select>
         </div>
       </div>
@@ -71,13 +75,13 @@
         <div class="auto-header">
           <div>
             <div class="auto-badge-row">
-              <span class="pill-auto">AL1 Automated Engine</span>
+              <span class="pill-auto" id="i18n-pill-auto">AL1 Automated Engine</span>
               <span class="auto-sub" id="level-desc">AL2 includes all 61 automated AL1 controls plus 15 interactive lab-adjudicated AL2 controls.</span>
             </div>
-            <h2>Automated AL1 Execution &amp; Open Evidence Ingestion</h2>
+            <h2 id="i18n-auto-title">Automated AL1 Execution &amp; Open Evidence Ingestion</h2>
           </div>
           <div class="surfaces-box" aria-label="Declared Application Surfaces">
-            <span class="surfaces-label">Declared Surfaces:</span>
+            <span class="surfaces-label" id="i18n-surfaces-lbl">Declared Surfaces:</span>
             <label class="surf-check"><input type="checkbox" data-surface="Web_Application" checked /> <span>Web_Application</span></label>
             <label class="surf-check"><input type="checkbox" data-surface="Mobile" /> <span>Mobile</span></label>
             <label class="surf-check"><input type="checkbox" data-surface="Native" /> <span>Native</span></label>
@@ -86,11 +90,11 @@
 
         <div class="auto-inputs">
           <div class="field">
-            <label for="target-url">Target Application URL (for TLS, Headers, Cookies, DAST)</label>
+            <label for="target-url" id="i18n-lbl-url">Target Application URL (for TLS, Headers, Cookies, DAST)</label>
             <input id="target-url" type="url" placeholder="http://localhost:3000" value="http://localhost:3000" autocomplete="off" />
           </div>
           <div class="field">
-            <label for="repo-path">Source Repository / Artifact Path (for SCA, SAST, Secrets)</label>
+            <label for="repo-path" id="i18n-lbl-repo">Source Repository / Artifact Path (for SCA, SAST, Secrets)</label>
             <input id="repo-path" type="text" placeholder="/home/user/felipe/speckit/juice-shop-master" value="/home/user/felipe/speckit/juice-shop-master" autocomplete="off" />
           </div>
         </div>
@@ -99,8 +103,8 @@
           <button class="btn primary btn-sm" id="btn-run-auto" type="button">
             &#9654; Run Automated AL1 Scan
           </button>
-          <label class="btn ghost btn-sm" title="Upload SARIF 2.1.0 (.sarif/.json), CycloneDX/SPDX SBOM (.json), or W3C HAR 1.2 (.har)">
-            &#8682; Import Evidence (SARIF / SBOM / HAR)
+          <label class="btn ghost btn-sm" id="i18n-btn-import-lbl" title="Upload SARIF 2.1.0 (.sarif/.json), CycloneDX/SPDX SBOM (.json), or W3C HAR 1.2 (.har)">
+            <span id="i18n-btn-import-txt">&#8682; Import Evidence (SARIF / SBOM / HAR)</span>
             <input type="file" id="evidence-upload" accept=".json,.sarif,.har" multiple hidden />
           </label>
           <button class="btn ghost btn-sm" id="btn-demo-auto" type="button" title="Simulate a full automated AL1 tool run (Semgrep, Trivy, Syft, testssl.sh, OWASP ZAP) to inspect realistic results">
@@ -120,10 +124,10 @@
           </div>
           <div class="progress-right">
             <div class="filter-pills" role="group" aria-label="Filter controls">
-              <button type="button" class="fpill active" data-filter="all">All in Scope</button>
-              <button type="button" class="fpill" data-filter="AL1">AL1 Automated (61)</button>
-              <button type="button" class="fpill" data-filter="AL2">AL2 Manual Checklist (15)</button>
-              <button type="button" class="fpill" data-filter="FAIL">Failing</button>
+              <button type="button" class="fpill active" data-filter="all" id="i18n-flt-all">All in Scope</button>
+              <button type="button" class="fpill" data-filter="AL1" id="i18n-flt-al1">AL1 Automated (61)</button>
+              <button type="button" class="fpill" data-filter="AL2" id="i18n-flt-al2">AL2 Manual Checklist (15)</button>
+              <button type="button" class="fpill" data-filter="FAIL" id="i18n-flt-fail">Failing</button>
             </div>
             <span id="progress-pct" class="muted">0%</span>
           </div>
@@ -148,8 +152,8 @@
   </main>
 
   <footer class="sitefoot">
-    <span>App Defense Alliance &middot; CASA 3.0 Web Application Security Assessment (Master's Project Iteration 1)</span>
-    <a href="https://github.com/appdefensealliance/ASA-WG" target="_blank" rel="noopener">ASA-WG on GitHub</a>
+    <span id="i18n-foot-txt">App Defense Alliance &middot; CASA 3.0 Web Application Security Assessment</span>
+    <a href="https://github.com/oaksan/casa" target="_blank" rel="noopener" id="i18n-foot-link">Project on GitHub</a>
   </footer>
 
   <script src="data.js"></script>

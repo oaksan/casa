@@ -30,6 +30,12 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertEqual(len(al1), 61)
         self.assertEqual(len(al2), 15)
 
+        for c in controls:
+            self.assertTrue(c.get("title_pt"), f"{c['id']} missing title_pt")
+            self.assertTrue(c.get("domain_pt"), f"{c['id']} missing domain_pt")
+            self.assertTrue(c.get("pass_criteria_pt"), f"{c['id']} missing pass_criteria_pt")
+            self.assertTrue(c.get("fail_criteria_pt"), f"{c['id']} missing fail_criteria_pt")
+
         for c in al1:
             self.assertEqual(c["automation"], "automated")
             self.assertTrue(c["pass_criteria"], f"{c['id']} missing pass_criteria")
@@ -68,6 +74,8 @@ class TestCasa3Iteration1(unittest.TestCase):
                 self.assertEqual(resp.status, 200)
                 html = resp.read().decode("utf-8")
                 self.assertIn("CASA 3.0 Assessment", html)
+                self.assertIn('data-lang="pt"', html)
+                self.assertIn('data-lang="en"', html)
                 self.assertIn("data.js", html)
                 self.assertIn("app.js", html)
 

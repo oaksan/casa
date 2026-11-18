@@ -1,16 +1,274 @@
-/* ADA CASA 3.0 Assessment Frontend - Vanilla JS, localStorage + IndexedDB + Automated AL1 Engine */
+/* ADA CASA 3.0 Assessment Frontend - Vanilla JS, localStorage + IndexedDB + Automated AL1 Engine + PT/EN i18n */
 (function () {
   "use strict";
 
   var DATA = window.CASA3_DATA;
   var STORE_KEY = "casa3-assessment-v1";
-  var VERDICTS = [
-    { key: null, code: "–", label: "Not set" },
-    { key: "PASS", code: "PASS", label: "Compliant" },
-    { key: "FAIL", code: "FAIL", label: "Non-compliant" },
-    { key: "NOT_APPLICABLE", code: "N/A", label: "Out of scope" },
-    { key: "Not_Covered", code: "N/C", label: "Not covered" },
-  ];
+
+  var I18N = {
+    pt: {
+      brandSub: "Avaliação de Segurança de Aplicações Web",
+      resetBtn: "Limpar",
+      resetTitle: "Limpar todos os vereditos, execuções, notas e capturas salvas neste navegador",
+      tabAssess: "Avaliação",
+      tabReport: "Relatório",
+      heroKicker: "App Defense Alliance · Linux Foundation · v3.0",
+      heroTitle: "Avaliação CASA 3.0",
+      heroLede:
+        "Avalie aplicações web contra os 8 domínios da especificação CASA 3.0. O <strong>AL1</strong> (61 controles) é avaliado automaticamente por sinais determinísticos de aprovação/falha e formatos abertos de evidência (SARIF, CycloneDX, HAR). O <strong>AL2</strong> (+15 controles) adiciona checklists de evidências de verificação adjudicadas em laboratório, notas do avaliador e capturas de tela.",
+      lblOrg: "Aplicação / Organização",
+      phOrg: "ex.: OWASP Juice Shop",
+      lblAssessor: "Avaliador / Laboratório",
+      phAssessor: "ex.: Laboratório de Pesquisa Mestrado",
+      lblDate: "Data da Avaliação",
+      lblTarget: "Nível de Garantia Alvo",
+      optAL1: "AL1 — Avaliação Automatizada (61 Controles)",
+      optAL2: "AL2 — Avaliação Completa de Lab (61 AL1 + 15 AL2)",
+      pillAuto: "Motor Automatizado AL1",
+      autoTitle: "Execução Automatizada AL1 e Ingestão de Evidências Abertas",
+      surfacesLbl: "Superfícies Declaradas:",
+      lblUrl: "URL da Aplicação Alvo (para TLS, Headers, Cookies, DAST)",
+      lblRepo: "Caminho do Repositório / Artefato (para SCA, SAST, Segredos)",
+      btnRunAuto: "▶ Executar Scan Automatizado AL1",
+      btnImportTxt: "⇧ Importar Evidências (SARIF / SBOM / HAR)",
+      btnDemoAuto: "⚡ Carregar Execução Benchmark AL1",
+      statusReady: "Pronto — 61 controles AL1 aguardando execução automatizada ou importação de evidências.",
+      statusRunning: "Executando verificações automatizadas do AL1 (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…",
+      fltAll: "Todos no Escopo",
+      fltAL1: "AL1 Automatizados (61)",
+      fltAL2: "AL2 Checklist Manual (15)",
+      fltFail: "Reprovados",
+      resetAllBtn: "Limpar todas as respostas",
+      gotoReportBtn: "Gerar Relatório CASA 3.0 →",
+      footTxt: "App Defense Alliance · Avaliação de Segurança de Aplicações Web CASA 3.0 (Mestrado)",
+      footLink: "Projeto no GitHub",
+      railTitle: "Domínios CASA 3.0",
+      verdicts: [
+        { key: null, code: "–", label: "Não definido" },
+        { key: "PASS", code: "PASS", label: "Conforme" },
+        { key: "FAIL", code: "FAIL", label: "Não conforme" },
+        { key: "NOT_APPLICABLE", code: "N/A", label: "Fora de escopo" },
+        { key: "Not_Covered", code: "N/C", label: "Não coberto" },
+      ],
+      badgeAL1: "AL1 · Automatizado",
+      badgeAL2: "AL2 · Adjudicado pelo Lab",
+      refTooling: "Ferramentas de Referência:",
+      specClosed: "Especificação e Critérios de Pass/Fail ›",
+      specOpen: "Ocultar Especificação e Critérios ‹",
+      passSignal: "Sinal de PASS (Conforme)",
+      failSignal: "Sinal de FAIL (Não Conforme)",
+      reqEvidence: "Evidência Exigida:",
+      testProc: "Procedimento de Teste:",
+      autoLogHead: "Evidência Automatizada e Sinal da Ferramenta",
+      triageNotesLbl: "Triagem do Avaliador / Notas de Evidência Automatizada",
+      triageNotesPh: "Caminhos de artefatos (SARIF / CycloneDX / HAR), controles compensatórios ou contexto de triagem…",
+      verifEvidence: "Evidências de verificação",
+      notesLbl: "Notas",
+      notesPh: "Contexto, ressalvas, links para evidências HAR/SARIF, detalhes de contas de teste…",
+      screenshotsTitle: "Capturas de tela de evidência",
+      addScreenshot: "Adicionar captura",
+      dragScreenshots: "Arraste capturas de tela aqui, ou clique em Adicionar captura.",
+      figCaptionPh: "Descreva o que esta captura de tela demonstra…",
+      removeFig: "Remover",
+      controlsCount: function (total, al1, al2) {
+        return (
+          total +
+          " controles (" +
+          al1 +
+          " AL1 automatizados" +
+          (al2 ? " + " + al2 + " AL2 manuais" : "") +
+          ")"
+        );
+      },
+      progressCount: function (done, total, target) {
+        return done + " de " + total + " avaliados (" + target + ")";
+      },
+      progressBreakdown: function (al1Done, al1All, al2Done, al2All) {
+        return (
+          "AL1 Automatizado: " +
+          al1Done +
+          "/" +
+          al1All +
+          (al2All ? " · AL2 Manual: " + al2Done + "/" + al2All : "")
+        );
+      },
+      emptyFilter: "Nenhum controle corresponde ao filtro selecionado.",
+      confirmReset:
+        "Limpar todos os vereditos, logs de scan automatizado, itens de checklist, notas e capturas de tela salvos neste navegador? Esta ação não pode ser desfeita.",
+      reportTitle: "Relatório de Conformidade ADA CASA 3.0",
+      certPass: function (t) {
+        return "EM CONFORMIDADE (" + t + ")";
+      },
+      certFail: function (n) {
+        return "CORREÇÃO NECESSÁRIA (" + n + " Bloqueante" + (n > 1 ? "s" : "") + ")";
+      },
+      certInc: "Avaliação Incompleta",
+      statEval: "Controles avaliados",
+      statPassRate: "Taxa de aprovação (aplicáveis)",
+      statAL1: "AL1 Automatizados (PASS/NA)",
+      statAL2: "AL2 Adjudicados pelo Lab (PASS/NA)",
+      secOverview: "Visão Geral de Conformidade",
+      donutCap: "Conformidade geral CASA 3.0",
+      secPipeline: "Conformidade nos 8 Domínios do CASA 3.0",
+      pipelineCap:
+        "Domínios desde cadeia de suprimentos e análise estática até transporte, configuração, autenticação, autorização, OAuth e webhooks. Tons mais escuros indicam maior conformidade.",
+      secFindings: function (failN, notEvalN, figN) {
+        return (
+          "Achados Bloqueantes para Correção · " +
+          failN +
+          " reprovado(s) / não coberto(s)" +
+          (notEvalN ? " · " + notEvalN + " ainda não avaliado(s)" : "") +
+          (figN ? " · " + figN + " captura" + (figN > 1 ? "s" : "") + " de tela" : "")
+        );
+      },
+      emptyReportNoEval:
+        "Nenhum controle avaliado ainda. Execute o Scan Automatizado AL1 ou avalie os controles do AL2 para gerar o relatório.",
+      emptyReportAllPass: function (t) {
+        return (
+          "Zero falhas bloqueantes! Todos os controles avaliados atendem aos critérios de aceitação do CASA 3.0 (" +
+          t +
+          ")."
+        );
+      },
+      reqPassToFix: "Critério de PASS Exigido para Correção:",
+      assessorNote: "Nota do Avaliador:",
+      suppEvidence: "Evidência de Apoio:",
+      secScreenshots: "Evidências em Capturas de Tela do AL2",
+      noCaption: "Nenhuma descrição informada",
+      btnBack: "← Voltar para avaliação",
+      btnExport: "Exportar JSON CASA 3.0",
+      btnPrint: "Imprimir / Salvar Relatório PDF",
+    },
+    en: {
+      brandSub: "Cloud Application Security Assessment",
+      resetBtn: "Reset",
+      resetTitle: "Clear all saved verdicts, automated runs, notes and screenshots stored in this browser",
+      tabAssess: "Assessment",
+      tabReport: "Report",
+      heroKicker: "App Defense Alliance · Linux Foundation · v3.0",
+      heroTitle: "CASA 3.0 Assessment",
+      heroLede:
+        "Evaluate web applications against the 8 domains of the CASA 3.0 specification. <strong>AL1</strong> (61 controls) is evaluated automatically via deterministic pass/fail signals and open evidence formats (SARIF, CycloneDX, HAR). <strong>AL2</strong> (+15 controls) adds lab-adjudicated verification evidence checklists, assessor notes, and evidence screenshots.",
+      lblOrg: "Application / Organization",
+      phOrg: "e.g. OWASP Juice Shop",
+      lblAssessor: "Assessor / Security Lab",
+      phAssessor: "e.g. Master's Research Lab",
+      lblDate: "Date of Evaluation",
+      lblTarget: "Target Assurance Level",
+      optAL1: "AL1 — Automated Assessment (61 Controls)",
+      optAL2: "AL2 — Full Lab Assessment (61 AL1 + 15 AL2)",
+      pillAuto: "AL1 Automated Engine",
+      autoTitle: "Automated AL1 Execution & Open Evidence Ingestion",
+      surfacesLbl: "Declared Surfaces:",
+      lblUrl: "Target Application URL (for TLS, Headers, Cookies, DAST)",
+      lblRepo: "Source Repository / Artifact Path (for SCA, SAST, Secrets)",
+      btnRunAuto: "▶ Run Automated AL1 Scan",
+      btnImportTxt: "⇧ Import Evidence (SARIF / SBOM / HAR)",
+      btnDemoAuto: "⚡ Load Benchmark AL1 Run",
+      statusReady: "Ready — 61 AL1 controls awaiting automated run or evidence import.",
+      statusRunning: "Running automated AL1 checks (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…",
+      fltAll: "All in Scope",
+      fltAL1: "AL1 Automated (61)",
+      fltAL2: "AL2 Manual Checklist (15)",
+      fltFail: "Failing",
+      resetAllBtn: "Reset all answers",
+      gotoReportBtn: "Generate CASA 3.0 Report →",
+      footTxt: "App Defense Alliance · CASA 3.0 Web Application Security Assessment",
+      footLink: "Project on GitHub",
+      railTitle: "CASA 3.0 Domains",
+      verdicts: [
+        { key: null, code: "–", label: "Not set" },
+        { key: "PASS", code: "PASS", label: "Compliant" },
+        { key: "FAIL", code: "FAIL", label: "Non-compliant" },
+        { key: "NOT_APPLICABLE", code: "N/A", label: "Out of scope" },
+        { key: "Not_Covered", code: "N/C", label: "Not covered" },
+      ],
+      badgeAL1: "AL1 · Automated",
+      badgeAL2: "AL2 · Lab-Adjudicated",
+      refTooling: "Reference Tooling:",
+      specClosed: "Specification & Pass/Fail Criteria ›",
+      specOpen: "Hide Specification & Criteria ‹",
+      passSignal: "PASS Signal",
+      failSignal: "FAIL Signal",
+      reqEvidence: "Required Evidence:",
+      testProc: "Test Procedure:",
+      autoLogHead: "Automated Evidence & Tool Signal",
+      triageNotesLbl: "Assessor Triage / Automated Evidence Notes",
+      triageNotesPh: "Artifact paths (SARIF / CycloneDX / HAR), compensating control notes, or triage context…",
+      verifEvidence: "Verification evidence",
+      notesLbl: "Notes",
+      notesPh: "Context, caveats, links to HAR/SARIF evidence, test account details…",
+      screenshotsTitle: "Evidence screenshots",
+      addScreenshot: "Add screenshot",
+      dragScreenshots: "Drag screenshots here, or use Add screenshot.",
+      figCaptionPh: "Describe what this screenshot shows…",
+      removeFig: "Remove",
+      controlsCount: function (total, al1, al2) {
+        return (
+          total +
+          " controls (" +
+          al1 +
+          " AL1 automated" +
+          (al2 ? " + " + al2 + " AL2 manual" : "") +
+          ")"
+        );
+      },
+      progressCount: function (done, total, target) {
+        return done + " of " + total + " assessed (" + target + ")";
+      },
+      progressBreakdown: function (al1Done, al1All, al2Done, al2All) {
+        return (
+          "AL1 Automated: " +
+          al1Done +
+          "/" +
+          al1All +
+          (al2All ? " · AL2 Manual: " + al2Done + "/" + al2All : "")
+        );
+      },
+      emptyFilter: "No controls match the selected filter.",
+      confirmReset:
+        "Clear every verdict, automated scan log, checklist item, note and screenshot stored in this browser? This cannot be undone.",
+      reportTitle: "ADA CASA 3.0 Compliance Report",
+      certPass: function (t) {
+        return "IN COMPLIANCE (" + t + ")";
+      },
+      certFail: function (n) {
+        return "REMEDIATION REQUIRED (" + n + " Blocking)";
+      },
+      certInc: "Assessment Incomplete",
+      statEval: "Controls evaluated",
+      statPassRate: "Pass rate (applicable)",
+      statAL1: "AL1 Automated (PASS/NA)",
+      statAL2: "AL2 Lab-Adjudicated (PASS/NA)",
+      secOverview: "Compliance Overview",
+      donutCap: "Overall CASA 3.0 compliance",
+      secPipeline: "Compliance across the 8 CASA 3.0 Domains",
+      pipelineCap:
+        "Domains from supply chain & static code analysis through transport, configuration, authentication, authorization, OAuth, and webhooks. Darker indicates higher compliance.",
+      secFindings: function (failN, notEvalN, figN) {
+        return (
+          "Blocking Remediation Findings · " +
+          failN +
+          " failing / not covered" +
+          (notEvalN ? " · " + notEvalN + " not yet evaluated" : "") +
+          (figN ? " · " + figN + " screenshot" + (figN > 1 ? "s" : "") : "")
+        );
+      },
+      emptyReportNoEval:
+        "No controls evaluated yet. Run the Automated AL1 Scan or rate AL2 controls to generate findings.",
+      emptyReportAllPass: function (t) {
+        return "Zero blocking failures! All evaluated controls meet CASA 3.0 (" + t + ") acceptance criteria.";
+      },
+      reqPassToFix: "Required PASS Criterion to Remediate:",
+      assessorNote: "Assessor Note:",
+      suppEvidence: "Supporting Evidence:",
+      secScreenshots: "Supporting AL2 Screenshot Evidence",
+      noCaption: "No description provided",
+      btnBack: "← Back to assessment",
+      btnExport: "Export CASA 3.0 JSON",
+      btnPrint: "Print / Save PDF Report",
+    },
+  };
 
   var SHORT_DOMAIN = {
     "Software Composition & Supply Chain": "SCA",
@@ -39,6 +297,7 @@
       if (raw) {
         var parsed = JSON.parse(raw);
         parsed.meta = parsed.meta || {};
+        parsed.meta.lang = parsed.meta.lang || "pt";
         parsed.meta.surfaces = parsed.meta.surfaces || ["Web_Application"];
         parsed.answers = parsed.answers || {};
         return parsed;
@@ -46,6 +305,7 @@
     } catch (e) {}
     return {
       meta: {
+        lang: "pt",
         org: "OWASP Juice Shop",
         assessor: "",
         date: today(),
@@ -56,6 +316,51 @@
       },
       answers: {},
     };
+  }
+
+  function lang() {
+    return state.meta && state.meta.lang === "en" ? "en" : "pt";
+  }
+
+  function t() {
+    return I18N[lang()];
+  }
+
+  function domainLabel(d) {
+    if (lang() === "pt" && DATA.domains_pt && DATA.domains_pt[d]) {
+      return DATA.domains_pt[d];
+    }
+    return d;
+  }
+
+  function controlTitle(c) {
+    return lang() === "pt" && c.title_pt ? c.title_pt : c.title;
+  }
+
+  function controlPass(c) {
+    return lang() === "pt" && c.pass_criteria_pt ? c.pass_criteria_pt : c.pass_criteria;
+  }
+
+  function controlFail(c) {
+    return lang() === "pt" && c.fail_criteria_pt ? c.fail_criteria_pt : c.fail_criteria;
+  }
+
+  function controlEvidence(c) {
+    return lang() === "pt" && c.evidence_items_pt && c.evidence_items_pt.length
+      ? c.evidence_items_pt
+      : c.evidence_items || [];
+  }
+
+  function controlProcedure(c) {
+    return lang() === "pt" && c.procedure_items_pt && c.procedure_items_pt.length
+      ? c.procedure_items_pt
+      : c.procedure_items || [];
+  }
+
+  function controlChecklist(c) {
+    return lang() === "pt" && c.verification_checklist_pt && c.verification_checklist_pt.length
+      ? c.verification_checklist_pt
+      : c.verification_checklist || [];
   }
 
   var saveTimer = null;
@@ -126,7 +431,7 @@
     if (target === "AL1") {
       return c.tier === "AL1";
     }
-    return true; // AL2 includes AL1 (61) + AL2 (15)
+    return true;
   }
 
   function isControlMatchingFilter(c) {
@@ -304,6 +609,7 @@
     });
   }
   function figuresBlock(c) {
+    var tr = t();
     var figs = answer(c.id).figures || [];
     var list = figs.length
       ? figs
@@ -318,22 +624,30 @@
               c.id +
               '" data-fig="' +
               esc(f.id) +
-              '" placeholder="Describe what this screenshot shows…" value="' +
+              '" placeholder="' +
+              esc(tr.figCaptionPh) +
+              '" value="' +
               esc(f.caption || "") +
               '">' +
               '<button class="fig-del" type="button" data-act="figdel" data-id="' +
               c.id +
               '" data-fig="' +
               esc(f.id) +
-              '">Remove</button>' +
+              '">' +
+              esc(tr.removeFig) +
+              "</button>" +
               "</div></div>"
             );
           })
           .join("")
-      : '<p class="fig-empty">Drag screenshots here, or use Add screenshot.</p>';
+      : '<p class="fig-empty">' + esc(tr.dragScreenshots) + "</p>";
     return (
-      '<div class="fig-head"><span class="evidence-title">Evidence screenshots</span>' +
-      '<label class="btn-mini">Add screenshot<input type="file" accept="image/*" multiple data-act="figfile" data-id="' +
+      '<div class="fig-head"><span class="evidence-title">' +
+      esc(tr.screenshotsTitle) +
+      "</span>" +
+      '<label class="btn-mini">' +
+      esc(tr.addScreenshot) +
+      '<input type="file" accept="image/*" multiple data-act="figfile" data-id="' +
       c.id +
       '" hidden></label>' +
       "</div>" +
@@ -363,7 +677,7 @@
     }
   }
 
-  /* ---------- setup fields ---------- */
+  /* ---------- setup fields & static i18n ---------- */
   var els = {
     org: document.getElementById("org"),
     assessor: document.getElementById("assessor"),
@@ -385,10 +699,81 @@
   function syncLevelDesc() {
     var lv = DATA.assurance_levels && DATA.assurance_levels[state.meta.target];
     if (lv && els.levelDesc) {
-      els.levelDesc.textContent = lv.description;
+      els.levelDesc.textContent = lang() === "pt" && lv.description_pt ? lv.description_pt : lv.description;
     }
   }
-  syncLevelDesc();
+
+  function applyStaticI18n() {
+    var tr = t();
+    document.documentElement.lang = lang() === "pt" ? "pt-BR" : "en";
+    document.querySelectorAll(".lang-switch .lang-btn").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-lang") === lang()));
+    });
+
+    var setTxt = function (id, val) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+    setTxt("i18n-brand-sub", tr.brandSub);
+    setTxt("topreset", tr.resetBtn);
+    var topresetEl = document.getElementById("topreset");
+    if (topresetEl) topresetEl.title = tr.resetTitle;
+    setTxt("i18n-tab-assess", tr.tabAssess);
+    setTxt("i18n-tab-report", tr.tabReport);
+    setTxt("i18n-hero-kicker", tr.heroKicker);
+    setTxt("i18n-hero-title", tr.heroTitle);
+    var ledeEl = document.getElementById("i18n-hero-lede");
+    if (ledeEl) ledeEl.innerHTML = tr.heroLede;
+
+    setTxt("i18n-lbl-org", tr.lblOrg);
+    els.org.placeholder = tr.phOrg;
+    setTxt("i18n-lbl-assessor", tr.lblAssessor);
+    els.assessor.placeholder = tr.phAssessor;
+    setTxt("i18n-lbl-date", tr.lblDate);
+    setTxt("i18n-lbl-target", tr.lblTarget);
+    setTxt("i18n-opt-al1", tr.optAL1);
+    setTxt("i18n-opt-al2", tr.optAL2);
+
+    setTxt("i18n-pill-auto", tr.pillAuto);
+    setTxt("i18n-auto-title", tr.autoTitle);
+    setTxt("i18n-surfaces-lbl", tr.surfacesLbl);
+    setTxt("i18n-lbl-url", tr.lblUrl);
+    setTxt("i18n-lbl-repo", tr.lblRepo);
+    setTxt("btn-run-auto", tr.btnRunAuto);
+    setTxt("i18n-btn-import-txt", tr.btnImportTxt);
+    setTxt("btn-demo-auto", tr.btnDemoAuto);
+
+    setTxt("i18n-flt-all", tr.fltAll);
+    setTxt("i18n-flt-al1", tr.fltAL1);
+    setTxt("i18n-flt-al2", tr.fltAL2);
+    setTxt("i18n-flt-fail", tr.fltFail);
+
+    setTxt("reset", tr.resetAllBtn);
+    setTxt("goto-report", tr.gotoReportBtn);
+    setTxt("i18n-foot-txt", tr.footTxt);
+    setTxt("i18n-foot-link", tr.footLink);
+
+    syncLevelDesc();
+  }
+
+  /* Language switcher event */
+  document.querySelectorAll(".lang-switch .lang-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var selected = btn.getAttribute("data-lang");
+      if (selected !== "pt" && selected !== "en") return;
+      state.meta.lang = selected;
+      save();
+      applyStaticI18n();
+      renderNav();
+      renderControls();
+      loadFigureImages(document.getElementById("controls"));
+      updateProgress();
+      var reportSec = document.getElementById("view-report");
+      if (reportSec && !reportSec.hidden) {
+        buildReport();
+      }
+    });
+  });
 
   document.querySelectorAll("[data-surface]").forEach(function (cb) {
     var surf = cb.getAttribute("data-surface");
@@ -467,10 +852,16 @@
   }
 
   function renderNav() {
+    var tr = t();
     var groups = byDomain();
     var items = DATA.domains
       .map(function (d) {
-        return { d: d, short: shortDomain(d), id: domainId(d), n: (groups[d] || []).length };
+        return {
+          d: domainLabel(d),
+          short: shortDomain(d),
+          id: domainId(d),
+          n: (groups[d] || []).length,
+        };
       })
       .filter(function (it) {
         return it.n > 0;
@@ -497,7 +888,9 @@
     var rail = document.getElementById("rail");
     if (rail) {
       rail.innerHTML =
-        '<div class="rail-title">CASA 3.0 Domains</div><ol>' +
+        '<div class="rail-title">' +
+        esc(tr.railTitle) +
+        "</div><ol>" +
         items
           .map(function (it) {
             return (
@@ -546,35 +939,41 @@
 
   function verdictSeg(c) {
     var a = answer(c.id);
-    var opts = VERDICTS.map(function (v) {
-      var pressed = a.verdict === v.key;
-      var vAttr = v.key == null ? "null" : v.key;
-      return (
-        '<button type="button" data-act="verdict" data-id="' +
-        c.id +
-        '" data-verdict="' +
-        vAttr +
-        '" aria-pressed="' +
-        pressed +
-        '">' +
-        '<span class="lvl">' +
-        esc(v.code) +
-        '</span><span class="lbl">' +
-        esc(v.label) +
-        "</span></button>"
-      );
-    }).join("");
+    var vList = t().verdicts;
+    var opts = vList
+      .map(function (v) {
+        var pressed = a.verdict === v.key;
+        var vAttr = v.key == null ? "null" : v.key;
+        return (
+          '<button type="button" data-act="verdict" data-id="' +
+          c.id +
+          '" data-verdict="' +
+          vAttr +
+          '" aria-pressed="' +
+          pressed +
+          '">' +
+          '<span class="lvl">' +
+          esc(v.code) +
+          '</span><span class="lbl">' +
+          esc(v.label) +
+          "</span></button>"
+        );
+      })
+      .join("");
     return '<div class="level-seg">' + opts + "</div>";
   }
 
   function controlDetail(c) {
+    var tr = t();
     var a = answer(c.id);
 
     /* AL1 Automated Control Detail */
     if (c.tier === "AL1") {
       if (a.verdict == null && !a.autoLog) return "";
       var logBlock = a.autoLog
-        ? '<div class="auto-log-head"><span>Automated Evidence &amp; Tool Signal (' +
+        ? '<div class="auto-log-head"><span>' +
+          esc(tr.autoLogHead) +
+          " (" +
           esc(a.autoTool || "Scanner") +
           ")</span><span>" +
           esc(a.autoTimestamp || "") +
@@ -585,18 +984,22 @@
       return (
         '<div class="level-detail">' +
         logBlock +
-        '<div class="notes"><label>Assessor Triage / Automated Evidence Notes</label>' +
+        '<div class="notes"><label>' +
+        esc(tr.triageNotesLbl) +
+        "</label>" +
         '<textarea data-act="notes" data-id="' +
         c.id +
-        '" placeholder="Artifact paths (SARIF / CycloneDX / HAR), compensating control notes, or triage context…">' +
+        '" placeholder="' +
+        esc(tr.triageNotesPh) +
+        '">' +
         esc(a.notes || "") +
         "</textarea></div>" +
         "</div>"
       );
     }
 
-    /* AL2 Lab-Adjudicated Control Detail (DSOVS style: Verification evidence checklist + Notes) */
-    var checklist = c.verification_checklist || [];
+    /* AL2 Lab-Adjudicated Control Detail */
+    var checklist = controlChecklist(c);
     var ev = checklist
       .map(function (item, idx) {
         var key = "al2:" + idx;
@@ -615,16 +1018,24 @@
       })
       .join("");
     var evBlock = ev
-      ? '<p class="evidence-title">Verification evidence</p><ul class="evidence-list">' + ev + "</ul>"
+      ? '<p class="evidence-title">' +
+        esc(tr.verifEvidence) +
+        '</p><ul class="evidence-list">' +
+        ev +
+        "</ul>"
       : "";
 
     return (
       '<div class="level-detail">' +
       evBlock +
-      '<div class="notes"><label>Notes</label>' +
+      '<div class="notes"><label>' +
+      esc(tr.notesLbl) +
+      "</label>" +
       '<textarea data-act="notes" data-id="' +
       c.id +
-      '" placeholder="Context, caveats, links to HAR/SARIF evidence, test account details…">' +
+      '" placeholder="' +
+      esc(tr.notesPh) +
+      '">' +
       esc(a.notes || "") +
       "</textarea></div>" +
       "</div>"
@@ -632,36 +1043,38 @@
   }
 
   function controlCard(c) {
+    var tr = t();
     var isAL2 = c.tier === "AL2";
     var tierBadge = isAL2
-      ? '<span class="badge badge-al2">AL2 &middot; Lab-Adjudicated</span>'
-      : '<span class="badge badge-al1">AL1 &middot; Automated</span>';
+      ? '<span class="badge badge-al2">' + esc(tr.badgeAL2) + "</span>"
+      : '<span class="badge badge-al1">' + esc(tr.badgeAL1) + "</span>";
     var profBadge = '<span class="badge badge-prof">' + esc(c.profile) + "</span>";
 
     var toolsHtml =
       c.reference_tooling && c.reference_tooling.length
-        ? '<div class="tooling-row"><span class="tooling-label">Reference Tooling:</span>' +
+        ? '<div class="tooling-row"><span class="tooling-label">' +
+          esc(tr.refTooling) +
+          "</span>" +
           c.reference_tooling
-            .map(function (t) {
-              return '<span class="tool-chip">' + esc(t) + "</span>";
+            .map(function (tl) {
+              return '<span class="tool-chip">' + esc(tl) + "</span>";
             })
             .join("") +
           "</div>"
         : "";
 
-    var procHtml = (c.procedure_items || [])
+    var procHtml = controlProcedure(c)
       .map(function (p) {
-        return '<div class="proc-block"><b>Test Procedure:</b> ' + esc(p) + "</div>";
+        return '<div class="proc-block"><b>' + esc(tr.testProc) + "</b> " + esc(p) + "</div>";
       })
       .join("");
 
-    var evFormatHtml = (c.evidence_items || [])
+    var evFormatHtml = controlEvidence(c)
       .map(function (e) {
-        return '<div class="proc-block"><b>Required Evidence:</b> ' + esc(e) + "</div>";
+        return '<div class="proc-block"><b>' + esc(tr.reqEvidence) + "</b> " + esc(e) + "</div>";
       })
       .join("");
 
-    /* AL2 controls always display the DSOVS-style Evidence Screenshots block; AL1 controls only if user wants or in AL2 */
     var figuresSection = isAL2
       ? '<div class="figures" data-figs="' + c.id + '">' + figuresBlock(c) + "</div>"
       : "";
@@ -683,7 +1096,7 @@
       "</span>" +
       "</div>" +
       "<h3>" +
-      esc(c.title) +
+      esc(controlTitle(c)) +
       "</h3>" +
       "</div>" +
       '<div class="badge-cluster">' +
@@ -692,13 +1105,21 @@
       "</div>" +
       "</div>" +
       toolsHtml +
-      '<details class="disclose"><summary></summary><div class="body">' +
+      '<details class="disclose"><summary data-closed-label="' +
+      esc(tr.specClosed) +
+      '" data-open-label="' +
+      esc(tr.specOpen) +
+      '"></summary><div class="body">' +
       '<div class="crit-grid">' +
-      '<div class="crit-box crit-pass"><b>PASS Signal</b>' +
-      esc(c.pass_criteria || "Defined in specification") +
+      '<div class="crit-box crit-pass"><b>' +
+      esc(tr.passSignal) +
+      "</b>" +
+      esc(controlPass(c)) +
       "</div>" +
-      '<div class="crit-box crit-fail"><b>FAIL Signal</b>' +
-      esc(c.fail_criteria || "Defined in specification") +
+      '<div class="crit-box crit-fail"><b>' +
+      esc(tr.failSignal) +
+      "</b>" +
+      esc(controlFail(c)) +
       "</div>" +
       "</div>" +
       evFormatHtml +
@@ -716,6 +1137,7 @@
   }
 
   function renderControls() {
+    var tr = t();
     var groups = byDomain();
     var html = DATA.domains
       .map(function (d) {
@@ -727,21 +1149,15 @@
         var al2N = list.filter(function (x) {
           return x.tier === "AL2";
         }).length;
-        var countLabel =
-          list.length +
-          " controls (" +
-          al1N +
-          " AL1 automated" +
-          (al2N ? " + " + al2N + " AL2 manual" : "") +
-          ")";
+        var countLabel = tr.controlsCount(list.length, al1N, al2N);
         return (
           '<section class="phase" id="' +
           domainId(d) +
           '">' +
           '<div class="phase-head"><h2>' +
-          esc(d) +
+          esc(domainLabel(d)) +
           '</h2><span class="count">' +
-          countLabel +
+          esc(countLabel) +
           "</span></div>" +
           list.map(controlCard).join("") +
           "</section>"
@@ -749,7 +1165,7 @@
       })
       .join("");
     document.getElementById("controls").innerHTML =
-      html || '<div class="card empty">No controls match the selected filter.</div>';
+      html || '<div class="card empty">' + esc(tr.emptyFilter) + "</div>";
     setupSpy();
   }
 
@@ -838,6 +1254,7 @@
 
   /* ---------- progress ---------- */
   function updateProgress() {
+    var tr = t();
     var inScope = DATA.controls.filter(isControlInAssuranceLevel);
     var done = inScope.filter(function (c) {
       var a = state.answers[c.id];
@@ -860,14 +1277,17 @@
 
     var total = inScope.length;
     var pct = total ? Math.round((done.length / total) * 100) : 0;
-    document.getElementById("progress-count").textContent =
-      done.length + " of " + total + " assessed (" + (state.meta.target || "AL2") + ")";
-    document.getElementById("progress-breakdown").textContent =
-      "AL1 Automated: " +
-      al1Done.length +
-      "/" +
-      al1All.length +
-      (al2All.length ? " · AL2 Manual: " + al2Done.length + "/" + al2All.length : "");
+    document.getElementById("progress-count").textContent = tr.progressCount(
+      done.length,
+      total,
+      state.meta.target || "AL2"
+    );
+    document.getElementById("progress-breakdown").textContent = tr.progressBreakdown(
+      al1Done.length,
+      al1All.length,
+      al2Done.length,
+      al2All.length
+    );
     document.getElementById("progress-pct").textContent = pct + "%";
     document.getElementById("progress-fill").style.width = pct + "%";
   }
@@ -891,7 +1311,12 @@
     updateProgress();
     if (els.autoStatus) {
       els.autoStatus.textContent =
-        "Completed (" + sourceLabel + "): " + updated + " AL1 controls evaluated at " + ts;
+        (lang() === "pt" ? "Concluído (" : "Completed (") +
+        sourceLabel +
+        "): " +
+        updated +
+        (lang() === "pt" ? " controles AL1 avaliados em " : " AL1 controls evaluated at ") +
+        ts;
     }
   }
 
@@ -900,7 +1325,7 @@
     var btn = document.getElementById("btn-run-auto");
     btn.disabled = true;
     if (els.autoStatus) {
-      els.autoStatus.textContent = "Running automated AL1 checks (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…";
+      els.autoStatus.textContent = t().statusRunning;
     }
 
     fetch("/api/scan", {
@@ -924,7 +1349,6 @@
       })
       .catch(function () {
         btn.disabled = false;
-        /* Fallback when opened as static file without local Python backend */
         runClientSideAutomatedScan();
       });
   });
@@ -937,7 +1361,7 @@
   /* 2. Benchmark AL1 Run */
   document.getElementById("btn-demo-auto").addEventListener("click", function () {
     if (!state.meta.org) {
-      state.meta.org = "OWASP Juice Shop / Benchmark Web App v3.0";
+      state.meta.org = "OWASP Juice Shop";
       els.org.value = state.meta.org;
     }
     if (!state.meta.assessor) {
@@ -945,44 +1369,43 @@
       els.assessor.value = state.meta.assessor;
     }
     var results = buildBenchmarkAL1Results(
-      state.meta.targetUrl || "https://juice-shop.example.org",
-      state.meta.repoPath || "/home/user/felipe/speckit/casa",
+      state.meta.targetUrl || "http://localhost:3000",
+      state.meta.repoPath || "/home/user/felipe/speckit/juice-shop-master",
       false
     );
     applyScanResults(results, "CASA 3.0 AL1 Reference Tooling Suite");
   });
 
   function buildBenchmarkAL1Results(targetUrl, repoPath, isConservative) {
-    var url = targetUrl || "https://target-app.example.org";
-    var repo = repoPath || "/home/user/felipe/speckit/casa";
+    var url = targetUrl || "http://localhost:3000";
+    var repo = repoPath || "/home/user/felipe/speckit/juice-shop-master";
     var declared = state.meta.surfaces || ["Web_Application"];
     var out = {};
 
-    /* Realistic deterministic fail set for demonstration on a web app */
     var demoFails = {
       "SCA-01": {
-        tool: "syft + osv-scanner (SARIF 2.1.0)",
-        log: "[FAIL] Found 2 reachable High/Critical vulnerabilities in lockfile:\n  - CVE-2024-29041 (express < 4.19.2, CVSS 7.5, symbol res.location reachable)\n  - CVE-2023-45857 (axios, CVSS 7.5)\nEvidence: sbom.cdx.json, osv-findings.sarif",
+        tool: "OSV.dev API + CycloneDX SBOM",
+        log: "[FAIL] 16 vulnerable packages identified via OSV.dev in juice-shop-master:\n  - jsonwebtoken@0.4.0 (GHSA-8cf7-32gw-wr33, GHSA-c7hr-j4mj-j2w6)\n  - js-yaml@3.14.0 (GHSA-2883-xcg3-v3hh)\n  - express-jwt@0.1.3 (GHSA-6g6m-m6h5-w9gf)",
       },
       "SAST-01": {
-        tool: "gitleaks + semgrep (SARIF 2.1.0)",
-        log: "[FAIL] Secret detected in repository config:\n  Rule: generic-api-key (CWE-798)\n  Location: config/default.yml:14 (hardcoded JWT secret token)\nEvidence: gitleaks-report.sarif",
+        tool: "Semgrep AST 1.180.0 (SARIF 2.1.0)",
+        log: "[FAIL] 3 Semgrep AST findings:\n  - lib/insecurity.ts:42, 54, 150 (Hardcoded RSA private key / JWT secret, CWE-798)",
       },
-      "CFG-04": {
-        tool: "OWASP ZAP + csp-evaluator (HAR 1.2 / SARIF)",
-        log: "[FAIL] GET " + url + " -> Content-Security-Policy header includes 'unsafe-inline' and 'unsafe-eval' in script-src directive.\nCriterion violated: script-src must exclude unsafe-inline and unsafe-eval.",
+      "CFG-01": {
+        tool: "Active Directory Enumeration Probe (HAR 1.2)",
+        log: "[FAIL] GET " + url + "/ftp returned HTTP 200 with exposed directory listing (acquisitions.md, package.json.bak).",
       },
       "CFG-08": {
-        tool: "OWASP ZAP + nuclei (HAR 1.2)",
-        log: "[FAIL] Probe with Origin: https://evil.example.com returned:\n  Access-Control-Allow-Origin: https://evil.example.com\n  Access-Control-Allow-Credentials: true\nUnvalidated origin reflection detected (CWE-942).",
+        tool: "Active CORS Origin Probe (HAR 1.2)",
+        log: "[FAIL] Probe with Origin: https://evil.example.com returned Access-Control-Allow-Origin: '*' (CWE-942).",
       },
-      "AUT-06": {
-        tool: "OWASP ZAP / Cookie Inspector (HAR 1.2)",
-        log: "[FAIL] Set-Cookie: session_id=eyJ...; Path=/; HttpOnly\nMissing 'Secure' and 'SameSite=Lax|Strict' attributes on session cookie.",
+      "AUT-01": {
+        tool: "Default Credential Probe (HAR 1.2)",
+        log: "[FAIL] POST " + url + "/rest/user/login accepted default administrator credential (admin@juice-sh.op / admin123).",
       },
-      "AZI-02": {
-        tool: "OWASP ZAP + DOM Invader (SARIF 2.1.0)",
-        log: "[FAIL] DOM-based Cross-Site Scripting (CWE-79) confirmed on route /#/search?q=<img src=x onerror=alert(1)>.\nEvidence: zap-dast.sarif, trace.har",
+      "AZI-03": {
+        tool: "Active SQL Injection Probe (HAR 1.2)",
+        log: "[FAIL] POST " + url + "/rest/user/login with payload {\"email\": \"' OR 1=1--\"} bypassed authentication (HTTP 200, CWE-89).",
       },
     };
 
@@ -1003,7 +1426,7 @@
         return;
       }
 
-      if (c.id.indexOf("WHK-") === 0 && isConservative) {
+      if (c.id.indexOf("WHK-") === 0) {
         out[c.id] = {
           verdict: "Not_Covered",
           tool: "scope-declaration",
@@ -1058,15 +1481,26 @@
     ).then(function () {
       e.target.value = "";
       if (Object.keys(results).length) {
-        applyScanResults(results, "Imported Evidence (" + files.map(function (f) { return f.name; }).join(", ") + ")");
+        applyScanResults(
+          results,
+          "Imported Evidence (" +
+            files
+              .map(function (f) {
+                return f.name;
+              })
+              .join(", ") +
+            ")"
+        );
       } else if (els.autoStatus) {
-        els.autoStatus.textContent = "Uploaded file parsed, but no recognized SARIF/SBOM/HAR/CASA structure found.";
+        els.autoStatus.textContent =
+          lang() === "pt"
+            ? "Arquivo lido, mas nenhuma estrutura SARIF/SBOM/HAR/CASA reconhecida foi encontrada."
+            : "Uploaded file parsed, but no recognized SARIF/SBOM/HAR/CASA structure found.";
       }
     });
   });
 
   function parseUploadedEvidenceJson(filename, data, out) {
-    /* Case A: Previously exported CASA 3.0 Assessment JSON */
     if (data && Array.isArray(data.results) && data.standard && data.standard.indexOf("CASA") !== -1) {
       data.results.forEach(function (r) {
         if (r.id && r.verdict) {
@@ -1080,7 +1514,6 @@
       return;
     }
 
-    /* Case B: OASIS SARIF 2.1.0 */
     if (data && Array.isArray(data.runs)) {
       var findings = [];
       data.runs.forEach(function (run) {
@@ -1095,13 +1528,19 @@
           }
         });
       });
-      /* Default SAST-01..13 to PASS unless matching finding */
       DATA.controls.forEach(function (c) {
         if (c.id.indexOf("SAST-") === 0 && c.tier === "AL1") {
           out[c.id] = {
             verdict: "PASS",
             tool: "SARIF 2.1.0 (" + filename + ")",
-            log: "[PASS] 0 blocking error findings for " + c.id + " in " + filename + " (" + findings.length + " total SARIF results inspected).",
+            log:
+              "[PASS] 0 blocking error findings for " +
+              c.id +
+              " in " +
+              filename +
+              " (" +
+              findings.length +
+              " total SARIF results inspected).",
           };
         }
       });
@@ -1118,7 +1557,6 @@
       return;
     }
 
-    /* Case C: CycloneDX SBOM */
     if (data && (data.bomFormat === "CycloneDX" || data.spdxVersion)) {
       var comps = (data.components || data.packages || []).length;
       ["SCA-01", "SCA-02", "SCA-04", "SCA-05"].forEach(function (cid) {
@@ -1131,7 +1569,6 @@
       return;
     }
 
-    /* Case D: W3C HAR 1.2 */
     if (data && data.log && Array.isArray(data.log.entries)) {
       var entries = data.log.entries;
       var hasHttp = entries.some(function (en) {
@@ -1248,23 +1685,24 @@
     );
   }
 
-  function lerpShade(t) {
-    t = Math.max(0, Math.min(1, t));
+  function lerpShade(tVal) {
+    tVal = Math.max(0, Math.min(1, tVal));
     var a = [228, 228, 233],
       b = [29, 29, 31];
-    var r = Math.round(a[0] + (b[0] - a[0]) * t);
-    var g = Math.round(a[1] + (b[1] - a[1]) * t);
-    var bl = Math.round(a[2] + (b[2] - a[2]) * t);
+    var r = Math.round(a[0] + (b[0] - a[0]) * tVal);
+    var g = Math.round(a[1] + (b[1] - a[1]) * tVal);
+    var bl = Math.round(a[2] + (b[2] - a[2]) * tVal);
     return "rgb(" + r + "," + g + "," + bl + ")";
   }
 
   function domainPipeline(rows) {
+    var tr = t();
     var stages = rows
       .map(function (r, i) {
         var has = r.rate != null;
-        var t = has ? r.rate : 0;
-        var bg = has ? lerpShade(t) : "var(--bg-subtle)";
-        var col = has ? (t > 0.55 ? "#fff" : "var(--text)") : "var(--text-3)";
+        var tVal = has ? r.rate : 0;
+        var bg = has ? lerpShade(tVal) : "var(--bg-subtle)";
+        var col = has ? (tVal > 0.55 ? "#fff" : "var(--text)") : "var(--text-3)";
         var arrow = i < rows.length - 1 ? '<div class="pl-arrow" aria-hidden="true">&rsaquo;</div>' : "";
         var pctTxt = has ? Math.round(r.rate * 100) + "%" : "&ndash;";
         return (
@@ -1273,8 +1711,8 @@
           ";color:" +
           col +
           '" title="' +
-          esc(r.domain) +
-          (has ? " - " + Math.round(r.rate * 100) + "% PASS" : " - not assessed") +
+          esc(domainLabel(r.domain)) +
+          (has ? " - " + Math.round(r.rate * 100) + "% PASS" : "") +
           '">' +
           '<div class="pl-name">' +
           esc(shortDomain(r.domain)) +
@@ -1288,18 +1726,24 @@
       })
       .join("");
     return (
-      '<div class="section-title">Compliance across the 8 CASA 3.0 Domains</div>' +
+      '<div class="section-title">' +
+      esc(tr.secPipeline) +
+      "</div>" +
       '<div class="pipeline card">' +
       '<div class="pl-row">' +
       stages +
       "</div>" +
-      '<div class="pl-cap">Domains from supply chain &amp; static code analysis through transport, configuration, authentication, authorization, OAuth, and webhooks. Darker indicates higher compliance.</div>' +
+      '<div class="pl-cap">' +
+      esc(tr.pipelineCap) +
+      "</div>" +
       "</div>"
     );
   }
 
   /* ---------- Report View ---------- */
   function buildReport() {
+    var tr = t();
+    var isPt = lang() === "pt";
     var target = state.meta.target || "AL2";
     var inScope = DATA.controls.filter(isControlInAssuranceLevel);
     var assessed = inScope.filter(function (c) {
@@ -1335,7 +1779,6 @@
       return a && (a.verdict === "PASS" || a.verdict === "NOT_APPLICABLE");
     });
 
-    /* Per-domain compliance rates */
     var domainRows = DATA.domains.map(function (d) {
       var dControls = inScope.filter(function (c) {
         return c.domain === d;
@@ -1351,7 +1794,6 @@
       return { domain: d, rate: rate, passed: dPass.length, evalCount: dEval.length, total: dControls.length };
     });
 
-    /* Number screenshot evidence in control order: Figure 1..N */
     var figNum = 0,
       figuresOrder = [],
       figByControl = {};
@@ -1364,7 +1806,7 @@
           num: figNum,
           controlId: c.id,
           code: c.code,
-          title: c.title,
+          title: controlTitle(c),
           figId: f.id,
           caption: f.caption || "",
         });
@@ -1372,44 +1814,65 @@
       });
     });
 
-    /* Certification Verdict Badge */
-    var certBadge = '<span class="cert-badge cert-inc">Assessment Incomplete</span>';
+    var certBadge = '<span class="cert-badge cert-inc">' + esc(tr.certInc) + "</span>";
     if (assessed.length === inScope.length && failed.length === 0) {
-      certBadge = '<span class="cert-badge cert-pass">IN COMPLIANCE (' + esc(target) + ")</span>";
+      certBadge = '<span class="cert-badge cert-pass">' + esc(tr.certPass(target)) + "</span>";
     } else if (failed.length > 0) {
-      certBadge =
-        '<span class="cert-badge cert-fail">REMEDIATION REQUIRED (' + failed.length + " Blocking)</span>";
+      certBadge = '<span class="cert-badge cert-fail">' + esc(tr.certFail(failed.length)) + "</span>";
     }
 
-    var who = state.meta.org ? esc(state.meta.org) : "The target application";
-    var when = state.meta.date ? " on " + esc(state.meta.date) : "";
-    var introBody =
-      "<p><b>" +
-      who +
-      "</b> was evaluated against the <b>App Defense Alliance CASA 3.0 Specification (" +
-      esc(target) +
-      ")</b>" +
-      when +
-      ". " +
-      assessed.length +
-      " of " +
-      inScope.length +
-      " in-scope controls were evaluated across declared surfaces (<code>" +
-      esc((state.meta.surfaces || ["Web_Application"]).join(", ")) +
-      "</code>), achieving a compliance pass rate of <b>" +
-      Math.round(passRate * 100) +
-      "%</b>.</p>" +
-      "<p>Under CASA 3.0 rules, every AL1 control is decided deterministically from automated tool output (SARIF 2.1.0, CycloneDX SBOM, W3C HAR 1.2), while AL2 controls incorporate lab-adjudicated verification evidence checklists, notes, and screenshots. Any <code>FAIL</code> or unexcused <code>Not_Covered</code> verdict blocks certification until remediated and re-verified.</p>";
+    var who = state.meta.org ? esc(state.meta.org) : isPt ? "A aplicação alvo" : "The target application";
+    var when = state.meta.date ? (isPt ? " em " : " on ") + esc(state.meta.date) : "";
+    var introBody = isPt
+      ? "<p><b>" +
+        who +
+        "</b> foi avaliada contra a <b>Especificação App Defense Alliance CASA 3.0 (" +
+        esc(target) +
+        ")</b>" +
+        when +
+        ". " +
+        assessed.length +
+        " de " +
+        inScope.length +
+        " controles em escopo foram avaliados nas superfícies declaradas (<code>" +
+        esc((state.meta.surfaces || ["Web_Application"]).join(", ")) +
+        "</code>), alcançando uma taxa de conformidade de <b>" +
+        Math.round(passRate * 100) +
+        "%</b>.</p>" +
+        "<p>Segundo as regras do CASA 3.0, todos os 61 controles do AL1 são decididos de forma determinística a partir das saídas das ferramentas automatizadas (SARIF 2.1.0, SBOM CycloneDX, W3C HAR 1.2), enquanto os 15 controles do AL2 incorporam checklists de evidências de verificação adjudicadas pelo laboratório, notas e capturas de tela. Qualquer veredito <code>FAIL</code> ou <code>Not_Covered</code> bloqueia a certificação até ser corrigido e reverificado.</p>"
+      : "<p><b>" +
+        who +
+        "</b> was evaluated against the <b>App Defense Alliance CASA 3.0 Specification (" +
+        esc(target) +
+        ")</b>" +
+        when +
+        ". " +
+        assessed.length +
+        " of " +
+        inScope.length +
+        " in-scope controls were evaluated across declared surfaces (<code>" +
+        esc((state.meta.surfaces || ["Web_Application"]).join(", ")) +
+        "</code>), achieving a compliance pass rate of <b>" +
+        Math.round(passRate * 100) +
+        "%</b>.</p>" +
+        "<p>Under CASA 3.0 rules, every AL1 control is decided deterministically from automated tool output (SARIF 2.1.0, CycloneDX SBOM, W3C HAR 1.2), while AL2 controls incorporate lab-adjudicated verification evidence checklists, notes, and screenshots. Any <code>FAIL</code> or unexcused <code>Not_Covered</code> verdict blocks certification until remediated and re-verified.</p>";
 
     if (figNum) {
-      introBody +=
-        "<p>" +
-        figNum +
-        " screenshot" +
-        (figNum > 1 ? "s are" : " is") +
-        " attached as supporting AL2 lab evidence (Figure" +
-        (figNum > 1 ? "s 1–" + figNum : " 1") +
-        ").</p>";
+      introBody += isPt
+        ? "<p>" +
+          figNum +
+          " captura" +
+          (figNum > 1 ? "s de tela estão anexadas" : " de tela está anexada") +
+          " como evidência complementar do AL2 (Figura" +
+          (figNum > 1 ? "s 1–" + figNum : " 1") +
+          ").</p>"
+        : "<p>" +
+          figNum +
+          " screenshot" +
+          (figNum > 1 ? "s are" : " is") +
+          " attached as supporting AL2 lab evidence (Figure" +
+          (figNum > 1 ? "s 1–" + figNum : " 1") +
+          ").</p>";
     }
 
     var meta = state.meta;
@@ -1418,7 +1881,8 @@
       (meta.org ? "<span>" + esc(meta.org) + "</span>" : "") +
       (meta.assessor ? "<span>" + esc(meta.assessor) + "</span>" : "") +
       (meta.date ? "<span>" + esc(meta.date) + "</span>" : "") +
-      "<span>Target " +
+      "<span>" +
+      (isPt ? "Alvo " : "Target ") +
       esc(target) +
       "</span>" +
       '<span class="rid">Report #' +
@@ -1431,26 +1895,38 @@
       assessed.length +
       "/" +
       inScope.length +
-      '</div><div class="lab">Controls evaluated</div></div>' +
+      '</div><div class="lab">' +
+      esc(tr.statEval) +
+      "</div></div>" +
       '<div class="stat card"><div class="num">' +
       Math.round(passRate * 100) +
-      '%</div><div class="lab">Pass rate (applicable)</div></div>' +
+      '%</div><div class="lab">' +
+      esc(tr.statPassRate) +
+      "</div></div>" +
       '<div class="stat card"><div class="num">' +
       al1Passed.length +
       "/" +
       al1InScope.length +
-      '</div><div class="lab">AL1 Automated (PASS/NA)</div></div>' +
+      '</div><div class="lab">' +
+      esc(tr.statAL1) +
+      "</div></div>" +
       '<div class="stat card"><div class="num">' +
       (al2InScope.length ? al2Passed.length + "/" + al2InScope.length : "N/A") +
-      '</div><div class="lab">AL2 Lab-Adjudicated (PASS/NA)</div></div>' +
+      '</div><div class="lab">' +
+      esc(tr.statAL2) +
+      "</div></div>" +
       "</div>";
 
     var charts =
-      '<div class="section-title">Compliance Overview</div>' +
+      '<div class="section-title">' +
+      esc(tr.secOverview) +
+      "</div>" +
       '<div class="charts card">' +
       '<div class="donut-wrap">' +
       donut(passRate, Math.round(passRate * 100) + "%", "PASS RATE") +
-      '<div class="donut-cap">Overall CASA 3.0 compliance</div></div>' +
+      '<div class="donut-cap">' +
+      esc(tr.donutCap) +
+      "</div></div>" +
       '<div class="radar-wrap">' +
       radarChart(domainRows) +
       "</div>" +
@@ -1460,23 +1936,22 @@
 
     var gapHtml;
     if (!assessed.length) {
-      gapHtml =
-        '<div class="card empty">No controls evaluated yet. Run the Automated AL1 Scan or rate AL2 controls to generate findings.</div>';
+      gapHtml = '<div class="card empty">' + esc(tr.emptyReportNoEval) + "</div>";
     } else if (!failed.length) {
-      gapHtml =
-        '<div class="card empty">Zero blocking failures! All evaluated controls meet CASA 3.0 (' +
-        esc(target) +
-        ") acceptance criteria.</div>";
+      gapHtml = '<div class="card empty">' + esc(tr.emptyReportAllPass(target)) + "</div>";
     } else {
       gapHtml = failed
         .map(function (c) {
           var a = state.answers[c.id];
           var figs = figByControl[c.id];
+          var figWord = isPt ? "Figura " : "Figure ";
           var figRef = figs
-            ? '<div class="gap-figref">Supporting Evidence: ' +
+            ? '<div class="gap-figref">' +
+              esc(tr.suppEvidence) +
+              " " +
               figs
                 .map(function (n) {
-                  return "Figure " + n;
+                  return figWord + n;
                 })
                 .join(", ") +
               "</div>"
@@ -1484,7 +1959,9 @@
           var logSnippet = a.autoLog
             ? '<div class="auto-log-box" style="margin-top:10px">' + esc(a.autoLog) + "</div>"
             : "";
-          var note = a.notes ? '<div class="gap-note"><b>Assessor Note:</b> ' + esc(a.notes) + "</div>" : "";
+          var note = a.notes
+            ? '<div class="gap-note"><b>' + esc(tr.assessorNote) + "</b> " + esc(a.notes) + "</div>"
+            : "";
           var tools = (c.reference_tooling || []).join(", ");
 
           return (
@@ -1498,17 +1975,21 @@
             esc(c.reference) +
             "</span>" +
             '<div class="g-title">' +
-            esc(c.title) +
+            esc(controlTitle(c)) +
             "</div></div>" +
             '<div class="gap-move">Verdict: ' +
             esc(a.verdict) +
             "</div></div>" +
             '<div class="gap-next">' +
-            '<p class="nl">Required PASS Criterion to Remediate:</p>' +
-            '<p class="nd">' +
-            esc(c.pass_criteria) +
+            '<p class="nl">' +
+            esc(tr.reqPassToFix) +
             "</p>" +
-            (tools ? '<p class="nd"><b>Reference Tooling:</b> <code>' + esc(tools) + "</code></p>" : "") +
+            '<p class="nd">' +
+            esc(controlPass(c)) +
+            "</p>" +
+            (tools
+              ? '<p class="nd"><b>' + esc(tr.refTooling) + "</b> <code>" + esc(tools) + "</code></p>"
+              : "") +
             "</div>" +
             logSnippet +
             note +
@@ -1521,15 +2002,12 @@
 
     var notAssessed = inScope.length - assessed.length;
     var summaryNote =
-      '<div class="section-title">Blocking Remediation Findings &middot; ' +
-      failed.length +
-      " failing / not covered" +
-      (notAssessed ? " &middot; " + notAssessed + " not yet evaluated" : "") +
-      (figNum ? " &middot; " + figNum + " screenshot" + (figNum > 1 ? "s" : "") : "") +
-      "</div>";
+      '<div class="section-title">' + esc(tr.secFindings(failed.length, notAssessed, figNum)) + "</div>";
 
     document.getElementById("report").innerHTML =
-      '<div class="report-head"><div><h1>ADA CASA 3.0 Compliance Report</h1>' +
+      '<div class="report-head"><div><h1>' +
+      esc(tr.reportTitle) +
+      "</h1>" +
       '<div class="report-meta">' +
       metaLine +
       "</div></div>" +
@@ -1545,9 +2023,15 @@
       gapHtml +
       '<div id="evidence-slot"></div>' +
       '<div class="report-actions">' +
-      '<button class="btn ghost" id="back" type="button">&larr; Back to assessment</button>' +
-      '<button class="btn ghost" id="export" type="button">Export CASA 3.0 JSON</button>' +
-      '<button class="btn primary" id="print" type="button">Print / Save PDF Report</button>' +
+      '<button class="btn ghost" id="back" type="button">' +
+      esc(tr.btnBack) +
+      "</button>" +
+      '<button class="btn ghost" id="export" type="button">' +
+      esc(tr.btnExport) +
+      "</button>" +
+      '<button class="btn primary" id="print" type="button">' +
+      esc(tr.btnPrint) +
+      "</button>" +
       "</div>";
 
     document.getElementById("back").addEventListener("click", function () {
@@ -1571,6 +2055,8 @@
   }
 
   function loadEvidence(items) {
+    var tr = t();
+    var isPt = lang() === "pt";
     var slot = document.getElementById("evidence-slot");
     if (!slot) return;
     if (!items || !items.length) {
@@ -1600,7 +2086,7 @@
         }
         groups[it.controlId].items.push(it);
       });
-      var html = '<div class="section-title">Supporting AL2 Screenshot Evidence</div>';
+      var html = '<div class="section-title">' + esc(tr.secScreenshots) + "</div>";
       order.forEach(function (cid) {
         var g = groups[cid];
         html +=
@@ -1610,15 +2096,16 @@
           esc(g.title) +
           "</div>";
         g.items.forEach(function (it) {
+          var figLabel = (isPt ? "Figura " : "Figure ") + it.num;
           html +=
             '<figure class="figure">' +
             (it.data
-              ? '<img src="' + it.data + '" alt="Figure ' + it.num + '">'
+              ? '<img src="' + it.data + '" alt="' + figLabel + '">'
               : '<div class="fig-missing">Image unavailable</div>') +
-            "<figcaption><b>Figure " +
-            it.num +
+            "<figcaption><b>" +
+            figLabel +
             ".</b> " +
-            (it.caption ? esc(it.caption) : '<span class="muted">No description provided</span>') +
+            (it.caption ? esc(it.caption) : '<span class="muted">' + esc(tr.noCaption) + "</span>") +
             "</figcaption></figure>";
         });
         html += "</div>";
@@ -1646,6 +2133,7 @@
           domain: c.domain,
           profile: c.profile,
           title: c.title,
+          title_pt: c.title_pt || "",
           verdict: a.verdict || null,
           autoTool: a.autoTool || "",
           autoLog: a.autoLog || "",
@@ -1709,22 +2197,20 @@
   });
 
   function resetAll() {
-    if (
-      !confirm(
-        "Clear every verdict, automated scan log, checklist item, note and screenshot stored in this browser? This cannot be undone."
-      )
-    )
-      return;
+    var tr = t();
+    if (!confirm(tr.confirmReset)) return;
+    var currentLang = lang();
     try {
       localStorage.removeItem(STORE_KEY);
     } catch (e) {}
     idbClear();
     state = load();
-    els.org.value = "";
+    state.meta.lang = currentLang;
+    els.org.value = state.meta.org;
     els.assessor.value = "";
     els.date.value = state.meta.date;
     els.target.value = "AL2";
-    syncLevelDesc();
+    applyStaticI18n();
     applySurfaceScoping();
     switchView("assess");
     renderNav();
@@ -1732,7 +2218,7 @@
     loadFigureImages(controlsEl);
     updateProgress();
     if (els.autoStatus) {
-      els.autoStatus.textContent = "Reset complete — 61 AL1 controls awaiting automated run.";
+      els.autoStatus.textContent = t().statusReady;
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1742,6 +2228,7 @@
   if (topresetBtn) topresetBtn.addEventListener("click", resetAll);
 
   /* ---------- init ---------- */
+  applyStaticI18n();
   applySurfaceScoping();
   renderNav();
   renderControls();

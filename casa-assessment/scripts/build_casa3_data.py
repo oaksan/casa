@@ -9,6 +9,8 @@ import json
 import re
 from pathlib import Path
 
+from pt_translations import DOMAINS_PT, TITLES_PT, translate_text_pt
+
 ROOT_DIR = Path(__file__).resolve().parents[2]
 CASA_DIR = ROOT_DIR / "CASA"
 OUT_JSON = ROOT_DIR / "casa-assessment" / "data" / "casa3_controls.json"
@@ -195,14 +197,26 @@ def main() -> None:
     for cid in sorted(combined_specs.keys(), key=sort_key):
         spec = combined_specs[cid]
         case = combined_cases.get(cid, {})
+        ev_en = case.get("evidence_items", [])
+        proc_en = case.get("procedure_items", [])
+        pass_en = case.get("pass_criteria", "")
+        fail_en = case.get("fail_criteria", "")
+        chk_en = case.get("verification_checklist", [])
         merged = {
             **spec,
-            "evidence_items": case.get("evidence_items", []),
-            "procedure_items": case.get("procedure_items", []),
+            "domain_pt": DOMAINS_PT.get(spec["domain"], spec["domain"]),
+            "title_pt": TITLES_PT.get(cid, spec["title"]),
+            "evidence_items": ev_en,
+            "evidence_items_pt": [translate_text_pt(x) for x in ev_en],
+            "procedure_items": proc_en,
+            "procedure_items_pt": [translate_text_pt(x) for x in proc_en],
             "reference_tooling": case.get("reference_tooling", []),
-            "pass_criteria": case.get("pass_criteria", ""),
-            "fail_criteria": case.get("fail_criteria", ""),
-            "verification_checklist": case.get("verification_checklist", []),
+            "pass_criteria": pass_en,
+            "pass_criteria_pt": translate_text_pt(pass_en),
+            "fail_criteria": fail_en,
+            "fail_criteria_pt": translate_text_pt(fail_en),
+            "verification_checklist": chk_en,
+            "verification_checklist_pt": [translate_text_pt(x) for x in chk_en],
         }
         all_controls.append(merged)
 
@@ -210,17 +224,22 @@ def main() -> None:
         "standard": "App Defense Alliance CASA",
         "version": "3.0 (2026-10-16)",
         "domains": DOMAINS,
+        "domains_pt": DOMAINS_PT,
         "assurance_levels": {
             "AL1": {
                 "code": "AL1",
                 "name": "AL1 — Automated Assessment (61 Controls)",
+                "name_pt": "AL1 — Avaliação Automatizada (61 Controles)",
                 "description": "Evaluates all 61 deterministic AL1 requirements against the application, build artifacts, or source using automated tooling and open evidence formats (SARIF 2.1.0, CycloneDX, HAR 1.2).",
+                "description_pt": "Avalia todos os 61 requisitos determinísticos do AL1 contra a aplicação, artefatos de build ou código-fonte usando ferramentas automatizadas e formatos abertos de evidência (SARIF 2.1.0, CycloneDX, HAR 1.2).",
                 "included_tiers": ["AL1"],
             },
             "AL2": {
                 "code": "AL2",
                 "name": "AL2 — Full Lab Assessment (61 Automated AL1 + 15 Lab-Adjudicated AL2)",
+                "name_pt": "AL2 — Avaliação Completa de Laboratório (61 AL1 Automatizados + 15 AL2 Manuais)",
                 "description": "Runs all 61 automated AL1 tests plus 15 lab-adjudicated AL2 tests requiring interactive verification evidence checklists, notes, and screenshots.",
+                "description_pt": "Executa todos os 61 testes automatizados do AL1 mais os 15 testes adjudicados em laboratório do AL2, exigindo checklist interativo de evidências de verificação, notas e capturas de tela.",
                 "included_tiers": ["AL1", "AL2"],
             },
         },

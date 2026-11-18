@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/Sarif-2.1.0/rtm/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "ADA CASA 3.0 SCA & Reachability Engine (OSV.dev + CISA KEV)",
+          "version": "3.0.0",
+          "rules": [
+            {
+              "id": "CASA3-SCA-01",
+              "shortDescription": {
+                "text": "SCA-01: No dependency contains a reachable Critical/High vulnerability (CVSS >= 7.0), or any CISA KEV entry"
+              }
+            }
+          ]
+        }
+      },
+      "results": []
+    }
+  ]
+}

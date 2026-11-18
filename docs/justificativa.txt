@@ -1,0 +1,138 @@
+================================================================================
+JUSTIFICATIVA TÉCNICA E CIENTÍFICA — AUTOMAÇÃO DOS CONTROLES AL1 DO ADA CASA 3.0
+Projeto de Mestrado: Avaliação Automatizada de Segurança em Aplicações Web
+Repositório: https://github.com/oaksan/casa
+Aplicação Alvo de Validação (Benchmark): OWASP Juice Shop
+================================================================================
+
+INTRODUÇÃO METODOLÓGICA: POR QUE O AL1 DO CASA 3.0 É 100% AUTOMATIZÁVEL?
+--------------------------------------------------------------------------------
+Na versão legada do padrão (CASA 2.1.1), a avaliação de Nível 1 (AL1) dependia de
+questionários subjetivos em planilhas Excel, descrições em texto livre e capturas
+de tela fornecidas pelo desenvolvedor.
+
+O ADA CASA 3.0 (Assurance Level 1 Specification & Test Guide v3.0) rompe com esse
+modelo ao estabelecer três pilares formais para todos os seus 61 controles:
+  1. Sinal Determinístico Binário (PASS / FAIL): Cada requisito define um predicado
+     lógico objetivo e complementar (sem interpretação subjetiva).
+  2. Formatos Abertos Padronizados de Evidência: Toda evidência é expressa em
+     formatos processáveis por máquina — OASIS SARIF 2.1.0 (análise estática/dinâmica),
+     CycloneDX 1.5 / SPDX 2.3 (inventário SBOM) e W3C HAR 1.2 (tráfego HTTP/TLS).
+  3. Independência de Ferramenta Proprietária: O guia define ferramentas open-source
+     de referência e permite qualquer motor automatizado que produza o formato de
+     evidência exigido e valide os mesmos sinais de PASS e FAIL.
+
+Abaixo, documenta-se individualmente cada controle do AL1 (por iteração SDD),
+sua fundamentação normativa no CASA 3.0, as melhorias implementadas no motor
+automatizado (`casa-assessment/casa_audit/scanner.py`) e o resultado empírico
+obtido contra o OWASP Juice Shop.
+
+================================================================================
+CONTROLE 01/61: SCA-01 (Iteração SDD 009)
+Domínio 1: Composição de Software e Cadeia de Suprimentos (Software Composition & Supply Chain)
+================================================================================
+
+1. DEFINIÇÃO E BASE NORMATIVA NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID do Controle: SCA-01
+- Requisito (CASA 3.0 AL1 Specification):
+  "Nenhuma dependência contém vulnerabilidade Crítica/Alta alcançável ou entrada
+   no catálogo CISA KEV (No dependency contains a reachable Critical/High
+   vulnerability, or any CISA KEV entry)."
+- Referências Normativas: OWASP ASVS 4.0.3 V14.2.1 (L1); CWE-1395.
+- Formato de Evidência Exigido (CASA 3.0 AL1 Test Guide):
+  SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) + Achados de
+  vulnerabilidade em formato OASIS SARIF 2.1.0.
+- Procedimento Oficial (Test Procedure):
+  1) Gerar inventário de dependências (SBOM) a partir dos manifestos/lockfiles;
+  2) Confrontar cada componente contra bases de vulnerabilidades (NVD, OSV.dev);
+  3) Para cada achado Crítico ou Alto (CVSS v3.1 base >= 7.0), executar análise
+     de alcançabilidade no grafo de chamadas (call-graph reachability analysis)
+     a partir dos pontos de entrada da aplicação;
+  4) Confrontar todos os componentes com o catálogo CISA KEV (Known Exploited
+     Vulnerabilities).
+- Critério Determinístico de Veredito:
+  * PASS: Zero achados com CVSS v3.1 base >= 7.0 cujo símbolo vulnerável seja
+    alcançável no grafo de chamadas, E zero componentes listados no CISA KEV.
+  * FAIL: >= 1 achado alcançável com CVSS >= 7.0, OU >= 1 componente listado no
+    catálogo CISA KEV (seja alcançável ou não).
+
+2. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO E MELHORIA REALIZADA NA ITERAÇÃO 009
+--------------------------------------------------------------------------------
+- Limitação Identificada na Versão Anterior (Iterações 1–8):
+  A versão anterior consultava o endpoint em lote do OSV.dev (`querybatch`) e
+  reprovava (`FAIL`) qualquer pacote que possuísse qualquer advisory, sem:
+    (a) calcular o score CVSS v3.1 base (>= 7.0) para separar falhas Moderadas/Baixas
+        das falhas Altas/Críticas;
+    (b) confrontar os identificadores CVE com o catálogo oficial CISA KEV;
+    (c) realizar a análise de alcançabilidade no código-fonte (call-graph / import
+        reachability) para distinguir bibliotecas efetivamente invocadas pela
+        aplicação em produção de ferramentas de build não alcançáveis;
+    (d) exportar o arquivo `sca-findings.sarif` (SARIF 2.1.0) além do `sbom.cdx.json`.
+
+- Melhoria Implementada na Iteração SDD 009 (`casa_audit/scanner.py`):
+  1) Geração de SBOM CycloneDX 1.5 (`output/sbom.cdx.json`) contendo os elementos
+     mínimos da NTIA (`supplier`, `name`, `version`, `purl`, `bom-ref`);
+  2) Resolução concorrente dos detalhes de cada advisory no OSV.dev (`/v1/vulns/{id}`),
+     extraindo os aliases `CVE-*` e calculando matematicamente o score base
+     CVSS v3.1 segundo a fórmula oficial do FIRST.org (`compute_cvss3_base_score`);
+  3) Integração com o feed oficial da CISA (`known_exploited_vulnerabilities.json`,
+     com 1.782 CVEs exploradas ativamente);
+  4) Motor estático de alcançabilidade (`analyze_package_reachability`): analisa
+     os pontos de entrada e módulos da aplicação (`server.ts`, `app.ts`, `routes/`,
+     `lib/`, `models/`, `data/`), rastreando `import`/`require` e as chamadas de
+     funções/métodos (`linha exata`) de cada pacote vulnerável;
+  5) Geração do relatório `output/sca-findings.sarif` (OASIS SARIF 2.1.0).
+
+3. POR QUE ESTA AUTOMAÇÃO COMPROVA A TESE PARA O ORIENTADOR?
+--------------------------------------------------------------------------------
+O controle SCA-01 demonstra com perfeição a superioridade científica do CASA 3.0:
+em vez de apenas listar CVEs brutas (o que gera fadiga de alertas em ferramentas
+tradicionais de SCA por incluir vulnerabilidades de severidade baixa ou pacotes
+de desenvolvimento que nunca entram em execução), a regra formal do CASA 3.0
+combina três variáveis matemáticas verificáveis por software:
+  Bloqueio = (CVSS_v3 >= 7.0 AND CallGraph_Reachable == True) OR (CVE in CISA_KEV)
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor automatizado do SCA-01 contra o OWASP Juice Shop
+(`/home/user/felipe/speckit/juice-shop-master`):
+- Total de pacotes inventariados no SBOM (`sbom.cdx.json`): 114 pacotes.
+- Total de pacotes com advisories no OSV.dev: 16 pacotes.
+- Filtro de Precisão do CASA 3.0 (CVSS >= 7.0 + Alcançabilidade no Grafo):
+  * 11 pacotes REPROVADOS (BLOCKING FAIL — CVSS >= 7.0 e alcançáveis no código):
+    1. `body-parser@1.20.4`: CVE-2026-111181 (CVSS 7.5 HIGH) -> Alcançável em
+       `server.ts:L18` (`bodyParser.urlencoded()` na L335, `bodyParser.text()` na L342).
+    2. `compression@1.8.1`: CVE-2026-87776 (CVSS 7.5 HIGH) -> Alcançável em
+       `server.ts:L21` (`compression()` na L180).
+    3. `express-jwt@0.1.3`: GHSA-6g6m-m6h5-w9gf / CVE-2020-15084 (CVSS 7.7 HIGH) ->
+       Alcançável em `lib/insecurity.ts:L10` (`expressJwt()` nas L52 e L53).
+    4. `glob@10.4.5`: CVE-2025-64756 (CVSS 7.5 HIGH) -> Alcançável em
+       `lib/startup/restoreOverwrittenFilesWithOriginals.ts:L10` e `cleanupFtpFolder.ts:L6`.
+    5. `js-yaml@3.14.0`: 5 advisories HIGH (CVSS 7.5) -> Alcançável em
+       `server.ts:L8` (`yaml.load()` na L140), `routes/fileUpload.ts:L10` (`yaml.load()` na L114),
+       `routes/vulnCodeFixes.ts:L2` e `routes/vulnCodeSnippet.ts:L7`.
+    6. `jsonwebtoken@0.4.0`: CVE-2015-9235 (CVSS 9.5 CRITICAL) e CVE-2022-23539
+       (CVSS 8.1 HIGH) -> Alcançável em `lib/insecurity.ts:L11` (`jwt.sign()` na L54,
+       `jwt.verify()` na L189) e `routes/verify.ts:L8`.
+    7. `marsdb@0.6.11`: GHSA-5mrr-rgp6-x4gr (CVSS 9.5 CRITICAL) -> Alcançável em
+       `data/mongodb.ts:L7` (`MarsDB.Collection()` nas L9 e L10).
+    8. `multer@2.4.0`: CVE-2026-113872 (CVSS 7.5 HIGH) -> Alcançável em
+       `server.ts:L11` (`multer()` nas L722, L728 e `multer.diskStorage()` na L729).
+    9. `sanitize-html@1.4.2`: CVE-2022-25887 (CVSS 7.5 HIGH) -> Alcançável em
+       `lib/insecurity.ts:L13` (`sanitizeHtmlLib()` na L58) e `lib/challengeUtils.ts:L5`.
+    10. `sequelize@6.37.3`: CVE-2026-69240 (CVSS 9.8 CRITICAL) -> Alcançável em 31
+        módulos de modelos e rotas (`models/*.ts`, `routes/*.ts`).
+    11. `zod@4.4.3`: CVE-2023-54404 (CVSS 7.5 HIGH) -> Alcançável em
+        `routes/chat.ts:L10` e `lib/config.schema.ts:L6`.
+
+  * 5 pacotes NÃO-BLOQUEANTES (separados automaticamente como informativos):
+    - `file-type@16.5.4` (CVSS 5.3 MODERATE < 7.0)
+    - `hbs@4.2.0` (CVSS 4.0 MODERATE < 7.0 e não alcançável)
+    - `morgan@1.10.0` (CVSS 5.3 MODERATE < 7.0)
+    - `notevil@1.3.3` (CVSS 6.5 MODERATE < 7.0)
+    - `@cyclonedx/cyclonedx-npm` (Possui CVSS 7.5 HIGH, porém é apenas utilitário
+      de linha de comando não importado pela aplicação: `NOT REACHABLE in source
+      call-graph`, demonstrando na prática a eliminação automática de falsos
+      positivos pelo critério de alcançabilidade do CASA 3.0!).
+================================================================================

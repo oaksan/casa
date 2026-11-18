@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:b3bac1e9-a5a7-4fd0-ae51-0759d7f9b0dd",
+  "serialNumber": "urn:uuid:d70aa8df-5ed8-475d-829c-5d13d2fc0b89",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-11-18T13:53:24.071535+00:00",
+    "timestamp": "2026-11-18T14:17:21.090189+00:00",
     "tools": [
       {
         "vendor": "ADA",
@@ -20,12 +20,20 @@
   "components": [
     {
       "type": "library",
+      "bom-ref": "pkg:pypi/boto3@1.26.0",
+      "supplier": {
+        "name": "PyPI registry"
+      },
       "name": "boto3",
       "version": "1.26.0",
       "purl": "pkg:pypi/boto3@1.26.0"
     },
     {
       "type": "library",
+      "bom-ref": "pkg:pypi/python-docx@0.8.11",
+      "supplier": {
+        "name": "PyPI registry"
+      },
       "name": "python-docx",
       "version": "0.8.11",
       "purl": "pkg:pypi/python-docx@0.8.11"

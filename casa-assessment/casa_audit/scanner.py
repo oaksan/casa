@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import datetime
 import json
 import math
@@ -51,6 +52,133 @@ def shannon_entropy_bits(token: str) -> float:
     return ent_per_char * n
 
 
+def compute_cvss3_base_score(vector: str) -> float | None:
+    """Compute exact FIRST.org CVSS v3.0/v3.1 base score from vector string."""
+    if not vector or not vector.startswith("CVSS:3"):
+        return None
+    parts = dict(item.split(":", 1) for item in vector.split("/")[1:] if ":" in item)
+    try:
+        s = parts.get("S", "U")
+        av = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.20}[parts["AV"]]
+        ac = {"L": 0.77, "H": 0.44}[parts["AC"]]
+        pr_map = {"N": 0.85, "L": 0.68 if s == "C" else 0.62, "H": 0.50 if s == "C" else 0.27}
+        pr = pr_map[parts["PR"]]
+        ui = {"N": 0.85, "R": 0.62}[parts["UI"]]
+        cia = {"H": 0.56, "L": 0.22, "N": 0.0}
+        c, i, a = cia[parts["C"]], cia[parts["I"]], cia[parts["A"]]
+        iss = 1.0 - ((1.0 - c) * (1.0 - i) * (1.0 - a))
+        if iss <= 0:
+            return 0.0
+        if s == "U":
+            impact = 6.42 * iss
+        else:
+            impact = 7.52 * (iss - 0.029) - 3.25 * ((iss - 0.02) ** 15)
+        exploitability = 8.22 * av * ac * pr * ui
+        raw = min(impact + exploitability, 10.0) if s == "U" else min(1.08 * (impact + exploitability), 10.0)
+        return math.ceil(round(raw * 100000) / 10000) / 10.0
+    except Exception:
+        return None
+
+
+def fetch_cisa_kev_set() -> set[str]:
+    """Fetch CISA Known Exploited Vulnerabilities (KEV) CVE catalog (with local cache)."""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    cache_file = OUTPUT_DIR / "cisa_kev_cache.json"
+    if cache_file.exists() and (time.time() - cache_file.stat().st_mtime < 86400):
+        try:
+            return set(json.loads(cache_file.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    try:
+        with urllib.request.urlopen(
+            "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+            timeout=6,
+        ) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            cves = [v.get("cveID", "") for v in data.get("vulnerabilities", []) if v.get("cveID")]
+            cache_file.write_text(json.dumps(cves), encoding="utf-8")
+            return set(cves)
+    except Exception:
+        return set()
+
+
+def fetch_osv_vuln_detail(vuln_id: str) -> dict:
+    """Fetch full OSV advisory detail (CVSS vector, CVE aliases, affected symbols)."""
+    try:
+        with urllib.request.urlopen(f"https://api.osv.dev/v1/vulns/{vuln_id}", timeout=5) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return {"id": vuln_id}
+
+
+def analyze_package_reachability(repo: Path, pkg_name: str) -> tuple[bool, list[str]]:
+    """Trace source code imports/requires and call sites from application entry points for pkg_name."""
+    source_dirs = ["server.ts", "app.ts", "routes", "lib", "models", "data", "src", "app"]
+    files_to_scan: list[Path] = []
+    for d in source_dirs:
+        p = repo / d
+        if p.is_file():
+            files_to_scan.append(p)
+        elif p.is_dir():
+            files_to_scan.extend(
+                f for f in p.rglob("*") if f.is_file() and f.suffix in {".ts", ".js", ".py"}
+            )
+    if not files_to_scan:
+        files_to_scan = [
+            f
+            for f in repo.rglob("*")
+            if f.is_file()
+            and f.suffix in {".ts", ".js", ".py"}
+            and "node_modules" not in f.parts
+            and ".git" not in f.parts
+        ][:200]
+
+    escaped_pkg = re.escape(pkg_name)
+    import_re = re.compile(
+        rf"(?:from\s+['\"](?:{escaped_pkg})(?:/[^'\"]*)?['\"]|"
+        rf"require\(\s*['\"](?:{escaped_pkg})(?:/[^'\"]*)?['\"]\s*\)|"
+        rf"import\s+{escaped_pkg}\b)"
+    )
+    var_bind_re = re.compile(
+        rf"(?:import\s+(?:\*\s+as\s+)?([A-Za-z0-9_$]+)\s+from\s+['\"]{escaped_pkg}['\"]|"
+        rf"(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*require\(\s*['\"]{escaped_pkg}['\"]\s*\))"
+    )
+
+    call_traces: list[str] = []
+    for fpath in files_to_scan:
+        try:
+            lines = fpath.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            continue
+        rel = str(fpath.relative_to(repo))
+        bound_vars: list[str] = []
+        import_line = None
+        for idx, line in enumerate(lines, start=1):
+            if import_re.search(line):
+                import_line = idx
+                m_var = var_bind_re.search(line)
+                if m_var:
+                    vname = m_var.group(1) or m_var.group(2)
+                    if vname:
+                        bound_vars.append(vname)
+        if import_line is not None:
+            symbol_calls: list[str] = []
+            for vname in bound_vars:
+                call_re = re.compile(rf"\b{re.escape(vname)}(?:\.[A-Za-z0-9_$]+)?\s*\(")
+                for idx, line in enumerate(lines, start=1):
+                    if idx == import_line:
+                        continue
+                    m_c = call_re.search(line)
+                    if m_c:
+                        symbol_calls.append(f"{m_c.group(0).rstrip('(')}() at L{idx}")
+            if symbol_calls:
+                call_traces.append(f"{rel}:L{import_line} ({', '.join(symbol_calls[:3])})")
+            else:
+                call_traces.append(f"{rel}:L{import_line} (module imported in active entry path)")
+
+    return (len(call_traces) > 0), call_traces
+
+
 # ---------------------------------------------------------------------------
 # 1. Domain 1: Software Composition & Supply Chain (SCA-01 .. SCA-05)
 # ---------------------------------------------------------------------------
@@ -93,11 +221,14 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
         except Exception:
             pass
 
-    # Generate CycloneDX 1.5 SBOM artifact
+    # Generate CycloneDX 1.5 SBOM artifact (with NTIA minimum elements)
     sbom_path = OUTPUT_DIR / "sbom.cdx.json"
+    sca_sarif_path = OUTPUT_DIR / "sca-findings.sarif"
     cdx_components = [
         {
             "type": "library",
+            "bom-ref": f"pkg:{eco.lower()}/{name}@{ver}",
+            "supplier": {"name": f"{eco} registry"},
             "name": name,
             "version": ver,
             "purl": f"pkg:{eco.lower()}/{name}@{ver}",
@@ -118,10 +249,14 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
     }
     sbom_path.write_text(json.dumps(sbom_payload, indent=2), encoding="utf-8")
 
-    # Query OSV.dev batch API for real vulnerability data
+    # Query OSV.dev batch API + resolve CVSS v3.1, CISA KEV & Call-Graph Reachability
     vuln_findings: list[str] = []
+    blocking_sca01_findings: list[str] = []
+    non_blocking_sca01_info: list[str] = []
     malicious_findings: list[str] = []
+    sarif_results: list[dict] = []
     osv_queried = 0
+    kev_set = fetch_cisa_kev_set()
 
     if deps:
         batch_queries = [
@@ -138,35 +273,158 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
             )
             with urllib.request.urlopen(req, timeout=8) as resp:
                 osv_resp = json.loads(resp.read().decode("utf-8"))
-                for idx, item in enumerate(osv_resp.get("results", [])):
-                    vulns = item.get("vulns", [])
-                    if vulns:
-                        eco, name, ver = deps[idx]
-                        ids = [v.get("id", "") for v in vulns]
-                        for vid in ids:
-                            if vid.startswith("MAL-"):
-                                malicious_findings.append(f"{name}@{ver} ({vid})")
-                        vuln_findings.append(f"{name}@{ver}: {', '.join(ids)} ({len(ids)} advisories)")
+
+            pkg_vuln_ids: list[tuple[str, str, str, list[str]]] = []
+            all_unique_vids: set[str] = set()
+            for idx, item in enumerate(osv_resp.get("results", [])):
+                vulns = item.get("vulns", [])
+                if vulns:
+                    eco, name, ver = deps[idx]
+                    ids = [v.get("id", "") for v in vulns if v.get("id")]
+                    pkg_vuln_ids.append((eco, name, ver, ids))
+                    all_unique_vids.update(ids)
+
+            # Fetch full OSV details concurrently to get CVSS v3.1 vectors and CVE aliases
+            vuln_details_map: dict[str, dict] = {}
+            if all_unique_vids:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
+                    future_map = {pool.submit(fetch_osv_vuln_detail, vid): vid for vid in all_unique_vids}
+                    for fut in concurrent.futures.as_completed(future_map):
+                        vid = future_map[fut]
+                        try:
+                            vuln_details_map[vid] = fut.result()
+                        except Exception:
+                            vuln_details_map[vid] = {"id": vid}
+
+            for eco, name, ver, ids in pkg_vuln_ids:
+                is_reachable, traces = analyze_package_reachability(repo, name)
+                pkg_high_crit_advisories: list[str] = []
+                pkg_kev_hits: list[str] = []
+                pkg_all_formatted: list[str] = []
+
+                for vid in ids:
+                    if vid.startswith("MAL-"):
+                        malicious_findings.append(f"{name}@{ver} ({vid})")
+                    detail = vuln_details_map.get(vid, {})
+                    aliases = detail.get("aliases", [])
+                    cves = [a for a in aliases if a.startswith("CVE-")]
+                    if vid.startswith("CVE-"):
+                        cves.append(vid)
+                    db_sev = str(detail.get("database_specific", {}).get("severity", "")).upper()
+
+                    cvss_score: float | None = None
+                    for sev_item in detail.get("severity", []):
+                        sc = compute_cvss3_base_score(sev_item.get("score", ""))
+                        if sc is not None and (cvss_score is None or sc > cvss_score):
+                            cvss_score = sc
+                    if cvss_score is None:
+                        cvss_score = {"CRITICAL": 9.5, "HIGH": 7.5, "MODERATE": 5.3, "MEDIUM": 5.3, "LOW": 3.1}.get(
+                            db_sev, 7.5
+                        )
+
+                    kev_matched = [c for c in cves if c in kev_set]
+                    if kev_matched:
+                        pkg_kev_hits.extend(kev_matched)
+
+                    cve_str = f" / {', '.join(cves)}" if cves else ""
+                    kev_str = " [CISA KEV!]" if kev_matched else ""
+                    adv_label = f"{vid}{cve_str} (CVSS {cvss_score:.1f}{f' {db_sev}' if db_sev else ''}{kev_str})"
+                    pkg_all_formatted.append(adv_label)
+
+                    if cvss_score >= 7.0 or db_sev in {"HIGH", "CRITICAL"} or kev_matched:
+                        pkg_high_crit_advisories.append(adv_label)
+
+                reach_str = (
+                    f"REACHABLE via {'; '.join(traces)}"
+                    if is_reachable
+                    else "NOT REACHABLE in source call-graph"
+                )
+                entry_line = (
+                    f"{name}@{ver}: {', '.join(pkg_all_formatted)} | Call-Graph: {reach_str}"
+                )
+                vuln_findings.append(entry_line)
+
+                if (pkg_high_crit_advisories and is_reachable) or pkg_kev_hits:
+                    blocking_sca01_findings.append(
+                        f"{name}@{ver} [BLOCKING]: {', '.join(pkg_high_crit_advisories)} | {reach_str}"
+                    )
+                    sarif_results.append(
+                        {
+                            "ruleId": "CASA3-SCA-01",
+                            "level": "error",
+                            "message": {
+                                "text": f"SCA-01 blocking vulnerability in {name}@{ver}: {', '.join(pkg_high_crit_advisories)} ({reach_str})"
+                            },
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": "package.json"},
+                                    }
+                                }
+                            ],
+                        }
+                    )
+                else:
+                    non_blocking_sca01_info.append(entry_line)
         except Exception as exc:
             vuln_findings.append(f"OSV API query warning: {exc}")
 
-    # SCA-01: Reachable Critical/High vulnerabilities or CISA KEV
-    if vuln_findings and not vuln_findings[0].startswith("OSV API query warning"):
+    # Write SCA SARIF 2.1.0 artifact
+    sca_sarif_payload = {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/Sarif-2.1.0/rtm/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "ADA CASA 3.0 SCA & Reachability Engine (OSV.dev + CISA KEV)",
+                        "version": "3.0.0",
+                        "rules": [
+                            {
+                                "id": "CASA3-SCA-01",
+                                "shortDescription": {
+                                    "text": "SCA-01: No dependency contains a reachable Critical/High vulnerability (CVSS >= 7.0), or any CISA KEV entry"
+                                },
+                            }
+                        ],
+                    }
+                },
+                "results": sarif_results,
+            }
+        ],
+    }
+    sca_sarif_path.write_text(json.dumps(sca_sarif_payload, indent=2), encoding="utf-8")
+
+    # SCA-01: Reachable Critical/High vulnerabilities (CVSS >= 7.0) or CISA KEV
+    if blocking_sca01_findings:
+        info_tail = (
+            "\n\nNon-blocking (CVSS < 7.0 or unreachable in call-graph):\n  - "
+            + "\n  - ".join(non_blocking_sca01_info)
+            if non_blocking_sca01_info
+            else ""
+        )
         results["SCA-01"] = {
             "verdict": "FAIL",
-            "tool": f"OSV.dev API + CycloneDX SBOM ({osv_queried} packages queried)",
+            "tool": f"OSV.dev + CISA KEV + Call-Graph Reachability ({osv_queried} packages, SARIF 2.1.0 + CycloneDX 1.5)",
             "log": (
-                f"[FAIL] {len(vuln_findings)} vulnerable packages identified via OSV.dev in {repo.name}:\n  - "
-                + "\n  - ".join(vuln_findings)
-                + f"\nGenerated SBOM: {sbom_path}"
+                f"[FAIL] {len(blocking_sca01_findings)} package(s) violate SCA-01 (Reachable CVSS >= 7.0 or CISA KEV) out of {len(vuln_findings)} total vulnerable package(s) in {repo.name}:\n  - "
+                + "\n  - ".join(blocking_sca01_findings)
+                + info_tail
+                + f"\n\nEvidence Artifacts:\n  - SBOM (CycloneDX 1.5): {sbom_path}\n  - Vulnerability Report (SARIF 2.1.0): {sca_sarif_path}"
             ),
         }
     else:
         results["SCA-01"] = {
             "verdict": "PASS" if deps else "Not_Covered",
-            "tool": f"OSV.dev API + CycloneDX SBOM ({osv_queried} packages queried)",
+            "tool": f"OSV.dev + CISA KEV + Call-Graph Reachability ({osv_queried} packages, SARIF 2.1.0 + CycloneDX 1.5)",
             "log": (
-                f"[PASS] Queried {osv_queried} packages against OSV.dev; 0 vulnerable packages found.\nSBOM: {sbom_path}"
+                f"[PASS] Queried {osv_queried} packages against OSV.dev & CISA KEV ({len(kev_set)} KEV entries): 0 reachable CVSS >= 7.0 vulnerabilities and 0 CISA KEV matches.\n"
+                + (
+                    "Informational (CVSS < 7.0 or unreachable):\n  - " + "\n  - ".join(non_blocking_sca01_info) + "\n"
+                    if non_blocking_sca01_info
+                    else ""
+                )
+                + f"Evidence Artifacts:\n  - SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
                 if deps
                 else f"[Not_Covered] No dependency manifest (package.json / requirements.txt) with pinned versions found in {repo}."
             ),

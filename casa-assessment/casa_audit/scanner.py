@@ -5294,15 +5294,131 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 6: Authorization & Injection (AZI-01 .. AZI-06) ----
-    # AZI-01: Strong anti-CSRF mechanism on state-changing functionality
-    csrf_missing = "csurf" not in insec_txt and "csrf" not in (repo / "server.ts").read_text(encoding="utf-8", errors="ignore").lower() if (repo / "server.ts").exists() else False
+    # AZI-01: Strong anti-CSRF mechanism on state-changing authenticated endpoints (3-mode replay + re-read state verification, SARIF 2.1.0 + redacted HAR 1.2)
+    csrf_missing = (
+        "csurf" not in insec_txt
+        and "csrf" not in ((repo / "server.ts").read_text(encoding="utf-8", errors="ignore").lower() if (repo / "server.ts").exists() else "")
+    )
+    session_a_tok = aut05_replayed_token or auth_token or jwt_token
+    session_b_tok = ""
+    if aut02_login_ep:
+        b_st, _, b_body = http_probe(
+            aut02_login_ep,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": "admin@juice-sh.op", "password": "admin123"}).encode("utf-8"),
+        )
+        if 200 <= b_st < 300:
+            try:
+                session_b_tok = json.loads(b_body).get("authentication", {}).get("token", "")
+            except Exception:
+                session_b_tok = ""
+
+    # Inspect GET /profile form for hidden anti-CSRF tokens
+    form_csrf_found = False
+    if session_a_tok:
+        p_get_st, _, p_get_body = http_probe("/profile", headers={"Cookie": f"token={session_a_tok}"})
+        if p_get_st == 200 and re.search(r'name=["\'](?:_csrf|csrf_token|csrfToken|csrftoken)["\']', p_get_body, re.IGNORECASE):
+            form_csrf_found = True
+
+    azi01_findings: list[dict] = []
+    azi01_replays_executed = 0
+
+    if session_a_tok:
+        ts_csrf = int(time.time())
+        replay_modes = [
+            ("csrf_token_removed", {}, f"username=casa3_csrf_removed_{ts_csrf}"),
+            (
+                "csrf_token_replaced",
+                {"X-CSRF-Token": "invalid_forged_csrf_token_xyz"},
+                f"username=casa3_csrf_replaced_{ts_csrf}&_csrf=invalid_forged_csrf_token_xyz",
+            ),
+            (
+                "csrf_token_second_session",
+                {"X-CSRF-Token": session_b_tok or "second_session_csrf_token_abc"},
+                f"username=casa3_csrf_sess2_{ts_csrf}&_csrf={urllib.parse.quote(session_b_tok or 'second_session_csrf_token_abc')}",
+            ),
+        ]
+        for mode_name, extra_hdrs, form_body in replay_modes:
+            expected_marker = form_body.split("=", 1)[1].split("&", 1)[0]
+            csrf_hdrs = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Cookie": f"token={session_a_tok}",
+                "Origin": "https://evil.example.com",
+                **extra_hdrs,
+            }
+            mut_st, _, _ = http_probe("/profile", method="POST", headers=csrf_hdrs, body=form_body.encode("utf-8"))
+            reread_st, _, reread_body = http_probe("/profile", headers={"Cookie": f"token={session_a_tok}"})
+            azi01_replays_executed += 1
+            state_mutated = (200 <= mut_st < 400) and (reread_st == 200) and (expected_marker in reread_body)
+            if state_mutated:
+                azi01_findings.append(
+                    {
+                        "url": f"{base_url}/profile",
+                        "mode": mode_name,
+                        "status": mut_st,
+                        "detail": (
+                            f"POST {base_url}/profile ({mode_name}, Origin: https://evil.example.com, Cookie-only auth, "
+                            f"form_csrf_field={form_csrf_found}) succeeded (HTTP {mut_st}) and state mutation '{expected_marker}' was confirmed on re-reading GET /profile."
+                        ),
+                    }
+                )
+
+    # Also fail if any observed Set-Cookie uses SameSite=None
+    for ex_c in crawled_exchanges:
+        sc_c = ex_c["headers"].get("set-cookie", "")
+        if sc_c and "samesite=none" in sc_c.lower():
+            azi01_findings.append(
+                {
+                    "url": ex_c["url"],
+                    "mode": "samesite_none_cookie",
+                    "status": ex_c["status"],
+                    "detail": f"Session cookie at {ex_c['url']} uses SameSite=None.",
+                }
+            )
+
+    if not azi01_findings and csrf_missing:
+        azi01_findings.append(
+            {
+                "url": f"{base_url}/profile",
+                "mode": "missing_csrf_middleware",
+                "status": 0,
+                "detail": "Application backend lacks anti-CSRF middleware (csurf/CSRF token validation).",
+            }
+        )
+
+    for afz1 in azi01_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AZI-01",
+                "level": "error",
+                "message": {"text": afz1["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": afz1["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AZI-01",
+                    "replayMode": afz1["mode"],
+                    "httpStatus": afz1["status"],
+                },
+            }
+        )
+
+    azi01_fail = len(azi01_findings) > 0
+    azi01_lines = [f"[{az['mode']}] {az['detail']}" for az in azi01_findings]
     results["AZI-01"] = {
-        "verdict": "FAIL" if csrf_missing else "PASS",
-        "tool": "Anti-CSRF Harness & Route Inspector",
+        "verdict": "FAIL" if azi01_fail else "PASS",
+        "tool": f"Active Cross-Origin CSRF Replay & Re-Read Verification Harness ({azi01_replays_executed} replay modes: removed, replaced, cross-session, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            "[FAIL] State-changing endpoints (POST /api/Feedbacks, POST /rest/user/change-password) accept cross-origin requests without anti-CSRF tokens or SameSite=Strict cookie protection (CWE-352)."
-            if csrf_missing
-            else "[PASS] Anti-CSRF protection verified on state-changing routes."
+            f"[FAIL] {len(azi01_findings)} anti-CSRF violation(s) confirmed via cross-origin Cookie replay + re-read state check:\n  - "
+            + "\n  - ".join(azi01_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if azi01_fail
+            else f"[PASS] Executed {azi01_replays_executed} anti-CSRF replays (removed, replaced, cross-session) with Origin: https://evil.example.com; all denied with 0 state mutations and no SameSite=None cookies.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

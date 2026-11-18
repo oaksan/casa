@@ -3842,3 +3842,61 @@ Ao executar o motor atualizado da Iteração 58 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (5 resultados `CASA3-OAU-01`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 51/61: OAU-02 (Iteração SDD 059)
+================================================================================
+Título: PKCE with `S256` is enforced on all authorization code flows, public and confidential
+Mapeamento Normativo: RFC 7636; RFC 9700 §2.1.1; MASA 1.3.1.1 / 2.3.1.1 | Superfície: All
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+A extensão *Proof Key for Code Exchange* (PKCE / RFC 7636) com método de hash
+criptográfico `S256` impede interceptação e injeção de código de autorização em
+clientes públicos e confidenciais (RFC 9700 §2.1.1). O Guia de Testes CASA 3.0 AL1
+estabelece para `OAU-02`:
+- Evidência: Captura HAR 1.2 redigida do fluxo de autorização e SARIF 2.1.0 para
+  análise de artefatos cliente;
+- Procedimento: Ler os parâmetros PKCE nas requisições/códigos cliente do fluxo
+  de autorização e troca de tokens;
+- Critério de Aprovação (PASS): Toda requisição de autorização traz
+  `code_challenge_method=S256` e `code_challenge` >= 43 caracteres, e a troca
+  de token envia o `code_verifier` correspondente;
+- Critério de Falha (FAIL): `code_challenge` ausente, método diferente de `S256`
+  (ex.: `plain`), comprimento < 43 ou troca de token sem `code_verifier`.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Tanto no bundle JavaScript em produção (`http://localhost:3000/main.js`) quanto no
+componente fonte (`login.component.ts`), a URL de autorização OAuth 2.0 construída
+pelo OWASP Juice Shop omite inteiramente `code_challenge`, `code_challenge_method=S256`
+e `code_verifier`.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 059:
+  O scanner verificava apenas `"code_challenge" in login_txt` localmente, sem
+  inspecionar os bundles JS servidos pelo alvo em execução (`main.js`), sem
+  exigir `code_challenge_method=S256` (rejeitando `plain`), sem checar
+  comprimento mínimo (`>= 43`) nem `code_verifier`, e sem emitir SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 059 (`casa_audit/scanner.py`):
+  1. Analisador Híbrido PKCE (`auth_uri_re` sobre `combined_oauth_sources`):
+     Extrai os templates de URL `?client_id=...&redirect_uri=...` de bundles JS
+     servidos (`main.js`) e código cliente (`login.component.ts`), validando
+     presença de `code_challenge`, método estrito `S256` (rejeitando `plain`),
+     comprimento literal `>= 43` e `code_verifier`.
+  2. Evidência SARIF 2.1.0 (`CASA3-OAU-02`) + Redacted HAR 1.2:
+     Emite todas as ausências detalhadas em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 59 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Artefatos OAuth inspecionados: **5** (bundles JS ao vivo + arquivos-fonte cliente)
+- Violações `CASA3-OAU-02` detectadas (**2 achados**):
+  1. `http://localhost:3000/main.js`: URL `${Wx}?client_id=${this.clientId}&response_type=token&scope=email&redirect_uri=${this.redirectUri}` omite `code_challenge`, `code_challenge_method=S256` e `code_verifier`.
+  2. `frontend/src/app/login/login.component.ts`: URL equivalente no código-fonte cliente omite todos os parâmetros PKCE.
+- Artefatos gerados: `output/dast-findings.sarif` (2 resultados `CASA3-OAU-02`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

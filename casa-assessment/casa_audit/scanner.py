@@ -6243,14 +6243,81 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             else f"[PASS] Inspected {len(combined_oauth_sources)} OAuth client/bundle artifacts; only 'response_type=code' permitted and 0 ROPC grant_type=password usages found.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
-    has_pkce = "code_challenge" in login_txt
+    # OAU-02: PKCE with S256 enforced across all OAuth authorization requests & live JS bundles (SARIF 2.1.0 + redacted HAR 1.2)
+    oau02_findings: list[dict] = []
+    seen_oau02: set[str] = set()
+    auth_uri_re = re.compile(r"([`'\"][^`'\"\n]*\?client_id=[^`'\"\n]*redirect_uri=[^`'\"\n]*[`'\"])")
+
+    for src_name, src_body in combined_oauth_sources:
+        matches_uri = auth_uri_re.findall(src_body)
+        if not matches_uri and "response_type=" not in src_body:
+            continue
+        snippets_to_check = matches_uri or ["response_type="]
+        for snippet in snippets_to_check:
+            has_cc = "code_challenge=" in src_body or "code_challenge" in snippet
+            has_ccm_s256 = bool(re.search(r"code_challenge_method\s*=\s*S256\b", src_body))
+            has_ccm_plain = bool(re.search(r"code_challenge_method\s*=\s*plain\b", src_body, re.IGNORECASE))
+            has_verifier = "code_verifier" in src_body
+            m_lit_cc = re.search(r"code_challenge=([A-Za-z0-9_-]+)(?:[&\"'`]|$)", src_body)
+            short_lit = m_lit_cc is not None and "$" not in m_lit_cc.group(1) and len(m_lit_cc.group(1)) < 43
+
+            missing_parts: list[str] = []
+            if not has_cc:
+                missing_parts.append("code_challenge absent")
+            if has_ccm_plain:
+                missing_parts.append("prohibited code_challenge_method=plain (must be S256)")
+            elif not has_ccm_s256:
+                missing_parts.append("code_challenge_method=S256 absent")
+            if short_lit:
+                missing_parts.append(f"static code_challenge length {len(m_lit_cc.group(1))} < 43")
+            if not has_verifier:
+                missing_parts.append("code_verifier absent")
+
+            if missing_parts and src_name not in seen_oau02:
+                seen_oau02.add(src_name)
+                preview_uri = snippet.strip("`'\"")[:140]
+                oau02_findings.append(
+                    {
+                        "location": src_name,
+                        "missing": missing_parts,
+                        "detail": (
+                            f"{src_name} OAuth 2.0 authorization URL ({preview_uri}) fails RFC 7636 PKCE requirements: "
+                            f"{', '.join(missing_parts)}."
+                        ),
+                    }
+                )
+
+    for af_o2 in oau02_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-OAU-02",
+                "level": "error",
+                "message": {"text": af_o2["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_o2["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "OAU-02",
+                    "missingPkceElements": af_o2["missing"],
+                },
+            }
+        )
+
+    oau02_fail = len(oau02_findings) > 0
+    oau02_lines = [o2["detail"] for o2 in oau02_findings]
     results["OAU-02"] = {
-        "verdict": "FAIL" if (login_txt and not has_pkce) else "PASS",
-        "tool": "OAuth PKCE Inspector (RFC 7636)",
+        "verdict": "FAIL" if oau02_fail else "PASS",
+        "tool": f"OAuth 2.0 PKCE S256 & Verifier Analyzer ({len(combined_oauth_sources)} bundle/source artifacts, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            "[FAIL] Google OAuth 2.0 authorization request in login.component.ts omits PKCE (code_challenge / code_challenge_method=S256)."
-            if (login_txt and not has_pkce)
-            else "[PASS] PKCE with S256 enforced on OAuth flows."
+            f"[FAIL] {len(oau02_findings)} PKCE (RFC 7636 / RFC 9700 §2.1.1) violation(s) detected:\n  - "
+            + "\n  - ".join(oau02_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if oau02_fail
+            else f"[PASS] Verified PKCE with code_challenge_method=S256, code_challenge >= 43 chars, and code_verifier across all {len(combined_oauth_sources)} OAuth artifacts.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
     results["OAU-03"] = {

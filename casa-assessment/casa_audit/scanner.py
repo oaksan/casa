@@ -6138,17 +6138,109 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 7: Application Use of OAuth 2.0 / OpenID Connect (OAU-01 .. OAU-09) ----
-    login_comp = repo / "frontend" / "src" / "app" / "login" / "login.component.ts"
-    login_txt = login_comp.read_text(encoding="utf-8", errors="ignore") if login_comp.exists() else ""
-    uses_implicit = "response_type=token" in login_txt or "access_token" in login_txt
+    # Inspect both live served JS bundles (DAST client artifact) and source files for OAuth 2.0/OIDC parameters
+    oauth_bundle_texts: dict[str, str] = {}
+    for js_ref in re.findall(r'<script[^>]+src=["\']([^"\']+\.js)["\']', root_body, re.IGNORECASE):
+        if "polyfill" in js_ref.lower():
+            continue
+        js_path = js_ref if js_ref.startswith(("http://", "https://", "/")) else f"/{js_ref}"
+        js_url = f"{base_url}{js_path}" if js_path.startswith("/") else js_path
+        try:
+            with urllib.request.urlopen(urllib.request.Request(js_url, headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}), timeout=5) as jr:
+                oauth_bundle_texts[js_url] = jr.read(4_194_304).decode("utf-8", errors="ignore")
+        except Exception:
+            pass
 
+    login_comp = repo / "frontend" / "src" / "app" / "login" / "login.component.ts"
+    oauth_comp = repo / "frontend" / "src" / "app" / "oauth" / "oauth.component.ts"
+    user_svc_file = repo / "frontend" / "src" / "app" / "Services" / "user.service.ts"
+    login_txt = login_comp.read_text(encoding="utf-8", errors="ignore") if login_comp.exists() else ""
+    oauth_txt = oauth_comp.read_text(encoding="utf-8", errors="ignore") if oauth_comp.exists() else ""
+    user_svc_txt = user_svc_file.read_text(encoding="utf-8", errors="ignore") if user_svc_file.exists() else ""
+
+    # OAU-01: Authorization Code flow only — prohibit Implicit (response_type!=code) and ROPC (grant_type=password) (SARIF 2.1.0 + redacted HAR 1.2)
+    oau01_findings: list[dict] = []
+    combined_oauth_sources: list[tuple[str, str]] = list(oauth_bundle_texts.items())
+    if login_txt:
+        combined_oauth_sources.append(("frontend/src/app/login/login.component.ts", login_txt))
+    if oauth_txt:
+        combined_oauth_sources.append(("frontend/src/app/oauth/oauth.component.ts", oauth_txt))
+    if user_svc_txt:
+        combined_oauth_sources.append(("frontend/src/app/Services/user.service.ts", user_svc_txt))
+
+    seen_oau01_keys: set[tuple[str, str]] = set()
+    for src_name, src_body in combined_oauth_sources:
+        for m_rt in re.finditer(r"response_type\s*=\s*([A-Za-z0-9_%+\s]+?)(?:[&\"'`\s]|$)", src_body):
+            rt_val = urllib.parse.unquote(m_rt.group(1)).strip()
+            if rt_val and rt_val != "code":
+                k1 = (src_name, f"response_type={rt_val}")
+                if k1 not in seen_oau01_keys:
+                    seen_oau01_keys.add(k1)
+                    lno1 = src_body[: m_rt.start()].count("\n") + 1 if not src_name.startswith("http") else 1
+                    oau01_findings.append(
+                        {
+                            "location": f"{src_name}:{lno1}" if not src_name.startswith("http") else src_name,
+                            "grantViolation": f"response_type={rt_val}",
+                            "detail": (
+                                f"{src_name}:{lno1} configures OAuth 2.0 authorization request with prohibited grant parameter "
+                                f"'response_type={rt_val}' (Implicit/Hybrid flow prohibited under RFC 9700 §2.1.2; must strictly equal 'code')."
+                            ),
+                        }
+                    )
+        if re.search(r"grant_type\s*[:=]\s*['\"]?password\b", src_body, re.IGNORECASE):
+            k1 = (src_name, "grant_type=password")
+            if k1 not in seen_oau01_keys:
+                seen_oau01_keys.add(k1)
+                oau01_findings.append(
+                    {
+                        "location": src_name,
+                        "grantViolation": "grant_type=password",
+                        "detail": f"{src_name} uses prohibited Resource Owner Password Credentials (ROPC) grant ('grant_type=password', RFC 9700 §2.4).",
+                    }
+                )
+        if "parseRedirectUrlParams().access_token" in src_body or "googleapis.com/oauth2/v1/userinfo?alt=json&access_token=" in src_body:
+            k1 = (src_name, "client_implicit_token_fragment")
+            if k1 not in seen_oau01_keys:
+                seen_oau01_keys.add(k1)
+                oau01_findings.append(
+                    {
+                        "location": src_name,
+                        "grantViolation": "implicit_fragment_access_token",
+                        "detail": f"{src_name} consumes OAuth Implicit access_token directly in client browser instead of backend Authorization Code exchange.",
+                    }
+                )
+
+    for af_o1 in oau01_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-OAU-01",
+                "level": "error",
+                "message": {"text": af_o1["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_o1["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "OAU-01",
+                    "grantViolation": af_o1["grantViolation"],
+                },
+            }
+        )
+
+    uses_implicit = len(oau01_findings) > 0
+    oau01_lines = [f"[{o1['grantViolation']}] {o1['detail']}" for o1 in oau01_findings]
     results["OAU-01"] = {
         "verdict": "FAIL" if uses_implicit else "PASS",
-        "tool": "OAuth 2.0 Flow Inspector",
+        "tool": f"OAuth 2.0 Grant-Type & Live Bundle Inspector ({len(oauth_bundle_texts)} JS bundles + {len(combined_oauth_sources) - len(oauth_bundle_texts)} source artifacts, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            "[FAIL] Frontend OAuth integration (frontend/src/app/login/login.component.ts) uses deprecated Implicit / client-side token handling instead of Authorization Code flow with backend exchange."
+            f"[FAIL] {len(oau01_findings)} prohibited OAuth 2.0 grant violation(s) (RFC 9700 §2.1.2, §2.4):\n  - "
+            + "\n  - ".join(oau01_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if uses_implicit
-            else "[PASS] OAuth 2.0 flow uses Authorization Code grant."
+            else f"[PASS] Inspected {len(combined_oauth_sources)} OAuth client/bundle artifacts; only 'response_type=code' permitted and 0 ROPC grant_type=password usages found.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
     has_pkce = "code_challenge" in login_txt

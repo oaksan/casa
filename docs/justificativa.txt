@@ -3781,3 +3781,64 @@ Ao executar o motor atualizado da Iteração 57 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (2 resultados `CASA3-AZI-06`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 50/61: OAU-01 (Iteração SDD 058)
+================================================================================
+Título: Only the Authorization Code flow is used — Implicit and Resource Owner Password Credentials grants are prohibited
+Mapeamento Normativo: RFC 9700 §2.1.2, §2.4 (OAuth 2.0 Security BCP); RFC 6749 | Superfície: All
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+A RFC 9700 §2.1.2 proíbe o *Implicit Flow* (`response_type=token` / `id_token`)
+porque expõe tokens diretamente em fragmentos de URL/histórico e impede
+autenticação confidencial do cliente; já a seção §2.4 proíbe o fluxo *Resource
+Owner Password Credentials* (ROPC / `grant_type=password`). O Guia de Testes
+CASA 3.0 AL1 exige para `OAU-01`:
+- Evidência: Captura HAR 1.2 redigida do fluxo de autorização e SARIF 2.1.0 onde
+  artefatos cliente sejam analisados estaticamente;
+- Procedimento: Ler `response_type` e `grant_type` nas requisições/artefatos
+  de autorização e verificar uso de `grant_type=password`;
+- Critério de Aprovação (PASS): Requisição de autorização traz `response_type`
+  exatamente igual a `code` e nenhuma troca usa `grant_type=password`;
+- Critério de Falha (FAIL): `response_type` diferente de `code` ou ROPC presente.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O cliente Angular do OWASP Juice Shop (`login.component.ts:149`, compilado no
+bundle em produção `http://localhost:3000/main.js`) redireciona usuários para o
+provedor Google OAuth 2.0 com `response_type=token`, enquanto `oauth.component.ts`
+lê o fragmento `#access_token=` diretamente no navegador e consulta o endpoint
+`userinfo` sem troca back-channel de código (`Authorization Code`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 058:
+  O scanner checava apenas 1 arquivo local (`login.component.ts`), sem buscar os
+  bundles JavaScript servidos em tempo de execução (`main.js`), sem verificar
+  `oauth.component.ts`/`user.service.ts`, sem buscar `grant_type=password`
+  (ROPC) e sem emitir achados em SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 058 (`casa_audit/scanner.py`):
+  1. Inspeção Híbrida (Bundles JS em Execução + Código-Fonte Cliente):
+     Baixa automaticamente os scripts `<script src="*.js">` da aplicação alvo
+     (`main.js`, `scripts.js`) e analisa em conjunto com `login.component.ts`,
+     `oauth.component.ts` e `user.service.ts`.
+  2. Verificação Estrita de `response_type != code` e ROPC `grant_type=password`:
+     Detecta `response_type=token` (RFC 9700 §2.1.2), fluxo ROPC (§2.4) e
+     extração client-side de `#access_token=`, emitindo `CASA3-OAU-01` em SARIF.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 58 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Artefatos analisados: **2 bundles JS servidos ao vivo** + **3 arquivos-fonte OAuth**.
+- Violações `CASA3-OAU-01` confirmadas (**5 achados**):
+  1. `[response_type=token]` `http://localhost:3000/main.js` configura `response_type=token` (Implicit Flow).
+  2. `[implicit_fragment_access_token]` `http://localhost:3000/main.js` consome `access_token` no navegador.
+  3. `[response_type=token]` `frontend/src/app/login/login.component.ts:149` configura `response_type=token`.
+  4. `[implicit_fragment_access_token]` `frontend/src/app/oauth/oauth.component.ts` consome `#access_token=` client-side.
+  5. `[implicit_fragment_access_token]` `frontend/src/app/Services/user.service.ts` envia `access_token` do navegador diretamente para o endpoint `userinfo`.
+- Artefatos gerados: `output/dast-findings.sarif` (5 resultados `CASA3-OAU-01`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

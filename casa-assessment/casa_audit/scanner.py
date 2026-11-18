@@ -3789,22 +3789,99 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-09: 4xx/5xx responses return generic messages (no stack traces / SQL errors)
-    err_status, _, err_body = http_probe("/rest/products/search?q=%27))")
-    leaks_stack = (
-        "SQLITE_ERROR" in err_body
-        or "SequelizeDatabaseError" in err_body
-        or "at Query.formatError" in err_body
-        or "node_modules/sequelize" in err_body
-        or "syntax error" in err_body.lower()
-    )
+    # CFG-09: 4xx/5xx error disclosure probes (malformed types, oversize bodies, forced server errors across crawl, SARIF 2.1.0 + HAR 1.2)
+    oversize_body = b'{"email":"' + (b"A" * 200000) + b'"}'
+    cfg09_probes = [
+        ("GET", "/rest/products/search?q=%27))", None, None, "SQL syntax forced server error"),
+        ("GET", "/rest/track-order/%27", None, None, "Evaluation SyntaxError probe"),
+        ("GET", "/ftp/nonexistent_cfg09_probe.md", None, None, "Missing file ENOENT path leak probe"),
+        ("GET", "/rest/basket/not_an_id", None, None, "Malformed type / unauthenticated 401 probe"),
+        ("POST", "/api/Feedbacks", {"Content-Type": "application/json"}, b'{"comment":"cfg09","rating":"not_an_int"}', "Malformed parameter type & schema error probe"),
+        ("POST", "/rest/user/login", {"Content-Type": "application/json"}, oversize_body, "Oversize JSON payload (413) probe"),
+    ]
+    for m9, p9, h9, b9, _ in cfg09_probes:
+        http_probe(p9, method=m9, headers=h9, body=b9)
+
+    error_leak_patterns = [
+        ("stack_frame", re.compile(r'<ul\s+id=["\']stacktrace["\']|\bat\s+[^\s(]+\s+\([^)]+:\d+:\d+\)|Traceback \(most recent call last\):|\.java:\d+|\.cs:line\s+\d+', re.IGNORECASE)),
+        ("filesystem_path", re.compile(r'(?:ENOENT:\s*no such file|/(?:home|Users|var|opt|srv|app|usr|etc)/[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+|[A-Za-z]:\\[A-Za-z0-9_.\\-]+)', re.IGNORECASE)),
+        ("sql_fragment", re.compile(r'SQLITE_ERROR|SequelizeDatabaseError|PG::SyntaxError|ORA-\d{5}|You have an error in your SQL syntax|WHERE parameter .* has invalid|\bSELECT\b.+\bFROM\b.+\bWHERE\b', re.IGNORECASE)),
+        ("internal_routing_or_module", re.compile(r'node_modules[/\\][a-z0-9@._-]+|handle_request|UnauthorizedError|PayloadTooLargeError', re.IGNORECASE)),
+    ]
+
+    cfg09_findings: list[dict] = []
+    seen_cfg09_keys: set[tuple[str, str, int]] = set()
+    cfg09_4xx_5xx_count = 0
+
+    for ex in crawled_exchanges:
+        st9 = ex["status"]
+        if not (400 <= st9 < 600) or not ex["body"]:
+            continue
+        k9 = (ex["method"], ex["url"], st9)
+        if k9 in seen_cfg09_keys:
+            continue
+        seen_cfg09_keys.add(k9)
+        cfg09_4xx_5xx_count += 1
+
+        matched_classes: list[str] = []
+        matched_snippets: list[str] = []
+        for cls_name, cls_re in error_leak_patterns:
+            m9_hit = cls_re.search(ex["body"])
+            if m9_hit:
+                matched_classes.append(cls_name)
+                matched_snippets.append(html.unescape(m9_hit.group(0)).strip()[:80])
+
+        if matched_classes:
+            title_m9 = re.search(r"<title>([^<]+)</title>", ex["body"], re.IGNORECASE)
+            title_9 = html.unescape(title_m9.group(1)).strip()[:120] if title_m9 else ex["body"].strip().splitlines()[0][:120]
+            cfg09_findings.append(
+                {
+                    "url": ex["url"],
+                    "method": ex["method"],
+                    "status": st9,
+                    "classes": matched_classes,
+                    "snippets": matched_snippets,
+                    "detail": (
+                        f"{ex['method']} {ex['url']} -> HTTP {st9} leaked [{', '.join(matched_classes)}] "
+                        f"('{title_9}'; evidence: {', '.join(matched_snippets[:3])})"
+                    ),
+                }
+            )
+
+    for cf9 in cfg09_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-09",
+                "level": "error",
+                "message": {"text": cf9["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": cf9["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-09",
+                    "httpMethod": cf9["method"],
+                    "httpStatus": cf9["status"],
+                    "leakClasses": cf9["classes"],
+                    "evidenceSnippets": cf9["snippets"],
+                },
+            }
+        )
+
+    leaks_stack = len(cfg09_findings) > 0
+    cfg09_lines = [cf9["detail"] for cf9 in cfg09_findings]
     results["CFG-09"] = {
         "verdict": "FAIL" if leaks_stack else "PASS",
-        "tool": "Forced Error & Stack Trace Probe (HAR 1.2)",
+        "tool": f"Crawl-Wide 4xx/5xx Error Disclosure & Oversize/Malformed Probe ({cfg09_4xx_5xx_count} 4xx/5xx responses inspected, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[FAIL] GET {base_url}/rest/products/search?q=%27)) returned HTTP {err_status} leaking internal database exception and stack trace (SQLITE_ERROR: syntax error / Sequelize stack trace)."
+            f"[FAIL] {len(cfg09_findings)}/{cfg09_4xx_5xx_count} 4xx/5xx error response(s) leak stack frames, file paths, SQL fragments, or internal routing details:\n  - "
+            + "\n  - ".join(cfg09_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
             if leaks_stack
-            else f"[PASS] Forced error probe returned generic HTTP {err_status} response without stack trace disclosure."
+            else f"[PASS] Inspected {cfg09_4xx_5xx_count} 4xx/5xx responses (including malformed types, oversize body, and forced error probes); 0 stack frames, file paths, SQL fragments, or internal route details disclosed.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

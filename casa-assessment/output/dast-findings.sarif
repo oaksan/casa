@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-7ymG8C2DCeH7bvrvDI7UTUxiMag\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-EuANffcvWz8co6kMYoI/IFSpAq8\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/7 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9a-IhFv8SQ3gD1WUY/bVFSXgKtC9z0\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/8 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9a-FfQnBwgyiL5wYiocbDlNrwwuWCM\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/7"
+                  "uri": "http://localhost:3000/rest/basket/8"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/28 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-uyLAJYmUQ6mVOiLzEICSqCA3t4Q\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/29 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-LYQPR0lX8ronVA0voPLOXwTpAlw\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/28"
+                  "uri": "http://localhost:3000/api/Users/29"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-+WFoy6zH4AUvh3uP8Ncvov/fQFU\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-xF/tc+C/A0jn1czWdhVMWUT03Qs\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1684,6 +1684,250 @@
             "acac": "",
             "httpMethod": "OPTIONS",
             "httpStatus": 204
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-09",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/user/login -> HTTP 500 leaked [stack_frame, filesystem_path, internal_routing_or_module] ('Error: Unexpected path: /rest/user/login'; evidence: <ul id=\"stacktrace\", /home/user/felipe/speckit/assat/juice-shop/build/routes/angular.js, handle_request)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-09",
+            "httpMethod": "GET",
+            "httpStatus": 500,
+            "leakClasses": [
+              "stack_frame",
+              "filesystem_path",
+              "internal_routing_or_module"
+            ],
+            "evidenceSnippets": [
+              "<ul id=\"stacktrace\"",
+              "/home/user/felipe/speckit/assat/juice-shop/build/routes/angular.js",
+              "handle_request"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-09",
+          "level": "error",
+          "message": {
+            "text": "POST http://localhost:3000/rest/user/login -> HTTP 500 leaked [stack_frame, filesystem_path, internal_routing_or_module] ('SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)'; evidence: <ul id=\"stacktrace\", /home/user/felipe/speckit/assat/juice-shop/build/server.js, handle_request)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-09",
+            "httpMethod": "POST",
+            "httpStatus": 500,
+            "leakClasses": [
+              "stack_frame",
+              "filesystem_path",
+              "internal_routing_or_module"
+            ],
+            "evidenceSnippets": [
+              "<ul id=\"stacktrace\"",
+              "/home/user/felipe/speckit/assat/juice-shop/build/server.js",
+              "handle_request"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-09",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/products/search?q=%27)) -> HTTP 500 leaked [stack_frame, sql_fragment] ('Error: SQLITE_ERROR: near \")\": syntax error'; evidence: <ul id=\"stacktrace\", SQLITE_ERROR)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/products/search?q=%27))"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-09",
+            "httpMethod": "GET",
+            "httpStatus": 500,
+            "leakClasses": [
+              "stack_frame",
+              "sql_fragment"
+            ],
+            "evidenceSnippets": [
+              "<ul id=\"stacktrace\"",
+              "SQLITE_ERROR"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-09",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/track-order/%27 -> HTTP 500 leaked [stack_frame, filesystem_path, internal_routing_or_module] ('SyntaxError: Invalid or unexpected token'; evidence: <ul id=\"stacktrace\", /home/user/felipe/speckit/assat/juice-shop/node_modules/marsdb/dist/DocumentMatc, node_modules/marsdb)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/track-order/%27"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-09",
+            "httpMethod": "GET",
+            "httpStatus": 500,
+            "leakClasses": [
+              "stack_frame",
+              "filesystem_path",
+              "internal_routing_or_module"
+            ],
+            "evidenceSnippets": [
+              "<ul id=\"stacktrace\"",
+              "/home/user/felipe/speckit/assat/juice-shop/node_modules/marsdb/dist/DocumentMatc",
+              "node_modules/marsdb"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-09",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/ftp/nonexistent_cfg09_probe.md -> HTTP 404 leaked [stack_frame, filesystem_path] ('Error: ENOENT: no such file or directory, stat '/home/user/felipe/speckit/juice-shop-master/ftp/nonexistent_cfg09_probe.'; evidence: <ul id=\"stacktrace\", ENOENT: no such file)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/ftp/nonexistent_cfg09_probe.md"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-09",
+            "httpMethod": "GET",
+            "httpStatus": 404,
+            "leakClasses": [
+              "stack_frame",
+              "filesystem_path"
+            ],
+            "evidenceSnippets": [
+              "<ul id=\"stacktrace\"",
+              "ENOENT: no such file"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-09",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/basket/not_an_id -> HTTP 401 leaked [stack_frame, internal_routing_or_module] ('UnauthorizedError: No Authorization header was found'; evidence: <ul id=\"stacktrace\", UnauthorizedError)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/basket/not_an_id"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-09",
+            "httpMethod": "GET",
+            "httpStatus": 401,
+            "leakClasses": [
+              "stack_frame",
+              "internal_routing_or_module"
+            ],
+            "evidenceSnippets": [
+              "<ul id=\"stacktrace\"",
+              "UnauthorizedError"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-09",
+          "level": "error",
+          "message": {
+            "text": "POST http://localhost:3000/api/Feedbacks -> HTTP 500 leaked [stack_frame, filesystem_path, sql_fragment, internal_routing_or_module] ('Error: WHERE parameter \"captchaId\" has invalid \"undefined\" value'; evidence: <ul id=\"stacktrace\", /home/user/felipe/speckit/assat/juice-shop/node_modules/sequelize/lib/dialects/a, WHERE parameter \"captchaId\" has invalid)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/api/Feedbacks"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-09",
+            "httpMethod": "POST",
+            "httpStatus": 500,
+            "leakClasses": [
+              "stack_frame",
+              "filesystem_path",
+              "sql_fragment",
+              "internal_routing_or_module"
+            ],
+            "evidenceSnippets": [
+              "<ul id=\"stacktrace\"",
+              "/home/user/felipe/speckit/assat/juice-shop/node_modules/sequelize/lib/dialects/a",
+              "WHERE parameter \"captchaId\" has invalid",
+              "node_modules/sequelize"
+            ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-09",
+          "level": "error",
+          "message": {
+            "text": "POST http://localhost:3000/rest/user/login -> HTTP 413 leaked [stack_frame, filesystem_path, internal_routing_or_module] ('PayloadTooLargeError: request entity too large'; evidence: <ul id=\"stacktrace\", /home/user/felipe/speckit/assat/juice-shop/node_modules/raw-body/index.js, PayloadTooLargeError)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-09",
+            "httpMethod": "POST",
+            "httpStatus": 413,
+            "leakClasses": [
+              "stack_frame",
+              "filesystem_path",
+              "internal_routing_or_module"
+            ],
+            "evidenceSnippets": [
+              "<ul id=\"stacktrace\"",
+              "/home/user/felipe/speckit/assat/juice-shop/node_modules/raw-body/index.js",
+              "PayloadTooLargeError"
+            ]
           }
         }
       ]

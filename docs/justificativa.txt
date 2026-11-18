@@ -2744,3 +2744,70 @@ Ao executar o motor atualizado da Iteração 40 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (5 resultados `CASA3-CFG-08`) e `output/dast-capture.har`.
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 33/61: CFG-09 (Iteração SDD 041)
+================================================================================
+Título: 4xx/5xx responses return generic messages; no stack traces, internal paths or routing detail
+Mapeamento Normativo: OWASP ASVS V7.4.1 (L1); CWE-209 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Respostas HTTP de erro (`4xx`/`5xx`) contendo stack frames, caminhos de sistema
+de arquivos, fragmentos SQL ou nomes de rotas/módulos internos (CWE-209) revelam
+detalhes arquiteturais e auxiliam diretamente ataques de injeção e escalação.
+O Guia de Testes CASA 3.0 AL1 estabelece para `CFG-09`:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP HAR 1.2;
+- Procedimento: Enviar tipos malformados, corpos superdimensionados (oversize) e
+  entradas que forçam erros no servidor ao longo do crawl, inspecionando as
+  respostas de erro retornadas;
+- Critério de Aprovação (PASS): Nenhum corpo `4xx` ou `5xx` contém stack frame,
+  caminho de sistema de arquivos, fragmento SQL ou nome de rota interna;
+- Critério de Falha (FAIL): >= 1 corpo `4xx` ou `5xx` contendo qualquer um desses
+  elementos.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop utiliza `errorhandler()` global em `server.ts`, fazendo com
+que erros `401 UnauthorizedError`, `404 ENOENT`, `413 PayloadTooLargeError` e
+`500 SQLITE_ERROR` / `SyntaxError` / `Sequelize` exponham `<ul id="stacktrace">`,
+caminhos absolutos do servidor (`/home/user/...`), cláusulas ORM/SQL e nomes
+de módulos (`marsdb`, `sequelize`, `raw-body`, `express`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 041:
+  O scanner enviava apenas 1 sonda (`GET /rest/products/search?q=%27))`) focada
+  em SQLite/Sequelize, sem sondar tipos malformados, payloads oversize (`413`),
+  rotas `404 ENOENT` ou `401 Unauthorized`, sem inspecionar as respostas `4xx`/`5xx`
+  acumuladas no crawl e sem gravar achados em SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 041 (`casa_audit/scanner.py`):
+  1. Bateria de Sondas de Erro Forçado (6 vetores):
+     Inclui SQL syntax (`500`), evaluation `SyntaxError` (`/rest/track-order/'`),
+     `404 ENOENT`, `401` sem bearer token (`/rest/basket/not_an_id`), tipo inválido
+     em schema (`/api/Feedbacks`) e payload JSON de 200 KB (`413 PayloadTooLargeError`).
+  2. Análise Transversal de `4xx`/`5xx` no Crawl (`crawled_exchanges`):
+     Classifica vazamentos em 4 classes normativas (`stack_frame`, `filesystem_path`,
+     `sql_fragment` e `internal_routing_or_module`).
+  3. Evidência SARIF 2.1.0 (`CASA3-CFG-09`) + HAR 1.2:
+     Emite todos os achados em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 41 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Respostas `4xx`/`5xx` inspecionadas no crawl: 8
+- Violações `CASA3-CFG-09` detectadas: **8/8 respostas** vazando stack frames,
+  caminhos absolutos, fragmentos SQL e/ou módulos internos:
+  1. `GET /rest/user/login` (`500`) — `Unexpected path`, stacktrace & path
+  2. `POST /rest/user/login` (`500`) — `SyntaxError` JSON, stacktrace & path
+  3. `GET /rest/products/search?q=%27))` (`500`) — `SQLITE_ERROR` & stacktrace
+  4. `GET /rest/track-order/%27` (`500`) — `SyntaxError` & `node_modules/marsdb`
+  5. `GET /ftp/nonexistent_cfg09_probe.md` (`404`) — `ENOENT` com caminho absoluto & stacktrace
+  6. `GET /rest/basket/not_an_id` (`401`) — `UnauthorizedError` & `<ul id="stacktrace">`
+  7. `POST /api/Feedbacks` (`500`) — `WHERE parameter "captchaId" has invalid "undefined" value` & `sequelize`
+  8. `POST /rest/user/login` (`413` oversize 200 KB) — `PayloadTooLargeError` & `node_modules/raw-body`
+- Artefatos gerados: `output/dast-findings.sarif` (8 resultados `CASA3-CFG-09`) e `output/dast-capture.har`.
+- Veredito Automatizado: FAIL
+================================================================================

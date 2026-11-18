@@ -3318,13 +3318,113 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-04: Content-Security-Policy
+    # CFG-04: Content-Security-Policy across every HTML route (SARIF 2.1.0 + HAR 1.2)
     csp = root_headers.get("content-security-policy", "")
-    csp_ok = bool(csp) and "unsafe-inline" not in csp and "unsafe-eval" not in csp
+
+    def parse_csp_directives(policy_str: str) -> dict[str, list[str]]:
+        directives: dict[str, list[str]] = {}
+        for raw_dir in policy_str.split(";"):
+            parts = raw_dir.strip().split()
+            if not parts:
+                continue
+            dname = parts[0].lower()
+            directives[dname] = [p.strip().lower() for p in parts[1:]]
+        return directives
+
+    unsafe_csp_tokens = {"unsafe-inline", "unsafe-eval", "*", "data:", "data"}
+    html_routes_seen: dict[str, dict] = {}
+    for ex in crawled_exchanges:
+        ctype = ex["headers"].get("content-type", "").lower()
+        body_l = ex["body"].lstrip().lower()
+        is_html = "text/html" in ctype or body_l.startswith(("<!doctype html", "<html", "<!-- html"))
+        if not is_html:
+            continue
+        key_url = f"{ex['method']} {ex['url']}"
+        if key_url not in html_routes_seen:
+            html_routes_seen[key_url] = ex
+
+    cfg04_findings: list[dict] = []
+    for key_url, ex in html_routes_seen.items():
+        enforcing_csp = ex["headers"].get("content-security-policy", "").strip()
+        report_only_csp = ex["headers"].get("content-security-policy-report-only", "").strip()
+        if not enforcing_csp:
+            note = " (only Content-Security-Policy-Report-Only present — not enforced)" if report_only_csp else ""
+            cfg04_findings.append(
+                {
+                    "url": ex["url"],
+                    "method": ex["method"],
+                    "status": ex["status"],
+                    "issue": "missing_csp",
+                    "detail": f"{key_url} (HTTP {ex['status']}, Content-Type: {ex['headers'].get('content-type', 'text/html')}) missing enforcing Content-Security-Policy header{note}",
+                }
+            )
+            continue
+
+        dirs = parse_csp_directives(enforcing_csp)
+        eff_source_name = "script-src" if "script-src" in dirs else ("default-src" if "default-src" in dirs else None)
+        if not eff_source_name:
+            cfg04_findings.append(
+                {
+                    "url": ex["url"],
+                    "method": ex["method"],
+                    "status": ex["status"],
+                    "issue": "no_effective_script_src",
+                    "detail": f"{key_url} Content-Security-Policy defines neither script-src nor default-src fallback ('{enforcing_csp}')",
+                }
+            )
+            continue
+
+        eff_tokens = dirs[eff_source_name]
+        bad_tokens = [
+            tok
+            for tok in eff_tokens
+            if tok.strip("'\"") in unsafe_csp_tokens or tok in {"*", "data:"}
+        ]
+        if bad_tokens:
+            cfg04_findings.append(
+                {
+                    "url": ex["url"],
+                    "method": ex["method"],
+                    "status": ex["status"],
+                    "issue": "unsafe_script_src_token",
+                    "detail": f"{key_url} effective {eff_source_name} includes forbidden token(s) {bad_tokens} in CSP '{enforcing_csp}'",
+                }
+            )
+
+    for cf4 in cfg04_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-04",
+                "level": "error",
+                "message": {"text": cf4["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": cf4["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-04",
+                    "issue": cf4["issue"],
+                    "httpMethod": cf4["method"],
+                    "httpStatus": cf4["status"],
+                },
+            }
+        )
+
+    csp_ok = len(html_routes_seen) > 0 and len(cfg04_findings) == 0
+    cfg04_lines = [cf4["detail"] for cf4 in cfg04_findings]
     results["CFG-04"] = {
         "verdict": "PASS" if csp_ok else "FAIL",
-        "tool": "CSP Evaluator (HAR 1.2)",
-        "log": f"[{'PASS' if csp_ok else 'FAIL'}] Content-Security-Policy on GET /: '{csp or '<missing>'}'.",
+        "tool": f"Multi-Route CSP Policy Evaluator ({len(html_routes_seen)} HTML routes inspected, SARIF 2.1.0 + HAR 1.2)",
+        "log": (
+            f"[PASS] All {len(html_routes_seen)} HTML route(s) enforce Content-Security-Policy with safe effective script-src (excluding unsafe-inline, unsafe-eval, *, data:).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            if csp_ok
+            else f"[FAIL] {len(cfg04_findings)} CSP violation(s) across {len(html_routes_seen)} HTML route(s):\n  - "
+            + "\n  - ".join(cfg04_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+        ),
     }
 
     # CFG-05: Clickjacking protection

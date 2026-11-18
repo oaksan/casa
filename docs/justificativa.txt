@@ -2453,3 +2453,63 @@ Ao executar o motor atualizado da Iteração 35 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-CFG-03`) e `output/dast-capture.har`.
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 28/61: CFG-04 (Iteração SDD 036)
+================================================================================
+Título: Content-Security-Policy enforced; `script-src` excludes `unsafe-inline` and `unsafe-eval`
+Mapeamento Normativo: OWASP ASVS V14.4.3 (L1) | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+A política `Content-Security-Policy` (CSP) reduz drasticamente o impacto de
+vulnerabilidades de XSS ao restringir as fontes confiáveis de execução de JavaScript.
+O Guia de Testes CASA 3.0 AL1 exige para `CFG-04`:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP HAR 1.2;
+- Procedimento: Coletar os cabeçalhos de resposta de toda rota HTML e avaliar a
+  CSP por meio de um avaliador de políticas (`csp-evaluator`);
+- Critério de Aprovação (PASS): Toda resposta HTML traz `Content-Security-Policy`,
+  e o `script-src` efetivo (ou fallback `default-src`) não contém `unsafe-inline`,
+  `unsafe-eval`, `*` nem `data:`;
+- Critério de Falha (FAIL): CSP ausente em qualquer resposta HTML, ou presença de
+  qualquer um desses tokens no `script-src` efetivo.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop não configura o middleware Helmet CSP (`contentSecurityPolicy`)
+por padrão, deixando tanto a rota principal `/` quanto rotas secundárias HTML
+(`/api-docs/`, `/ftp`, `/encryptionkeys`, `/support/logs`, `/infrastructure`,
+`/.well-known` e páginas de erro HTML 500) completamente desprotegidas contra
+injeção e execução inline/dinâmica de scripts.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 036:
+  O scanner verificava apenas `root_headers` (`GET /`), checando somente as
+  substrings `unsafe-inline` e `unsafe-eval`, sem inspecionar todas as rotas
+  HTML do crawl, sem resolver a precedência normativa `script-src` -> `default-src`,
+  sem verificar os tokens proibidos `*` e `data:`, sem distinguir cabeçalho
+  `Content-Security-Policy-Report-Only` e sem emitir resultados no DAST SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 036 (`casa_audit/scanner.py`):
+  1. Avaliador Multi-Rota HTML (`parse_csp_directives`):
+     Filtra todas as respostas HTML obtidas ao longo do crawl (`Content-Type: text/html`
+     ou corpo `<!doctype html`/`<html`) e audita cada uma individualmente.
+  2. Resolução de `script-src` Efetivo & Tokens Proibidos:
+     Avalia `script-src` (com fallback automático para `default-src` quando ausente),
+     bloqueando `unsafe-inline`, `unsafe-eval`, `*` e `data:`, além de rejeitar
+     políticas exclusivamente em modo `Report-Only`.
+  3. Evidência DAST SARIF 2.1.0 (`CASA3-CFG-04`) + HAR 1.2:
+     Persiste todas as violações por rota em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 36 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Rotas HTML inspecionadas ao longo do crawl: 39 (incluindo `/`, `/api-docs/`,
+  `/ftp`, `/encryptionkeys`, `/support/logs`, `/infrastructure`, `/.well-known` e
+  páginas de erro HTTP 500 em `/rest/user/login`)
+- Violações `CASA3-CFG-04` detectadas: 39/39 rotas HTML sem cabeçalho enforcing `Content-Security-Policy`
+- Artefatos gerados: `output/dast-findings.sarif` (39 resultados `CASA3-CFG-04`) e `output/dast-capture.har`.
+- Veredito Automatizado: FAIL
+================================================================================

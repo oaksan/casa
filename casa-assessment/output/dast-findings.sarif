@@ -482,6 +482,864 @@
             "token": "app-version/20.3.0",
             "httpStatus": 200
           }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/ (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/user/login (HTTP 500, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 500
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/ftp (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/ftp"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/encryptionkeys (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/encryptionkeys"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/support/logs (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/support/logs"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/infrastructure (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/infrastructure"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/.well-known (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/assets (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/assets"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/public (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/public"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/static (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/static"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/uploads (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/uploads"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/files (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/files"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/logs (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/logs"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/backup (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/backup"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/ftp/quarantine (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/ftp/quarantine"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/infrastructure/terraform (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/infrastructure/terraform"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/.well-known/csaf (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known/csaf"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/.well-known/csaf/2017 (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known/csaf/2017"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/.well-known/csaf/2021 (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known/csaf/2021"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/.well-known/csaf/2024 (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/.well-known/csaf/2024"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/api-docs/ (HTTP 200, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/api-docs/"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/swagger-ui.html (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/swagger-ui.html"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/openapi.json (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/openapi.json"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/v3/api-docs (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/v3/api-docs"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/actuator (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/actuator"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/actuator/env (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/actuator/env"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/actuator/health (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/actuator/health"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/actuator/beans (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/actuator/beans"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/__debug__/ (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/__debug__/"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/console (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/console"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/_profiler (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/_profiler"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rails/info/routes (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rails/info/routes"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/debug/pprof/ (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/debug/pprof/"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/elmah.axd (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/elmah.axd"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/phpinfo.php (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/phpinfo.php"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/server-status (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/server-status"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/graphiql (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/graphiql"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "POST http://localhost:3000/rest/user/login (HTTP 500, Content-Type: text/html; charset=utf-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/login"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "POST",
+            "httpStatus": 500
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/version (HTTP 200, Content-Type: text/html; charset=UTF-8) missing enforcing Content-Security-Policy header"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/version"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-04",
+            "issue": "missing_csp",
+            "httpMethod": "GET",
+            "httpStatus": 200
+          }
         }
       ]
     }

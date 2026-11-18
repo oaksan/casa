@@ -5,13 +5,19 @@
     {
       "tool": {
         "driver": {
-          "name": "ADA CASA 3.0 SCA & Reachability Engine (OSV.dev + CISA KEV)",
+          "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date)",
           "version": "3.0.0",
           "rules": [
             {
               "id": "CASA3-SCA-01",
               "shortDescription": {
                 "text": "SCA-01: No dependency contains a reachable Critical/High vulnerability (CVSS >= 7.0), or any CISA KEV entry"
+              }
+            },
+            {
+              "id": "CASA3-SCA-02",
+              "shortDescription": {
+                "text": "SCA-02: No component is end-of-life, unmaintained (OpenSSF Scorecard Maintained < 5), or sourced from an untrusted repository"
               }
             }
           ]

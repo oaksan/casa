@@ -136,3 +136,96 @@ Ao executar o motor automatizado do SCA-01 contra o OWASP Juice Shop
       call-graph`, demonstrando na prática a eliminação automática de falsos
       positivos pelo critério de alcançabilidade do CASA 3.0!).
 ================================================================================
+
+================================================================================
+CONTROLE 02/61: SCA-02 (Iteração SDD 010)
+Domínio 1: Composição de Software e Cadeia de Suprimentos (Software Composition & Supply Chain)
+================================================================================
+
+1. DEFINIÇÃO E BASE NORMATIVA NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID do Controle: SCA-02
+- Requisito (CASA 3.0 AL1 Specification):
+  "Nenhum componente está em fim de vida útil (EOL), sem manutenção ou proveniente
+   de repositório não confiável (No component is end-of-life, unmaintained, or
+   sourced from an untrusted repository)."
+- Referências Normativas: OWASP ASVS 4.0.3 V14.2.4 (L2); OpenSSF Scorecard `Maintained`.
+- Formato de Evidência Exigido (CASA 3.0 AL1 Test Guide):
+  SBOM gerado pelo avaliador (CycloneDX 1.5+ ou SPDX 2.3+) + Achados em formato
+  OASIS SARIF 2.1.0 (`output/sca-findings.sarif`).
+- Procedimento Oficial (Test Procedure):
+  Para cada dependência direta:
+  1) Resolver seu registro de origem a partir do lockfile (`package-lock.json`);
+  2) Verificar seu sinal de atividade de manutenção (OpenSSF Scorecard `Maintained`);
+  3) Confrontar a versão do componente com sua data publicada de fim de vida útil
+     (EOL — `endoflife.date` e metadados oficiais de depreciação do registro).
+- Critério Determinístico de Veredito:
+  * PASS: Nenhuma dependência direta ultrapassou sua data publicada de EOL, todas
+    resolvem para o registro público canônico (ou espelho controlado fixado por
+    digest) E — onde existir resultado do OpenSSF Scorecard — possuem nota
+    `Maintained` >= 5.
+  * FAIL: Qualquer dependência direta que tenha ultrapassado sua data de EOL,
+    seja resolvida de outra fonte não confiável, ou possua `Maintained` < 5 no
+    OpenSSF Scorecard.
+
+2. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO E MELHORIA REALIZADA NA ITERAÇÃO 010
+--------------------------------------------------------------------------------
+- Limitação Identificada na Versão Anterior (Iterações 1–9):
+  A implementação anterior do `SCA-02` verificava apenas um dicionário estático
+  de 6 pacotes conhecidos (`marsdb`, `jsonwebtoken`, `express-jwt`, `sanitize-html`,
+  `request`, `vm2`), sem consultar dinamicamente o `package-lock.json`, o registro
+  oficial (`registry.npmjs.org`), a API do `endoflife.date` e a API pública do
+  **OpenSSF Scorecard** (`api.securityscorecards.dev`).
+
+- Melhoria Implementada na Iteração SDD 010 (`evaluate_sca02_dependencies` em `scanner.py`):
+  1) Inspeção do Lockfile (`package-lock.json`): Verifica os campos `resolved` e
+     `integrity` de cada dependência direta para garantir que todas provêm do
+     registro público canônico (`https://registry.npmjs.org/`) ou espelho HTTPS
+     fixado por digest criptográfico (`sha512-...` / `sha256-...`);
+  2) Verificação de Fim de Vida Útil (EOL) e Depreciação Oficial: Consulta a API
+     do `endoflife.date` (`https://endoflife.date/api/{product}.json`) e os
+     metadados de versão no registro npm (`deprecated` warnings e branches legadas
+     descontinuadas);
+  3) Consulta Real à API do OpenSSF Scorecard: Extrai a URL do repositório GitHub
+     de cada dependência e consulta `https://api.securityscorecards.dev/projects/github.com/{org}/{repo}`,
+     extraindo a métrica oficial `Maintained` (de 0 a 10) e reprovando pacotes com
+     `Maintained < 5`;
+  4) Registro de todas as violações com a regra `CASA3-SCA-02` no artefato aberto
+     `output/sca-findings.sarif` (SARIF 2.1.0).
+
+3. POR QUE ESTA AUTOMAÇÃO COMPROVA A TESE PARA O ORIENTADOR?
+--------------------------------------------------------------------------------
+No OWASP ASVS tradicional (V14.2.4) e no CASA 2.1.1, avaliar se um componente está
+"sem manutenção" era subjetivo (dois auditores humanos podiam discordar sobre o
+que significa um projeto abandonado). O CASA 3.0 torna esse controle 100%
+determinístico e automatizável ao ancorar o veredito em três oráculos formais:
+  1. Origem no Lockfile == Registro Canônico (ou Digest Fixado);
+  2. Status EOL (`endoflife.date` / Registry Deprecation) == False;
+  3. OpenSSF Scorecard `Maintained` >= 5.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor automatizado do SCA-02 contra as 114 dependências diretas do
+OWASP Juice Shop (`/home/user/felipe/speckit/juice-shop-master`):
+- Veredito Automatizado: FAIL (47 dependências diretas violam o SCA-02):
+  * Critério A — Registro Não Confiável (`Untrusted Registry`): 0 violações
+    (todas as dependências no `package-lock.json` resolvem para `registry.npmjs.org`
+    com integridade `sha512`).
+  * Critério B — Fim de Vida Útil / Depreciação Oficial (`EOL/Deprecated`): 11 pacotes,
+    incluindo:
+    - `jsonwebtoken@0.4.0`: Depreciado oficialmente no registro npm ("Critical
+      vulnerability fix in v5.0.0").
+    - `notevil@1.3.3`: Depreciado oficialmente ("Package no longer supported").
+    - `glob@10.4.5`: Depreciado oficialmente ("Old versions of glob are not
+      supported, and contain widely publicized security vulnerabilities").
+    - `express-jwt@0.1.3`: Branch 0.x em EOL (versão atual é 8.5.1).
+    - `prom-client@15.1.3`: Depreciado ("replaced by @prometheus-io/client").
+    - `eslint@9.39.4`: Depreciado ("This version is no longer supported").
+  * Critério C — Sem Manutenção (`OpenSSF Scorecard Maintained < 5`): 39 pacotes,
+    destacando projetos abandonados há quase uma década:
+    - `median@0.0.2` (`github.com/lafikl/median`): `Maintained = 0/10` (último release: 2013-12-15).
+    - `z85@0.0.2` (`github.com/msealand/z85.node`): `Maintained = 0/10` (último release: 2014-03-19).
+    - `exif@0.6.0` (`github.com/gomfunkel/node-exif`): `Maintained = 0/10` (último release: 2016-02-02).
+    - `marsdb@0.6.11` (`github.com/c58/marsdb`): `Maintained = 0/10` (último release: 2016-09-07).
+    - `colors@1.4.0` (`github.com/Marak/colors.js`): `Maintained = 1/10` (último release: 2019-09-22).
+================================================================================

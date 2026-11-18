@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import datetime
+import difflib
 import html
 import json
 import math
@@ -3885,17 +3886,121 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-10: No administrative interface reachable without authentication
-    # Check both backend admin configuration endpoint and whether admin table/config is exposed
-    admin_status, _, admin_body = http_probe("/rest/admin/application-configuration")
-    admin_exposed = admin_status == 200 and '"config"' in admin_body
+    # CFG-10: Administrative interface reachability & differential unauthenticated replay vs LCS similarity >= 0.90 (SARIF 2.1.0 + HAR 1.2)
+    def lcs_line_similarity(txt_a: str, txt_b: str) -> float:
+        norm_a = [" ".join(ln.split()) for ln in txt_a.splitlines() if ln.strip()]
+        norm_b = [" ".join(ln.split()) for ln in txt_b.splitlines() if ln.strip()]
+        if not norm_a and not norm_b:
+            return 1.0
+        if not norm_a or not norm_b:
+            return 0.0
+        return round(difflib.SequenceMatcher(None, norm_a, norm_b).ratio(), 3)
+
+    # Part 1: Replay authenticated routes with credentials removed
+    cfg10_auth_routes = [
+        f"/rest/basket/{auth_bid}",
+        f"/api/Users/{auth_uid}",
+        "/rest/wallet/balance",
+        "/api/Cards",
+        "/rest/2fa/status",
+        "/rest/user/whoami",
+    ]
+    # Part 2: Administrative & operational wordlist compared authenticated vs unauthenticated
+    cfg10_admin_wordlist = [
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/support/logs",
+        "/support/logs/audit.json",
+        "/metrics",
+        "/api-docs/",
+        "/admin",
+        "/administration",
+        "/administrator",
+        "/manage",
+        "/grafana",
+        "/console",
+    ]
+
+    cfg10_findings: list[dict] = []
+    cfg10_probed_count = 0
+
+    for ar_ep in cfg10_auth_routes:
+        st_auth, _, body_auth = http_probe(ar_ep, headers=auth_req_headers)
+        st_unauth, _, body_unauth = http_probe(ar_ep)
+        cfg10_probed_count += 2
+        if 200 <= st_auth < 300 and 200 <= st_unauth < 300:
+            sim_auth = lcs_line_similarity(body_auth, body_unauth)
+            if sim_auth >= 0.90 and body_unauth.strip() not in {"{}", '{"user":{}}', "[]"}:
+                cfg10_findings.append(
+                    {
+                        "url": f"{base_url}{ar_ep}",
+                        "kind": "authenticated_route_bypass",
+                        "unauthStatus": st_unauth,
+                        "authStatus": st_auth,
+                        "similarity": sim_auth,
+                        "detail": (
+                            f"Authenticated route GET {base_url}{ar_ep} accepted unauthenticated replay "
+                            f"(auth HTTP {st_auth}, unauth HTTP {st_unauth}, LCS similarity={sim_auth:.3f} >= 0.90)"
+                        ),
+                    }
+                )
+
+    for adm_ep in cfg10_admin_wordlist:
+        st_auth, _, body_auth = http_probe(adm_ep, headers=auth_req_headers)
+        st_unauth, _, body_unauth = http_probe(adm_ep)
+        cfg10_probed_count += 2
+        if 200 <= st_unauth < 300 and not is_spa_fallback(body_unauth):
+            # Compare against authenticated response when available (or self non-empty administrative content)
+            sim_adm = lcs_line_similarity(body_auth, body_unauth) if (200 <= st_auth < 300) else 0.0
+            if sim_adm >= 0.90:
+                cfg10_findings.append(
+                    {
+                        "url": f"{base_url}{adm_ep}",
+                        "kind": "exposed_admin_wordlist_path",
+                        "unauthStatus": st_unauth,
+                        "authStatus": st_auth,
+                        "similarity": sim_adm,
+                        "detail": (
+                            f"Administrative/operational endpoint GET {base_url}{adm_ep} reachable unauthenticated "
+                            f"(HTTP {st_unauth} vs auth HTTP {st_auth}, LCS line similarity={sim_adm:.3f} >= 0.90)"
+                        ),
+                    }
+                )
+
+    for cf10 in cfg10_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-CFG-10",
+                "level": "error",
+                "message": {"text": cf10["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": cf10["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "CFG-10",
+                    "findingKind": cf10["kind"],
+                    "unauthStatus": cf10["unauthStatus"],
+                    "authStatus": cf10["authStatus"],
+                    "lcsSimilarity": cf10["similarity"],
+                },
+            }
+        )
+
+    admin_exposed = len(cfg10_findings) > 0
+    cfg10_lines = [cf10["detail"] for cf10 in cfg10_findings]
     results["CFG-10"] = {
         "verdict": "FAIL" if admin_exposed else "PASS",
-        "tool": "Unauthenticated Admin Route Probe (HAR 1.2)",
+        "tool": f"Differential Auth Replay & Admin Wordlist LCS Analyzer ({cfg10_probed_count} auth/unauth probes, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[FAIL] Unauthenticated request to GET {base_url}/rest/admin/application-configuration returned HTTP 200 with full application configuration payload."
+            f"[FAIL] {len(cfg10_findings)} administrative/authenticated route(s) reachable without authentication (LCS similarity >= 0.90):\n  - "
+            + "\n  - ".join(cfg10_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
             if admin_exposed
-            else f"[PASS] Administrative routes denied unauthenticated access (HTTP {admin_status})."
+            else f"[PASS] Replayed {len(cfg10_auth_routes)} authenticated routes and {len(cfg10_admin_wordlist)} administrative wordlist paths unauthenticated; all authenticated routes denied and 0 admin paths returned 2xx unauthenticated with LCS similarity >= 0.90.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

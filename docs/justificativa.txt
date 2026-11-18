@@ -2811,3 +2811,69 @@ Ao executar o motor atualizado da Iteração 41 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (8 resultados `CASA3-CFG-09`) e `output/dast-capture.har`.
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 34/61: CFG-10 (Iteração SDD 042)
+================================================================================
+Título: No administrative interface reachable without authentication
+Mapeamento Normativo: CWE-306; ADA-defined | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Painéis administrativos, APIs de configuração, logs de suporte e interfaces de
+operação acessíveis sem autenticação (CWE-306) permitem reconhecimento ou
+reconfiguração não autorizada da aplicação. O Guia de Testes CASA 3.0 AL1
+define um protocolo diferencial quantitativo para `CFG-10`:
+- Evidência: Achados DAST em SARIF 2.1.0 e captura HTTP HAR 1.2;
+- Procedimento: Reproduzir o conjunto de rotas autenticadas sem credenciais e
+  requisitar uma wordlist de caminhos administrativos comuns com e sem
+  credenciais, comparando os dois corpos de resposta para cada caminho;
+- Critério de Aprovação (PASS): Toda rota do conjunto autenticado é negada sem
+  credenciais e nenhum caminho da wordlist retorna `2xx` sem autenticação com
+  similaridade de corpo `>= 0,90` (razão LCS sobre linhas após normalização de
+  espaços em branco);
+- Critério de Falha (FAIL): >= 1 rota aceita sem autenticação ou com similaridade
+  LCS `>= 0,90`.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+Enquanto rotas autenticadas de usuário (`/rest/basket/:id`, `/api/Users/:id`,
+`/rest/wallet/balance`, `/api/Cards`, `/rest/2fa/status`) retornam `401` sem
+Bearer JWT, o OWASP Juice Shop expõe interfaces administrativas e operacionais
+idênticas sem autenticação (`/rest/admin/application-configuration`,
+`/rest/admin/application-version`, `/support/logs`, `/support/logs/audit.json`,
+`/metrics`, `/api-docs/`). Já caminhos genéricos como `/admin` caem no shell SPA.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 042:
+  O scanner sondava exclusivamente 1 rota fixa (`/rest/admin/application-configuration`),
+  sem reproduzir rotas autenticadas sem credenciais, sem testar uma wordlist
+  administrativa com comparação autenticada x anônima, sem calcular a razão
+  LCS (`>= 0,90`) exigida pelo guia e sem gravar SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 042 (`casa_audit/scanner.py`):
+  1. Replay Autenticado vs. Anônimo + Wordlist Administrativa (36 sondas):
+     Reproduz 6 rotas autenticadas sem token e compara 12 caminhos administrativos
+     e operacionais em pares autenticado/anônimo.
+  2. Métrica Normativa LCS (`lcs_line_similarity`) com Filtro Anti-SPA:
+     Normaliza espaços em branco por linha e calcula `difflib.SequenceMatcher.ratio()`,
+     exigindo similaridade `>= 0,90` e descartando o fallback HTML da SPA (`<app-root>`).
+  3. Evidência SARIF 2.1.0 (`CASA3-CFG-10`) + HAR 1.2:
+     Emite todos os achados em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 42 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Sondas executadas: 36 pares/requisições (6 rotas autenticadas + 12 caminhos administrativos; 0 falsos positivos do shell Angular SPA).
+- Interfaces administrativas/operacionais acessíveis sem autenticação (`CASA3-CFG-10`, 6 achados):
+  1. `GET /rest/admin/application-configuration` (`HTTP 200` vs auth `200`, LCS = `1.000`)
+  2. `GET /rest/admin/application-version` (`HTTP 200` vs auth `200`, LCS = `1.000`)
+  3. `GET /support/logs` (`HTTP 200` vs auth `200`, LCS = `1.000`)
+  4. `GET /support/logs/audit.json` (`HTTP 200` vs auth `200`, LCS = `1.000`)
+  5. `GET /metrics` (`HTTP 200` vs auth `200`, LCS = `0.926`)
+  6. `GET /api-docs/` (`HTTP 200` vs auth `200`, LCS = `1.000`)
+- Artefatos gerados: `output/dast-findings.sarif` (6 resultados `CASA3-CFG-10`) e `output/dast-capture.har`.
+- Veredito Automatizado: FAIL
+================================================================================

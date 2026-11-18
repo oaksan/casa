@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-EuANffcvWz8co6kMYoI/IFSpAq8\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-MXZcVdgAj05byHP+uP33A71Cfao\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/8 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9a-FfQnBwgyiL5wYiocbDlNrwwuWCM\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/9 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9a-/JGyj8fTODkO18oHvE79N9sdKOQ\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/8"
+                  "uri": "http://localhost:3000/rest/basket/9"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/29 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-LYQPR0lX8ronVA0voPLOXwTpAlw\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/30 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-6C541iMDMJuEjBHbGESawpsKmKE\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/29"
+                  "uri": "http://localhost:3000/api/Users/30"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-xF/tc+C/A0jn1czWdhVMWUT03Qs\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-nHPNozAR8uSDcZpJ9RkdLgi+G7Q\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1928,6 +1928,144 @@
               "/home/user/felipe/speckit/assat/juice-shop/node_modules/raw-body/index.js",
               "PayloadTooLargeError"
             ]
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-10",
+          "level": "error",
+          "message": {
+            "text": "Administrative/operational endpoint GET http://localhost:3000/rest/admin/application-configuration reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=1.000 >= 0.90)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/admin/application-configuration"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-10",
+            "findingKind": "exposed_admin_wordlist_path",
+            "unauthStatus": 200,
+            "authStatus": 200,
+            "lcsSimilarity": 1.0
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-10",
+          "level": "error",
+          "message": {
+            "text": "Administrative/operational endpoint GET http://localhost:3000/rest/admin/application-version reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=1.000 >= 0.90)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/admin/application-version"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-10",
+            "findingKind": "exposed_admin_wordlist_path",
+            "unauthStatus": 200,
+            "authStatus": 200,
+            "lcsSimilarity": 1.0
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-10",
+          "level": "error",
+          "message": {
+            "text": "Administrative/operational endpoint GET http://localhost:3000/support/logs reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=1.000 >= 0.90)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/support/logs"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-10",
+            "findingKind": "exposed_admin_wordlist_path",
+            "unauthStatus": 200,
+            "authStatus": 200,
+            "lcsSimilarity": 1.0
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-10",
+          "level": "error",
+          "message": {
+            "text": "Administrative/operational endpoint GET http://localhost:3000/support/logs/audit.json reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=1.000 >= 0.90)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/support/logs/audit.json"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-10",
+            "findingKind": "exposed_admin_wordlist_path",
+            "unauthStatus": 200,
+            "authStatus": 200,
+            "lcsSimilarity": 1.0
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-10",
+          "level": "error",
+          "message": {
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.926 >= 0.90)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/metrics"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-10",
+            "findingKind": "exposed_admin_wordlist_path",
+            "unauthStatus": 200,
+            "authStatus": 200,
+            "lcsSimilarity": 0.926
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-10",
+          "level": "error",
+          "message": {
+            "text": "Administrative/operational endpoint GET http://localhost:3000/api-docs/ reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=1.000 >= 0.90)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/api-docs/"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-10",
+            "findingKind": "exposed_admin_wordlist_path",
+            "unauthStatus": 200,
+            "authStatus": 200,
+            "lcsSimilarity": 1.0
           }
         }
       ]

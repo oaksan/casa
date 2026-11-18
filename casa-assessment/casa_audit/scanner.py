@@ -2226,13 +2226,19 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
 
         elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
         sensitive_hdrs = {"authorization", "cookie", "set-cookie", "x-api-key"}
+        redacted_har_url = re.sub(
+            r"([?&](?:current|new|repeat|password|token|access_token|refresh_token)=)[^&#\s]+",
+            r"\1[REDACTED]",
+            url,
+            flags=re.IGNORECASE,
+        )
         har_entries.append(
             {
                 "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "time": elapsed_ms,
                 "request": {
                     "method": method,
-                    "url": url,
+                    "url": redacted_har_url,
                     "httpVersion": "HTTP/1.1",
                     "headers": [
                         {"name": k, "value": "[REDACTED]" if k.lower() in sensitive_hdrs else v}
@@ -4556,11 +4562,133 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-04: Session tokens never appear in URLs or query strings
+    # AUT-04: Session tokens & credentials in URLs, query strings, fragments, Referer headers & GET credential endpoints (SARIF 2.1.0 + redacted HAR 1.2)
+    observed_tokens_4 = {t for t in [jwt_token, auth_token, post_token3] if t and len(t) >= 16}
+    jwt_url_re = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
+    sens_param_re = re.compile(
+        r"(?:[?&#])(token|access_token|refresh_token|id_token|jwt|sessionid|jsessionid|phpsessid|password|current|new)=([^&#\s]+)",
+        re.IGNORECASE,
+    )
+    aut04_findings: list[dict] = []
+
+    # 1. Scan all recorded crawl exchanges (URLs, query strings, fragments, outbound Referer headers)
+    crawl_urls_checked = len(crawled_exchanges)
+    for ex4 in crawled_exchanges:
+        u4 = ex4["url"]
+        if any(tok in u4 for tok in observed_tokens_4) or jwt_url_re.search(u4):
+            aut04_findings.append(
+                {
+                    "url": u4.split("?", 1)[0],
+                    "channel": "HAR_URL_Token_Leak",
+                    "detail": f"Crawl request URL {ex4['method']} {u4.split('?', 1)[0]} transmitted an active session/JWT token in the URL.",
+                }
+            )
+        m_qp = sens_param_re.search(u4)
+        if m_qp and "[REDACTED]" not in m_qp.group(2):
+            aut04_findings.append(
+                {
+                    "url": u4.split("?", 1)[0],
+                    "channel": "HAR_Query_Credential",
+                    "detail": f"Crawl request URL {ex4['method']} {u4.split('?', 1)[0]} carried sensitive parameter '{m_qp.group(1)}' in query/fragment.",
+                }
+            )
+        ref_hdr = ex4["headers"].get("referer", "")
+        if ref_hdr and (any(tok in ref_hdr for tok in observed_tokens_4) or jwt_url_re.search(ref_hdr) or sens_param_re.search(ref_hdr)):
+            aut04_findings.append(
+                {
+                    "url": u4.split("?", 1)[0],
+                    "channel": "Referer_Header_Leak",
+                    "detail": f"Response/outbound Referer header at {u4.split('?', 1)[0]} leaked session token or credential material.",
+                }
+            )
+
+    # 2. Active CWE-598 GET Credential Query-String Acceptance Probe (GET /rest/user/change-password?current=...&new=...&repeat=...)
+    em4 = f"casa3_aut04_probe_{int(time.time())}@juice-sh.op"
+    pw4_old = "Casa3Aut04Old!99"
+    pw4_new = "Casa3Aut04New!99"
+    reg4_st, _, _ = http_probe(
+        "/api/Users/",
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        body=json.dumps({"email": em4, "password": pw4_old, "passwordRepeat": pw4_old}).encode("utf-8"),
+    )
+    tok4 = ""
+    if 200 <= reg4_st < 300:
+        l4_st, _, l4_body = http_probe(
+            aut02_login_ep,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": em4, "password": pw4_old}).encode("utf-8"),
+        )
+        if 200 <= l4_st < 300:
+            try:
+                tok4 = json.loads(l4_body).get("authentication", {}).get("token", "")
+            except Exception:
+                tok4 = ""
+
+    if tok4:
+        cp_path = (
+            f"/rest/user/change-password?current={urllib.parse.quote(pw4_old)}"
+            f"&new={urllib.parse.quote(pw4_new)}&repeat={urllib.parse.quote(pw4_new)}"
+        )
+        cp_st, _, cp_body = http_probe(cp_path, method="GET", headers={"Authorization": f"Bearer {tok4}"})
+        if 200 <= cp_st < 300 and '"user"' in cp_body.lower():
+            aut04_findings.append(
+                {
+                    "url": f"{base_url}/rest/user/change-password",
+                    "channel": "CWE-598_GET_Credential_Query",
+                    "detail": (
+                        f"GET {base_url}/rest/user/change-password accepted current & new passwords in URL query parameters "
+                        f"(HTTP {cp_st}, persisting plaintext credentials in web access logs and browser history — CWE-598 / ASVS V3.1.1)."
+                    ),
+                }
+            )
+
+    # 3. Inspect client routing / OAuth handler for Implicit Flow #access_token= fragment transmission
+    app_routing_file = repo / "frontend" / "src" / "app" / "app.routing.ts"
+    oauth_comp_file = repo / "frontend" / "src" / "app" / "oauth" / "oauth.component.ts"
+    for f4 in (app_routing_file, oauth_comp_file):
+        if f4.exists():
+            txt4 = f4.read_text(encoding="utf-8", errors="ignore")
+            if "#access_token=" in txt4 or "parseRedirectUrlParams().access_token" in txt4:
+                rel4 = str(f4.relative_to(repo))
+                aut04_findings.append(
+                    {
+                        "url": f"{base_url}/oauth",
+                        "channel": "URL_Fragment_Access_Token",
+                        "detail": f"{rel4} handles OAuth Implicit Flow access token in URL fragment ('#access_token=') instead of Authorization Code + PKCE (ASVS V3.1.1).",
+                    }
+                )
+
+    for af4 in aut04_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AUT-04",
+                "level": "error",
+                "message": {"text": af4["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af4["url"]},
+                        }
+                    }
+                ],
+                "properties": {"controlId": "AUT-04", "channel": af4["channel"]},
+            }
+        )
+
+    aut04_fail = len(aut04_findings) > 0
+    aut04_lines = [f"[{af4['channel']}] {af4['detail']}" for af4 in aut04_findings]
     results["AUT-04"] = {
-        "verdict": "PASS",
-        "tool": "W3C HAR 1.2 URL & Referer Inspector",
-        "log": f"[PASS] Inspected {len(har_entries)} HTTP requests in HAR capture; no session tokens or credentials transmitted in URL query strings.",
+        "verdict": "FAIL" if aut04_fail else "PASS",
+        "tool": f"HAR 1.2 URL/Query/Fragment/Referer & CWE-598 GET-Credential Probe ({crawl_urls_checked} requests scanned, SARIF 2.1.0 + redacted HAR 1.2)",
+        "log": (
+            f"[FAIL] {len(aut04_findings)} URL/fragment credential or token exposure(s) detected:\n  - "
+            + "\n  - ".join(aut04_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if aut04_fail
+            else f"[PASS] Inspected {crawl_urls_checked} HTTP requests (URLs, query strings, fragments, Referer headers) + active GET credential probe; 0 session tokens or credentials transmitted in URLs/fragments.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+        ),
     }
 
     # AUT-05: Logout invalidates the session server-side

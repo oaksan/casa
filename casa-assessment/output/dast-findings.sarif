@@ -1367,7 +1367,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-6jVVOTgcDvgsouYb/PJMrz9K9ZM\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-q73px/VV3DZUAc04wCJkVIvkgds\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1389,13 +1389,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/17 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-PzpLxeDScdxRCtGj7vonC1oDB4M\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/20 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-FeX6XV98CexYoBjIGz7M82HM86Y\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/17"
+                  "uri": "http://localhost:3000/rest/basket/20"
                 }
               }
             }
@@ -1411,13 +1411,13 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/36 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-DK4k1A0ihYMOZFdZ44Av023ejDg\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/39 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-PDfSsKXNB5y2IaqgDYquEJFI9EI\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/36"
+                  "uri": "http://localhost:3000/api/Users/39"
                 }
               }
             }
@@ -1477,7 +1477,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-Unm+Tn0/8oGwZm9/nzU4xYzYcz0\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-y1+h07vbZfYaHK0PEVbJFp3IL4s\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -2026,7 +2026,7 @@
           "ruleId": "CASA3-CFG-10",
           "level": "error",
           "message": {
-            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.904 >= 0.90)"
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.930 >= 0.90)"
           },
           "locations": [
             {
@@ -2042,7 +2042,7 @@
             "findingKind": "exposed_admin_wordlist_path",
             "unauthStatus": 200,
             "authStatus": 200,
-            "lcsSimilarity": 0.904
+            "lcsSimilarity": 0.93
           }
         },
         {
@@ -2182,7 +2182,7 @@
           "ruleId": "CASA3-AUT-02",
           "level": "error",
           "message": {
-            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 7.85s: only 9/200 distinct (191 exact duplicate tokens, max identical collision=37/200; NIST SP 800-90B MCV min-entropy=2.43 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
+            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 11.05s: only 12/200 distinct (188 exact duplicate tokens, max identical collision=22/200; NIST SP 800-90B MCV min-entropy=3.18 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
           },
           "locations": [
             {
@@ -2196,10 +2196,70 @@
           "properties": {
             "controlId": "AUT-02",
             "samplesCollected": 200,
-            "distinctTokens": 9,
-            "duplicateTokens": 191,
-            "maxCollisionFrequency": 37,
-            "minEntropyBits": 2.43
+            "distinctTokens": 12,
+            "duplicateTokens": 188,
+            "maxCollisionFrequency": 22,
+            "minEntropyBits": 3.18
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-04",
+          "level": "error",
+          "message": {
+            "text": "GET http://localhost:3000/rest/user/change-password accepted current & new passwords in URL query parameters (HTTP 200, persisting plaintext credentials in web access logs and browser history \u2014 CWE-598 / ASVS V3.1.1)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/rest/user/change-password"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-04",
+            "channel": "CWE-598_GET_Credential_Query"
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-04",
+          "level": "error",
+          "message": {
+            "text": "frontend/src/app/app.routing.ts handles OAuth Implicit Flow access token in URL fragment ('#access_token=') instead of Authorization Code + PKCE (ASVS V3.1.1)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/oauth"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-04",
+            "channel": "URL_Fragment_Access_Token"
+          }
+        },
+        {
+          "ruleId": "CASA3-AUT-04",
+          "level": "error",
+          "message": {
+            "text": "frontend/src/app/oauth/oauth.component.ts handles OAuth Implicit Flow access token in URL fragment ('#access_token=') instead of Authorization Code + PKCE (ASVS V3.1.1)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/oauth"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "AUT-04",
+            "channel": "URL_Fragment_Access_Token"
           }
         }
       ]

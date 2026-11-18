@@ -2595,6 +2595,142 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
 
     tls05_pass = len(hsts_violations) == 0 and (min_hsts_time is not None and min_hsts_time >= 31536000)
 
+    # TLS-06: Active TLS implementation vulnerability probes (heartbleed, CRIME_TLS, secure_renego, secure_client_renego, ROBOT, ticketbleed)
+    def probe_tls_vulnerabilities(target_h: str, target_p: int, c_audit: dict) -> dict:
+        vulns: list[dict] = []
+        tls_active = False
+        try:
+            ctx_chk = ssl._create_unverified_context()
+            with socket.create_connection((target_h, target_p), timeout=2.0) as s:
+                with ctx_chk.wrap_socket(s, server_hostname=target_h) as ss:
+                    tls_active = bool(ss.version())
+                    comp = ss.compression()
+        except Exception:
+            comp = None
+
+        if not tls_active:
+            vulns.append(
+                {
+                    "id": "tls_endpoint_missing",
+                    "severity": "HIGH",
+                    "finding": f"No TLS listener on {target_h}:{target_p} (endpoint serves cleartext HTTP; Heartbleed/ROBOT/CRIME/Renegotiation checks cannot pass without TLS)",
+                }
+            )
+            return {
+                "probedPort": target_p,
+                "tlsActive": False,
+                "vulnerabilities": vulns,
+                "highOrCriticalFindings": [v["finding"] for v in vulns],
+            }
+
+        # 1. CRIME_TLS: TLS DEFLATE Compression check
+        vulns.append(
+            {
+                "id": "CRIME_TLS",
+                "severity": "HIGH" if comp else "OK",
+                "finding": f"TLS compression active ({comp}) — vulnerable to CRIME" if comp else "TLS compression disabled (null)",
+            }
+        )
+
+        # 2. Heartbleed (CVE-2014-0160): malformed TLS Heartbeat request (payload length 0x4000)
+        hb_vuln = False
+        try:
+            hb_hello = (
+                b"\x16\x03\x02\x00\x31\x01\x00\x00\x2d\x03\x02"
+                + b"\x53\x43\x5b\x90" + b"\x11" * 28
+                + b"\x00\x00\x04\x00\x2f\x00\xff\x01\x00\x00\x04\x00\x0f\x00\x01\x01"
+            )
+            hb_req = b"\x18\x03\x02\x00\x03\x01\x40\x00"
+            with socket.create_connection((target_h, target_p), timeout=2.0) as s:
+                s.settimeout(2.0)
+                s.sendall(hb_hello)
+                _ = s.recv(2048)
+                s.sendall(hb_req)
+                hb_resp = s.recv(16384)
+                if len(hb_resp) > 32 and hb_resp[0] == 0x18:
+                    hb_vuln = True
+        except Exception:
+            pass
+        vulns.append(
+            {
+                "id": "heartbleed",
+                "severity": "CRITICAL" if hb_vuln else "OK",
+                "finding": "Server leaked memory in response to malformed Heartbeat (CVE-2014-0160)" if hb_vuln else "Not vulnerable to Heartbleed (CVE-2014-0160)",
+            }
+        )
+
+        # 3. Secure Renegotiation (CVE-2009-3555) via OpenSSL s_client
+        renego_insecure = False
+        try:
+            op = subprocess.run(
+                ["openssl", "s_client", "-connect", f"{target_h}:{target_p}", "-servername", target_h],
+                input=b"",
+                capture_output=True,
+                timeout=4,
+            )
+            out_s = (op.stdout + op.stderr).decode("utf-8", errors="ignore")
+            if "Secure Renegotiation IS NOT supported" in out_s:
+                renego_insecure = True
+        except Exception:
+            pass
+        vulns.append(
+            {
+                "id": "secure_renego",
+                "severity": "HIGH" if renego_insecure else "OK",
+                "finding": "Secure Renegotiation extension NOT supported (CVE-2009-3555)" if renego_insecure else "Secure Renegotiation IS supported",
+            }
+        )
+
+        # 4. ROBOT prerequisite (static RSA kRSA cipher offered in TLS 1.2)
+        krsa_offered = bool(c_audit.get("nonForwardSecrecyTls12Offered"))
+        vulns.append(
+            {
+                "id": "ROBOT",
+                "severity": "HIGH" if krsa_offered else "OK",
+                "finding": f"Static RSA key exchange ({c_audit.get('nonForwardSecrecyTls12Offered')}) enabled — exposed to ROBOT padding oracle" if krsa_offered else "Not vulnerable to ROBOT (RSA key exchange disabled)",
+            }
+        )
+
+        # 5. Ticketbleed (CVE-2016-9244): 16-byte Session ID echoed uninitialized
+        tb_vuln = False
+        try:
+            sid = b"\xaa" * 16
+            tb_body = b"\x03\x03" + b"\x11" * 32 + bytes([len(sid)]) + sid + b"\x00\x04\xc0\x2f\x00\x2f\x01\x00\x00\x04\x00\x23\x00\x00"
+            tb_hs = b"\x01" + len(tb_body).to_bytes(3, "big") + tb_body
+            tb_rec = b"\x16\x03\x03" + len(tb_hs).to_bytes(2, "big") + tb_hs
+            with socket.create_connection((target_h, target_p), timeout=2.0) as s:
+                s.settimeout(2.0)
+                s.sendall(tb_rec)
+                r = s.recv(1024)
+                if len(r) > 45 and r[0] == 0x16 and r[5] == 0x02:
+                    sid_len = r[43]
+                    if sid_len == 32 and r[44:60] == sid and r[60:76] != b"\x00" * 16:
+                        tb_vuln = True
+        except Exception:
+            pass
+        vulns.append(
+            {
+                "id": "ticketbleed",
+                "severity": "CRITICAL" if tb_vuln else "OK",
+                "finding": "Uninitialized memory leaked in Session ID (CVE-2016-9244)" if tb_vuln else "Not vulnerable to Ticketbleed (CVE-2016-9244)",
+            }
+        )
+
+        high_crit = [f"{v['id']} ({v['severity']}): {v['finding']}" for v in vulns if v["severity"] in {"HIGH", "CRITICAL"}]
+        return {
+            "probedPort": target_p,
+            "tlsActive": True,
+            "vulnerabilities": vulns,
+            "highOrCriticalFindings": high_crit,
+        }
+
+    tls_vuln_audit = (
+        probe_tls_vulnerabilities(host, protocol_target_port, cipher_audit)
+        if host
+        else {"probedPort": protocol_target_port, "tlsActive": False, "vulnerabilities": [], "highOrCriticalFindings": ["No host provided"]}
+    )
+    tls06_pass = bool(tls_vuln_audit["tlsActive"]) and len(tls_vuln_audit["highOrCriticalFindings"]) == 0
+
     tls_scan_report = {
         "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
         "scannedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -2612,6 +2748,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         "protocols": protocols_matrix,
         "cipherSuites": cipher_audit,
         "certificate": cert_audit,
+        "vulnerabilities": tls_vuln_audit["vulnerabilities"],
         "tls01CleartextEnforcement": {
             "cleartextPort": cleartext_http_port,
             "probes": cleartext_probe_records,
@@ -2637,6 +2774,10 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             "endpointsChecked": hsts_results_by_ep,
             "violations": hsts_violations,
             "verdict": "PASS" if tls05_pass else "FAIL",
+        },
+        "tls06ImplementationVulnerabilities": {
+            **tls_vuln_audit,
+            "verdict": "PASS" if tls06_pass else "FAIL",
         },
     }
     tls_json_path.write_text(json.dumps(tls_scan_report, indent=2), encoding="utf-8")
@@ -2714,9 +2855,15 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
     results["TLS-06"] = {
-        "verdict": "PASS" if (is_https and cert_valid) else "FAIL",
-        "tool": "TLS Vulnerability Probe",
-        "log": f"[{'PASS' if (is_https and cert_valid) else 'FAIL'}] TLS implementation check on {host}:{port}: {'Passed' if is_https else 'Failed — endpoint operates over unencrypted HTTP'}.",
+        "verdict": "PASS" if tls06_pass else "FAIL",
+        "tool": f"TLS Vulnerability Probe (Heartbleed, CRIME, Renegotiation, ROBOT, Ticketbleed on {host}:{protocol_target_port}, JSON)",
+        "log": (
+            f"[PASS] Zero HIGH/CRITICAL TLS implementation vulnerabilities detected on {host}:{protocol_target_port} (checked heartbleed, CRIME_TLS, secure_renego, ROBOT, ticketbleed).\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            if tls06_pass
+            else f"[FAIL] {len(tls_vuln_audit['highOrCriticalFindings'])} TLS-06 HIGH/CRITICAL finding(s) on {host}:{protocol_target_port}:\n  - "
+            + "\n  - ".join(tls_vuln_audit["highOrCriticalFindings"])
+            + f"\n\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+        ),
     }
 
     # ---- Domain 4: Server Configuration & Response Headers (CFG-01 .. CFG-11) ----

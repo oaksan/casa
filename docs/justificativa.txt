@@ -2119,3 +2119,81 @@ Ao executar o motor atualizado da Iteração 31 contra o OWASP Juice Shop (`http
   2. `GET http://localhost:3000/api/Products` — cabeçalho `Strict-Transport-Security` ausente (`HSTS_time=0`).
   3. `GET http://localhost:3000/rest/admin/application-configuration` — cabeçalho ausente (`HSTS_time=0`).
 ================================================================================
+
+================================================================================
+CONTROLE 24/61: TLS-06 (Iteração SDD 032)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: TLS-06
+- Domínio: 3. Transport Security
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "No known TLS implementation vulnerabilities (Heartbleed, ROBOT, insecure
+   renegotiation, CRIME)"
+- Padrões de Referência:
+  * ADA-defined (Requisito inédito do CASA 3.0 — Tabela 2: "TLS implementation vulnerabilities")
+  * OWASP WSTG-CRYP-01 (Testing for Weak Transport Layer Security)
+- Perfis Aplicáveis: Web_Application
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 3 - TLS-06):
+
+- Evidência Exigida (Evidence):
+  1. "Machine-readable (JSON) TLS scanner output, for every declared host."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Run the known-vulnerability checks of the TLS assessment against every
+     declared host."
+  2. "Reference tooling: testssl.sh."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "No entry in the vulnerability section is reported at severity HIGH
+    or CRITICAL (`heartbleed`, `ROBOT`, `secure_renego`, `secure_client_renego`,
+    `CRIME_TLS`, `ticketbleed` included); entries at lower severity are reported
+    informational."
+  * FAIL: "≥ 1 vulnerability entry at severity HIGH or CRITICAL."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle TLS-06 avalia bugs conhecidos em implementações TLS por meio de
+sondas de protocolo determinísticas de solicitação/resposta sobre TCP:
+  1. **`heartbleed` (CVE-2014-0160 — CRITICAL):** Envio de `HeartbeatRequest`
+     com comprimento forjado (`0x4000`) verificando vazamento de memória;
+  2. **`CRIME_TLS` (CVE-2012-4929 — HIGH):** Negociação de compressão TLS
+     (`DEFLATE`) via `ssock.compression()`;
+  3. **`secure_renego` (CVE-2009-3555 — HIGH):** Inspeção da extensão de
+     renegociação segura (`Secure Renegotiation`);
+  4. **`ROBOT` (Bleichenbacher RSA Oracle — HIGH):** Presença de troca de
+     chaves RSA estática (`kRSA`) no TLS 1.2;
+  5. **`ticketbleed` (CVE-2016-9244 — CRITICAL):** Eco de bytes não inicializados
+     em `SessionID` de 16 bytes com extensão `SessionTicket`.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 032)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 032:
+  O scanner retornava `PASS` automaticamente se `is_https and cert_valid`, sem
+  executar nenhuma sonda para **Heartbleed**, **CRIME**, **Insecure Renegotiation**,
+  **ROBOT** ou **Ticketbleed** e sem persistir a seção `.vulnerabilities` no
+  artefato JSON `output/tls-scan.json`.
+
+- Oportunidades de Melhoria Implementadas na Iteração 032 (`casa_audit/scanner.py`):
+  1. Sondas Ativas de Vulnerabilidades TLS (`probe_tls_vulnerabilities`):
+     Implementação completa de probes TCP/OpenSSL para `heartbleed`, `CRIME_TLS`,
+     `secure_renego`, `ROBOT` e `ticketbleed`, além da detecção explícita de
+     ausência de listener TLS (`tls_endpoint_missing` HIGH).
+  2. Persistência em JSON (`output/tls-scan.json`):
+     Grava `.vulnerabilities` e `tls06ImplementationVulnerabilities` com severidade
+     classificada (`OK`, `HIGH`, `CRITICAL`).
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 32 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Registro `.vulnerabilities` em `output/tls-scan.json`:
+  `id='tls_endpoint_missing'`, `severity='HIGH'`
+- Veredito Automatizado: FAIL
+  Justificativa do Motor: A porta `3000` não possui listener TLS ativo (tráfego
+  em HTTP cleartext), impossibilitando garantias contra ataques de camada TLS.
+================================================================================

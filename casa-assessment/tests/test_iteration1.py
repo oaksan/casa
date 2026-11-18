@@ -70,13 +70,14 @@ class TestCasa3Iteration1(unittest.TestCase):
             self.assertNotIn("... and ", r["log"], f"{cid} log is truncated")
             self.assertNotIn("... (+", r["log"], f"{cid} log is truncated")
 
-        # Iteration 9: Verify CVSS v3.1 calculator, SCA SARIF generation, and docs/justificativa.txt
+        # Iteration 9-12: Verify CVSS v3.1 calculator, SCA SARIF generation, and docs/justificativa.txt
         self.assertEqual(compute_cvss3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"), 9.8)
         self.assertTrue((ROOT_DIR / "casa-assessment" / "output" / "sca-findings.sarif").exists())
         just_txt = (ROOT_DIR / "docs" / "justificativa.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 01/61: SCA-01", just_txt)
         self.assertIn("CONTROLE 02/61: SCA-02", just_txt)
         self.assertIn("CONTROLE 03/61: SCA-03", just_txt)
+        self.assertIn("CONTROLE 04/61: SCA-04", just_txt)
 
     def test_http_server_and_api_scan_endpoint(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)

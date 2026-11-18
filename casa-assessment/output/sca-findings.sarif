@@ -5,7 +5,7 @@
     {
       "tool": {
         "driver": {
-          "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS Inspector)",
+          "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS + NTIA SBOM Diff)",
           "version": "3.0.0",
           "rules": [
             {
@@ -25,11 +25,34 @@
               "shortDescription": {
                 "text": "SCA-03: Container base images and OS packages contain no unmitigated Critical/High CVEs"
               }
+            },
+            {
+              "id": "CASA3-SCA-04",
+              "shortDescription": {
+                "text": "SCA-04: Published SBOM parses as CycloneDX 1.5+ or SPDX 2.3+, carries all NTIA minimum elements, and (Assessor SBOM - Published SBOM) is empty"
+              }
             }
           ]
         }
       },
-      "results": []
+      "results": [
+        {
+          "ruleId": "CASA3-SCA-04",
+          "level": "error",
+          "message": {
+            "text": "SCA-04: No developer-published SBOM (*bom*.json / *sbom*.json / *.cdx.json / *.spdx.json) found in source repository 'casa'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

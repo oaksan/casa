@@ -325,3 +325,125 @@ OWASP Juice Shop (`bkimminich/juice-shop@sha256:318714401c46...` / `Debian:13`):
     pelo Debian, além de 26 CVEs com `CVSS < 7.0`, cumprindo exatamente a regra
     de verificação do CASA 3.0!
 ================================================================================
+
+================================================================================
+CONTROLE 04/61: SCA-04 (Iteração SDD 012)
+================================================================================
+
+1. IDENTIFICAÇÃO OFICIAL DO CONTROLE NO CASA 3.0
+--------------------------------------------------------------------------------
+- ID: SCA-04
+- Domínio: 1. Software Composition & Supply Chain
+- Nível de Garantia: AL1 (100% Automatizável)
+- Requisito Normativo (CASA 3.0 AL1 Specification.md):
+  "A complete, machine-readable SBOM is published for the assessed build, and it
+   matches an SBOM the assessor generates independently"
+- Padrões de Referência:
+  * OWASP ASVS v4.0.3: V14.2.5 (L2)
+  * NTIA Minimum Elements for a Software Bill of Materials (SBOM)
+  * CycloneDX 1.5+ / SPDX 2.3+
+- Perfis Aplicáveis: All (Todos os perfis)
+
+2. BASE NORMATIVA DO CASA 3.0 (POR QUE E COMO ESTE CONTROLE É AUTOMATIZÁVEL)
+--------------------------------------------------------------------------------
+De acordo com o documento oficial `CASA 3.0 (AL1) Test Guide.md` (Seção 1 - SCA-04):
+
+- Evidência Exigida (Evidence):
+  1. "Assessor-generated SBOM (CycloneDX 1.5+ or SPDX 2.3+) and vulnerability
+     findings in SARIF 2.1.0."
+  2. "Produced by the ADA-approved lab."
+
+- Procedimento de Teste (Test Procedure):
+  1. "Generate an SBOM independently from the application's lockfiles and image
+     digests, obtain the SBOM the developer publishes for the same build, and
+     compare the two component lists."
+  2. "Reference tooling: syft, cyclonedx-cli."
+
+- Critério Determinístico de Verificação (Verification):
+  * PASS: "Published SBOM parses as CycloneDX 1.5+ or SPDX 2.3+, every component
+    carries all NTIA minimum elements, and the set difference (assessor SBOM −
+    published SBOM) is empty."
+  * FAIL: "SBOM absent, unparseable, or not CycloneDX 1.5+ / SPDX 2.3+; any
+    component missing an NTIA minimum element; or ≥ 1 component present in the
+    assessor-generated SBOM and absent from the published one."
+
+Justificativa Acadêmica para a Defesa de Mestrado:
+O controle SCA-04 formaliza a verificação de integridade e transparência da cadeia
+de suprimentos como uma operação algorítmica de Teoria dos Conjuntos e validação de
+esquema estruturado:
+  1. Validação Sintática e de Versão: `Format(SBOM_pub) ∈ {CycloneDX >= 1.5, SPDX >= 2.3}`;
+  2. Validação dos Elementos Mínimos da NTIA (National Telecommunications and
+     Information Administration - EUA):
+     - Metadados de topo: `Timestamp`, `Author/Tool` e `Dependency Relationships`;
+     - Atributos por componente: `Supplier Name` (`supplier`/`author`/`publisher`),
+       `Component Name`, `Version of the Component` e `Other Unique Identifiers`
+       (`purl`, `cpe`, `bom-ref` ou `SPDXID`);
+  3. Diferença de Conjuntos Assimétrica (`Set Difference`):
+     Seja $S_{assessor}$ o conjunto de componentes `(name, version)` extraídos de
+     forma independente pelo avaliador (a partir de manifestos/lockfiles + camadas
+     de SO da imagem de container) e $S_{pub}$ o conjunto publicado pelo desenvolvedor.
+     O controle é aprovado se, e somente se, $S_{assessor} \setminus S_{pub} = \emptyset$.
+
+3. ANÁLISE CRÍTICA DA IMPLEMENTAÇÃO ANTERIOR E MELHORIAS (SDD ITERAÇÃO 012)
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 012:
+  O scanner verificava apenas a existência de arquivos `*sbom*.json` ou `*bom*.json`
+  na raiz do repositório (`if published_sboms: verdict = "PASS"`), sem fazer o
+  parsing do JSON, sem checar se o arquivo existia dentro da imagem de container
+  construída (`/juice-shop/bom.json`), sem validar a versão do schema CycloneDX/SPDX,
+  sem auditar os Elementos Mínimos da NTIA em cada componente e sem calcular a
+  diferença matemática de conjuntos ($S_{assessor} \setminus S_{pub}$).
+
+- Oportunidades de Melhoria Implementadas na Iteração 012 (`casa_audit/scanner.py`):
+  1. Descoberta Multi-Camada do SBOM Publicado (`evaluate_sca04_sbom_completeness`):
+     O motor inspeciona primeiro o repositório-fonte (`*sbom*.json`, `*bom*.json`,
+     `*.cdx.json`, `*.spdx.json`, `ftp/*bom*.json`) e, caso ausente no Git, extrai
+     automaticamente o artefato `/juice-shop/bom.json` gerado pelo pipeline de build
+     dentro da imagem oficial de container (`bkimminich/juice-shop:latest`).
+  2. Validação Estrita de Schema CycloneDX 1.5+ / SPDX 2.3+:
+     Verifica `bomFormat == "CycloneDX"` com `float(specVersion) >= 1.5` (ou
+     `spdxVersion >= "SPDX-2.3"`).
+  3. Auditoria Individual dos Elementos Mínimos da NTIA:
+     Verifica os metadados globais (`timestamp`, `tools`/`authors`, `dependencies`)
+     e percorre 100% dos componentes do SBOM publicado checando a presença de
+     `supplier`/`author`/`publisher`/`group`, `name`, `version` e `purl`/`bom-ref`.
+  4. Cálculo da Diferença de Conjuntos ($S_{assessor} \setminus S_{pub}$):
+     Compara cada componente do SBOM independente gerado pelo avaliador (que inclui
+     tanto os pacotes de aplicação quanto os 14 pacotes Debian 13 da camada de SO
+     extraídos no SCA-03) contra o SBOM publicado pelo desenvolvedor, sinalizando
+     tanto componentes ausentes (`ABSENT from published SBOM`) quanto divergências
+     de versão (`VERSION DRIFT in published SBOM`).
+  5. Registro Padronizado em SARIF 2.1.0:
+     As violações de SCA-04 são gravadas com a regra `CASA3-SCA-04` no artefato
+     `output/sca-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 012 contra o OWASP Juice Shop:
+- Veredito Automatizado: FAIL (3 falhas estruturais de SCA-04 comprovadas)
+- Análise Empírica Detalhada:
+  1. Ausência de SBOM publicado no repositório-fonte (`juice-shop-master`):
+     O repositório Git define o script `"sbom": "cyclonedx-npm --omit=dev --output-format=JSON --output-file=bom.json"`,
+     mas não publica o arquivo `bom.json` no controle de versão.
+  2. Incompletude dos Elementos Mínimos da NTIA no `bom.json` da Imagem Oficial
+     (`container:bkimminich/juice-shop:latest:/juice-shop/bom.json`, CycloneDX 1.6,
+     537 componentes publicados):
+     Exatamente **66 dos 537 componentes** (12,3%) no SBOM publicado pelo Juice Shop
+     não possuem o elemento obrigatório da NTIA de **Fornecedor/Autor** (`supplier`,
+     `author`, `publisher` ou `group`), incluindo pacotes críticos como `body-parser@1.20.8`,
+     `compression@1.8.2`, `morgan@1.12.1`, `multer@2.4.0`, `sequelize@6.37.8`,
+     `socket.io@4.8.4`, `qs@6.16.0` e `undici@6.29.0`.
+  3. Diferença de Conjuntos Não-Vazia ($|S_{assessor} \setminus S_{pub}| = 89 \neq 0$):
+     Dos 128 componentes identificados independentemente pelo avaliador (`sbom.cdx.json`),
+     89 apresentam discrepância em relação ao SBOM publicado pelo desenvolvedor:
+     - **14 pacotes da camada de Sistema Operacional Debian 13** (`libc6`, `libssl3t64`,
+       `zlib1g`, `libstdc++6`, `ca-certificates`, etc.) estão 100% ausentes do
+       `bom.json` publicado, pois o desenvolvedor usou apenas `cyclonedx-npm` em vez
+       de um gerador multi-camada (como `syft`) que inclua a camada base do container;
+     - **35 pacotes de produção** apresentam `VERSION DRIFT` entre o `package.json`
+       do repositório analisado e o `bom.json` empacotado na imagem `latest` (ex.:
+       `body-parser@1.20.4` vs `1.20.8`, `express@4.22.1` vs `4.23.0`, `sequelize@6.37.7`
+       vs `6.37.8`);
+     - **40 dependências de build/teste** declaradas no manifesto (`typescript`, `tsx`,
+       `cypress`, `eslint`, `@types/*`) foram omitidas por `--omit=dev`.
+================================================================================

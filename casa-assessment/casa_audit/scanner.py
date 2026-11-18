@@ -6,6 +6,7 @@ import concurrent.futures
 import datetime
 import json
 import math
+import os
 import re
 import shutil
 import socket
@@ -523,6 +524,256 @@ def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], 
     )
 
 
+def evaluate_sca04_sbom_completeness(
+    repo: Path,
+    assessor_components: list[dict],
+    assessor_sbom_path: Path,
+) -> tuple[str, list[str], list[dict], str]:
+    """
+    Evaluate SCA-04 (CASA 3.0 AL1):
+    - Locate developer-published SBOM in repository (*sbom*.json, *bom*.json, *.cdx.json, *.spdx.json)
+      or inside built container image (/juice-shop/bom.json, /app/bom.json).
+    - Verify format & schema version: CycloneDX >= 1.5 or SPDX >= 2.3.
+    - Verify NTIA Minimum Elements on metadata (timestamp, author/tool, dependency relationships)
+      and on every component (Supplier/Publisher/Author/Group, Component Name, Version, Unique ID purl/cpe/bom-ref/SPDXID).
+    - Compute mathematical Set Difference: (Assessor_SBOM - Published_SBOM) == empty set.
+    """
+    sca04_failures: list[str] = []
+    sca04_sarif: list[dict] = []
+
+    candidate_files: list[Path] = []
+    for pattern in ("*sbom*.json", "*bom*.json", "*.cdx.json", "*.spdx.json", "ftp/*bom*.json"):
+        for p in repo.glob(pattern):
+            if p.is_file() and p not in candidate_files:
+                candidate_files.append(p)
+
+    pub_sbom_data: dict | None = None
+    pub_sbom_source = ""
+
+    if candidate_files:
+        target_sbom = candidate_files[0]
+        pub_sbom_source = f"repo:{target_sbom.relative_to(repo)}"
+        try:
+            pub_sbom_data = json.loads(target_sbom.read_text(encoding="utf-8", errors="ignore"))
+        except Exception as exc:
+            msg = f"Published SBOM file '{pub_sbom_source}' is unparseable JSON ({exc})"
+            sca04_failures.append(msg)
+            sca04_sarif.append(
+                {
+                    "ruleId": "CASA3-SCA-04",
+                    "level": "error",
+                    "message": {"text": f"SCA-04: {msg}"},
+                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": str(target_sbom.relative_to(repo))}}}],
+                }
+            )
+            return "FAIL", sca04_failures, sca04_sarif, f"Unparseable SBOM ({pub_sbom_source})"
+    else:
+        msg = (
+            f"No developer-published SBOM (*bom*.json / *sbom*.json / *.cdx.json / *.spdx.json) found in source repository '{repo.name}'"
+        )
+        sca04_failures.append(msg)
+        sca04_sarif.append(
+            {
+                "ruleId": "CASA3-SCA-04",
+                "level": "error",
+                "message": {"text": f"SCA-04: {msg}"},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "package.json"}}}],
+            }
+        )
+        # Also inspect container image build artifact if available (e.g. bkimminich/juice-shop:latest:/juice-shop/bom.json)
+        docker_env = {**os.environ, "DOCKER_API_VERSION": "1.44"}
+        candidate_images = [f"bkimminich/{repo.name.replace('-master', '')}:latest", f"{repo.name}:latest"]
+        for img in candidate_images:
+            try:
+                proc = subprocess.run(
+                    [
+                        "docker",
+                        "run",
+                        "--rm",
+                        "--entrypoint",
+                        "/nodejs/bin/node",
+                        img,
+                        "-e",
+                        "const fs=require('fs'); for(const p of ['/juice-shop/bom.json','/app/bom.json']){if(fs.existsSync(p)){process.stdout.write(fs.readFileSync(p,'utf8'));break;}}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=docker_env,
+                    timeout=10,
+                )
+                if proc.returncode == 0 and proc.stdout.strip().startswith("{"):
+                    pub_sbom_data = json.loads(proc.stdout)
+                    pub_sbom_source = f"container:{img}:/juice-shop/bom.json"
+                    break
+            except Exception:
+                continue
+
+    if pub_sbom_data is None:
+        return (
+            "FAIL",
+            sca04_failures,
+            sca04_sarif,
+            f"Absent published SBOM (Assessor SBOM has {len(assessor_components)} components)",
+        )
+
+    # 1. Validate SBOM Format & Specification Version (CycloneDX >= 1.5 or SPDX >= 2.3)
+    bom_format = str(pub_sbom_data.get("bomFormat", ""))
+    spec_ver_str = str(pub_sbom_data.get("specVersion", ""))
+    spdx_ver_str = str(pub_sbom_data.get("spdxVersion", ""))
+
+    is_valid_format = False
+    format_label = "Unknown"
+    if bom_format == "CycloneDX":
+        try:
+            ver_num = float(".".join(spec_ver_str.split(".")[:2]))
+            is_valid_format = ver_num >= 1.5
+            format_label = f"CycloneDX {spec_ver_str}"
+        except Exception:
+            format_label = f"CycloneDX {spec_ver_str} (invalid version)"
+    elif spdx_ver_str.startswith("SPDX-"):
+        try:
+            ver_num = float(spdx_ver_str.replace("SPDX-", ""))
+            is_valid_format = ver_num >= 2.3
+            format_label = spdx_ver_str
+        except Exception:
+            format_label = spdx_ver_str
+
+    if not is_valid_format:
+        msg = f"Published SBOM ({pub_sbom_source}) format '{format_label}' does not satisfy CycloneDX 1.5+ or SPDX 2.3+"
+        sca04_failures.append(msg)
+        sca04_sarif.append(
+            {
+                "ruleId": "CASA3-SCA-04",
+                "level": "error",
+                "message": {"text": f"SCA-04: {msg}"},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": pub_sbom_source}}}],
+            }
+        )
+
+    # 2. Validate NTIA Minimum Elements (Metadata + Components)
+    meta = pub_sbom_data.get("metadata", {})
+    has_timestamp = bool(meta.get("timestamp") or pub_sbom_data.get("creationInfo", {}).get("created"))
+    has_author_or_tools = bool(
+        meta.get("tools") or meta.get("authors") or pub_sbom_data.get("creationInfo", {}).get("creators")
+    )
+    has_dep_graph = bool(pub_sbom_data.get("dependencies") or pub_sbom_data.get("relationships"))
+
+    if not has_timestamp or not has_author_or_tools or not has_dep_graph:
+        msg = (
+            f"Published SBOM ({pub_sbom_source}) missing top-level NTIA metadata elements "
+            f"(timestamp={has_timestamp}, author/tools={has_author_or_tools}, dependency_relationships={has_dep_graph})"
+        )
+        sca04_failures.append(msg)
+        sca04_sarif.append(
+            {
+                "ruleId": "CASA3-SCA-04",
+                "level": "error",
+                "message": {"text": f"SCA-04: {msg}"},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": pub_sbom_source}}}],
+            }
+        )
+
+    raw_pub_comps = pub_sbom_data.get("components") or pub_sbom_data.get("packages") or []
+    ntia_missing_comps: list[str] = []
+    published_names: dict[str, set[str]] = {}  # normalized_name -> set of versions
+
+    for comp in raw_pub_comps:
+        c_group = str(comp.get("group", "")).strip()
+        c_name = str(comp.get("name", "")).strip()
+        full_name = f"{c_group}/{c_name}" if c_group and not c_name.startswith(f"{c_group}/") else c_name
+        c_ver = str(comp.get("version") or comp.get("versionInfo") or "").strip()
+        c_uid = str(
+            comp.get("purl") or comp.get("cpe") or comp.get("bom-ref") or comp.get("SPDXID") or ""
+        ).strip()
+        c_supplier = (
+            comp.get("supplier")
+            or comp.get("author")
+            or comp.get("publisher")
+            or comp.get("originator")
+            or c_group
+        )
+
+        if full_name:
+            published_names.setdefault(full_name.lower(), set()).add(c_ver)
+            if c_name:
+                published_names.setdefault(c_name.lower(), set()).add(c_ver)
+
+        missing_fields: list[str] = []
+        if not c_supplier:
+            missing_fields.append("supplier/author/publisher")
+        if not full_name:
+            missing_fields.append("name")
+        if not c_ver:
+            missing_fields.append("version")
+        if not c_uid:
+            missing_fields.append("unique_id(purl/bom-ref)")
+
+        if missing_fields:
+            ntia_missing_comps.append(
+                f"{full_name or '<unnamed>'}@{c_ver or '?'} (missing NTIA: {', '.join(missing_fields)})"
+            )
+
+    if ntia_missing_comps:
+        msg = (
+            f"Published SBOM ({pub_sbom_source}) has {len(ntia_missing_comps)}/{len(raw_pub_comps)} component(s) "
+            f"missing mandatory NTIA Minimum Elements (e.g. supplier/author): "
+            + ", ".join(ntia_missing_comps)
+        )
+        sca04_failures.append(msg)
+        sca04_sarif.append(
+            {
+                "ruleId": "CASA3-SCA-04",
+                "level": "error",
+                "message": {
+                    "text": f"SCA-04: {len(ntia_missing_comps)} components in {pub_sbom_source} missing NTIA minimum elements"
+                },
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": pub_sbom_source}}}],
+            }
+        )
+
+    # 3. Compute Set Difference: (Assessor_SBOM - Published_SBOM)
+    set_diff_missing: list[str] = []
+    for acomp in assessor_components:
+        a_name = str(acomp.get("name", "")).strip()
+        a_ver = str(acomp.get("version", "")).strip()
+        a_type = str(acomp.get("type", "library")).strip()
+        a_purl = str(acomp.get("purl", "")).strip()
+
+        key = a_name.lower()
+        if key not in published_names:
+            set_diff_missing.append(f"{a_name}@{a_ver} [{a_type}] ({a_purl}) -> ABSENT from published SBOM")
+        elif a_ver not in published_names[key] and len(published_names[key]) > 0:
+            pub_vers = ", ".join(sorted(v for v in published_names[key] if v))
+            set_diff_missing.append(
+                f"{a_name}@{a_ver} [{a_type}] -> VERSION DRIFT in published SBOM (published has: {pub_vers})"
+            )
+
+    if set_diff_missing:
+        msg = (
+            f"Set Difference (Assessor_SBOM − Published_SBOM) is NON-EMPTY ({len(set_diff_missing)} component(s) in assessor SBOM missing or drifted in {pub_sbom_source}):\n    * "
+            + "\n    * ".join(set_diff_missing)
+        )
+        sca04_failures.append(msg)
+        sca04_sarif.append(
+            {
+                "ruleId": "CASA3-SCA-04",
+                "level": "error",
+                "message": {
+                    "text": f"SCA-04: Set difference (Assessor SBOM - Published SBOM) has {len(set_diff_missing)} discrepancy(ies)"
+                },
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": pub_sbom_source}}}],
+            }
+        )
+
+    verdict = "FAIL" if sca04_failures else "PASS"
+    meta_summary = (
+        f"Source: {pub_sbom_source} ({format_label}, {len(raw_pub_comps)} published vs {len(assessor_components)} assessor components, "
+        f"NTIA gaps={len(ntia_missing_comps)}, SetDiff={len(set_diff_missing)})"
+    )
+    return verdict, sca04_failures, sca04_sarif, meta_summary
+
+
+
 def analyze_package_reachability(repo: Path, pkg_name: str) -> tuple[bool, list[str]]:
     """Trace source code imports/requires and call sites from application entry points for pkg_name."""
     source_dirs = ["server.ts", "app.ts", "routes", "lib", "models", "data", "src", "app"]
@@ -800,7 +1051,13 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
         sbom_payload["components"] = cdx_components
         sbom_path.write_text(json.dumps(sbom_payload, indent=2), encoding="utf-8")
 
-    # Write SCA SARIF 2.1.0 artifact (covering SCA-01, SCA-02, and SCA-03)
+    # SCA-04: Published machine-readable SBOM (CycloneDX 1.5+ / SPDX 2.3+), NTIA minimum elements, and Set Difference (Assessor SBOM - Published SBOM) == empty
+    sca04_verdict, sca04_failures, sca04_sarif, sca04_meta = evaluate_sca04_sbom_completeness(
+        repo, cdx_components, sbom_path
+    )
+    sarif_results.extend(sca04_sarif)
+
+    # Write SCA SARIF 2.1.0 artifact (covering SCA-01, SCA-02, SCA-03, and SCA-04)
     sca_sarif_payload = {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/Sarif-2.1.0/rtm/sarif-schema-2.1.0.json",
         "version": "2.1.0",
@@ -808,7 +1065,7 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
             {
                 "tool": {
                     "driver": {
-                        "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS Inspector)",
+                        "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS + NTIA SBOM Diff)",
                         "version": "3.0.0",
                         "rules": [
                             {
@@ -827,6 +1084,12 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                                 "id": "CASA3-SCA-03",
                                 "shortDescription": {
                                     "text": "SCA-03: Container base images and OS packages contain no unmitigated Critical/High CVEs"
+                                },
+                            },
+                            {
+                                "id": "CASA3-SCA-04",
+                                "shortDescription": {
+                                    "text": "SCA-04: Published SBOM parses as CycloneDX 1.5+ or SPDX 2.3+, carries all NTIA minimum elements, and (Assessor SBOM - Published SBOM) is empty"
                                 },
                             },
                         ],
@@ -926,12 +1189,14 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
 
     # SCA-04: Published machine-readable SBOM matches assessor-generated SBOM
     results["SCA-04"] = {
-        "verdict": "PASS" if published_sboms else "FAIL",
-        "tool": "CycloneDX 1.5 SBOM Verifier",
+        "verdict": sca04_verdict,
+        "tool": f"CycloneDX 1.5+ / SPDX 2.3+ & NTIA Minimum Elements Set-Diff Verifier ({sca04_meta})",
         "log": (
-            f"[PASS] Published SBOM ({published_sboms[0].name}) found and compared against assessor-generated SBOM ({sbom_path.name})."
-            if published_sboms
-            else f"[FAIL] Assessor generated SBOM ({sbom_path.name} with {len(cdx_components)} components), but no developer-published CycloneDX/SPDX SBOM was found in {repo.name}."
+            f"[FAIL] {len(sca04_failures)} SCA-04 SBOM verification failure(s) detected ({sca04_meta}):\n  - "
+            + "\n  - ".join(sca04_failures)
+            + f"\n\nEvidence Artifacts:\n  - Assessor-Generated SBOM (CycloneDX 1.5): {sbom_path}\n  - SARIF 2.1.0: {sca_sarif_path}"
+            if sca04_verdict == "FAIL"
+            else f"[PASS] Published SBOM verified ({sca04_meta}): parses as CycloneDX 1.5+ / SPDX 2.3+, every component carries all NTIA minimum elements, and set difference (Assessor_SBOM − Published_SBOM) is empty.\nEvidence Artifacts:\n  - Assessor SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
         ),
     }
 

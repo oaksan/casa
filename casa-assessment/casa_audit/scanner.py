@@ -5598,7 +5598,11 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-03: No SQL or NoSQL injection (live probe on /rest/user/login with `' OR 1=1--`)
+    # AZI-03: Authenticated SQL & NoSQL / Operator Injection Differential & Error-Based Scanner (SARIF 2.1.0 + redacted HAR 1.2)
+    azi03_findings: list[dict] = []
+    azi03_probes = 0
+
+    # 1. SQL Injection Authentication Bypass (POST /rest/user/login)
     sqli_payload = json.dumps({"email": "' OR 1=1--", "password": "anything"}).encode("utf-8")
     sqli_status, _, sqli_body = http_probe(
         "/rest/user/login",
@@ -5606,14 +5610,152 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         headers={"Content-Type": "application/json"},
         body=sqli_payload,
     )
-    sqli_vuln = sqli_status == 200 and '"token"' in sqli_body
+    azi03_probes += 1
+    if sqli_status == 200 and '"token"' in sqli_body:
+        try:
+            sqli_email = json.loads(sqli_body).get("authentication", {}).get("umail", "<admin>")
+        except Exception:
+            sqli_email = "<admin>"
+        azi03_findings.append(
+            {
+                "url": f"{base_url}/rest/user/login",
+                "vulnType": "SQLi_Auth_Bypass",
+                "cwe": "CWE-89",
+                "status": sqli_status,
+                "detail": (
+                    f"POST {base_url}/rest/user/login with payload {{\"email\": \"' OR 1=1--\"}} "
+                    f"bypassed authentication (HTTP {sqli_status}, authenticated as '{sqli_email}')."
+                ),
+            }
+        )
+
+    # 2. Differential Boolean SQLi + Error-based SQLi on GET /rest/products/search?q=
+    sb_st, _, sb_body = http_probe("/rest/products/search?q=casa3_nomatch_zz99", headers=auth_req_headers)
+    st_bool, _, body_bool = http_probe(
+        f"/rest/products/search?q={urllib.parse.quote('casa3_nomatch_zz99\')) OR 1=1--')}",
+        headers=auth_req_headers,
+    )
+    st_err, _, body_err = http_probe("/rest/products/search?q=%27))", headers=auth_req_headers)
+    azi03_probes += 3
+    def count_records(st_c: int, txt_c: str) -> int:
+        if st_c != 200 or not txt_c:
+            return -1
+        try:
+            return len(json.loads(txt_c).get("data", []))
+        except Exception:
+            return len(re.findall(r'"id"\s*:\s*\d+', txt_c))
+
+    base_cnt = count_records(sb_st, sb_body)
+    bool_cnt = count_records(st_bool, body_bool)
+
+    if base_cnt >= 0 and bool_cnt > base_cnt:
+        azi03_findings.append(
+            {
+                "url": f"{base_url}/rest/products/search",
+                "vulnType": "SQLi_Boolean_Result_Altered",
+                "cwe": "CWE-89",
+                "status": st_bool,
+                "detail": (
+                    f"GET {base_url}/rest/products/search?q=... boolean SQLi payload \"')) OR 1=1--\" "
+                    f"altered result set from {base_cnt} to {bool_cnt} record(s) (HTTP {st_bool})."
+                ),
+            }
+        )
+    if st_err >= 500 and ("SQLITE_ERROR" in body_err or "syntax error" in body_err.lower()):
+        azi03_findings.append(
+            {
+                "url": f"{base_url}/rest/products/search",
+                "vulnType": "SQLi_Error_Based",
+                "cwe": "CWE-89",
+                "status": st_err,
+                "detail": f"GET {base_url}/rest/products/search?q=')) triggered uncaught SQLite syntax error (HTTP {st_err}).",
+            }
+        )
+
+    # 3. Non-destructive NoSQL $where / JavaScript injection on GET /rest/track-order/{id} (MarsDB)
+    nb_st, _, nb_body = http_probe("/rest/track-order/casa3_nonexistent_order_99", headers=auth_req_headers)
+    nosql_q = urllib.parse.quote("casa3_nonexistent_order_99' || true || '")
+    ns_st, _, ns_body = http_probe(
+        f"/rest/track-order/{nosql_q}",
+        headers=auth_req_headers,
+    )
+    azi03_probes += 2
+    try:
+        nbase_cnt = len(json.loads(nb_body).get("data", [])) if nb_st == 200 else -1
+        nsqli_cnt = len(json.loads(ns_body).get("data", [])) if ns_st == 200 else -1
+    except Exception:
+        nbase_cnt, nsqli_cnt = -1, -1
+
+    if nbase_cnt >= 0 and nsqli_cnt > nbase_cnt:
+        azi03_findings.append(
+            {
+                "url": f"{base_url}/rest/track-order",
+                "vulnType": "NoSQL_Where_Result_Altered",
+                "cwe": "CWE-943",
+                "status": ns_st,
+                "detail": (
+                    f"GET {base_url}/rest/track-order/ NoSQL $where payload \"' || true || '\" "
+                    f"altered MarsDB result set from {nbase_cnt} to {nsqli_cnt} order record(s) (HTTP {ns_st})."
+                ),
+            }
+        )
+
+    # 4. NoSQL JSON Operator Injection probes ($ne / $gt / $regex) on JSON login & search APIs
+    for op_name, op_payload in [
+        ("$ne_operator", {"email": {"$ne": "__none__"}, "password": {"$ne": "__none__"}}),
+        ("$regex_operator", {"email": {"$regex": ".*"}, "password": {"$ne": ""}}),
+    ]:
+        op_st, _, op_body = http_probe(
+            "/rest/user/login",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(op_payload).encode("utf-8"),
+        )
+        azi03_probes += 1
+        if op_st == 200 and '"token"' in op_body:
+            azi03_findings.append(
+                {
+                    "url": f"{base_url}/rest/user/login",
+                    "vulnType": f"NoSQL_Operator_{op_name}",
+                    "cwe": "CWE-943",
+                    "status": op_st,
+                    "detail": f"POST {base_url}/rest/user/login accepted NoSQL operator injection {op_name} (HTTP {op_st}).",
+                }
+            )
+
+    for afz3 in azi03_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-AZI-03",
+                "level": "error",
+                "message": {"text": afz3["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": afz3["url"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "AZI-03",
+                    "vulnType": afz3["vulnType"],
+                    "cwe": afz3["cwe"],
+                    "httpStatus": afz3["status"],
+                },
+            }
+        )
+
+    azi03_fail = len(azi03_findings) > 0
+    azi03_lines = [f"[{az3['cwe']} / {az3['vulnType']}] {az3['detail']}" for az3 in azi03_findings]
     results["AZI-03"] = {
-        "verdict": "FAIL" if (sqli_vuln or leaks_stack) else "PASS",
-        "tool": "Active SQL/NoSQL Injection Probe (HAR 1.2)",
+        "verdict": "FAIL" if azi03_fail else "PASS",
+        "tool": f"Authenticated SQLi & NoSQL Operator/Where Differential Scanner ({azi03_probes} active probes, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] Active SQL Injection confirmed: POST {base_url}/rest/user/login with payload {{\"email\": \"' OR 1=1--\"}} bypassed authentication (HTTP {sqli_status}) and returned admin session token (CWE-89)."
-            if sqli_vuln
-            else "[PASS] SQL and NoSQL injection probes rejected."
+            f"[FAIL] {len(azi03_findings)} SQL/NoSQL injection finding(s) confirmed across {azi03_probes} probes:\n  - "
+            + "\n  - ".join(azi03_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            if azi03_fail
+            else f"[PASS] Executed {azi03_probes} authenticated SQLi and NoSQL operator/$where injection probes; 0 injectable parameters and 0 altered result sets.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

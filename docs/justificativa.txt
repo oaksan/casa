@@ -3551,3 +3551,60 @@ Ao executar o motor atualizado da Iteração 53 contra o OWASP Juice Shop (`http
 - Artefatos gerados: `output/dast-findings.sarif` (`CASA3-AZI-02`) e `output/dast-capture.har` (redigido).
 - Veredito Automatizado: FAIL
 ================================================================================
+
+
+================================================================================
+CONTROLE 46/61: AZI-03 (Iteração SDD 054)
+================================================================================
+Título: No SQL or NoSQL injection
+Mapeamento Normativo: OWASP ASVS V5.3.4 (L1); CWE-89, CWE-943 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Injeções SQL (CWE-89) e NoSQL (CWE-943) permitem contornar autenticação, extrair
+bases inteiras via junção booleana/`UNION` ou avaliar expressões JavaScript em
+motores orientados a documentos (`$where`, `$ne`, `$regex`). O Guia de Testes
+CASA 3.0 AL1 exige para `AZI-03`:
+- Evidência: Achados de DAST autenticado e harness em SARIF 2.1.0 + HAR 1.2 redigido;
+- Procedimento: Executar varredura autenticada de SQL Injection sobre o crawl e
+  conjunto de payloads de operadores NoSQL sobre os parâmetros;
+- Critério de Aprovação (PASS): Nenhum parâmetro injetável e nenhum payload NoSQL
+  altera o conjunto de resultados de uma consulta;
+- Critério de Falha (FAIL): >= 1 parâmetro relatado como injetável ou >= 1
+  payload NoSQL alterando resultados.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop concatena strings diretamente em consultas SQLite no Sequelize
+(`POST /rest/user/login` e `GET /rest/products/search?q=`) e avalia o parâmetro
+de consulta em expressão JavaScript `$where` do MarsDB (`GET /rest/track-order/:id`).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 054:
+  O scanner enviava apenas 1 sonda SQLi em `POST /rest/user/login`, não executava
+  comparação diferencial de conjunto de resultados em buscas nem sondas NoSQL
+  (`$where`, `$ne`, `$regex`) e não gravava achados em SARIF 2.1.0.
+
+- Oportunidades de Melhoria Implementadas na Iteração 054 (`casa_audit/scanner.py`):
+  1. Scanner Diferencial de SQLi (Auth Bypass + Boolean Result Set + Error-Based):
+     Compara resposta baseline (`0` itens) contra payload booleano (`')) OR 1=1--`,
+     `>= 28` itens observados na captura de 16 KB) além de testar bypass em `/rest/user/login` e erro sintático SQLite.
+  2. Scanner de Injeção NoSQL (`$where` + Operadores JSON `$ne`/`$regex`):
+     Testa de forma não destrutiva injeção JS `$where` em `/rest/track-order/`
+     (`' || true || '`) medindo alteração do conjunto de resultados e submete
+     operadores JSON `$ne`/`$regex` ao login.
+  3. Evidência SARIF 2.1.0 (`CASA3-AZI-03`) + Redacted HAR 1.2:
+     Emite cada parâmetro/endpoint vulnerável em `output/dast-findings.sarif`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+Ao executar o motor atualizado da Iteração 54 contra o OWASP Juice Shop (`http://localhost:3000`):
+- Achados `CASA3-AZI-03` confirmados em **8 sondas ativas** (**4 falhas reais**):
+  1. `[CWE-89 / SQLi_Auth_Bypass]` `POST /rest/user/login` (`' OR 1=1--`) autenticou como `'admin@juice-sh.op'` (`HTTP 200`).
+  2. `[CWE-89 / SQLi_Boolean_Result_Altered]` `GET /rest/products/search?q=...` alterou resultado de **0 para 28 registros** na amostra capturada (`HTTP 200`).
+  3. `[CWE-89 / SQLi_Error_Based]` `GET /rest/products/search?q='))` disparou erro SQLite não tratado (`HTTP 500`).
+  4. `[CWE-943 / NoSQL_Where_Result_Altered]` `GET /rest/track-order/` com `' || true || '` alterou resultado no MarsDB de **1 para 3 pedidos** (`HTTP 200`).
+- Artefatos gerados: `output/dast-findings.sarif` (4 resultados `CASA3-AZI-03`) e `output/dast-capture.har` (redigido).
+- Veredito Automatizado: FAIL
+================================================================================

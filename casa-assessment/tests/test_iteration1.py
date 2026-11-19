@@ -81,6 +81,8 @@ class TestCasa3Iteration1(unittest.TestCase):
         for cid, r in results.items():
             self.assertNotIn("... and ", r["log"], f"{cid} log is truncated")
             self.assertNotIn("... (+", r["log"], f"{cid} log is truncated")
+            self.assertNotIn("non-blocking", r["log"].lower(), f"{cid} log leaks non-blocking findings")
+            self.assertNotIn("informational", r["log"].lower(), f"{cid} log leaks informational findings")
 
         # Iteration 9-15: Verify CVSS v3.1 calculator, Levenshtein distance, Shannon entropy, SARIF generation, and docs/justificativa.txt
         self.assertEqual(compute_cvss3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"), 9.8)
@@ -206,6 +208,7 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertEqual(w2_cls_p, {"mac_algorithm": "PASS", "timing_safe_compare": "PASS"})
 
         self.assertIn("CONTROLE 61/61: WHK-03", just_txt)
+        self.assertIn("ITERAÇÃO SDD 070", just_txt)
         w3_fail, w3_pr_f, w3_hits_f, _ = evaluate_whk03_ssrf_and_signing_secrets(
             ["https://hooks.example.com/api/webhooks/register"],
             webhook_files={"hooks.ts": "const wh = 'whsec_RealTestSecretValue1234567890'"},

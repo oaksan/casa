@@ -4583,3 +4583,43 @@ Guide.md`, evoluídos com ferramentas reais, validados empiricamente no OWASP
 Juice Shop (e fixtures dedicados quando aplicável) e documentados integralmente
 nas iterações SDD `009` a `069`.
 ================================================================================
+
+
+
+================================================================================
+ITERAÇÃO SDD 070: OMISSÃO DE ACHADOS NON-BLOCKING EM TODOS OS CONTROLES
+================================================================================
+Escopo: Global (Todos os 61 controles automatizados — SCA-01, SCA-03, TLS-04 e invariante global)
+
+1. FUNDAMENTAÇÃO NORMATIVA (CASA 3.0 AL1 TEST GUIDE)
+--------------------------------------------------------------------------------
+Conforme a seção "Finding severity" do Guia de Testes CASA 3.0 AL1, vereditos
+PASS e FAIL são decididos exclusivamente sobre achados de nível `error` que
+sobrevivem à etapa de triagem; achados não bloqueantes (`CVSS < 7.0`, não
+alcançáveis em call-graph ou marcados `will_not_fix` / `unimportant`, bem como
+avisos puramente informativos) não afetam o veredito e adicionavam ruído nos
+relatórios de evidência de FAIL/PASS.
+
+2. ALTERAÇÕES IMPLEMENTADAS (`casa_audit/scanner.py` & `tests/test_iteration1.py`)
+--------------------------------------------------------------------------------
+- `SCA-01`: Removidos os blocos `Non-blocking (CVSS < 7.0 or unreachable in
+  call-graph)` no caso `FAIL` e `Informational (CVSS < 7.0 or unreachable)` no
+  caso `PASS`. A triagem OSV.dev + CISA KEV + call-graph continua sendo executada
+  integralmente, porém apenas os pacotes `[BLOCKING]` (`CVSS >= 7.0` alcançável
+  ou CISA KEV) compõem o log de evidência.
+- `SCA-03`: Removidos os blocos `Non-blocking OS Advisories` tanto nos resultados
+  `FAIL` quanto `PASS`, mantendo apenas achados `BLOCKING HIGH/CRITICAL`.
+- `TLS-04`: Removida a nota `Informational: certificate expires in ... (< 30 days
+  threshold)` da saída de `PASS`.
+- Regressão (`tests/test_iteration1.py`): Adicionada asserção global garantindo
+  que nenhum dos 61 logs emitidos contenha `non-blocking` ou `informational`.
+
+3. VALIDAÇÃO EMPÍRICA NO OWASP JUICE SHOP (`http://localhost:3000`)
+--------------------------------------------------------------------------------
+- `ANY_NON_BLOCKING_IN_61_LOGS: []` (0 ocorrências nos 61 controles).
+- `SCA-01`: **FAIL** com exatamente **11** pacotes bloqueantes (`body-parser`,
+  `compression`, `express-jwt`, `glob`, `js-yaml`, `jsonwebtoken`, `marsdb`,
+  `multer`, `sanitize-html`, `sequelize`, `zod`), sem exposição de itens
+  moderados ou não alcançáveis.
+- `SCA-03`: **FAIL** com **5** achados bloqueantes, sem avisos OS não bloqueantes.
+================================================================================

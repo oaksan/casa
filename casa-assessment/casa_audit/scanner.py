@@ -1362,21 +1362,14 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
     }
     sca_sarif_path.write_text(json.dumps(sca_sarif_payload, indent=2), encoding="utf-8")
 
-    # SCA-01: Reachable Critical/High vulnerabilities (CVSS >= 7.0) or CISA KEV
+    # SCA-01: Reachable Critical/High vulnerabilities (CVSS >= 7.0) or CISA KEV (omit non-blocking advisories)
     if blocking_sca01_findings:
-        info_tail = (
-            "\n\nNon-blocking (CVSS < 7.0 or unreachable in call-graph):\n  - "
-            + "\n  - ".join(non_blocking_sca01_info)
-            if non_blocking_sca01_info
-            else ""
-        )
         results["SCA-01"] = {
             "verdict": "FAIL",
             "tool": f"OSV.dev + CISA KEV + Call-Graph Reachability ({osv_queried} packages, SARIF 2.1.0 + CycloneDX 1.5)",
             "log": (
-                f"[FAIL] {len(blocking_sca01_findings)} package(s) violate SCA-01 (Reachable CVSS >= 7.0 or CISA KEV) out of {len(vuln_findings)} total vulnerable package(s) in {repo.name}:\n  - "
+                f"[FAIL] {len(blocking_sca01_findings)} package(s) violate SCA-01 (Reachable CVSS >= 7.0 or CISA KEV) in {repo.name}:\n  - "
                 + "\n  - ".join(blocking_sca01_findings)
-                + info_tail
                 + f"\n\nEvidence Artifacts:\n  - SBOM (CycloneDX 1.5): {sbom_path}\n  - Vulnerability Report (SARIF 2.1.0): {sca_sarif_path}"
             ),
         }
@@ -1386,11 +1379,6 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
             "tool": f"OSV.dev + CISA KEV + Call-Graph Reachability ({osv_queried} packages, SARIF 2.1.0 + CycloneDX 1.5)",
             "log": (
                 f"[PASS] Queried {osv_queried} packages against OSV.dev & CISA KEV ({len(kev_set)} KEV entries): 0 reachable CVSS >= 7.0 vulnerabilities and 0 CISA KEV matches.\n"
-                + (
-                    "Informational (CVSS < 7.0 or unreachable):\n  - " + "\n  - ".join(non_blocking_sca01_info) + "\n"
-                    if non_blocking_sca01_info
-                    else ""
-                )
                 + f"Evidence Artifacts:\n  - SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
                 if deps
                 else f"[Not_Covered] No dependency manifest (package.json / requirements.txt) with pinned versions found in {repo}."
@@ -1417,19 +1405,12 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
             "log": f"[Not_Covered] No Dockerfile or container image digest found in {repo}.",
         }
     elif sca03_verdict == "FAIL":
-        nb_tail = (
-            "\n\nNon-blocking OS Advisories (CVSS < 7.0 or marked unimportant/will_not_fix by distribution):\n  - "
-            + "\n  - ".join(sca03_non_blocking)
-            if sca03_non_blocking
-            else ""
-        )
         results["SCA-03"] = {
             "verdict": "FAIL",
             "tool": f"Container OS Package & Base Layer Scanner ({sca03_meta})",
             "log": (
                 f"[FAIL] {len(sca03_blocking)} blocking container/OS vulnerability finding(s) (HIGH/CRITICAL CVSS >= 7.0 not marked will_not_fix):\n  - "
                 + "\n  - ".join(sca03_blocking)
-                + nb_tail
                 + f"\n\nEvidence Artifacts:\n  - SBOM (CycloneDX 1.5 with OS packages): {sbom_path}\n  - SARIF 2.1.0: {sca_sarif_path}"
             ),
         }
@@ -1439,11 +1420,6 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
             "tool": f"Container OS Package & Base Layer Scanner ({sca03_meta})",
             "log": (
                 f"[PASS] Zero unmitigated HIGH/CRITICAL OS package or base-layer CVEs across {sca03_meta}.\n"
-                + (
-                    "Non-blocking OS Advisories:\n  - " + "\n  - ".join(sca03_non_blocking) + "\n"
-                    if sca03_non_blocking
-                    else ""
-                )
                 + f"Evidence Artifacts:\n  - SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
             ),
         }
@@ -2872,14 +2848,11 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
-    cert_warn_note = (
-        f"\n  - {'; '.join(cert_audit['warnings'])}" if cert_audit.get("warnings") else ""
-    )
     results["TLS-04"] = {
         "verdict": "PASS" if tls04_pass else "FAIL",
         "tool": f"X.509 Certificate Chain, Public Root Store, Expiry & CN/SAN Validator ({host}:{protocol_target_port}, JSON)",
         "log": (
-            f"[PASS] X.509 certificate on {host}:{protocol_target_port} validates to public root store, matches CN/SAN ({cert_audit.get('san')}), and is unexpired ({cert_audit.get('remainingDays')} days remaining; notAfter={cert_audit.get('notAfter')}).{cert_warn_note}\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            f"[PASS] X.509 certificate on {host}:{protocol_target_port} validates to public root store, matches CN/SAN ({cert_audit.get('san')}), and is unexpired ({cert_audit.get('remainingDays')} days remaining; notAfter={cert_audit.get('notAfter')}).\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
             if tls04_pass
             else f"[FAIL] TLS-04 X.509 validation failed on {host}:{protocol_target_port}: "
             + ("; ".join(cert_audit["errors"]) if cert_audit["errors"] else "No X.509 certificate served over cleartext HTTP")

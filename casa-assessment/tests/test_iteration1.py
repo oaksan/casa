@@ -17,6 +17,7 @@ from casa_audit.scanner import (
     evaluate_oau05_system_browser_policy,
     evaluate_oau06_client_secret_scanner,
     evaluate_whk01_delivery_tls,
+    evaluate_whk02_hmac_and_timing_safe,
     load_controls,
     run_automated_al1_scan,
 )
@@ -183,6 +184,25 @@ class TestCasa3Iteration1(unittest.TestCase):
         )
         self.assertEqual(wf_pass, "PASS")
         self.assertEqual(wf_hits_p, [])
+
+        self.assertIn("CONTROLE 60/61: WHK-02", just_txt)
+        w2_fail, _, w2_hits, w2_cls_f = evaluate_whk02_hmac_and_timing_safe(
+            ["https://hooks.example.com/webhook"],
+            webhook_files={"whk.ts": "const expected = crypto.createHmac('sha1', sec).update(body).digest('hex'); if (sig === expected) return true"},
+            http_fn=lambda *a, **kw: (200, {}, "ok"),
+        )
+        self.assertEqual(w2_fail, "FAIL")
+        self.assertEqual(len(w2_hits), 6)
+        self.assertEqual(w2_cls_f["timing_safe_compare"], "FAIL")
+
+        w2_pass, _, w2_hits_p, w2_cls_p = evaluate_whk02_hmac_and_timing_safe(
+            ["https://hooks.example.com/webhook"],
+            webhook_files={"whk.ts": "const exp = crypto.createHmac('sha256', sec).update(body).digest(); crypto.timingSafeEqual(sigBuf, exp)"},
+            http_fn=lambda *a, **kw: (401, {}, "unauthorized"),
+        )
+        self.assertEqual(w2_pass, "PASS")
+        self.assertEqual(w2_hits_p, [])
+        self.assertEqual(w2_cls_p, {"mac_algorithm": "PASS", "timing_safe_compare": "PASS"})
         with tempfile.TemporaryDirectory() as tmpdir6:
             td6 = Path(tmpdir6)
             (td6 / "app.apk").write_bytes(

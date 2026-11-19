@@ -4448,3 +4448,64 @@ fundamentado no Juice Shop, além de validar `FAIL` e `PASS` em fixtures reais.
 - Fixture receptor com recusa `301 -> https://` + TLS 1.2/1.3 exclusivo: **PASS**.
 - Veredito Automatizado no OWASP Juice Shop: Not_Covered
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 60/61: WHK-02 (Iteração SDD 068)
+================================================================================
+Título: Payloads are authenticated with HMAC-SHA256 or stronger, verified using a timing-safe comparison
+Mapeamento Normativo: CASA v2.1.1 §7.2.1, §7.2.2; CWE-208 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Webhooks sem autenticação HMAC forte (>= SHA-256) ou que utilizam comparações
+de string/buffer em tempo variável (`===`, `==`, `Buffer.compare`) permitem
+injeção de eventos forjados e ataques de temporização sobre assinaturas (CASA
+v2.1.1 §7.2.1, §7.2.2; CWE-208). O Guia de Testes CASA 3.0 AL1 estabelece para
+`WHK-02`:
+- Evidência: Captura HAR 1.2 redigida, `testssl.sh` JSON e SARIF 2.1.0 para
+  checagens estáticas;
+- Procedimento: Enviar payloads com assinatura ausente, truncada, modificada e
+  de chave estrangeira ao receptor e inspecionar o call-site de verificação
+  quanto ao algoritmo MAC e à função de comparação constante no tempo;
+- Critério de Aprovação (PASS): Todos os 4 vetores inválidos são recusados,
+  o MAC é HMAC-SHA256 ou superior e a comparação é em tempo constante
+  (`hmac.compare_digest`, `MessageDigest.isEqual`, `crypto.timingSafeEqual`);
+  cláusulas sem código-fonte são registradas como `Not_Covered`;
+- Critério de Falha (FAIL): Qualquer payload inválido aceito, MAC < SHA-256 ou
+  comparação não constante no tempo.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop não declara receptores nem verificadores de assinatura
+webhook após varredura real de **657** arquivos e **7** sondas HTTP `POST`
+(`Not_Covered` fundamentado). Em fixtures controlados de webhook, o analisador
+comprova detecção `FAIL` completa (HMAC-SHA1, `===` e aceitação de assinaturas
+ausente/truncada/modificada/chave estrangeira) e `PASS` (`HMAC-SHA256`,
+`crypto.timingSafeEqual` e recusa `HTTP 401` dos 4 vetores).
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 068:
+  O controle `WHK-02` era uma mensagem estática fixa sem harness ativo de 4
+  vetores de assinatura, sem auditoria de algoritmo MAC nem detecção `CWE-208`
+  no call-site e sem emissão SARIF 2.1.0 (`CASA3-WHK-02`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 068 (`casa_audit/scanner.py`):
+  1. Função `evaluate_whk02_hmac_and_timing_safe`:
+     Executa o harness de 4 vetores inválidos (`absent_signature`,
+     `truncated_signature`, `modified_signature`, `foreign_key_signature`) nos
+     headers `X-Hub-Signature-256`/`X-Webhook-Signature` via `http_probe` (HAR
+     1.2), inspeciona o algoritmo MAC (`sha1`/`md5` vs `sha256`+) e audita a
+     função de comparação em call-sites (`timingSafeEqual`/`compare_digest`/
+     `MessageDigest.isEqual` vs `===`/`==`/`Buffer.compare`), emitindo
+     `CASA3-WHK-02` em SARIF 2.1.0.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP E FIXTURES (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+- OWASP Juice Shop (`http://localhost:3000`): **Not_Covered** após varredura real de **657** arquivos e **7** sondas HTTP `POST`.
+- Fixture vulnerável (`createHmac('sha1')`, `sig === expected`, HTTP 200): **FAIL** (**6** achados: MAC fraco, comparação `CWE-208` e aceitação dos 4 vetores inválidos).
+- Fixture conforme (`createHmac('sha256')`, `crypto.timingSafeEqual`, HTTP 401): **PASS** (`clauses={'mac_algorithm': 'PASS', 'timing_safe_compare': 'PASS'}`).
+- Veredito Automatizado no OWASP Juice Shop: Not_Covered
+================================================================================

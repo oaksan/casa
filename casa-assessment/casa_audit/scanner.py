@@ -7300,7 +7300,60 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    for cid in ["WHK-02", "WHK-03"]:
+    # WHK-02: HMAC-SHA256+ Payload Authentication & Constant-Time Signature Verification (absent, truncated, modified, foreign-key) (SARIF 2.1.0 + HAR 1.2)
+    whk02_verdict, whk02_probes, whk02_findings, whk02_clauses = evaluate_whk02_hmac_and_timing_safe(
+        whk_receivers,
+        webhook_files=whk_files,
+        http_fn=http_probe if base_url else None,
+    )
+    for af_w2 in whk02_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-WHK-02",
+                "level": "error",
+                "message": {"text": af_w2["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_w2["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "WHK-02",
+                    "findingKind": af_w2["kind"],
+                    "cwe": af_w2["cwe"],
+                    "httpStatus": af_w2["status"],
+                },
+            }
+        )
+    whk02_lines = [f"[{w2['cwe']} / {w2['kind']}] {w2['detail']}" for w2 in whk02_findings]
+    results["WHK-02"] = {
+        "verdict": whk02_verdict,
+        "tool": (
+            f"Webhook HMAC-SHA256+ & Constant-Time Signature Verifier ({len(whk_receivers)} receivers, "
+            f"{len(whk_files)} handler files, {whk02_probes} invalid-signature probes, clauses={whk02_clauses}, SARIF 2.1.0 + HAR 1.2)"
+        ),
+        "log": (
+            f"[FAIL] {len(whk02_findings)} webhook signature / timing-safe comparison violation(s) detected across {whk02_probes} probe(s):\n  - "
+            + "\n  - ".join(whk02_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+            if whk02_verdict == "FAIL"
+            else (
+                f"[PASS] Audited {len(whk_receivers)} webhook receiver(s) across {whk02_probes} invalid-signature replay probes "
+                f"(absent, truncated, modified, foreign-key); all invalid signatures denied and HMAC-SHA256+ / constant-time verification clauses={whk02_clauses}.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                if whk02_verdict == "PASS"
+                else (
+                    f"[Not_Covered] Audited {whk_scanned_files} workspace files and executed {whk_disc_probes} HTTP POST discovery probes; "
+                    f"0 webhook receivers or HMAC verification handlers declared/discovered.\n"
+                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                )
+            )
+        ),
+    }
+
+    for cid in ["WHK-03"]:
         results[cid] = {
             "verdict": "Not_Covered",
             "tool": "Webhook Scope Inspector",
@@ -7895,6 +7948,156 @@ def evaluate_whk01_delivery_tls(
 
     verdict = "FAIL" if findings else "PASS"
     return verdict, probes, findings, tls_results
+
+
+def evaluate_whk02_hmac_and_timing_safe(
+    receivers: list[str],
+    webhook_files: dict[str, str] | None = None,
+    http_fn=None,
+) -> tuple[str, int, list[dict], dict[str, str]]:
+    """
+    WHK-02 Webhook Payload Authentication (HMAC-SHA256+) & Constant-Time Comparison Verifier
+    (CASA v2.1.1 §7.2.1, §7.2.2; CWE-208).
+    1. Replays 4 invalid-signature probes (absent, truncated, modified, foreign_key) to each receiver.
+    2. Inspects source verification call sites for MAC algorithm strength (>= HMAC-SHA256)
+       and constant-time comparison APIs (hmac.compare_digest, crypto.timingSafeEqual,
+       MessageDigest.isEqual, subtle.ConstantTimeCompare).
+    Returns: (verdict, probes_sent, sarif_findings, clauses_summary)
+    """
+    if not receivers and not webhook_files:
+        return "Not_Covered", 0, [], {"source_clause": "Not_Covered"}
+
+    findings: list[dict] = []
+    seen_keys: set[tuple[str, str]] = set()
+    probes = 0
+    clauses = {
+        "mac_algorithm": "Not_Covered",
+        "timing_safe_compare": "Not_Covered",
+    }
+
+    def _add_whk02(loc: str, kind: str, cwe: str, detail: str, status: int = 0) -> None:
+        key_w2 = (loc, kind)
+        if key_w2 not in seen_keys:
+            seen_keys.add(key_w2)
+            findings.append({"location": loc, "kind": kind, "cwe": cwe, "status": status, "detail": detail})
+
+    # 1. Static source / handler inspection for MAC algorithm strength & constant-time signature comparison
+    weak_mac_re = re.compile(
+        r"""createHmac\s*\(\s*['"](?:sha1|md5)['"]|hmac\.new\s*\([^)]*(?:hashlib\.(?:sha1|md5)|['"](?:sha1|md5)['"])|sha1\s*=|['"]X-Hub-Signature['"]""",
+        re.IGNORECASE,
+    )
+    strong_mac_re = re.compile(
+        r"""createHmac\s*\(\s*['"]sha(?:256|384|512)['"]|hashlib\.sha(?:256|384|512)|hmac\.new\s*\([^)]*sha(?:256|384|512)|HmacSHA(?:256|384|512)|sha256=|X-Hub-Signature-256""",
+        re.IGNORECASE,
+    )
+    timing_safe_api_re = re.compile(
+        r"\b(?:hmac\.compare_digest|crypto\.timingSafeEqual|timingSafeEqual|MessageDigest\.isEqual|subtle\.ConstantTimeCompare|ConstantTimeEquals)\b"
+    )
+    naive_eq_re = re.compile(
+        r"""\b(?:sig|signature|expected|computed|digest|hmac_val|mac)\w*\s*(?:===|!==|==|!=)\s*\w+|\w+\s*(?:===|!==|==|!=)\s*\b(?:sig|signature|expected|computed|digest|hmac_val|mac)\w*|Buffer\.compare\s*\(""",
+        re.IGNORECASE,
+    )
+
+    if webhook_files:
+        saw_strong_mac = False
+        saw_timing_safe = False
+        for rel_f, f_body in sorted(webhook_files.items()):
+            for m_wm in weak_mac_re.finditer(f_body):
+                lno = f_body[: m_wm.start()].count("\n") + 1
+                _add_whk02(
+                    f"{rel_f}:{lno}",
+                    "WHK02_Weak_MAC_Algorithm",
+                    "CWE-328",
+                    f"{rel_f}:{lno} uses legacy weak MAC/signature algorithm ({m_wm.group(0).strip()}); WHK-02 requires HMAC-SHA256 or stronger.",
+                )
+            if strong_mac_re.search(f_body):
+                saw_strong_mac = True
+
+            if timing_safe_api_re.search(f_body):
+                saw_timing_safe = True
+            else:
+                for m_ne in naive_eq_re.finditer(f_body):
+                    lno = f_body[: m_ne.start()].count("\n") + 1
+                    _add_whk02(
+                        f"{rel_f}:{lno}",
+                        "WHK02_NonConstantTime_Comparison",
+                        "CWE-208",
+                        f"{rel_f}:{lno} compares webhook signature using variable-time operator/helper ('{m_ne.group(0).strip()}') instead of constant-time API (timingSafeEqual / hmac.compare_digest / MessageDigest.isEqual; CWE-208).",
+                    )
+        clauses["mac_algorithm"] = "PASS" if (saw_strong_mac and not any(x["kind"] == "WHK02_Weak_MAC_Algorithm" for x in findings)) else ("FAIL" if any(x["kind"] == "WHK02_Weak_MAC_Algorithm" for x in findings) else "Not_Covered")
+        clauses["timing_safe_compare"] = "FAIL" if any(x["kind"] == "WHK02_NonConstantTime_Comparison" for x in findings) else ("PASS" if saw_timing_safe else "Not_Covered")
+
+    # 2. Active 4-vector signed-payload delivery probes against each receiver
+    sample_body = b'{"event":"casa3.whk02.probe","id":"whk02-01","amount":1}'
+    valid_fmt_sig = hmac.new(b"casa3-baseline-key", sample_body, hashlib.sha256).hexdigest()
+    mutated_sig = ("0" if valid_fmt_sig[0] != "0" else "1") + valid_fmt_sig[1:]
+    foreign_sig = hmac.new(b"foreign-attacker-signing-key-000", sample_body, hashlib.sha256).hexdigest()
+
+    attack_vectors: list[tuple[str, dict[str, str]]] = [
+        ("absent_signature", {"Content-Type": "application/json"}),
+        (
+            "truncated_signature",
+            {
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": f"sha256={valid_fmt_sig[:12]}",
+                "X-Webhook-Signature": f"sha256={valid_fmt_sig[:12]}",
+            },
+        ),
+        (
+            "modified_signature",
+            {
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": f"sha256={mutated_sig}",
+                "X-Webhook-Signature": f"sha256={mutated_sig}",
+            },
+        ),
+        (
+            "foreign_key_signature",
+            {
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": f"sha256={foreign_sig}",
+                "X-Webhook-Signature": f"sha256={foreign_sig}",
+            },
+        ),
+    ]
+
+    def _default_signed_post(url: str, hdrs: dict[str, str], payload_b: bytes) -> tuple[int, dict[str, str], str]:
+        req = urllib.request.Request(url, data=payload_b, headers={"User-Agent": "ADA-CASA-3.0-WHK02/3.0", **hdrs}, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(4096).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, ""
+        except Exception:
+            return 0, {}, ""
+
+    for w_url in receivers:
+        for vec_lbl, vec_hdrs in attack_vectors:
+            if http_fn:
+                st, r_hdrs, _ = http_fn(w_url, method="POST", headers=vec_hdrs, body=sample_body, follow_redirects=False)
+            else:
+                st, r_hdrs, _ = _default_signed_post(w_url, vec_hdrs, sample_body)
+            probes += 1
+            if 200 <= st < 300:
+                _add_whk02(
+                    w_url,
+                    f"WHK02_Accepted_{vec_lbl}",
+                    "CWE-345",
+                    f"Webhook receiver {w_url} ACCEPTED payload with '{vec_lbl}' (HTTP {st}; violates CASA v2.1.1 §7.2.1).",
+                    status=st,
+                )
+            hdr_sig_alg = str(r_hdrs.get("x-webhook-signature-alg", "") or r_hdrs.get("x-signature-algorithm", "")).lower()
+            if hdr_sig_alg in {"hmac-sha1", "sha1", "hmac-md5", "md5"}:
+                _add_whk02(
+                    w_url,
+                    "WHK02_Weak_Declared_Signature_Header",
+                    "CWE-328",
+                    f"Webhook receiver {w_url} declares weak MAC algorithm '{hdr_sig_alg}' in response header.",
+                    status=st,
+                )
+
+    verdict = "FAIL" if findings else "PASS"
+    return verdict, probes, findings, clauses
 
 
 def evaluate_sast07_mass_assignment_probe(target_url: str) -> str | None:

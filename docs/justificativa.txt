@@ -4509,3 +4509,77 @@ ausente/truncada/modificada/chave estrangeira) e `PASS` (`HMAC-SHA256`,
 - Fixture conforme (`createHmac('sha256')`, `crypto.timingSafeEqual`, HTTP 401): **PASS** (`clauses={'mac_algorithm': 'PASS', 'timing_safe_compare': 'PASS'}`).
 - Veredito Automatizado no OWASP Juice Shop: Not_Covered
 ================================================================================
+
+
+
+================================================================================
+CONTROLE 61/61: WHK-03 (Iteração SDD 069)
+================================================================================
+Título: User-supplied callback URLs are SSRF-protected; signing secrets are not hardcoded or committed to version control
+Mapeamento Normativo: CASA v2.1.1 §7.3.1, §7.3.2; CWE-918 | Superfície: Web_Application
+
+1. FUNDAMENTAÇÃO TEÓRICA E REQUISITO DO GUIA DE TESTES CASA 3.0 AL1
+--------------------------------------------------------------------------------
+Facilities de registro de callback de webhook que aceitam e buscam URLs
+apontando para loopback, faixas RFC 1918, CGNAT, link-local ou metadados de
+nuvem — diretamente, via cadeias de redirect ou por DNS rebinding — expõem a
+infraestrutura interna a *Server-Side Request Forgery* (SSRF / CWE-918; CASA
+v2.1.1 §7.3.1), enquanto segredos de assinatura hardcoded comprometem toda a
+autenticidade de eventos (§7.3.2). O Guia de Testes CASA 3.0 AL1 estabelece
+para `WHK-03`:
+- Evidência: Captura HAR 1.2 redigida, `testssl.sh` JSON e SARIF 2.1.0;
+- Procedimento: Registrar callback URLs visando endereços privados, loopback,
+  link-local e metadados de nuvem (incluindo cadeias de redirect e DNS
+  rebinding) e executar detecção de segredos sobre o material de assinatura;
+- Critério de Aprovação (PASS): Nenhuma requisição sai para `127.0.0.0/8`,
+  `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`,
+  `100.64.0.0/10`, `::1`, `fc00::/7`, `fe80::/10`, `169.254.169.254` ou
+  `fd00:ec2::254`, e nenhum segredo de assinatura aparece no código/artefatos;
+- Critério de Falha (FAIL): >= 1 fetch para qualquer endereço dessa lista ou >= 1
+  segredo de assinatura encontrado.
+
+2. ABORDAGEM NO AMBIENTE DE TESTES CONTROLADO (OWASP JUICE SHOP)
+--------------------------------------------------------------------------------
+O OWASP Juice Shop não expõe registro de callbacks de webhook nem handlers de
+assinatura após varredura real de **657** arquivos e **10** sondas HTTP `POST`
+(`/api/webhooks/register`, `/webhooks/register`, `/api/callback`, etc.), razão
+pela qual recebe `Not_Covered` documentado. Em fixtures controlados com servidor
+local e listener HTTP efêmero OOB, o motor valida `FAIL` tanto por captura de
+fetch SSRF interno direto/via redirect `302` quanto por detecção de `whsec_...`.
+
+3. AUDITORIA DO SCANNER EXISTENTE E OPORTUNIDADES DE MELHORIA IDENTIFICADAS
+--------------------------------------------------------------------------------
+- Como estava implementado antes da Iteração 069:
+  `WHK-03` retornava apenas uma string estática `Not_Covered` sem motor de
+  descoberta ativa, sem listener HTTP OOB para SSRF, sem os 11 vetores de faixa
+  CIDR/redirect/DNS-rebind e sem detector dedicado de `whsec_...` / segredos de
+  assinatura em SARIF 2.1.0 (`CASA3-WHK-03`).
+
+- Oportunidades de Melhoria Implementadas na Iteração 069 (`casa_audit/scanner.py`):
+  1. Expansão de Descoberta (`discover_webhook_facilities` — **10** sondas HTTP POST):
+     Inclui rotas de registro de callback (`/api/webhooks/register`,
+     `/webhooks/register`, `/api/callback`).
+  2. Harness SSRF OOB & Detector de Segredos (`evaluate_whk03_ssrf_and_signing_secrets`):
+     Levanta `ThreadingHTTPServer` efêmero com rota `/ssrf-redir-hop` (`302`),
+     envia **11** payloads cobrindo `127.0.0.0/8`, `::1`, `10/8`, `172.16/12`,
+     `192.168/16`, `100.64/10`, `169.254.169.254`, `fd00:ec2::254`, `fe80::/10`,
+     redirect chain e `127.0.0.1.nip.io`, valida IPs com `ipaddress`, busca
+     segredos `whsec_...` / `signing_secret` / `WEBHOOK_SECRET`, e emite
+     `CASA3-WHK-03` em SARIF 2.1.0 + HAR 1.2 + `tls-scan.json`.
+
+4. RESULTADO PRÁTICO APLICADO AO OWASP JUICE SHOP E FIXTURES (EVIDÊNCIA EMPÍRICA)
+--------------------------------------------------------------------------------
+- OWASP Juice Shop (`http://localhost:3000`): **Not_Covered** após varredura real de **657** arquivos e **10** sondas HTTP `POST`.
+- Fixture SSRF vulnerável + `whsec_RealTestSecretValue1234567890`: **FAIL** (**11** sondas, **2** fetches OOB recebidos pelo listener + **12** violações SARIF).
+- Fixture protegido (`HTTP 400` + `process.env.WEBHOOK_SECRET`): **PASS** (`11` sondas, `0` fetches OOB, `0` achados).
+- Veredito Automatizado no OWASP Juice Shop: Not_Covered
+
+================================================================================
+CONCLUSÃO DA AUDITORIA SEQUENCIAL SDD (61/61 CONTROLES CASA 3.0 AL1 CONCLUÍDOS)
+================================================================================
+Todos os **61 controles automatizados CASA 3.0 AL1** dos 8 domínios (SCA, SAST,
+TLS, CFG, AUT, AZI, OAU e WHK) foram auditados contra o `CASA 3.0 (AL1) Test
+Guide.md`, evoluídos com ferramentas reais, validados empiricamente no OWASP
+Juice Shop (e fixtures dedicados quando aplicável) e documentados integralmente
+nas iterações SDD `009` a `069`.
+================================================================================

@@ -11,6 +11,7 @@ import hmac
 import html
 import http.client
 import http.server
+import ipaddress
 import json
 from collections import Counter
 import math
@@ -7353,12 +7354,59 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    for cid in ["WHK-03"]:
-        results[cid] = {
-            "verdict": "Not_Covered",
-            "tool": "Webhook Scope Inspector",
-            "log": "[Not_Covered] No inbound webhook receiver or outbound webhook callback facility declared for this engagement.",
-        }
+    # WHK-03: Callback URL SSRF Protection (private/loopback/link-local/cloud-metadata/redirect/DNS-rebind) & Signing Secret Detection (SARIF 2.1.0 + HAR 1.2)
+    whk03_verdict, whk03_probes, whk03_findings, whk03_cb_hits = evaluate_whk03_ssrf_and_signing_secrets(
+        whk_receivers,
+        webhook_files=whk_files,
+        repo=repo,
+        http_fn=http_probe if base_url else None,
+    )
+    for af_w3 in whk03_findings:
+        dast_sarif_results.append(
+            {
+                "ruleId": "CASA3-WHK-03",
+                "level": "error",
+                "message": {"text": af_w3["detail"]},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": af_w3["location"]},
+                        }
+                    }
+                ],
+                "properties": {
+                    "controlId": "WHK-03",
+                    "findingKind": af_w3["kind"],
+                    "cwe": af_w3["cwe"],
+                    "httpStatus": af_w3["status"],
+                },
+            }
+        )
+    whk03_lines = [f"[{w3['cwe']} / {w3['kind']}] {w3['detail']}" for w3 in whk03_findings]
+    results["WHK-03"] = {
+        "verdict": whk03_verdict,
+        "tool": (
+            f"Webhook Callback SSRF Listener & Signing-Secret Scanner ({len(whk_receivers)} callback facilities, "
+            f"{len(whk_files)} handler files, {whk03_probes} SSRF CIDR/redirect/rebind probes, oob_fetches={whk03_cb_hits}, SARIF 2.1.0 + HAR 1.2)"
+        ),
+        "log": (
+            f"[FAIL] {len(whk03_findings)} webhook SSRF / hardcoded signing-secret violation(s) detected (oob_fetches={whk03_cb_hits}):\n  - "
+            + "\n  - ".join(whk03_lines)
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+            if whk03_verdict == "FAIL"
+            else (
+                f"[PASS] Executed {whk03_probes} SSRF probes (loopback 127.0.0.0/8 & ::1, RFC1918, 100.64.0.0/10, 169.254.169.254, fd00:ec2::254, "
+                f"redirect chain, DNS rebind) and audited {len(whk_files)} webhook artifacts; 0 internal fetches and 0 hardcoded signing secrets.\n"
+                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                if whk03_verdict == "PASS"
+                else (
+                    f"[Not_Covered] Audited {whk_scanned_files} workspace files and executed {whk_disc_probes} HTTP POST discovery probes "
+                    f"(including /api/webhooks/register, /webhooks/register, /api/callback); 0 webhook callback registration facilities or signing-secret handlers discovered.\n"
+                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                )
+            )
+        ),
+    }
 
     # Write W3C HAR 1.2 and DAST SARIF 2.1.0 artifacts
     har_payload = {
@@ -7781,7 +7829,17 @@ def discover_webhook_facilities(
         spa_st, _, spa_body = http_fn("/__casa3_whk_nonexistent__", method="POST", body=b"{}")
         discovery_probes += 1
         spa_sig = spa_body[:300].strip() if spa_st == 200 else ""
-        for wp in ["/webhook", "/webhooks", "/api/webhook", "/api/webhooks", "/rest/webhook", "/hooks/callback"]:
+        for wp in [
+            "/webhook",
+            "/webhooks",
+            "/api/webhook",
+            "/api/webhooks",
+            "/rest/webhook",
+            "/hooks/callback",
+            "/api/webhooks/register",
+            "/webhooks/register",
+            "/api/callback",
+        ]:
             wst, _, wbody = http_fn(
                 wp,
                 method="POST",
@@ -8098,6 +8156,187 @@ def evaluate_whk02_hmac_and_timing_safe(
 
     verdict = "FAIL" if findings else "PASS"
     return verdict, probes, findings, clauses
+
+
+def evaluate_whk03_ssrf_and_signing_secrets(
+    callback_endpoints: list[str],
+    webhook_files: dict[str, str] | None = None,
+    repo: Path | None = None,
+    http_fn=None,
+) -> tuple[str, int, list[dict], int]:
+    """
+    WHK-03 Callback URL SSRF Protection & Signing Secret Scanner (CASA v2.1.1 §7.3.1, §7.3.2; CWE-918).
+    1. Starts an ephemeral local HTTP SSRF callback listener (direct + 302 redirect chain),
+       and probes every callback-registration facility with internal/metadata/loopback/redirect/DNS-rebind URLs
+       covering: 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16,
+       100.64.0.0/10, ::1, fc00::/7, fe80::/10, 169.254.169.254, fd00:ec2::254.
+    2. Scans webhook signing-secret material in source/config artifacts for hardcoded whsec_...
+       or literal signing_secret/WEBHOOK_SECRET strings (plus gitleaks if repo has secrets).
+    Returns: (verdict, probes_sent, sarif_findings, ssrf_callbacks_received)
+    """
+    restricted_nets = [
+        ipaddress.ip_network("127.0.0.0/8"),
+        ipaddress.ip_network("10.0.0.0/8"),
+        ipaddress.ip_network("172.16.0.0/12"),
+        ipaddress.ip_network("192.168.0.0/16"),
+        ipaddress.ip_network("169.254.0.0/16"),
+        ipaddress.ip_network("100.64.0.0/10"),
+        ipaddress.ip_network("::1/128"),
+        ipaddress.ip_network("fc00::/7"),
+        ipaddress.ip_network("fe80::/10"),
+        ipaddress.ip_network("fd00:ec2::254/128"),
+    ]
+
+    findings: list[dict] = []
+    seen_keys: set[tuple[str, str]] = set()
+    probes = 0
+    ssrf_hits: list[str] = []
+
+    def _add_whk03(loc: str, kind: str, cwe: str, detail: str, status: int = 0) -> None:
+        key_w3 = (loc, kind)
+        if key_w3 not in seen_keys:
+            seen_keys.add(key_w3)
+            findings.append({"location": loc, "kind": kind, "cwe": cwe, "status": status, "detail": detail})
+
+    # Always scan webhook signing-secret material if webhook_files exist
+    whsec_re = re.compile(r"\b(whsec_[A-Za-z0-9+/=_-]{16,})\b")
+    assign_sec_re = re.compile(
+        r"""\b(?:signing[_-]?secret|signingSecret|WEBHOOK_SECRET|webhookSecret|hmac[_-]?secret|hmacSecret)\b\s*[:=]\s*['"]([^'"\n]{8,160})['"]""",
+        re.IGNORECASE,
+    )
+    placeholder_words = {"changeme", "placeholder", "example_secret", "test_secret", "dummy", "your_signing_secret"}
+    files_to_scan = dict(webhook_files or {})
+
+    if not callback_endpoints and not files_to_scan:
+        return "Not_Covered", 0, [], 0
+
+    for rel_f, f_body in sorted(files_to_scan.items()):
+        for m_ws in whsec_re.finditer(f_body):
+            lno = f_body[: m_ws.start()].count("\n") + 1
+            _add_whk03(
+                f"{rel_f}:{lno}",
+                "WHK03_Hardcoded_whsec_Secret",
+                "CWE-798",
+                f"{rel_f}:{lno} hardcodes Standard Webhooks / Stripe signing secret '{m_ws.group(1)[:10]}***' (CASA v2.1.1 §7.3.2 / CWE-798).",
+            )
+        for m_as in assign_sec_re.finditer(f_body):
+            val_s = m_as.group(1).strip()
+            if val_s.startswith("${") or any(pw in val_s.lower() for pw in placeholder_words):
+                continue
+            lno = f_body[: m_as.start()].count("\n") + 1
+            _add_whk03(
+                f"{rel_f}:{lno}",
+                "WHK03_Hardcoded_Signing_Secret",
+                "CWE-798",
+                f"{rel_f}:{lno} hardcodes webhook signing secret literal (len={len(val_s)}, entropy={shannon_entropy_bits(val_s):.2f} bits/char; CWE-798).",
+            )
+
+    if callback_endpoints:
+        class _SsrfCbHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path.startswith("/ssrf-redir-hop"):
+                    self.send_response(302)
+                    self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/ssrf-redir-landed")
+                    self.end_headers()
+                    return
+                ssrf_hits.append(f"GET {self.path}")
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def do_POST(self):
+                if self.path.startswith("/ssrf-redir-hop"):
+                    self.send_response(302)
+                    self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/ssrf-redir-landed")
+                    self.end_headers()
+                    return
+                ssrf_hits.append(f"POST {self.path}")
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def log_message(self, *args):
+                return None
+
+        cb_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _SsrfCbHandler)
+        cb_port = cb_srv.server_address[1]
+        cb_thread = threading.Thread(target=cb_srv.serve_forever, daemon=True)
+        cb_thread.start()
+
+        try:
+            ssrf_vectors: list[tuple[str, str]] = [
+                ("loopback_ipv4_127", f"http://127.0.0.1:{cb_port}/whk03-ssrf-direct"),
+                ("loopback_ipv6_1", f"http://[::1]:{cb_port}/whk03-ssrf-ipv6"),
+                ("private_rfc1918_10", "http://10.0.0.1/whk03-ssrf-10"),
+                ("private_rfc1918_172", "http://172.16.0.1/whk03-ssrf-172"),
+                ("private_rfc1918_192", "http://192.168.1.1/whk03-ssrf-192"),
+                ("cgnat_100_64", "http://100.64.0.1/whk03-ssrf-cgnat"),
+                ("aws_metadata_169_254", "http://169.254.169.254/latest/meta-data/"),
+                ("aws_ipv6_metadata", "http://[fd00:ec2::254]/latest/meta-data/"),
+                ("link_local_fe80", "http://[fe80::1]/whk03-ssrf-fe80"),
+                ("redirect_chain_loopback", f"http://127.0.0.1:{cb_port}/ssrf-redir-hop"),
+                ("dns_rebind_loopback", f"http://127.0.0.1.nip.io:{cb_port}/whk03-dns-rebind"),
+            ]
+
+            def _default_reg_post(ep_u: str, body_b: bytes) -> tuple[int, dict[str, str], str]:
+                req = urllib.request.Request(
+                    ep_u,
+                    data=body_b,
+                    headers={"Content-Type": "application/json", "User-Agent": "ADA-CASA-3.0-WHK03/3.0"},
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=3) as r:
+                        return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read(2048).decode("utf-8", errors="ignore")
+                except urllib.error.HTTPError as he:
+                    return he.code, {k.lower(): v for k, v in he.headers.items()}, ""
+                except Exception:
+                    return 0, {}, ""
+
+            for cb_ep in callback_endpoints:
+                for vec_lbl, target_u in ssrf_vectors:
+                    # Confirm target address matches one of the WHK-03 restricted CIDRs/rebind targets
+                    host_p = (urllib.parse.urlparse(target_u).hostname or "").strip("[]")
+                    matched_cidr = "dns_rebind"
+                    try:
+                        ip_obj = ipaddress.ip_address(host_p)
+                        for net in restricted_nets:
+                            if ip_obj in net:
+                                matched_cidr = str(net)
+                                break
+                    except ValueError:
+                        pass
+
+                    reg_payload = json.dumps({"url": target_u, "callbackUrl": target_u, "webhookUrl": target_u}).encode("utf-8")
+                    before_hits = len(ssrf_hits)
+                    if http_fn:
+                        r_st, _, _ = http_fn(cb_ep, method="POST", headers={"Content-Type": "application/json"}, body=reg_payload, follow_redirects=False)
+                    else:
+                        r_st, _, _ = _default_reg_post(cb_ep, reg_payload)
+                    probes += 1
+                    time.sleep(0.05)
+                    if len(ssrf_hits) > before_hits:
+                        _add_whk03(
+                            cb_ep,
+                            f"WHK03_SSRF_Internal_Fetch_{vec_lbl}",
+                            "CWE-918",
+                            f"Callback facility {cb_ep} issued internal HTTP fetch to listener ({ssrf_hits[-1]}) for '{target_u}' ({matched_cidr}; CWE-918).",
+                            status=r_st,
+                        )
+                    elif 200 <= r_st < 300:
+                        _add_whk03(
+                            cb_ep,
+                            f"WHK03_SSRF_Accepted_Restricted_URL_{vec_lbl}",
+                            "CWE-918",
+                            f"Callback facility {cb_ep} accepted registration of restricted internal/metadata URL '{target_u}' ({matched_cidr}, HTTP {r_st}; CWE-918).",
+                            status=r_st,
+                        )
+        finally:
+            cb_srv.shutdown()
+            cb_srv.server_close()
+
+    verdict = "FAIL" if findings else "PASS"
+    return verdict, probes, findings, len(ssrf_hits)
 
 
 def evaluate_sast07_mass_assignment_probe(target_url: str) -> str | None:

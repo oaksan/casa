@@ -18,6 +18,7 @@ from casa_audit.scanner import (
     evaluate_oau06_client_secret_scanner,
     evaluate_whk01_delivery_tls,
     evaluate_whk02_hmac_and_timing_safe,
+    evaluate_whk03_ssrf_and_signing_secrets,
     load_controls,
     run_automated_al1_scan,
 )
@@ -203,6 +204,26 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertEqual(w2_pass, "PASS")
         self.assertEqual(w2_hits_p, [])
         self.assertEqual(w2_cls_p, {"mac_algorithm": "PASS", "timing_safe_compare": "PASS"})
+
+        self.assertIn("CONTROLE 61/61: WHK-03", just_txt)
+        w3_fail, w3_pr_f, w3_hits_f, _ = evaluate_whk03_ssrf_and_signing_secrets(
+            ["https://hooks.example.com/api/webhooks/register"],
+            webhook_files={"hooks.ts": "const wh = 'whsec_RealTestSecretValue1234567890'"},
+            http_fn=lambda *a, **kw: (201, {}, "registered"),
+        )
+        self.assertEqual(w3_fail, "FAIL")
+        self.assertEqual(w3_pr_f, 11)
+        self.assertGreaterEqual(len(w3_hits_f), 11)
+
+        w3_pass, w3_pr_p, w3_hits_p, w3_oob_p = evaluate_whk03_ssrf_and_signing_secrets(
+            ["https://hooks.example.com/api/webhooks/register"],
+            webhook_files={"hooks.ts": "const s = process.env.WEBHOOK_SECRET"},
+            http_fn=lambda *a, **kw: (400, {}, "blocked private url"),
+        )
+        self.assertEqual(w3_pass, "PASS")
+        self.assertEqual(w3_pr_p, 11)
+        self.assertEqual(w3_oob_p, 0)
+        self.assertEqual(w3_hits_p, [])
         with tempfile.TemporaryDirectory() as tmpdir6:
             td6 = Path(tmpdir6)
             (td6 / "app.apk").write_bytes(

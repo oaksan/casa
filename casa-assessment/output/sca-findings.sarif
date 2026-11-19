@@ -43,16 +43,1104 @@
       },
       "results": [
         {
-          "ruleId": "CASA3-SCA-04",
+          "ruleId": "CASA3-SCA-01",
           "level": "error",
           "message": {
-            "text": "SCA-04: No developer-published SBOM (*bom*.json / *sbom*.json / *.cdx.json / *.spdx.json) found in source repository 'casa'"
+            "text": "SCA-01 blocking vulnerability in body-parser@1.20.4: GHSA-27r3-jxmh-p828 / CVE-2026-111181 (CVSS 7.5 HIGH) (REACHABLE via server.ts:L18 (bodyParser.urlencoded() at L335, bodyParser.text() at L342))"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
                   "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in compression@1.8.1: GHSA-vc2v-76pw-4v95 / CVE-2026-87776 (CVSS 7.5 HIGH) (REACHABLE via server.ts:L21 (compression() at L180))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in express-jwt@0.1.3: GHSA-6g6m-m6h5-w9gf / CVE-2020-15084 (CVSS 7.7 HIGH) (REACHABLE via lib/insecurity.ts:L10 (expressJwt() at L52, expressJwt() at L53))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in glob@10.4.5: GHSA-5j98-mcp5-4vw2 / CVE-2025-64756 (CVSS 7.5 HIGH) (REACHABLE via lib/startup/restoreOverwrittenFilesWithOriginals.ts:L10 (module imported in active entry path); lib/startup/cleanupFtpFolder.ts:L6 (module imported in active entry path))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in js-yaml@3.14.0: GHSA-2883-xcg3-v3hh / CVE-2026-84375 (CVSS 7.5 HIGH), GHSA-52cp-r559-cp3m / CVE-2026-59869 (CVSS 7.5 HIGH), GHSA-5p4m-2wfm-xmqj (CVSS 7.5 HIGH) (REACHABLE via server.ts:L8 (yaml.load() at L140); routes/vulnCodeFixes.ts:L2 (yaml.load() at L83); routes/vulnCodeSnippet.ts:L7 (yaml.load() at L90); routes/fileUpload.ts:L10 (yaml.load() at L114); lib/scripts/lintConfig.ts:L12 (yaml.load() at L22); data/staticData.ts:L3 (module imported in active entry path))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in jsonwebtoken@0.4.0: GHSA-8cf7-32gw-wr33 / CVE-2022-23539 (CVSS 8.1 HIGH), GHSA-c7hr-j4mj-j2w6 / CVE-2015-9235 (CVSS 9.5 CRITICAL) (REACHABLE via routes/authenticatedUsers.ts:L7 (module imported in active entry path); routes/verify.ts:L8 (jwt.decode() at L119, jwt.verify() at L125); lib/insecurity.ts:L11 (jwt.sign() at L54, jwt.verify() at L189))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in marsdb@0.6.11: GHSA-5mrr-rgp6-x4gr (CVSS 9.5 CRITICAL) (REACHABLE via data/mongodb.ts:L7 (MarsDB.Collection() at L9, MarsDB.Collection() at L10))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in multer@2.4.0: GHSA-q7qp-rjg7-q26m / CVE-2026-113872 (CVSS 7.5 HIGH) (REACHABLE via server.ts:L11 (multer() at L722, multer() at L728, multer.diskStorage() at L729))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in sanitize-html@1.4.2: GHSA-cgfm-xwp7-2cvr / CVE-2022-25887 (CVSS 7.5 HIGH) (REACHABLE via lib/insecurity.ts:L13 (sanitizeHtmlLib() at L58); lib/challengeUtils.ts:L5 (sanitizeHtml() at L65))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in sequelize@6.37.3: GHSA-6457-6jrx-69cr / CVE-2026-30951 (CVSS 7.5 HIGH), GHSA-v8fg-2rw7-q452 / CVE-2026-69240 (CVSS 9.8 CRITICAL) (REACHABLE via routes/imageCaptcha.ts:L7 (module imported in active entry path); routes/metrics.ts:L13 (module imported in active entry path); routes/continueCode.ts:L10 (module imported in active entry path); routes/chat.ts:L11 (module imported in active entry path); routes/verify.ts:L7 (module imported in active entry path); lib/noUpdate.ts:L4 (module imported in active entry path); lib/challengeUtils.ts:L2 (module imported in active entry path); models/complaint.ts:L13 (module imported in active entry path); models/relations.ts:L1 (module imported in active entry path); models/product.ts:L15 (module imported in active entry path); models/hint.ts:L13 (module imported in active entry path); models/wallet.ts:L13 (module imported in active entry path); models/imageCaptcha.ts:L13 (module imported in active entry path); models/recycle.ts:L13 (module imported in active entry path); models/quantity.ts:L13 (module imported in active entry path); models/user.ts:L14 (module imported in active entry path); models/index.ts:L28 (module imported in active entry path); models/captcha.ts:L12 (module imported in active entry path); models/card.ts:L13 (module imported in active entry path); models/memory.ts:L13 (module imported in active entry path); models/basketitem.ts:L13 (module imported in active entry path); models/securityAnswer.ts:L13 (module imported in active entry path); models/securityQuestion.ts:L13 (module imported in active entry path); models/privacyRequests.ts:L13 (module imported in active entry path); models/delivery.ts:L13 (module imported in active entry path); models/basket.ts:L14 (module imported in active entry path); models/challengeDependency.ts:L13 (module imported in active entry path); models/feedback.ts:L15 (module imported in active entry path); models/address.ts:L13 (module imported in active entry path); models/challenge.ts:L13 (module imported in active entry path); data/datacreator.ts:L32 (module imported in active entry path))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-01",
+          "level": "error",
+          "message": {
+            "text": "SCA-01 blocking vulnerability in zod@4.4.3: GHSA-mrhx-c7xc-m3w5 / CVE-2023-54404 (CVSS 7.5 HIGH) (REACHABLE via routes/chat.ts:L10 (module imported in active entry path); lib/config.schema.ts:L6 (module imported in active entry path))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on check-dependencies@2.0.0: OpenSSF Scorecard Maintained=1/10 (< 5 threshold, repo: github.com/mgol/check-dependencies, last release: 2023-11-15)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on clarinet@0.12.6: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/dscape/clarinet, last release: 2023-08-24)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on colors@1.4.0: OpenSSF Scorecard Maintained=1/10 (< 5 threshold, repo: github.com/Marak/colors.js, last release: 2019-09-22)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on cookie-parser@1.4.7: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/expressjs/cookie-parser, last release: 2024-10-08)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on cookieconsent@3.1.1: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/osano/cookieconsent, last release: 2019-05-23)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on download@8.0.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/kevva/download, last release: 2020-04-02)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on errorhandler@1.5.1: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/expressjs/errorhandler, last release: 2025-12-15)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on ethers@6.16.0: OpenSSF Scorecard Maintained=1/10 (< 5 threshold, repo: github.com/ethers-io/ethers.js, last release: 2026-06-18)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on express-ipfilter@1.3.2: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/jetersen/express-ipfilter, last release: 2026-01-05)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on express-jwt@0.1.3: Past End-of-Life (Legacy 0.x branch (latest is 8.5.1)) | OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/auth0/express-jwt, last release: 2024-12-09)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on express-robots-txt@0.5.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/modosc/express-robots-txt, last release: 2021-08-21)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on express-security.txt@2.0.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/gergelyke/express-security.txt, last release: 2018-08-27)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on feature-policy@0.6.0: OpenSSF Scorecard Maintained=1/10 (< 5 threshold, repo: github.com/helmetjs/feature-policy, last release: 2020-12-23)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on file-stream-rotator@1.0.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/rogerc/file-stream-rotator, last release: 2022-11-13)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on finale-rest@1.2.2: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/tommybananas/finale, last release: 2024-04-17)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on glob@10.4.5: Deprecated in registry: 'Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on graceful-fs@4.2.11: OpenSSF Scorecard Maintained=1/10 (< 5 threshold, repo: github.com/isaacs/node-graceful-fs, last release: 2026-11-12)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on hashids@2.3.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/niieani/hashids.js, last release: 2023-05-24)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on html-entities@1.4.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/mdevils/node-html-entities, last release: 2025-03-30)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on i18n@0.11.1: OpenSSF Scorecard Maintained=4/10 (< 5 threshold, repo: github.com/mashpie/i18n-node, last release: 2026-09-02)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on jsonwebtoken@0.4.0: Deprecated in registry: 'Critical vulnerability fix in v5.0.0. See https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/' | OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/auth0/node-jsonwebtoken, last release: 2025-12-04)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on marsdb@0.6.11: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/c58/marsdb, last release: 2016-09-07)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on material-icons@1.13.14: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/marella/material-icons, last release: 2025-02-12)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on median@0.0.2: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/lafikl/median, last release: 2013-12-15)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on notevil@1.3.3: Deprecated in registry: 'Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.' | OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/mmckegg/notevil, last release: 2020-03-04)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on portscanner@2.2.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/baalexander/node-portscanner, last release: 2018-05-14)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on prom-client@15.1.3: Deprecated in registry: 'prom-client has been replaced by @prometheus-io/client'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on pug@3.0.3: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/pugjs/pug, last release: 2026-03-13)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on replace@1.2.2: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/ALMaclaine/replace, last release: 2022-10-25)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on sanitize-html@1.4.2: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/punkave/sanitize-html, last release: 2026-11-11)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on semver@7.6.3: OpenSSF Scorecard Maintained=2/10 (< 5 threshold, repo: github.com/npm/node-semver, last release: 2026-11-02)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on serve-index@1.9.1: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/expressjs/serve-index, last release: 2026-01-22)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on svg-captcha@1.4.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/steambap/svg-captcha, last release: 2019-05-03)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on swagger-ui-express@5.0.1: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/scottie1984/swagger-ui-express, last release: 2024-05-31)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on unzipper@0.12.3: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/ZJONSSON/node-unzipper, last release: 2026-06-21)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on winston@3.16.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/winstonjs/winston, last release: 2025-12-07)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on z85@0.0.2: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/msealand/z85.node, last release: 2014-03-19)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on @istanbuljs/nyc-config-typescript@1.0.2: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/istanbuljs/istanbuljs, last release: 2021-12-01)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on @types/config@3.3.5: Deprecated in registry: 'This is a stub types definition. config provides its own type definitions, so you do not need this installed.'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on @types/diff@7.0.1: Deprecated in registry: 'This is a stub types definition. diff provides its own type definitions, so you do not need this installed.'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on @types/express-jwt@6.0.4: Deprecated in registry: 'This is a stub types definition. express-jwt provides its own type definitions, so you do not need this installed.'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on @types/glob@7.2.0: Deprecated in registry: 'This is a stub types definition. glob provides its own type definitions, so you do not need this installed.'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on @types/sequelize@4.28.20: Deprecated in registry: 'This is a stub types definition. sequelize provides its own type definitions, so you do not need this installed.'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on concurrently@5.3.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/kimmobrunfeldt/concurrently, last release: 2026-11-07)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on eslint@9.39.4: Deprecated in registry: 'This version is no longer supported. Please see https://eslint.org/version-support for other options.'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on exif@0.6.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/gomfunkel/node-exif, last release: 2016-02-02)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-02",
+          "level": "error",
+          "message": {
+            "text": "SCA-02 violation on nyc@15.1.0: OpenSSF Scorecard Maintained=0/10 (< 5 threshold, repo: github.com/istanbuljs/nyc, last release: 2026-02-22)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-03",
+          "level": "error",
+          "message": {
+            "text": "SCA-03: Dockerfile base image tag(s) not pinned by immutable @sha256 digest: node:24, gcr.io/distroless/nodejs24-debian13"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Dockerfile"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-03",
+          "level": "error",
+          "message": {
+            "text": "SCA-03 OS package vulnerability: gcc-14@14.2.0-19 (OS binary: gcc-14-base, libgcc-s1, libgomp1, libstdc++6) [BLOCKING HIGH/CRITICAL]: DEBIAN-CVE-2026-102010 (CVE-2026-102010, CVSS 7.0 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-95619 (CVE-2026-95619, CVSS 7.7 HIGH, urgency=not yet assigned)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Dockerfile"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-03",
+          "level": "error",
+          "message": {
+            "text": "SCA-03 OS package vulnerability: glibc@2.41-12+deb13u4 (OS binary: libc6) [BLOCKING HIGH/CRITICAL]: DEBIAN-CVE-2026-19499 (CVE-2026-19499, CVSS 7.7 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-5435 (CVE-2026-5435, CVSS 7.3 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-84243 (CVE-2026-84243, CVSS 7.0 HIGH, urgency=not yet assigned)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Dockerfile"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-03",
+          "level": "error",
+          "message": {
+            "text": "SCA-03 OS package vulnerability: openssl@3.5.7-1~deb13u3 (OS binary: libssl3t64) [BLOCKING HIGH/CRITICAL]: DEBIAN-CVE-2026-107493 (CVE-2026-107493, CVSS 7.7 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-107496 (CVE-2026-107496, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-124709 (CVE-2026-124709, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-88823 (CVE-2026-88823, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-95691 (CVE-2026-95691, CVSS 8.1 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-95692 (CVE-2026-95692, CVSS 7.5 HIGH, urgency=not yet assigned)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Dockerfile"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-03",
+          "level": "error",
+          "message": {
+            "text": "SCA-03 OS package vulnerability: zlib@1:1.3.dfsg+really1.3.1-1+b1 (OS binary: zlib1g) [BLOCKING HIGH/CRITICAL]: DEBIAN-CVE-2026-76844 (CVE-2026-76844, CVSS 7.4 HIGH, urgency=not yet assigned)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Dockerfile"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-04",
+          "level": "error",
+          "message": {
+            "text": "SCA-04: No developer-published SBOM (*bom*.json / *sbom*.json / *.cdx.json / *.spdx.json) found in source repository 'juice-shop-master'"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-04",
+          "level": "error",
+          "message": {
+            "text": "SCA-04: 66 components in container:bkimminich/juice-shop:latest:/juice-shop/bom.json missing NTIA minimum elements"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "container:bkimminich/juice-shop:latest:/juice-shop/bom.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-04",
+          "level": "error",
+          "message": {
+            "text": "SCA-04: Set difference (Assessor SBOM - Published SBOM) has 89 discrepancy(ies)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "container:bkimminich/juice-shop:latest:/juice-shop/bom.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-05",
+          "level": "error",
+          "message": {
+            "text": "SCA-05: [MALICIOUS/COMPROMISED ADVISORY] eslint-scope@3.7.2 (in ftp/package.json.bak) matches GHSA-hxxf-q3w9-4xgw: Compromised Maintainer / Credential Stealer (npm:eslint-scope:20180712 / eslint-scope@3.7.2)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "ftp/package.json.bak"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-05",
+          "level": "error",
+          "message": {
+            "text": "SCA-05: [TYPOSQUATTING DETECTED] ngy-cookie@6.0.0 (in frontend/package.json): Levenshtein distance = 1 from top-10k package 'ngx-cookie' under different maintainer (ngy-cookie maintainers=['bkimminich'] vs ngx-cookie maintainers=['sa.alemdar']) [CLONED DESCRIPTION]"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "frontend/package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SCA-05",
+          "level": "error",
+          "message": {
+            "text": "SCA-05: [TYPOSQUATTING DETECTED] epilogue-js@0.7 (in ftp/package.json.bak): Language-suffix typosquat ('-js'distance=3) of canonical package 'epilogue' under different maintainer (epilogue-js maintainers=['bkimminich'] vs epilogue maintainers=['dchester', 'mbroadst']) [CLONED DESCRIPTION]"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "ftp/package.json.bak"
                 }
               }
             }

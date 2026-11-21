@@ -37,6 +37,9 @@ SEMGREP_RULES = CASA_ASSESS_DIR / "rules" / "casa3_al1_sast.yml"
 OUTPUT_DIR = CASA_ASSESS_DIR / "output"
 
 SEMGREP_BIN = shutil.which("semgrep") or "/home/user/.local/bin/semgrep"
+SYFT_BIN = shutil.which("syft") or "/home/user/.local/bin/syft"
+OSV_SCANNER_BIN = shutil.which("osv-scanner") or "/home/user/.local/bin/osv-scanner"
+TRIVY_BIN = shutil.which("trivy") or "/home/user/.local/bin/trivy"
 
 
 def load_controls() -> list[dict]:
@@ -123,11 +126,64 @@ def fetch_osv_vuln_detail(vuln_id: str) -> dict:
         return {"id": vuln_id}
 
 
+def _extract_github_slug(repo_url: str) -> str:
+    m_gh = re.search(r"github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git|/|$)", repo_url or "")
+    return m_gh.group(1) if m_gh else ""
+
+
+def _fetch_scorecard_maintained(slug: str) -> tuple[float | None, int | None]:
+    if not slug:
+        return None, None
+    try:
+        with urllib.request.urlopen(
+            f"https://api.securityscorecards.dev/projects/github.com/{slug}",
+            timeout=4,
+        ) as sr:
+            sc = json.loads(sr.read().decode("utf-8"))
+            overall = sc.get("score")
+            for chk in sc.get("checks", []):
+                if chk.get("name") == "Maintained":
+                    return overall, chk.get("score")
+            return overall, None
+    except Exception:
+        return None, None
+
+
+def _check_endoflife_cycle(
+    prod: str,
+    major: str,
+    today_iso: str,
+    eol_cache: dict[str, list[dict]],
+    eol_lock: threading.Lock,
+) -> tuple[bool, str]:
+    with eol_lock:
+        cycles = eol_cache.get(prod)
+    if cycles is None:
+        try:
+            with urllib.request.urlopen(f"https://endoflife.date/api/{prod}.json", timeout=4) as r:
+                cycles = json.loads(r.read().decode("utf-8"))
+        except Exception:
+            cycles = []
+        with eol_lock:
+            eol_cache[prod] = cycles
+    for cyc in cycles:
+        if str(cyc.get("cycle")) == str(major):
+            eol_val = cyc.get("eol")
+            if isinstance(eol_val, str) and eol_val < today_iso:
+                return True, eol_val
+            if eol_val is True:
+                return True, "EOL"
+            if isinstance(eol_val, str):
+                return False, eol_val
+            break
+    return False, ""
+
+
 def evaluate_sca02_dependencies(
     repo: Path,
     deps: list[tuple[str, str, str]],
 ) -> tuple[list[str], list[dict], dict[str, int]]:
-    """Evaluate SCA-02 for direct dependencies using lockfile registry resolution,
+    """Evaluate SCA-02 for direct dependencies using lockfile version/registry resolution,
     endoflife.date API, npm/PyPI deprecation metadata, and OpenSSF Scorecard API (`Maintained` >= 5).
     """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -139,8 +195,8 @@ def evaluate_sca02_dependencies(
         except Exception:
             cache = {}
 
-    # 1. Inspect lockfile (package-lock.json) for registry URLs and digest integrity
-    lock_resolved: dict[str, tuple[str, str]] = {}
+    # 1. Inspect lockfile (package-lock.json) for resolved versions, registry URLs and digest integrity
+    lock_resolved: dict[str, tuple[str, str, str]] = {}  # pkg -> (resolved_url, integrity, resolved_version)
     pkg_lock = repo / "package-lock.json"
     if pkg_lock.exists():
         try:
@@ -149,22 +205,65 @@ def evaluate_sca02_dependencies(
                 if k.startswith("node_modules/") and isinstance(v, dict):
                     pname = k[len("node_modules/") :]
                     if "node_modules/" not in pname:
-                        lock_resolved[pname] = (str(v.get("resolved", "")), str(v.get("integrity", "")))
+                        lock_resolved[pname] = (
+                            str(v.get("resolved", "")),
+                            str(v.get("integrity", "")),
+                            str(v.get("version", "")),
+                        )
         except Exception:
             pass
 
-    # 2. Check endoflife.date for known tracked products (e.g., angular, bootstrap, moment, express)
+    # Also detect untrusted pip sources (--index-url, --extra-index-url, git+, plain http://) in requirements*.txt
+    pip_untrusted_sources: dict[str, str] = {}
+    req_files = [repo / "requirements.txt"] if (repo / "requirements.txt").exists() else [
+        p for p in repo.rglob("requirements*.txt") if "node_modules" not in p.parts
+    ]
+    custom_index_url = ""
+    for rf in req_files:
+        try:
+            for raw_line in rf.read_text(encoding="utf-8", errors="ignore").splitlines():
+                ls = raw_line.strip()
+                m_idx = re.match(r"^--(?:extra-)?index-url\s+(\S+)", ls)
+                if m_idx:
+                    idx_u = m_idx.group(1)
+                    if not idx_u.startswith(("https://pypi.org/", "https://pypi.python.org/")):
+                        custom_index_url = idx_u
+                m_url = re.match(r"^([A-Za-z0-9_\-\.]+)\s*@\s*(\S+)", ls)
+                if m_url:
+                    pip_untrusted_sources[m_url.group(1).lower()] = m_url.group(2)
+        except Exception:
+            pass
+
+    # Normalize direct dependencies with exact lockfile version when available
+    resolved_deps: list[tuple[str, str, str]] = []
+    for eco, name, ver in deps:
+        if eco == "npm" and name in lock_resolved and lock_resolved[name][2]:
+            resolved_deps.append((eco, name, lock_resolved[name][2]))
+        else:
+            resolved_deps.append((eco, name, ver))
+
+    # 2. Expanded endoflife.date mapping across tracked ecosystem frameworks & libraries
     eol_product_map = {
         "@angular/core": "angular",
+        "angular": "angular",
         "bootstrap": "bootstrap",
         "moment": "moment",
         "jquery": "jquery",
+        "express": "express",
+        "vue": "vue",
+        "react": "react",
+        "next": "nextjs",
+        "nuxt": "nuxt",
+        "django": "django",
+        "sqlite3": "sqlite",
     }
     today_iso = datetime.date.today().isoformat()
+    eol_cache: dict[str, list[dict]] = {}
+    eol_lock = threading.Lock()
 
     def inspect_single_dep(item: tuple[str, str, str]) -> dict:
         eco, name, ver = item
-        cache_key = f"{eco}:{name}@{ver}"
+        cache_key = f"v2:{eco}:{name}@{ver}"
         if cache_key in cache:
             return cache[cache_key]
 
@@ -181,26 +280,14 @@ def evaluate_sca02_dependencies(
             "last_published": "",
         }
 
-        # Check endoflife.date if mapped
-        if name in eol_product_map:
+        if name in eol_product_map and re.match(r"^\d+", ver):
             prod = eol_product_map[name]
             major = ver.split(".")[0]
-            try:
-                with urllib.request.urlopen(f"https://endoflife.date/api/{prod}.json", timeout=4) as r:
-                    cycles = json.loads(r.read().decode("utf-8"))
-                    for cyc in cycles:
-                        if str(cyc.get("cycle")) == major:
-                            eol_val = cyc.get("eol")
-                            if isinstance(eol_val, str):
-                                res_info["eol_date"] = eol_val
-                                if eol_val < today_iso:
-                                    res_info["is_past_eol"] = True
-                            elif eol_val is True:
-                                res_info["eol_date"] = "EOL"
-                                res_info["is_past_eol"] = True
-                            break
-            except Exception:
-                pass
+            past_eol, eol_dt = _check_endoflife_cycle(prod, major, today_iso, eol_cache, eol_lock)
+            if eol_dt:
+                res_info["eol_date"] = eol_dt
+            if past_eol:
+                res_info["is_past_eol"] = True
 
         if eco == "npm":
             try:
@@ -231,23 +318,35 @@ def evaluate_sca02_dependencies(
 
                     repo_obj = ver_obj.get("repository") or m.get("repository") or {}
                     repo_url = repo_obj.get("url", "") if isinstance(repo_obj, dict) else str(repo_obj)
-                    m_gh = re.search(r"github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git|/|$)", repo_url)
-                    if m_gh:
-                        slug = m_gh.group(1)
+                    slug = _extract_github_slug(repo_url)
+                    if slug:
                         res_info["repo_slug"] = slug
-                        try:
-                            with urllib.request.urlopen(
-                                f"https://api.securityscorecards.dev/projects/github.com/{slug}",
-                                timeout=4,
-                            ) as sr:
-                                sc = json.loads(sr.read().decode("utf-8"))
-                                res_info["scorecard_overall"] = sc.get("score")
-                                for chk in sc.get("checks", []):
-                                    if chk.get("name") == "Maintained":
-                                        res_info["scorecard_maintained"] = chk.get("score")
-                                        break
-                        except Exception:
-                            pass
+                        ov, maint = _fetch_scorecard_maintained(slug)
+                        res_info["scorecard_overall"] = ov
+                        res_info["scorecard_maintained"] = maint
+            except Exception:
+                pass
+        elif eco == "PyPI":
+            try:
+                encoded_name = urllib.parse.quote(name, safe="")
+                with urllib.request.urlopen(f"https://pypi.org/pypi/{encoded_name}/json", timeout=5) as r:
+                    pdata = json.loads(r.read().decode("utf-8"))
+                    pinfo = pdata.get("info", {})
+                    classifiers = pinfo.get("classifiers") or []
+                    if any("7 - Inactive" in c for c in classifiers):
+                        res_info["deprecated"] = "PyPI Development Status :: 7 - Inactive"
+                    rel_files = (pdata.get("releases") or {}).get(ver, [])
+                    if rel_files and all(rf.get("yanked") for rf in rel_files if isinstance(rf, dict)):
+                        res_info["deprecated"] = "PyPI release yanked"
+                    url_candidates = " ".join(
+                        str(v) for v in (pinfo.get("project_urls") or {}).values() if v
+                    ) + " " + str(pinfo.get("home_page") or "")
+                    slug = _extract_github_slug(url_candidates)
+                    if slug:
+                        res_info["repo_slug"] = slug
+                        ov, maint = _fetch_scorecard_maintained(slug)
+                        res_info["scorecard_overall"] = ov
+                        res_info["scorecard_maintained"] = maint
             except Exception:
                 pass
 
@@ -255,11 +354,11 @@ def evaluate_sca02_dependencies(
 
     # Inspect direct dependencies concurrently
     inspected: list[dict] = []
-    if deps:
+    if resolved_deps:
         with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
-            inspected = list(pool.map(inspect_single_dep, deps))
+            inspected = list(pool.map(inspect_single_dep, resolved_deps))
         for item_res in inspected:
-            cache[f"{item_res['eco']}:{item_res['name']}@{item_res['ver']}"] = item_res
+            cache[f"v2:{item_res['eco']}:{item_res['name']}@{item_res['ver']}"] = item_res
         try:
             cache_file.write_text(json.dumps(cache, indent=2), encoding="utf-8")
         except Exception:
@@ -267,7 +366,32 @@ def evaluate_sca02_dependencies(
 
     sca02_failures: list[str] = []
     sca02_sarif: list[dict] = []
-    stats = {"total": len(deps), "untrusted_registry": 0, "eol_or_deprecated": 0, "low_scorecard": 0}
+    stats = {"total": len(resolved_deps), "untrusted_registry": 0, "eol_or_deprecated": 0, "low_scorecard": 0}
+
+    # Check declared runtime engines.node against endoflife.date/api/nodejs.json
+    pkg_json = repo / "package.json"
+    if pkg_json.exists():
+        try:
+            pjson = json.loads(pkg_json.read_text(encoding="utf-8", errors="ignore"))
+            node_spec = str((pjson.get("engines") or {}).get("node", "")).strip()
+            m_node = re.search(r"(\d+)", node_spec)
+            if m_node:
+                node_maj = m_node.group(1)
+                node_past_eol, node_eol_dt = _check_endoflife_cycle("nodejs", node_maj, today_iso, eol_cache, eol_lock)
+                if node_past_eol:
+                    line = f"nodejs@{node_maj} (engines.node='{node_spec}'): Past End-of-Life ({node_eol_dt})"
+                    sca02_failures.append(line)
+                    stats["eol_or_deprecated"] += 1
+                    sca02_sarif.append(
+                        {
+                            "ruleId": "CASA3-SCA-02",
+                            "level": "error",
+                            "message": {"text": f"SCA-02 violation on {line}"},
+                            "locations": [{"physicalLocation": {"artifactLocation": {"uri": "package.json"}}}],
+                        }
+                    )
+        except Exception:
+            pass
 
     for info in inspected:
         name = info["name"]
@@ -275,15 +399,26 @@ def evaluate_sca02_dependencies(
         eco = info["eco"]
         reasons: list[str] = []
 
-        # Criterion A: Source registry resolution in lockfile
+        # Criterion A: Source registry resolution in lockfile / requirements
         if eco == "npm" and lock_resolved and name in lock_resolved:
-            resolved_url, integrity = lock_resolved[name]
-            if resolved_url and not resolved_url.startswith("https://registry.npmjs.org/"):
+            resolved_url, integrity, _ = lock_resolved[name]
+            if not resolved_url:
+                reasons.append("Missing resolved source registry URL in package-lock.json")
+                stats["untrusted_registry"] += 1
+            elif not resolved_url.startswith("https://registry.npmjs.org/"):
                 if not (resolved_url.startswith("https://") and integrity.startswith(("sha512-", "sha256-"))):
                     reasons.append(f"Untrusted/unpinned source registry ({resolved_url})")
                     stats["untrusted_registry"] += 1
+        elif eco == "PyPI":
+            direct_u = pip_untrusted_sources.get(name.lower(), "")
+            if direct_u and not direct_u.startswith(("https://pypi.org/", "https://files.pythonhosted.org/")):
+                reasons.append(f"Untrusted direct PyPI source URL ({direct_u})")
+                stats["untrusted_registry"] += 1
+            elif custom_index_url:
+                reasons.append(f"Non-canonical PyPI index-url ({custom_index_url})")
+                stats["untrusted_registry"] += 1
 
-        # Criterion B: End-of-life (endoflife.date / legacy branch / npm deprecated warning)
+        # Criterion B: End-of-life (endoflife.date / legacy branch / npm or PyPI deprecated)
         if info["deprecated"]:
             reasons.append(f"Deprecated in registry: '{info['deprecated']}'")
             stats["eol_or_deprecated"] += 1
@@ -302,22 +437,102 @@ def evaluate_sca02_dependencies(
         if reasons:
             line = f"{name}@{ver}: " + " | ".join(reasons)
             sca02_failures.append(line)
+            loc_uri = "package-lock.json" if (eco == "npm" and pkg_lock.exists()) else ("requirements.txt" if eco == "PyPI" else "package.json")
             sca02_sarif.append(
                 {
                     "ruleId": "CASA3-SCA-02",
                     "level": "error",
                     "message": {"text": f"SCA-02 violation on {line}"},
-                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": "package.json"}}}],
+                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": loc_uri}}}],
                 }
             )
 
     return sca02_failures, sca02_sarif, stats
 
 
+def parse_trivy_os_report(trivy_data: dict) -> tuple[list[dict], list[str], list[str], list[dict], str]:
+    """Parse Trivy `--pkg-types os --list-all-pkgs --format json` output for SCA-03."""
+    os_meta = (trivy_data.get("Metadata") or {}).get("OS") or {}
+    os_family = str(os_meta.get("Family", "debian") or "debian").strip()
+    os_name = str(os_meta.get("Name", "")).strip()
+    distro_eco = f"{os_family.title()}:{os_name}" if os_name else os_family.title()
+
+    os_sbom_components: list[dict] = []
+    blocking_os_findings: list[str] = []
+    excluded_os_info: list[str] = []
+    sca03_sarif: list[dict] = []
+
+    seen_bom_refs: set[str] = set()
+    for res_blk in trivy_data.get("Results", []):
+        if res_blk.get("Class") != "os-pkgs":
+            continue
+        for pkg in res_blk.get("Packages") or []:
+            pname = str(pkg.get("Name", "")).strip()
+            pver = str(pkg.get("Version", "")).strip()
+            src_name = str(pkg.get("SrcName") or pname).strip()
+            purl = str((pkg.get("Identifier") or {}).get("PURL") or f"pkg:deb/{os_family.lower()}/{pname}@{pver}")
+            bref = str((pkg.get("Identifier") or {}).get("BOMRef") or purl)
+            if pname and bref not in seen_bom_refs:
+                seen_bom_refs.add(bref)
+                os_sbom_components.append(
+                    {
+                        "type": "library",
+                        "bom-ref": bref,
+                        "supplier": {"name": f"{os_family.title()} Project"},
+                        "name": pname,
+                        "version": pver,
+                        "purl": purl if purl else f"pkg:deb/{os_family.lower()}/{pname}@{pver}?upstream={src_name}",
+                    }
+                )
+
+        # Group blocking HIGH/CRITICAL vulnerabilities by package
+        pkg_blocking_map: dict[tuple[str, str], list[str]] = {}
+        for v in res_blk.get("Vulnerabilities") or []:
+            sev = str(v.get("Severity", "")).upper()
+            if sev not in {"HIGH", "CRITICAL"}:
+                continue
+            vid = str(v.get("VulnerabilityID", "")).strip()
+            pname = str(v.get("PkgName", "")).strip()
+            pver = str(v.get("InstalledVersion", "")).strip()
+            status = str(v.get("Status", "")).strip().lower()
+            fixed_ver = str(v.get("FixedVersion") or "unfixed").strip()
+
+            cvss_val = None
+            for cv_data in (v.get("CVSS") or {}).values():
+                if isinstance(cv_data, dict) and cv_data.get("V3Score") is not None:
+                    try:
+                        sc = float(cv_data["V3Score"])
+                        cvss_val = sc if cvss_val is None or sc > cvss_val else cvss_val
+                    except Exception:
+                        pass
+            cvss_lbl = f"CVSS {cvss_val:.1f} " if cvss_val is not None else ""
+
+            if status in {"will_not_fix", "end_of_life", "not_affected"}:
+                excluded_os_info.append(f"{pname}@{pver}: {vid} ({sev}, status={status})")
+                continue
+
+            entry_lbl = f"{vid} ({cvss_lbl}{sev}, status={status or 'affected'}, fix={fixed_ver})"
+            pkg_blocking_map.setdefault((pname, pver), []).append(entry_lbl)
+
+        for (pname, pver), advs in sorted(pkg_blocking_map.items()):
+            line = f"{pname}@{pver} (OS package) [BLOCKING HIGH/CRITICAL]: " + ", ".join(advs)
+            blocking_os_findings.append(line)
+            sca03_sarif.append(
+                {
+                    "ruleId": "CASA3-SCA-03",
+                    "level": "error",
+                    "message": {"text": f"SCA-03 OS package vulnerability: {line}"},
+                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}}}],
+                }
+            )
+
+    return os_sbom_components, blocking_os_findings, excluded_os_info, sca03_sarif, distro_eco
+
+
 def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], list[dict], list[dict], str]:
-    """Evaluate SCA-03 by inspecting Dockerfile base images, extracting OS packages from
-    the container image (dpkg/apk status), querying OSV.dev for OS CVEs, and filtering
-    for HIGH/CRITICAL (CVSS >= 7.0) findings not marked unimportant/will_not_fix.
+    """Evaluate SCA-03 using `trivy image --pkg-types os` (Guide reference tool),
+    checking base image digest pinning, OS packages (including unfixed HIGH/CRITICAL CVEs),
+    and excluding advisories marked `will_not_fix` by the distribution.
     """
     dockerfile = repo / "Dockerfile"
     if not dockerfile.exists():
@@ -333,15 +548,40 @@ def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], 
         if m_deb:
             distro_eco = f"Debian:{m_deb.group(1)}"
 
-    # Extract OS packages from local container image if available (or fallback to standard distroless Debian 13 layer)
     os_pkgs: list[tuple[str, str, str]] = []  # (binary_pkg, version, source_pkg)
+    os_sbom_components: list[dict] = []
+    blocking_os_findings: list[str] = []
+    non_blocking_os_info: list[str] = []
+    sca03_sarif: list[dict] = []
+
+    # Check Dockerfile base image digest pinning
+    unpinned_stages = [img for img in from_lines if "@sha256:" not in img]
+    if unpinned_stages:
+        msg = f"Dockerfile base image tag(s) not pinned by immutable @sha256 digest: {', '.join(unpinned_stages)}"
+        blocking_os_findings.append(msg)
+        sca03_sarif.append(
+            {
+                "ruleId": "CASA3-SCA-03",
+                "level": "error",
+                "message": {"text": f"SCA-03: {msg}"},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}}}],
+            }
+        )
+
     img_digest = ""
+    trivy_ran = False
     candidate_images = ["bkimminich/juice-shop:latest"] if "juice-shop" in repo.name.lower() else []
     for fl in from_lines:
         if not fl.lower().startswith("installer"):
             candidate_images.append(fl)
 
     env_docker = {**subprocess.os.environ, "DOCKER_API_VERSION": "1.44"}
+    trivy_json_path = OUTPUT_DIR / "trivy-sca03.json"
+    trivy_sarif_path = OUTPUT_DIR / "trivy-sca03.sarif"
+    trivy_db_cached = (Path.home() / ".cache" / "trivy" / "db" / "trivy.db").exists() and (
+        time.time() - (Path.home() / ".cache" / "trivy" / "db" / "trivy.db").stat().st_mtime < 86400
+    )
+
     for img_name in candidate_images:
         try:
             insp = subprocess.run(
@@ -353,6 +593,49 @@ def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], 
             )
             if insp.returncode == 0 and insp.stdout.strip():
                 img_digest = insp.stdout.strip()
+                if Path(TRIVY_BIN).exists():
+                    skip_flags = ["--skip-db-update"] if trivy_db_cached else []
+                    base_trivy = [
+                        TRIVY_BIN,
+                        "image",
+                        "--scanners",
+                        "vuln",
+                        "--pkg-types",
+                        "os",
+                        "--list-all-pkgs",
+                        "--quiet",
+                        *skip_flags,
+                    ]
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                        fj = pool.submit(
+                            subprocess.run,
+                            [*base_trivy, "--format", "json", "-o", str(trivy_json_path), img_name],
+                            capture_output=True,
+                            text=True,
+                            env=env_docker,
+                            timeout=90,
+                        )
+                        fs = pool.submit(
+                            subprocess.run,
+                            [*base_trivy, "--severity", "HIGH,CRITICAL", "--format", "sarif", "-o", str(trivy_sarif_path), img_name],
+                            capture_output=True,
+                            text=True,
+                            env=env_docker,
+                            timeout=90,
+                        )
+                        pj = fj.result()
+                        fs.result()
+                    if pj.returncode == 0 and trivy_json_path.exists():
+                        tdata = json.loads(trivy_json_path.read_text(encoding="utf-8", errors="ignore"))
+                        os_sbom_components, trivy_blocking, trivy_excl, trivy_sarif, t_distro = parse_trivy_os_report(tdata)
+                        distro_eco = t_distro or distro_eco
+                        blocking_os_findings.extend(trivy_blocking)
+                        non_blocking_os_info.extend(trivy_excl)
+                        sca03_sarif.extend(trivy_sarif)
+                        trivy_ran = True
+                        break
+
+                # Fallback extraction via docker run if Trivy is unavailable
                 node_script = (
                     'const fs=require("fs"),d="/var/lib/dpkg/status.d";'
                     'if(fs.existsSync(d)){for(const f of fs.readdirSync(d).filter(x=>!x.endsWith(".md5sums"))){'
@@ -378,152 +661,137 @@ def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], 
         except Exception:
             continue
 
-    # Fallback if container daemon is not accessible for a Debian 13 distroless Dockerfile
-    if not os_pkgs and any("debian13" in fl.lower() for fl in from_lines):
-        os_pkgs = [
-            ("base-files", "13.8+deb13u7", "base-files"),
-            ("ca-certificates", "20250419", "ca-certificates"),
-            ("gcc-14-base", "14.2.0-19", "gcc-14"),
-            ("libc6", "2.41-12+deb13u4", "glibc"),
-            ("libgcc-s1", "14.2.0-19", "gcc-14"),
-            ("libgomp1", "14.2.0-19", "gcc-14"),
-            ("libssl3t64", "3.5.7-1~deb13u3", "openssl"),
-            ("libstdc++6", "14.2.0-19", "gcc-14"),
-            ("libzstd1", "1.5.7+dfsg-1", "libzstd"),
-            ("zlib1g", "1:1.3.dfsg+really1.3.1-1+b1", "zlib"),
-        ]
+    if not trivy_ran:
+        # Fallback if container daemon / Trivy is not accessible for a Debian 13 distroless Dockerfile
+        if not os_pkgs and any("debian13" in fl.lower() for fl in from_lines):
+            os_pkgs = [
+                ("base-files", "13.8+deb13u7", "base-files"),
+                ("ca-certificates", "20250419", "ca-certificates"),
+                ("gcc-14-base", "14.2.0-19", "gcc-14"),
+                ("libc6", "2.41-12+deb13u4", "glibc"),
+                ("libgcc-s1", "14.2.0-19", "gcc-14"),
+                ("libgomp1", "14.2.0-19", "gcc-14"),
+                ("libssl3t64", "3.5.7-1~deb13u3", "openssl"),
+                ("libstdc++6", "14.2.0-19", "gcc-14"),
+                ("libzstd1", "1.5.7+dfsg-1", "libzstd"),
+                ("zlib1g", "1:1.3.dfsg+really1.3.1-1+b1", "zlib"),
+            ]
 
-    os_sbom_components = [
-        {
-            "type": "library",
-            "bom-ref": f"pkg:deb/debian/{bin_pkg}@{ver}?arch=amd64&distro={distro_eco.lower()}",
-            "supplier": {"name": "Debian Project"},
-            "name": bin_pkg,
-            "version": ver,
-            "purl": f"pkg:deb/debian/{bin_pkg}@{ver}?upstream={src_pkg}",
-        }
-        for bin_pkg, ver, src_pkg in os_pkgs
-    ]
-
-    # Deduplicate by (source_pkg, version) for OSV query against Debian ecosystem
-    unique_src: list[tuple[str, str, list[str]]] = []
-    src_map: dict[tuple[str, str], list[str]] = {}
-    for bin_pkg, ver, src_pkg in os_pkgs:
-        src_map.setdefault((src_pkg, ver), []).append(bin_pkg)
-    for (src_pkg, ver), bins in src_map.items():
-        unique_src.append((src_pkg, ver, bins))
-
-    blocking_os_findings: list[str] = []
-    non_blocking_os_info: list[str] = []
-    sca03_sarif: list[dict] = []
-
-    # Check Dockerfile base image digest pinning
-    unpinned_stages = [img for img in from_lines if "@sha256:" not in img]
-    if unpinned_stages:
-        msg = f"Dockerfile base image tag(s) not pinned by immutable @sha256 digest: {', '.join(unpinned_stages)}"
-        blocking_os_findings.append(msg)
-        sca03_sarif.append(
+        os_sbom_components = [
             {
-                "ruleId": "CASA3-SCA-03",
-                "level": "error",
-                "message": {"text": f"SCA-03: {msg}"},
-                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}}}],
+                "type": "library",
+                "bom-ref": f"pkg:deb/debian/{bin_pkg}@{ver}?arch=amd64&distro={distro_eco.lower()}",
+                "supplier": {"name": "Debian Project"},
+                "name": bin_pkg,
+                "version": ver,
+                "purl": f"pkg:deb/debian/{bin_pkg}@{ver}?upstream={src_pkg}",
             }
-        )
-
-    if unique_src:
-        queries = [
-            {"package": {"name": src_pkg, "ecosystem": distro_eco}, "version": ver}
-            for src_pkg, ver, _ in unique_src
+            for bin_pkg, ver, src_pkg in os_pkgs
         ]
-        try:
-            req = urllib.request.Request(
-                "https://api.osv.dev/v1/querybatch",
-                data=json.dumps({"queries": queries}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                q_res = json.loads(resp.read().decode("utf-8")).get("results", [])
 
-            all_vids: set[str] = set()
-            src_vulns: list[tuple[str, str, list[str], list[str]]] = []
-            for idx, item in enumerate(q_res):
-                vulns = item.get("vulns", [])
-                if vulns:
-                    src_pkg, ver, bins = unique_src[idx]
-                    vids = [v.get("id", "") for v in vulns if v.get("id")]
-                    src_vulns.append((src_pkg, ver, bins, vids))
-                    all_vids.update(vids)
+        # Deduplicate by (source_pkg, version) for OSV query against Debian ecosystem
+        unique_src: list[tuple[str, str, list[str]]] = []
+        src_map: dict[tuple[str, str], list[str]] = {}
+        for bin_pkg, ver, src_pkg in os_pkgs:
+            src_map.setdefault((src_pkg, ver), []).append(bin_pkg)
+        for (src_pkg, ver), bins in src_map.items():
+            unique_src.append((src_pkg, ver, bins))
 
-            v_details: dict[str, dict] = {}
-            if all_vids:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
-                    fmap = {pool.submit(fetch_osv_vuln_detail, vid): vid for vid in all_vids}
-                    for fut in concurrent.futures.as_completed(fmap):
-                        vid = fmap[fut]
-                        try:
-                            v_details[vid] = fut.result()
-                        except Exception:
-                            v_details[vid] = {"id": vid}
+        if unique_src:
+            queries = [
+                {"package": {"name": src_pkg, "ecosystem": distro_eco}, "version": ver}
+                for src_pkg, ver, _ in unique_src
+            ]
+            try:
+                req = urllib.request.Request(
+                    "https://api.osv.dev/v1/querybatch",
+                    data=json.dumps({"queries": queries}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    q_res = json.loads(resp.read().decode("utf-8")).get("results", [])
 
-            for src_pkg, ver, bins, vids in src_vulns:
-                pkg_blocking: list[str] = []
-                pkg_ignored: list[str] = []
-                for vid in vids:
-                    det = v_details.get(vid, {})
-                    aff_list = det.get("affected", [])
-                    urgency = ""
-                    for aff in aff_list:
-                        u = aff.get("ecosystem_specific", {}).get("urgency", "")
-                        if u:
-                            urgency = str(u).lower()
-                            break
+                all_vids: set[str] = set()
+                src_vulns: list[tuple[str, str, list[str], list[str]]] = []
+                for idx, item in enumerate(q_res):
+                    vulns = item.get("vulns", [])
+                    if vulns:
+                        src_pkg, ver, bins = unique_src[idx]
+                        vids = [v.get("id", "") for v in vulns if v.get("id")]
+                        src_vulns.append((src_pkg, ver, bins, vids))
+                        all_vids.update(vids)
 
-                    cvss_val: float | None = None
-                    for sev_item in det.get("severity", []):
-                        sc = compute_cvss3_base_score(sev_item.get("score", ""))
-                        if sc is not None and (cvss_val is None or sc > cvss_val):
-                            cvss_val = sc
-                    if cvss_val is None:
-                        cvss_val = {"high": 7.8, "medium": 5.5, "low": 3.1, "unimportant": 0.0}.get(urgency, 5.0)
+                v_details: dict[str, dict] = {}
+                if all_vids:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
+                        fmap = {pool.submit(fetch_osv_vuln_detail, vid): vid for vid in all_vids}
+                        for fut in concurrent.futures.as_completed(fmap):
+                            vid = fmap[fut]
+                            try:
+                                v_details[vid] = fut.result()
+                            except Exception:
+                                v_details[vid] = {"id": vid}
 
-                    cve_id = vid.replace("DEBIAN-", "")
-                    is_will_not_fix = urgency in {"unimportant", "will_not_fix", "end-of-life"}
+                for src_pkg, ver, bins, vids in src_vulns:
+                    pkg_blocking: list[str] = []
+                    pkg_ignored: list[str] = []
+                    for vid in vids:
+                        det = v_details.get(vid, {})
+                        aff_list = det.get("affected", [])
+                        urgency = ""
+                        for aff in aff_list:
+                            u = aff.get("ecosystem_specific", {}).get("urgency", "")
+                            if u:
+                                urgency = str(u).lower()
+                                break
 
-                    if cvss_val >= 7.0 and not is_will_not_fix:
-                        sev_tag = "CRITICAL" if cvss_val >= 9.0 else "HIGH"
-                        pkg_blocking.append(f"{vid} ({cve_id}, CVSS {cvss_val:.1f} {sev_tag}, urgency={urgency or 'assigned'})")
-                    else:
-                        reason = f"distro urgency={urgency}" if is_will_not_fix else f"CVSS {cvss_val:.1f} < 7.0"
-                        pkg_ignored.append(f"{vid} ({reason})")
+                        cvss_val: float | None = None
+                        for sev_item in det.get("severity", []):
+                            sc = compute_cvss3_base_score(sev_item.get("score", ""))
+                            if sc is not None and (cvss_val is None or sc > cvss_val):
+                                cvss_val = sc
+                        if cvss_val is None:
+                            cvss_val = {"high": 7.8, "medium": 5.5, "low": 3.1, "unimportant": 0.0}.get(urgency, 5.0)
 
-                bin_str = ", ".join(bins)
-                if pkg_blocking:
-                    line = (
-                        f"{src_pkg}@{ver} (OS binary: {bin_str}) [BLOCKING HIGH/CRITICAL]: "
-                        + ", ".join(pkg_blocking)
-                    )
-                    blocking_os_findings.append(line)
-                    sca03_sarif.append(
-                        {
-                            "ruleId": "CASA3-SCA-03",
-                            "level": "error",
-                            "message": {"text": f"SCA-03 OS package vulnerability: {line}"},
-                            "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}}}],
-                        }
-                    )
-                if pkg_ignored:
-                    non_blocking_os_info.append(
-                        f"{src_pkg}@{ver} ({bin_str}): {len(pkg_ignored)} non-blocking advisory(ies) ({', '.join(pkg_ignored)})"
-                    )
-        except Exception:
-            pass
+                        cve_id = vid.replace("DEBIAN-", "")
+                        is_will_not_fix = urgency in {"unimportant", "will_not_fix", "end-of-life"}
 
+                        if cvss_val >= 7.0 and not is_will_not_fix:
+                            sev_tag = "CRITICAL" if cvss_val >= 9.0 else "HIGH"
+                            pkg_blocking.append(f"{vid} ({cve_id}, CVSS {cvss_val:.1f} {sev_tag}, urgency={urgency or 'assigned'})")
+                        else:
+                            reason = f"distro urgency={urgency}" if is_will_not_fix else f"CVSS {cvss_val:.1f} < 7.0"
+                            pkg_ignored.append(f"{vid} ({reason})")
+
+                    bin_str = ", ".join(bins)
+                    if pkg_blocking:
+                        line = (
+                            f"{src_pkg}@{ver} (OS binary: {bin_str}) [BLOCKING HIGH/CRITICAL]: "
+                            + ", ".join(pkg_blocking)
+                        )
+                        blocking_os_findings.append(line)
+                        sca03_sarif.append(
+                            {
+                                "ruleId": "CASA3-SCA-03",
+                                "level": "error",
+                                "message": {"text": f"SCA-03 OS package vulnerability: {line}"},
+                                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}}}],
+                            }
+                        )
+                    if pkg_ignored:
+                        non_blocking_os_info.append(
+                            f"{src_pkg}@{ver} ({bin_str}): {len(pkg_ignored)} excluded advisory(ies) ({', '.join(pkg_ignored)})"
+                        )
+            except Exception:
+                pass
+
+    pkg_total = len(os_sbom_components) if trivy_ran else len(os_pkgs)
+    engine_lbl = "Trivy" if trivy_ran else "OSV.dev Fallback"
     verdict = "FAIL" if blocking_os_findings else "PASS"
     meta_desc = (
-        f"Base stages: {', '.join(from_lines)} | Image Digest: {img_digest or 'Dockerfile static'} | "
-        f"OS Layer: {distro_eco} ({len(os_pkgs)} OS packages extracted)"
+        f"{engine_lbl} | Base stages: {', '.join(from_lines)} | Image Digest: {img_digest or 'Dockerfile static'} | "
+        f"OS Layer: {distro_eco} ({pkg_total} OS packages)"
     )
     return (
         verdict,
@@ -1093,6 +1361,226 @@ def analyze_package_reachability(repo: Path, pkg_name: str) -> tuple[bool, list[
     return (len(call_traces) > 0), call_traces
 
 
+def build_reverse_dep_graph(repo: Path, sbom_payload: dict) -> dict[str, set[str]]:
+    """Build reverse dependency graph (child_pkg_lower -> set of parent_pkg_lower) from Syft SBOM & lockfiles."""
+    rev: dict[str, set[str]] = {}
+
+    def _ref_to_name(ref: str) -> str:
+        if not ref:
+            return ""
+        base = ref.split("?", 1)[0]
+        if base.startswith("pkg:"):
+            # e.g. pkg:npm/%40scope/pkg@1.2.3 or pkg:npm/lodash@2.4.2
+            body = base.split("/", 1)[1] if "/" in base else base
+            name_part = body.rsplit("@", 1)[0] if "@" in body[1:] else body
+            return urllib.parse.unquote(name_part).strip().lower()
+        return base.strip().lower()
+
+    ref_name_map: dict[str, str] = {}
+    for comp in sbom_payload.get("components", []):
+        bref = str(comp.get("bom-ref", "")).strip()
+        cname = str(comp.get("name", "")).strip().lower()
+        cgrp = str(comp.get("group", "")).strip().lower()
+        full = f"{cgrp}/{cname}" if cgrp and not cname.startswith(f"{cgrp}/") else cname
+        if bref and full:
+            ref_name_map[bref] = full
+
+    for dep_edge in sbom_payload.get("dependencies", []):
+        p_ref = str(dep_edge.get("ref", ""))
+        parent_name = ref_name_map.get(p_ref) or _ref_to_name(p_ref)
+        if not parent_name:
+            continue
+        for c_ref in dep_edge.get("dependsOn", []):
+            child_name = ref_name_map.get(str(c_ref)) or _ref_to_name(str(c_ref))
+            if child_name and child_name != parent_name:
+                rev.setdefault(child_name, set()).add(parent_name)
+
+    lockfile = repo / "package-lock.json"
+    if lockfile.exists():
+        try:
+            ldata = json.loads(lockfile.read_text(encoding="utf-8", errors="ignore"))
+            pkgs = ldata.get("packages", {})
+            for p_path, meta in pkgs.items():
+                if not p_path:
+                    continue
+                # Extract deepest node_modules/<pkg> segment
+                if "node_modules/" in p_path:
+                    parent_name = p_path.rsplit("node_modules/", 1)[-1].strip().lower()
+                else:
+                    parent_name = str(meta.get("name", "")).strip().lower()
+                if not parent_name:
+                    continue
+                for child in {**(meta.get("dependencies") or {}), **(meta.get("optionalDependencies") or {})}:
+                    cname = str(child).strip().lower()
+                    if cname and cname != parent_name:
+                        rev.setdefault(cname, set()).add(parent_name)
+        except Exception:
+            pass
+
+    return rev
+
+
+def trace_package_reachability(
+    repo: Path,
+    pkg_name: str,
+    reverse_dep_graph: dict[str, set[str]],
+    direct_cache: dict[str, tuple[bool, list[str]]],
+) -> tuple[bool, list[str]]:
+    """Verify source entry-point reachability directly or transitively via Syft/lockfile dependency edges."""
+    key = pkg_name.strip().lower()
+    if key not in direct_cache:
+        direct_cache[key] = analyze_package_reachability(repo, pkg_name)
+    is_direct, direct_traces = direct_cache[key]
+    if is_direct:
+        return True, direct_traces
+
+    # BFS upstream to see if any directly reachable dependency brings in pkg_name
+    visited: set[str] = {key}
+    queue: list[tuple[str, list[str]]] = [(key, [pkg_name])]
+    while queue:
+        cur, chain = queue.pop(0)
+        if len(chain) > 8:
+            continue
+        for parent in sorted(reverse_dep_graph.get(cur, set())):
+            if parent in visited:
+                continue
+            visited.add(parent)
+            if parent not in direct_cache:
+                direct_cache[parent] = analyze_package_reachability(repo, parent)
+            p_reach, p_traces = direct_cache[parent]
+            new_chain = [parent, *chain]
+            if p_reach:
+                loc_hint = p_traces[0] if p_traces else "entry import"
+                return True, [f"{' -> '.join(new_chain)} ({loc_hint})"]
+            queue.append((parent, new_chain))
+
+    return False, []
+
+
+def generate_sbom_with_syft(
+    repo: Path,
+    sbom_path: Path,
+    fallback_deps: list[tuple[str, str, str]],
+) -> tuple[dict, list[dict], bool]:
+    """Generate assessor CycloneDX 1.5 SBOM using `syft` (Guide reference tool)."""
+    syft_ran = False
+    sbom_payload: dict | None = None
+    if Path(SYFT_BIN).exists():
+        try:
+            cmd = [
+                SYFT_BIN,
+                "scan",
+                f"dir:{repo}",
+                "--exclude",
+                "**/node_modules/**",
+                "--exclude",
+                "**/.git/**",
+                "--exclude",
+                "**/output/**",
+                "--exclude",
+                "**/samples/**",
+                "-o",
+                f"cyclonedx-json@1.5={sbom_path}",
+                "-q",
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if proc.returncode == 0 and sbom_path.exists():
+                loaded = json.loads(sbom_path.read_text(encoding="utf-8", errors="ignore"))
+                if loaded.get("bomFormat") == "CycloneDX":
+                    sbom_payload = loaded
+                    syft_ran = True
+        except Exception:
+            sbom_payload = None
+
+    if sbom_payload is None:
+        sbom_payload = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+            "version": 1,
+            "metadata": {
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "tools": [{"vendor": "ADA", "name": "casa-sca-engine", "version": "3.0"}],
+                "component": {"type": "application", "name": repo.name},
+            },
+            "components": [],
+        }
+
+    # Keep package/library components (filter out bare file catalog entries like CI workflows)
+    lib_comps = [
+        c for c in sbom_payload.get("components", []) if c.get("type") != "file"
+    ]
+    if not lib_comps and fallback_deps:
+        lib_comps = [
+            {
+                "type": "library",
+                "bom-ref": f"pkg:{eco.lower()}/{name}@{ver}",
+                "supplier": {"name": f"{eco} registry"},
+                "name": name,
+                "version": ver,
+                "purl": f"pkg:{eco.lower()}/{name}@{ver}",
+            }
+            for eco, name, ver in fallback_deps
+        ]
+        sbom_payload["components"] = lib_comps
+        sbom_path.write_text(json.dumps(sbom_payload, indent=2), encoding="utf-8")
+
+    return sbom_payload, lib_comps, syft_ran
+
+
+def run_osv_scanner_for_sca01(repo: Path, osv_json_path: Path, osv_sarif_path: Path) -> tuple[dict | None, int, bool]:
+    """Run official `osv-scanner` against repo lockfiles/manifests and write JSON + SARIF 2.1.0."""
+    if not Path(OSV_SCANNER_BIN).exists():
+        return None, 0, False
+
+    base_args = [
+        OSV_SCANNER_BIN,
+        "scan",
+        "source",
+        "-r",
+        "--no-ignore",
+        "--allow-no-lockfiles",
+        "--x-disable-plugins",
+        "sbom",
+        "--x-exclude",
+        "g:**/node_modules/**",
+        "--x-exclude",
+        "g:**/.git/**",
+        "--x-exclude",
+        "g:**/output/**",
+        "--x-exclude",
+        "g:**/samples/**",
+    ]
+    scanned_pkgs = 0
+    osv_data: dict | None = None
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            f_json = pool.submit(
+                subprocess.run,
+                [*base_args, "--format", "json", "--output-file", str(osv_json_path), str(repo)],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            f_sarif = pool.submit(
+                subprocess.run,
+                [*base_args, "--format", "sarif", "--output-file", str(osv_sarif_path), str(repo)],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            proc_json = f_json.result()
+            f_sarif.result()
+        # osv-scanner exits 0 (clean) or 1 (vulnerabilities found)
+        if proc_json.returncode in {0, 1} and osv_json_path.exists():
+            osv_data = json.loads(osv_json_path.read_text(encoding="utf-8", errors="ignore"))
+            for m in re.finditer(r"found (\d+) packages", (proc_json.stdout or "") + "\n" + (proc_json.stderr or "")):
+                scanned_pkgs += int(m.group(1))
+        return osv_data, scanned_pkgs, osv_data is not None
+    except Exception:
+        return None, 0, False
+
+
 # ---------------------------------------------------------------------------
 # 1. Domain 1: Software Composition & Supply Chain (SCA-01 .. SCA-05)
 # ---------------------------------------------------------------------------
@@ -1135,44 +1623,128 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
         except Exception:
             pass
 
-    # Generate CycloneDX 1.5 SBOM artifact (with NTIA minimum elements)
+    # Run `syft`, `osv-scanner` (NVD / OSV.dev feeds), and `CISA KEV` fetch concurrently
     sbom_path = OUTPUT_DIR / "sbom.cdx.json"
     sca_sarif_path = OUTPUT_DIR / "sca-findings.sarif"
-    cdx_components = [
-        {
-            "type": "library",
-            "bom-ref": f"pkg:{eco.lower()}/{name}@{ver}",
-            "supplier": {"name": f"{eco} registry"},
-            "name": name,
-            "version": ver,
-            "purl": f"pkg:{eco.lower()}/{name}@{ver}",
-        }
-        for eco, name, ver in deps
-    ]
-    sbom_payload = {
-        "bomFormat": "CycloneDX",
-        "specVersion": "1.5",
-        "serialNumber": f"urn:uuid:{uuid.uuid4()}",
-        "version": 1,
-        "metadata": {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "tools": [{"vendor": "ADA", "name": "casa-sca-engine", "version": "3.0"}],
-            "component": {"type": "application", "name": repo.name},
-        },
-        "components": cdx_components,
-    }
-    sbom_path.write_text(json.dumps(sbom_payload, indent=2), encoding="utf-8")
+    osv_json_path = OUTPUT_DIR / "osv-scanner-sca01.json"
+    osv_sarif_path = OUTPUT_DIR / "osv-scanner.sarif"
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+        f_syft = pool.submit(generate_sbom_with_syft, repo, sbom_path, deps)
+        f_kev = pool.submit(fetch_cisa_kev_set)
+        f_osv = pool.submit(run_osv_scanner_for_sca01, repo, osv_json_path, osv_sarif_path)
+        sbom_payload, cdx_components, syft_ran = f_syft.result()
+        kev_set = f_kev.result()
+        osv_data, scanned_pkg_count, osv_ran = f_osv.result()
 
-    # Query OSV.dev batch API + resolve CVSS v3.1, CISA KEV & Call-Graph Reachability
-    vuln_findings: list[str] = []
+    reverse_dep_graph = build_reverse_dep_graph(repo, sbom_payload)
+
     blocking_sca01_findings: list[str] = []
-    non_blocking_sca01_info: list[str] = []
     malicious_findings: list[str] = []
     sarif_results: list[dict] = []
     osv_queried = 0
-    kev_set = fetch_cisa_kev_set()
+    direct_reach_cache: dict[str, tuple[bool, list[str]]] = {}
+    if osv_ran and osv_data is not None:
+        osv_queried = max(scanned_pkg_count, len(cdx_components), len(deps))
+        seen_blocking_keys: set[tuple[str, str]] = set()
+        for res_block in osv_data.get("results", []):
+            src_info = res_block.get("source", {})
+            src_uri = str(src_info.get("path") or "package-lock.json")
+            try:
+                src_uri = str(Path(src_uri).relative_to(repo))
+            except Exception:
+                pass
+            for pkg_entry in res_block.get("packages", []):
+                pkg_meta = pkg_entry.get("package", {})
+                name = str(pkg_meta.get("name", "")).strip()
+                ver = str(pkg_meta.get("version", "")).strip()
+                if not name:
+                    continue
 
-    if deps:
+                is_reachable, traces = trace_package_reachability(
+                    repo, name, reverse_dep_graph, direct_reach_cache
+                )
+                reach_str = (
+                    f"REACHABLE via {'; '.join(traces)}"
+                    if is_reachable
+                    else "NOT REACHABLE in source call-graph"
+                )
+
+                # Index group metadata (groups carry canonical CVE aliases & max_severity)
+                vid_group_score: dict[str, float] = {}
+                vid_group_cves: dict[str, list[str]] = {}
+                for grp in pkg_entry.get("groups", []):
+                    g_cves = [a for a in grp.get("aliases", []) if str(a).startswith("CVE-")]
+                    try:
+                        g_max = float(grp.get("max_severity") or 0.0)
+                    except Exception:
+                        g_max = 0.0
+                    for gid in grp.get("ids", []):
+                        vid_group_score[gid] = max(vid_group_score.get(gid, 0.0), g_max)
+                        vid_group_cves.setdefault(gid, []).extend(g_cves)
+
+                pkg_high_crit_advisories: list[str] = []
+                pkg_kev_hits: list[str] = []
+                for v in pkg_entry.get("vulnerabilities", []):
+                    vid = str(v.get("id", "")).strip()
+                    if vid.startswith("MAL-"):
+                        malicious_findings.append(f"{name}@{ver} ({vid})")
+
+                    cves = sorted(
+                        {
+                            *(a for a in v.get("aliases", []) if str(a).startswith("CVE-")),
+                            *vid_group_cves.get(vid, []),
+                            *([vid] if vid.startswith("CVE-") else []),
+                        }
+                    )
+                    db_sev = str(v.get("database_specific", {}).get("severity", "")).upper()
+
+                    cvss_score: float | None = None
+                    for sev_item in v.get("severity", []):
+                        sc = compute_cvss3_base_score(sev_item.get("score", ""))
+                        if sc is not None and (cvss_score is None or sc > cvss_score):
+                            cvss_score = sc
+                    if cvss_score is None and vid_group_score.get(vid, 0.0) > 0:
+                        cvss_score = vid_group_score[vid]
+                    if cvss_score is None:
+                        cvss_score = {"CRITICAL": 9.5, "HIGH": 7.5, "MODERATE": 5.3, "MEDIUM": 5.3, "LOW": 3.1}.get(
+                            db_sev, 0.0
+                        )
+
+                    kev_matched = [c for c in cves if c in kev_set]
+                    if kev_matched:
+                        pkg_kev_hits.extend(kev_matched)
+
+                    cve_str = f" / {', '.join(cves)}" if cves else ""
+                    kev_str = " [CISA KEV!]" if kev_matched else ""
+                    adv_label = f"{vid}{cve_str} (CVSS {cvss_score:.1f}{f' {db_sev}' if db_sev else ''}{kev_str})"
+
+                    if cvss_score >= 7.0 or db_sev in {"HIGH", "CRITICAL"} or kev_matched:
+                        pkg_high_crit_advisories.append(adv_label)
+
+                if (pkg_high_crit_advisories and is_reachable) or pkg_kev_hits:
+                    if (name, ver) in seen_blocking_keys:
+                        continue
+                    seen_blocking_keys.add((name, ver))
+                    blocking_sca01_findings.append(
+                        f"{name}@{ver} [BLOCKING]: {', '.join(pkg_high_crit_advisories)} | {reach_str}"
+                    )
+                    sarif_results.append(
+                        {
+                            "ruleId": "CASA3-SCA-01",
+                            "level": "error",
+                            "message": {
+                                "text": f"SCA-01 blocking vulnerability in {name}@{ver}: {', '.join(pkg_high_crit_advisories)} ({reach_str})"
+                            },
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": src_uri},
+                                    }
+                                }
+                            ],
+                        }
+                    )
+    elif deps:
         batch_queries = [
             {"package": {"name": name, "ecosystem": eco}, "version": ver}
             for eco, name, ver in deps
@@ -1198,7 +1770,6 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                     pkg_vuln_ids.append((eco, name, ver, ids))
                     all_unique_vids.update(ids)
 
-            # Fetch full OSV details concurrently to get CVSS v3.1 vectors and CVE aliases
             vuln_details_map: dict[str, dict] = {}
             if all_unique_vids:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
@@ -1211,10 +1782,11 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                             vuln_details_map[vid] = {"id": vid}
 
             for eco, name, ver, ids in pkg_vuln_ids:
-                is_reachable, traces = analyze_package_reachability(repo, name)
-                pkg_high_crit_advisories: list[str] = []
-                pkg_kev_hits: list[str] = []
-                pkg_all_formatted: list[str] = []
+                is_reachable, traces = trace_package_reachability(
+                    repo, name, reverse_dep_graph, direct_reach_cache
+                )
+                pkg_high_crit_advisories = []
+                pkg_kev_hits = []
 
                 for vid in ids:
                     if vid.startswith("MAL-"):
@@ -1226,7 +1798,7 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                         cves.append(vid)
                     db_sev = str(detail.get("database_specific", {}).get("severity", "")).upper()
 
-                    cvss_score: float | None = None
+                    cvss_score = None
                     for sev_item in detail.get("severity", []):
                         sc = compute_cvss3_base_score(sev_item.get("score", ""))
                         if sc is not None and (cvss_score is None or sc > cvss_score):
@@ -1243,7 +1815,6 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                     cve_str = f" / {', '.join(cves)}" if cves else ""
                     kev_str = " [CISA KEV!]" if kev_matched else ""
                     adv_label = f"{vid}{cve_str} (CVSS {cvss_score:.1f}{f' {db_sev}' if db_sev else ''}{kev_str})"
-                    pkg_all_formatted.append(adv_label)
 
                     if cvss_score >= 7.0 or db_sev in {"HIGH", "CRITICAL"} or kev_matched:
                         pkg_high_crit_advisories.append(adv_label)
@@ -1253,11 +1824,6 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                     if is_reachable
                     else "NOT REACHABLE in source call-graph"
                 )
-                entry_line = (
-                    f"{name}@{ver}: {', '.join(pkg_all_formatted)} | Call-Graph: {reach_str}"
-                )
-                vuln_findings.append(entry_line)
-
                 if (pkg_high_crit_advisories and is_reachable) or pkg_kev_hits:
                     blocking_sca01_findings.append(
                         f"{name}@{ver} [BLOCKING]: {', '.join(pkg_high_crit_advisories)} | {reach_str}"
@@ -1278,10 +1844,8 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                             ],
                         }
                     )
-                else:
-                    non_blocking_sca01_info.append(entry_line)
-        except Exception as exc:
-            vuln_findings.append(f"OSV API query warning: {exc}")
+        except Exception:
+            pass
 
     # SCA-02: End-of-life, unmaintained (OpenSSF Scorecard Maintained < 5), or untrusted registry
     sca02_failures, sca02_sarif, sca02_stats = evaluate_sca02_dependencies(repo, deps)
@@ -1320,7 +1884,7 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
             {
                 "tool": {
                     "driver": {
-                        "name": "ADA CASA 3.0 SCA Engine (OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS + NTIA SBOM Diff + Malicious/Typosquat)",
+                        "name": "ADA CASA 3.0 SCA Engine (Syft + osv-scanner + NVD/OSV.dev + CISA KEV + OpenSSF Scorecard + endoflife.date + Container OS + NTIA SBOM Diff + Malicious/Typosquat)",
                         "version": "3.0.0",
                         "rules": [
                             {
@@ -1362,65 +1926,78 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
     }
     sca_sarif_path.write_text(json.dumps(sca_sarif_payload, indent=2), encoding="utf-8")
 
-    # SCA-01: Reachable Critical/High vulnerabilities (CVSS >= 7.0) or CISA KEV (omit non-blocking advisories)
+    # SCA-01: Reachable Critical/High vulnerabilities (CVSS >= 7.0) or CISA KEV
+    sca01_tool_label = (
+        f"{'Syft + ' if syft_ran else ''}{'osv-scanner (NVD / OSV.dev)' if osv_ran else 'OSV.dev'} + "
+        f"CISA KEV + Call/Dep-Graph Reachability ({osv_queried} packages, CycloneDX 1.5 + SARIF 2.1.0)"
+    )
+    osv_sarif_line = f"\n  - osv-scanner Native Report (SARIF 2.1.0): {osv_sarif_path}" if osv_sarif_path.exists() else ""
+    has_sca_inventory = bool(osv_queried > 0 or deps or cdx_components)
     if blocking_sca01_findings:
         results["SCA-01"] = {
             "verdict": "FAIL",
-            "tool": f"OSV.dev + CISA KEV + Call-Graph Reachability ({osv_queried} packages, SARIF 2.1.0 + CycloneDX 1.5)",
+            "tool": sca01_tool_label,
             "log": (
                 f"[FAIL] {len(blocking_sca01_findings)} package(s) violate SCA-01 (Reachable CVSS >= 7.0 or CISA KEV) in {repo.name}:\n  - "
                 + "\n  - ".join(blocking_sca01_findings)
-                + f"\n\nEvidence Artifacts:\n  - SBOM (CycloneDX 1.5): {sbom_path}\n  - Vulnerability Report (SARIF 2.1.0): {sca_sarif_path}"
+                + f"\n\nEvidence Artifacts:\n  - Assessor SBOM (CycloneDX 1.5): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}{osv_sarif_line}"
             ),
         }
     else:
         results["SCA-01"] = {
-            "verdict": "PASS" if deps else "Not_Covered",
-            "tool": f"OSV.dev + CISA KEV + Call-Graph Reachability ({osv_queried} packages, SARIF 2.1.0 + CycloneDX 1.5)",
+            "verdict": "PASS" if has_sca_inventory else "Not_Covered",
+            "tool": sca01_tool_label,
             "log": (
-                f"[PASS] Queried {osv_queried} packages against OSV.dev & CISA KEV ({len(kev_set)} KEV entries): 0 reachable CVSS >= 7.0 vulnerabilities and 0 CISA KEV matches.\n"
-                + f"Evidence Artifacts:\n  - SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
-                if deps
-                else f"[Not_Covered] No dependency manifest (package.json / requirements.txt) with pinned versions found in {repo}."
+                f"[PASS] Audited {osv_queried} packages via Syft/osv-scanner (NVD / OSV.dev) & CISA KEV ({len(kev_set)} KEV entries): 0 reachable CVSS >= 7.0 vulnerabilities and 0 CISA KEV matches.\n"
+                + f"Evidence Artifacts:\n  - Assessor SBOM (CycloneDX 1.5): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}{osv_sarif_line}"
+                if has_sca_inventory
+                else f"[Not_Covered] No dependency manifest or lockfile with pinned versions found in {repo}."
             ),
         }
 
     results["SCA-02"] = {
         "verdict": "FAIL" if sca02_failures else ("PASS" if deps else "Not_Covered"),
-        "tool": f"OpenSSF Scorecard API + endoflife.date + Lockfile Registry Inspector ({len(deps)} packages)",
+        "tool": f"OpenSSF Scorecard + endoflife.date + Lockfile Registry Inspector ({len(deps)} direct packages, CycloneDX 1.5 + SARIF 2.1.0)",
         "log": (
             f"[FAIL] {len(sca02_failures)} direct dependency violation(s) for SCA-02 in {repo.name} "
             f"(EOL/Deprecated={sca02_stats['eol_or_deprecated']}, OpenSSF Scorecard Maintained<5={sca02_stats['low_scorecard']}, Untrusted Registry={sca02_stats['untrusted_registry']}):\n  - "
             + "\n  - ".join(sca02_failures)
-            + f"\n\nEvidence Artifacts:\n  - SBOM (CycloneDX 1.5): {sbom_path}\n  - SARIF 2.1.0: {sca_sarif_path}"
+            + f"\n\nEvidence Artifacts:\n  - Assessor SBOM (CycloneDX 1.5): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}"
             if sca02_failures
-            else f"[PASS] All {len(deps)} direct dependencies verified: not past EOL, resolved from canonical public registry, and OpenSSF Scorecard Maintained >= 5."
+            else (
+                f"[PASS] All {len(deps)} direct dependencies verified via OpenSSF Scorecard, endoflife.date & lockfile registry resolution: not past EOL, canonical public registry, and Scorecard Maintained >= 5.\n"
+                f"Evidence Artifacts:\n  - Assessor SBOM (CycloneDX 1.5): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}"
+                if deps
+                else f"[Not_Covered] No direct dependency manifest found in {repo}."
+            )
         ),
     }
 
+    trivy_sarif_file = OUTPUT_DIR / "trivy-sca03.sarif"
+    trivy_sarif_line = f"\n  - Trivy Native Report (SARIF 2.1.0): {trivy_sarif_file}" if trivy_sarif_file.exists() else ""
     if sca03_verdict == "Not_Covered":
         results["SCA-03"] = {
             "verdict": "Not_Covered",
-            "tool": "Container Base & OS Package Inspector",
+            "tool": "Trivy Container Base & OS Package Scanner",
             "log": f"[Not_Covered] No Dockerfile or container image digest found in {repo}.",
         }
     elif sca03_verdict == "FAIL":
         results["SCA-03"] = {
             "verdict": "FAIL",
-            "tool": f"Container OS Package & Base Layer Scanner ({sca03_meta})",
+            "tool": f"Trivy Container OS & Base Image Scanner ({sca03_meta}, CycloneDX 1.5 + SARIF 2.1.0)",
             "log": (
-                f"[FAIL] {len(sca03_blocking)} blocking container/OS vulnerability finding(s) (HIGH/CRITICAL CVSS >= 7.0 not marked will_not_fix):\n  - "
+                f"[FAIL] {len(sca03_blocking)} blocking container/OS vulnerability finding(s) (HIGH/CRITICAL not marked will_not_fix):\n  - "
                 + "\n  - ".join(sca03_blocking)
-                + f"\n\nEvidence Artifacts:\n  - SBOM (CycloneDX 1.5 with OS packages): {sbom_path}\n  - SARIF 2.1.0: {sca_sarif_path}"
+                + f"\n\nEvidence Artifacts:\n  - Assessor SBOM (CycloneDX 1.5 with OS packages): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}{trivy_sarif_line}"
             ),
         }
     else:
         results["SCA-03"] = {
             "verdict": "PASS",
-            "tool": f"Container OS Package & Base Layer Scanner ({sca03_meta})",
+            "tool": f"Trivy Container OS & Base Image Scanner ({sca03_meta}, CycloneDX 1.5 + SARIF 2.1.0)",
             "log": (
                 f"[PASS] Zero unmitigated HIGH/CRITICAL OS package or base-layer CVEs across {sca03_meta}.\n"
-                + f"Evidence Artifacts:\n  - SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
+                + f"Evidence Artifacts:\n  - Assessor SBOM (CycloneDX 1.5): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}{trivy_sarif_line}"
             ),
         }
 

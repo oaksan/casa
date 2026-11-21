@@ -1,0 +1,238 @@
+================================================================================
+JUSTIFICATIVA TÉCNICA E CIENTÍFICA — ADEQUAÇÃO ÀS FERRAMENTAS DO TEST GUIDE
+ADA CASA 3.0 (AL1) — SÉRIE DE ITERAÇÕES SDD 071+
+Projeto de Mestrado: Avaliação Automatizada de Segurança em Aplicações Web
+Repositório: https://github.com/oaksan/casa
+Documento Normativo de Referência: CASA/CASA 3.0 (AL1) Test Guide.md (Version 3.0)
+Aplicação Alvo de Validação (Benchmark): OWASP Juice Shop
+================================================================================
+
+INTRODUÇÃO METODOLÓGICA (SÉRIE SDD 071+)
+--------------------------------------------------------------------------------
+Após a consolidação inicial dos 61 controles AL1 (documentada em
+`docs/justificativa.txt`, iterações SDD 009–070), iniciou-se uma nova série de
+iterações SDD (a partir da Iteração 071) com um objetivo científico rigoroso:
+garantir que TODOS os controles AL1 da aplicação utilizem exclusivamente as
+ferramentas abertas especificadas em `CASA/CASA 3.0 (AL1) Test Guide.md` —
+recorrendo a substitutos gratuitos apenas na exceção do Burp Suite comercial
+(como OWASP ZAP, Playwright, mitmproxy e harnesses em Python conforme a cláusula
+de equivalência da linha 21 do guia) — com validação empírica ao vivo contra o
+OWASP Juice Shop ao término de cada iteração.
+
+================================================================================
+CONTROLE 01/61: SCA-01 (Iteração SDD 071)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SCA-01
+- Requisito (CASA 3.0 AL1):
+  "No dependency contains a reachable Critical/High vulnerability, or any CISA KEV entry."
+- Referências: OWASP ASVS 4.0.3 V14.2.1 (L1); CWE-1395.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `syft`, `osv-scanner`, `NVD / OSV.dev / CISA KEV feeds`.
+- Formatos de Evidência Exigidos:
+  SBOM gerado pelo avaliador (`CycloneDX 1.5+` ou `SPDX 2.3+`) + achados de
+  vulnerabilidades em `OASIS SARIF 2.1.0`.
+- Critério Determinístico de Veredito:
+  * PASS: Zero achados com CVSS v3.1 base >= 7.0 alcançáveis no grafo de
+    chamadas, E zero componentes listados no catálogo CISA KEV.
+  * FAIL: >= 1 achado alcançável com CVSS >= 7.0, OU >= 1 componente listado no
+    catálogo CISA KEV (alcançável ou não).
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 071)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 071:
+  A implementação anterior em `casa_audit/scanner.py` gerava o SBOM manualmente em
+  Python lendo apenas manifestos diretos (`package.json` / `requirements*.txt`) e
+  consultava diretamente `https://api.osv.dev/v1/querybatch`, sem utilizar os
+  binários de referência `syft` e `osv-scanner` e deixando de cobrir dependências
+  transitivas presentes em `package-lock.json`.
+- O que foi feito e melhorado na Iteração SDD 071:
+  1) Instalação e integração do binário oficial gratuito **`syft` (`v1.57.2`)**:
+     Função `generate_sbom_with_syft` executa `syft scan dir:<repo> -o cyclonedx-json@1.5=...`,
+     gerando o SBOM real do avaliador em `casa-assessment/output/sbom.cdx.json`
+     (`CycloneDX 1.5`) incluindo relações de dependência (`dependencies[]`).
+  2) Instalação e integração do binário oficial gratuito **`osv-scanner` (`v2.7.1`)**:
+     Função `run_osv_scanner_for_sca01` executa `osv-scanner scan source -r`
+     contra lockfiles e manifestos (excluindo `node_modules`, `.git`, `output`,
+     `samples`), consumindo os feeds **NVD / OSV.dev** em formato JSON e gerando
+     também o artefato nativo `casa-assessment/output/osv-scanner.sarif`
+     (`SARIF 2.1.0`).
+  3) Cruzamento **CISA KEV** + **Alcançabilidade Direta e Transitiva**:
+     Como o `osv-scanner` nativo restringe `--call-analysis` a Go/Rust e não
+     consulta CISA KEV diretamente, adicionou-se `build_reverse_dep_graph` e
+     `trace_package_reachability`, cruzando todos os aliases `CVE-*` contra
+     `fetch_cisa_kev_set()` (`1.790` CVEs no catálogo CISA KEV) e percorrendo
+     caminhos transitivos no grafo do SBOM (`syft`) e do `package-lock.json` a
+     partir de imports reais nos entry points da aplicação.
+  4) Otimização concorrente (`ThreadPoolExecutor`) executando `syft`, `osv-scanner`
+     (JSON + SARIF) e `fetch_cisa_kev_set` em paralelo, e consolidação final em
+     `casa-assessment/output/sca-findings.sarif` apenas com os itens bloqueantes.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução ao vivo via `POST http://127.0.0.1:8080/api/scan` contra
+  `http://localhost:3000` e `/home/user/felipe/speckit/juice-shop-master`:
+  * Veredito `SCA-01`: **FAIL** (tempo total dos 61 controles: `58.44s`).
+  * Ferramenta reportada: `Syft + osv-scanner (NVD / OSV.dev) + CISA KEV + Call/Dep-Graph Reachability (1181 packages, CycloneDX 1.5 + SARIF 2.1.0)`.
+  * Inventário e artefatos gerados:
+    - `sbom.cdx.json`: CycloneDX `1.5` (`722` componentes, `333` arestas em `dependencies`).
+    - `osv-scanner.sarif`: SARIF `2.1.0` (`69` achados brutos em lockfile).
+    - `sca-findings.sarif`: SARIF `2.1.0` (`14` erros bloqueantes `CASA3-SCA-01`).
+  * **14 pacotes bloqueantes confirmados** (diretos e cadeias transitivas reais):
+    - `basic-ftp@5.3.1` (CVSS `8.2` | `proxy-agent -> pac-proxy-agent -> get-uri -> basic-ftp` via `lib/utils.ts:L11`)
+    - `decode-uri-component@0.2.2` (CVSS `8.2` | `download -> got -> cacheable-request -> normalize-url -> query-string -> decode-uri-component` via `lib/utils.ts:L10`)
+    - `decompress@4.2.1` (CVSS `9.1` | `download -> decompress` via `lib/utils.ts:L10`)
+    - `express-jwt@0.1.3` (CVSS `7.7` | `lib/insecurity.ts:L10`)
+    - `http-cache-semantics@3.8.1` (CVSS `7.5` | `download -> got -> cacheable-request -> http-cache-semantics` via `lib/utils.ts:L10`)
+    - `jsonwebtoken@0.1.0` e `jsonwebtoken@0.4.0` (CVSS `9.5` | `lib/insecurity.ts:L11`, `routes/verify.ts:L8`, `routes/authenticatedUsers.ts:L7`)
+    - `jws@0.2.6` (CVSS `8.7` | `routes/verify.ts:L10`, `lib/insecurity.ts:L12`)
+    - `lodash@2.4.2` (CVSS `9.1` | `finale-rest -> lodash` via `server.ts:L20`)
+    - `marsdb@0.6.11` (CVSS `9.5` | `data/mongodb.ts:L7`)
+    - `minimatch@3.0.5` (CVSS `8.7` | `glob -> minimatch` via `lib/startup/restoreOverwrittenFilesWithOriginals.ts:L10`)
+    - `moment@2.0.0` (CVSS `7.5` | `finale-rest -> moment` via `server.ts:L20`)
+    - `sanitize-html@1.4.2` (CVSS `7.5` | `lib/insecurity.ts:L13`, `lib/challengeUtils.ts:L5`)
+    - `uuid@8.3.2` (CVSS `7.5` | `sequelize -> uuid` via `routes/imageCaptcha.ts:L7`)
+  * Utilitários de desenvolvimento não importados no código da aplicação (como
+    `@cyclonedx/cyclonedx-npm@4.2.1`, CVSS `8.5`) foram corretamente filtrados como
+    não alcançáveis.
+================================================================================
+
+================================================================================
+CONTROLE 02/61: SCA-02 (Iteração SDD 072)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SCA-02
+- Requisito (CASA 3.0 AL1):
+  "No component is end-of-life, unmaintained, or sourced from an untrusted repository."
+- Referências: OWASP ASVS V14.2.4 (L2); OpenSSF Scorecard `Maintained`.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `OpenSSF Scorecard`, `endoflife.date`.
+- Formatos de Evidência Exigidos:
+  SBOM gerado pelo avaliador (`CycloneDX 1.5+` ou `SPDX 2.3+`) + achados em
+  `OASIS SARIF 2.1.0` (`output/sca-findings.sarif`).
+- Critério Determinístico de Veredito:
+  * PASS: Toda dependência direta não ultrapassou sua data publicada de EOL,
+    resolve para o registro público canônico (ou espelho controlado fixado por
+    digest) e — onde existir resultado no OpenSSF Scorecard — possui
+    `Maintained >= 5`.
+  * FAIL: Qualquer dependência direta após o EOL, resolvida de fonte não
+    confiável ou com Scorecard `Maintained < 5`.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 072)
+--------------------------------------------------------------------------------
+- Lacunas Identificadas Antes da SDD 072:
+  1) `evaluate_sca02_dependencies` avaliava a string limpa de faixa do
+     `package.json` (ex.: `^1.5.1` virava `1.5.1`), em vez da versão exata
+     efetivamente instalada e resolvida em `package-lock.json` (`1.5.2`).
+  2) O mapeamento para `endoflife.date` cobria apenas 4 pacotes fixos
+     (`@angular/core`, `bootstrap`, `moment`, `jquery`), deixando de fora produtos
+     rastreados como `express`, `vue`, `react`, `nextjs`, `nuxt`, `django`,
+     `sqlite` e o runtime declarado em `engines.node` (`endoflife.date/api/nodejs.json`).
+  3) Dependências `PyPI` (`requirements*.txt`) eram ignoradas quanto ao lookup de
+     repositório no `OpenSSF Scorecard`, status `Inactive`/`yanked` e origem não
+     canônica (`--index-url`, `--extra-index-url`, URLs diretas não PyPI).
+- O que foi feito e melhorado na Iteração SDD 072 (`casa_audit/scanner.py`):
+  1) Resolução exata da versão instalada (`resolved_ver`), URL de origem
+     (`resolved`) e hash (`integrity`) diretamente de `package-lock.json`, além
+     de inspeção de fontes pip não canônicas em `requirements*.txt`.
+  2) Expansão da integração oficial com **`endoflife.date`** via helper com
+     cache compartilhado (`_check_endoflife_cycle`), abrangendo `express`,
+     `angular`, `bootstrap`, `moment`, `jquery`, `vue`, `react`, `nextjs`,
+     `nuxt`, `django`, `sqlite` e verificação de `engines.node` em `nodejs.json`.
+  3) Suporte completo a **PyPI** (`https://pypi.org/pypi/{pkg}/json` -> `repo_slug`
+     -> **OpenSSF Scorecard API** `Maintained >= 5`, classificadores `Inactive`
+     e releases `yanked`), além de bump da chave de cache (`v2:`) e registro
+     preciso das localizações em `package-lock.json` / `requirements.txt` no
+     `sca-findings.sarif` (`CASA3-SCA-02`).
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Veredito `SCA-02`: **FAIL** (`114` dependências diretas avaliadas com
+    versões exatas resolvidas em `package-lock.json` + runtime `engines.node`).
+  * Ferramentas reportadas: `OpenSSF Scorecard + endoflife.date + Lockfile Registry Inspector (114 direct packages, CycloneDX 1.5 + SARIF 2.1.0)`.
+  * **47 violações diretas detectadas** (`EOL/Deprecated=11`, `OpenSSF Scorecard Maintained<5=39`, `Untrusted Registry=0`):
+    - Atualização fiel para as versões reais do `package-lock.json` (`glob@10.5.0`,
+      `ethers@6.17.0`, `winston@3.19.0`, `eslint@9.39.5`, `semver@7.8.6`, etc.)
+      e inclusão de `express-ipfilter@1.4.0` (`Maintained=0/10`).
+    - Verificação `endoflife.date` confirmou `express@4` e `engines.node` (`22 - 26`)
+      ativos (não EOL), enquanto `express-jwt@0.1.3` (`Legacy 0.x branch`),
+      `jsonwebtoken@0.4.0`, `notevil@1.3.3`, `prom-client@15.1.3`, `eslint@9.39.5`,
+      `glob@10.5.0` e `@types/*` stubs foram reprovados por EOL/depreciação.
+  * Nota metodológica observada: alguns pacotes com releases recentes (ex.:
+    `sanitize-html@1.4.2`, `semver@7.8.6`) retornam `Maintained < 5` na API
+    pública do OpenSSF Scorecard devido ao critério de janela recente de commits
+    no branch padrão — comportamento mantido estritamente fiel ao critério
+    binário do Test Guide (`Maintained >= 5`).
+================================================================================
+
+================================================================================
+CONTROLE 03/61: SCA-03 (Iteração SDD 073)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SCA-03
+- Requisito (CASA 3.0 AL1):
+  "Container base images and OS packages contain no unmitigated Critical/High CVEs."
+- Referências: CIS Docker Benchmark §4; ADA-defined.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `trivy`, `grype`.
+- Formatos de Evidência Exigidos:
+  SBOM gerado pelo avaliador (`CycloneDX 1.5+` ou `SPDX 2.3+`) + achados de
+  vulnerabilidades em `OASIS SARIF 2.1.0`.
+- Critério Determinístico de Veredito:
+  * PASS: Zero achados em pacotes de SO ou camadas base em severidade HIGH ou
+    CRITICAL que a distribuição não tenha marcado como `will_not_fix` com
+    mitigação documentada (incluindo CVEs ainda sem fix publicado).
+  * FAIL: >= 1 achado HIGH ou CRITICAL na imagem base ou conjunto de pacotes de
+    SO sem marcação `will_not_fix` com mitigação documentada.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 073)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 073:
+  `evaluate_sca03_container_os` não utilizava `trivy` nem `grype`: executava
+  um snippet Node dentro do contêiner (`docker run ...`) para ler
+  `/var/lib/dpkg/status.d` manualmente e consultava a API `OSV.dev` em
+  substituição ao scanner de contêiner oficial.
+- O que foi feito e melhorado na Iteração SDD 073:
+  1) Instalação do binário oficial gratuito **`trivy` (`v0.76.2`)** em
+     `/home/user/.local/bin/trivy`.
+  2) Reimplementação de `evaluate_sca03_container_os` e criação de
+     `parse_trivy_os_report` em `casa-assessment/casa_audit/scanner.py` para
+     executar **`trivy image --scanners vuln --pkg-types os --list-all-pkgs`**
+     (com `DOCKER_API_VERSION=1.44`) contra a imagem local do contêiner, gerando:
+     - JSON estruturado (`casa-assessment/output/trivy-sca03.json`) e
+     - relatório nativo `SARIF 2.1.0` (`casa-assessment/output/trivy-sca03.sarif`).
+  3) Inclusão explícita de vulnerabilidades ainda **sem correção publicada**
+     (`Status == "affected"`, `FixedVersion=unfixed`), filtrando apenas
+     entradas marcadas como `will_not_fix`, `end_of_life` ou `not_affected`
+     pela distribuição, além da checagem de pinning por `@sha256:` no `Dockerfile`.
+  4) Exportação automática dos **14 pacotes de SO** inventariados pelo Trivy para
+     o SBOM consolidado (`casa-assessment/output/sbom.cdx.json`) e dos achados
+     `CASA3-SCA-03` para `casa-assessment/output/sca-findings.sarif`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master` e a imagem local
+  `bkimminich/juice-shop:latest` (`sha256:318714401c46c3c0a2458b5dccfc84af8e4839181d1a723701f8a6822b19294f`):
+  * Veredito `SCA-03`: **FAIL** (`Debian:13.7`, `14` pacotes de SO extraídos).
+  * Ferramenta reportada: `Trivy Container OS & Base Image Scanner (..., CycloneDX 1.5 + SARIF 2.1.0)`.
+  * **3 achados bloqueantes registrados (`CASA3-SCA-03`):**
+    1. `Dockerfile`: estágios base não pinados por digest imutável `@sha256:`
+       (`node:24`, `gcr.io/distroless/nodejs24-debian13`);
+    2. `libssl3t64@3.5.7-1~deb13u3`: `CVE-2026-124709` (**CVSS 7.5 HIGH**,
+       `status=affected`, `fix=unfixed` — falha sem patch publicado capturada
+       conforme exigência explícita do Test Guide);
+    3. `zlib1g@1:1.3.dfsg+really1.3.1-1+b1`: `CVE-2026-85091` (**CVSS 8.1 HIGH**,
+       `status=fixed`, `fix=1:1.3.dfsg+really1.3.1-1+deb13u1`).
+  * Artefatos gerados: `sbom.cdx.json` (com os 14 pacotes Debian 13.7),
+    `trivy-sca03.sarif` e `sca-findings.sarif`.
+================================================================================

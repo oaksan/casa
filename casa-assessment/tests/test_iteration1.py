@@ -11,16 +11,23 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from casa_audit.scanner import (
+    OSV_SCANNER_BIN,
+    SYFT_BIN,
+    TRIVY_BIN,
+    build_reverse_dep_graph,
     compute_cvss3_base_score,
     compute_levenshtein_distance,
     compute_shannon_entropy,
     evaluate_oau05_system_browser_policy,
     evaluate_oau06_client_secret_scanner,
+    evaluate_sca02_dependencies,
     evaluate_whk01_delivery_tls,
     evaluate_whk02_hmac_and_timing_safe,
     evaluate_whk03_ssrf_and_signing_secrets,
     load_controls,
+    parse_trivy_os_report,
     run_automated_al1_scan,
+    trace_package_reachability,
 )
 from casa_audit.server import CasaAssessmentHandler
 
@@ -289,6 +296,144 @@ class TestCasa3Iteration1(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_iteration71_sca01_guide_tooling(self) -> None:
+        self.assertTrue(Path(SYFT_BIN).exists(), f"syft binary not found at {SYFT_BIN}")
+        self.assertTrue(Path(OSV_SCANNER_BIN).exists(), f"osv-scanner binary not found at {OSV_SCANNER_BIN}")
+        self.assertTrue((ROOT_DIR / "casa-assessment" / "output" / "sbom.cdx.json").exists())
+        self.assertTrue((ROOT_DIR / "casa-assessment" / "output" / "sca-findings.sarif").exists())
+        self.assertTrue((ROOT_DIR / "casa-assessment" / "output" / "osv-scanner.sarif").exists())
+
+        with tempfile.TemporaryDirectory() as td_sca:
+            r_sca = Path(td_sca)
+            (r_sca / "lib").mkdir()
+            (r_sca / "lib" / "auth.ts").write_text(
+                "import expressJwt from 'express-jwt';\nexport const mw = expressJwt({ secret: 'x' });\n",
+                encoding="utf-8",
+            )
+            fake_sbom = {
+                "components": [
+                    {"bom-ref": "pkg:npm/express-jwt@0.1.3", "name": "express-jwt", "version": "0.1.3"},
+                    {"bom-ref": "pkg:npm/jsonwebtoken@0.1.0", "name": "jsonwebtoken", "version": "0.1.0"},
+                    {"bom-ref": "pkg:npm/jws@0.2.6", "name": "jws", "version": "0.2.6"},
+                    {"bom-ref": "pkg:npm/@cyclonedx/cyclonedx-npm@4.2.1", "name": "@cyclonedx/cyclonedx-npm", "version": "4.2.1"},
+                ],
+                "dependencies": [
+                    {"ref": "pkg:npm/express-jwt@0.1.3", "dependsOn": ["pkg:npm/jsonwebtoken@0.1.0"]},
+                    {"ref": "pkg:npm/jsonwebtoken@0.1.0", "dependsOn": ["pkg:npm/jws@0.2.6"]},
+                ],
+            }
+            rev_graph = build_reverse_dep_graph(r_sca, fake_sbom)
+            cache: dict[str, tuple[bool, list[str]]] = {}
+            reach_jws, traces_jws = trace_package_reachability(r_sca, "jws", rev_graph, cache)
+            reach_cli, _ = trace_package_reachability(r_sca, "@cyclonedx/cyclonedx-npm", rev_graph, cache)
+            self.assertTrue(reach_jws, "Transitive dependency jws via express-jwt must be reachable")
+            self.assertTrue(any("express-jwt" in t for t in traces_jws))
+            self.assertFalse(reach_cli, "Unimported dev CLI tool must remain unreachable")
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 01/61: SCA-01 (Iteração SDD 071)", just2_txt)
+
+    def test_iteration72_sca02_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sca2:
+            r2 = Path(td_sca2)
+            # 1. Untrusted non-canonical registry in package-lock.json + EOL Node engine + untrusted PyPI source
+            (r2 / "package.json").write_text(
+                json.dumps({
+                    "name": "sca02-test",
+                    "engines": {"node": "16.x"},
+                    "dependencies": {"evilpkg": "^1.0.0"},
+                }),
+                encoding="utf-8",
+            )
+            (r2 / "package-lock.json").write_text(
+                json.dumps({
+                    "lockfileVersion": 3,
+                    "packages": {
+                        "": {"dependencies": {"evilpkg": "^1.0.0"}},
+                        "node_modules/evilpkg": {
+                            "version": "1.0.1",
+                            "resolved": "http://untrusted.example.com/evilpkg-1.0.1.tgz",
+                        },
+                    },
+                }),
+                encoding="utf-8",
+            )
+            (r2 / "requirements.txt").write_text(
+                "internal-pkg @ git+https://evil.example.com/repo.git\n",
+                encoding="utf-8",
+            )
+            fails, sarifs, stats = evaluate_sca02_dependencies(
+                r2,
+                [("npm", "evilpkg", "1.0.0"), ("PyPI", "internal-pkg", "0.1.0")],
+            )
+            joined = "\n".join(fails)
+            self.assertIn("evilpkg@1.0.1", joined)
+            self.assertIn("Untrusted/unpinned source registry", joined)
+            self.assertIn("nodejs@16", joined)
+            self.assertIn("Untrusted direct PyPI source URL", joined)
+            self.assertGreaterEqual(stats["untrusted_registry"], 2)
+            self.assertGreaterEqual(stats["eol_or_deprecated"], 1)
+            self.assertTrue(any(s.get("ruleId") == "CASA3-SCA-02" for s in sarifs))
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 02/61: SCA-02 (Iteração SDD 072)", just2_txt)
+
+    def test_iteration73_sca03_guide_tooling(self) -> None:
+        self.assertTrue(Path(TRIVY_BIN).exists(), f"trivy binary not found at {TRIVY_BIN}")
+        sample_trivy = {
+            "Metadata": {"OS": {"Family": "debian", "Name": "13.7"}},
+            "Results": [
+                {
+                    "Class": "os-pkgs",
+                    "Packages": [
+                        {
+                            "Name": "libssl3t64",
+                            "Version": "3.5.7-1~deb13u3",
+                            "SrcName": "openssl",
+                            "Identifier": {"PURL": "pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3"},
+                        },
+                        {
+                            "Name": "tar",
+                            "Version": "1.35+dfsg-3",
+                            "SrcName": "tar",
+                            "Identifier": {"PURL": "pkg:deb/debian/tar@1.35+dfsg-3"},
+                        },
+                    ],
+                    "Vulnerabilities": [
+                        {
+                            "VulnerabilityID": "CVE-2026-124709",
+                            "PkgName": "libssl3t64",
+                            "InstalledVersion": "3.5.7-1~deb13u3",
+                            "Severity": "HIGH",
+                            "Status": "affected",
+                            "CVSS": {"nvd": {"V3Score": 7.5}},
+                        },
+                        {
+                            "VulnerabilityID": "CVE-2024-999999",
+                            "PkgName": "tar",
+                            "InstalledVersion": "1.35+dfsg-3",
+                            "Severity": "HIGH",
+                            "Status": "will_not_fix",
+                            "CVSS": {"nvd": {"V3Score": 7.8}},
+                        },
+                    ],
+                }
+            ],
+        }
+        os_comps, blocking, excluded, sarifs, distro = parse_trivy_os_report(sample_trivy)
+        self.assertEqual(distro, "Debian:13.7")
+        self.assertEqual(len(os_comps), 2)
+        self.assertEqual(len(blocking), 1)
+        self.assertIn("CVE-2026-124709", blocking[0])
+        self.assertIn("fix=unfixed", blocking[0])
+        self.assertEqual(len(excluded), 1)
+        self.assertIn("will_not_fix", excluded[0])
+        self.assertEqual(len(sarifs), 1)
+        self.assertEqual(sarifs[0]["ruleId"], "CASA3-SCA-03")
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 03/61: SCA-03 (Iteração SDD 073)", just2_txt)
 
 
 if __name__ == "__main__":

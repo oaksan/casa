@@ -369,3 +369,60 @@ Domínio 1: Software Composition & Supply Chain
        (`epilogue`), mantenedores distintos (`['bkimminich']` vs.
        `['dchester', 'mbroadst']`) e descrição clonada.
 ================================================================================
+
+================================================================================
+CONTROLE 06/61: SAST-01 (Iteração SDD 076)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-01
+- Requisito (CASA 3.0 AL1):
+  "Verify there are no hardcoded secrets, API keys, passwords, private keys, or
+   high-entropy credentials in source code, config, build artifacts, or shipped
+   binaries."
+- Referências: OWASP ASVS V1.14 / CWE-798.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `gitleaks`, `trufflehog`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Veredito:
+  * PASS: Zero achados com severidade `error` após triagem em código-fonte,
+    recursos, configurações de build e artefatos empacotados.
+  * FAIL: >= 1 segredo confirmado sem marcação explícita de falso positivo.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 076)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 076:
+  O avaliador `evaluate_sast01_secrets_and_entropy` executava apenas padrões AST
+  do Semgrep e detecção local de entropia de Shannon sem utilizar o binário
+  oficial **`gitleaks`** exigido pelo `CASA 3.0 (AL1) Test Guide.md`.
+- O que foi feito e melhorado na Iteração SDD 076 (`casa_audit/scanner.py`):
+  1) Instalação e verificação do binário oficial **`gitleaks` (`v8.30.1`)** em
+     `/home/user/.local/bin/gitleaks` e definição da constante `GITLEAKS_BIN`.
+  2) Implementação de `run_gitleaks_for_sast(repo)` executando uma única varredura
+     determinística (`gitleaks dir --report-format sarif`) em `90s` de timeout,
+     gerando o arquivo padrão `output/gitleaks-sast01.sarif` (`SARIF 2.1.0`) com
+     configuração `[extend] useDefault = true` e allowlist de triagem
+     (`output/gitleaks-sast01.toml`) para excluir `logs/`, `node_modules/`,
+     `.git/`, `dist/`, `frontend/dist/`, `test/`, `tests/`, `docs/` e `specs/`.
+  3) Atualização de `run_sast_checks` para executar **`gitleaks` (`v8.30.1`)** em
+     paralelo com **`semgrep` (`1.180.0`)** e integração direta dos achados
+     triados em `evaluate_sast01_secrets_and_entropy(repo, gitleaks_hits=...)`,
+     atualizando o rótulo da ferramenta para
+     `Gitleaks v8.30.1 + Semgrep AST 1.180.0 + Shannon Entropy Secret Detector`
+     (evidência `SARIF 2.1.0`).
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Tempo total SAST: `29.62s` (`gitleaks` + `semgrep` em paralelo).
+  * Veredito `SAST-01`: **FAIL** com **42 achados** estáticos/segredos
+    (evolução em relação aos 37 achados anteriores à integração do Gitleaks).
+  * Artefato `output/gitleaks-sast01.sarif` (`OASIS SARIF 2.1.0`): **7 resultados**
+    confirmados pelo `gitleaks`, incluindo segredos reais em
+    `data/static/users.yml` (`L88`, `L151`), `frontend/src/app/faucet/faucet.component.ts:34`,
+    `infrastructure/terraform/networking.tf:171`, `terraform/networking.tf:171` e
+    `lib/insecurity.ts:21`.
+================================================================================

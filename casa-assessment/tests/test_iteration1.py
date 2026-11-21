@@ -12,6 +12,7 @@ from pathlib import Path
 
 from casa_audit.scanner import (
     CYCLONEDX_BIN,
+    GITLEAKS_BIN,
     OSV_SCANNER_BIN,
     SYFT_BIN,
     TRIVY_BIN,
@@ -21,6 +22,7 @@ from casa_audit.scanner import (
     compute_shannon_entropy,
     evaluate_oau05_system_browser_policy,
     evaluate_oau06_client_secret_scanner,
+    evaluate_sast01_secrets_and_entropy,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -31,6 +33,7 @@ from casa_audit.scanner import (
     parse_trivy_os_report,
     run_automated_al1_scan,
     run_cyclonedx_validate_and_diff,
+    run_gitleaks_for_sast,
     trace_package_reachability,
 )
 from casa_audit.server import CasaAssessmentHandler
@@ -532,6 +535,33 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 05/61: SCA-05 (Iteração SDD 075)", just2_txt)
+
+    def test_iteration76_sast01_guide_tooling(self) -> None:
+        self.assertTrue(Path(GITLEAKS_BIN).exists(), f"gitleaks binary not found at {GITLEAKS_BIN}")
+        with tempfile.TemporaryDirectory() as td_sast1:
+            r1 = Path(td_sast1)
+            (r1 / "src").mkdir()
+            # GitHub PAT style high-entropy token in source + triaged mock in .spec.ts
+            fake_tok = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+            (r1 / "src" / "config.ts").write_text(
+                f"export const GH_TOKEN = '{fake_tok}';\n",
+                encoding="utf-8",
+            )
+            (r1 / "src" / "config.spec.ts").write_text(
+                f"const mockTok = '{fake_tok}';\n",
+                encoding="utf-8",
+            )
+            hits, gl_ran = run_gitleaks_for_sast(r1)
+            self.assertTrue(gl_ran)
+            self.assertTrue(any("src/config.ts" in str(h.get("File")) for h in hits))
+            self.assertFalse(any("config.spec.ts" in str(h.get("File")) for h in hits))
+
+            findings, sarifs = evaluate_sast01_secrets_and_entropy(r1, gitleaks_hits=hits)
+            self.assertTrue(any("[GITLEAKS" in f and "src/config.ts" in f for f in findings))
+            self.assertTrue(any(s.get("ruleId", "").startswith("CASA3-SAST-01-gitleaks-") for s in sarifs))
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 06/61: SAST-01 (Iteração SDD 076)", just2_txt)
 
 
 if __name__ == "__main__":

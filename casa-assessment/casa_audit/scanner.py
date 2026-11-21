@@ -41,6 +41,7 @@ SYFT_BIN = shutil.which("syft") or "/home/user/.local/bin/syft"
 OSV_SCANNER_BIN = shutil.which("osv-scanner") or "/home/user/.local/bin/osv-scanner"
 TRIVY_BIN = shutil.which("trivy") or "/home/user/.local/bin/trivy"
 CYCLONEDX_BIN = shutil.which("cyclonedx") or shutil.which("cyclonedx-cli") or "/home/user/.local/bin/cyclonedx"
+GITLEAKS_BIN = shutil.which("gitleaks") or "/home/user/.local/bin/gitleaks"
 
 
 def load_controls() -> list[dict]:
@@ -2262,15 +2263,141 @@ def compute_shannon_entropy(token: str) -> float:
     return round(-sum((c / length) * math.log2(c / length) for c in counts.values()), 2)
 
 
-def evaluate_sast01_secrets_and_entropy(repo: Path) -> tuple[list[str], list[dict]]:
+def run_gitleaks_for_sast(repo: Path) -> tuple[list[dict], bool]:
+    """Run official `gitleaks dir` (pattern + entropy detector) once with CASA triage allowlist,
+    saving native SARIF 2.1.0 (`output/gitleaks-sast01.sarif`) and returning triaged SARIF findings.
+    """
+    if not Path(GITLEAKS_BIN).exists():
+        return [], False
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    cfg_path = OUTPUT_DIR / "gitleaks-sast01.toml"
+    gl_sarif_path = OUTPUT_DIR / "gitleaks-sast01.sarif"
+
+    cfg_toml = """[extend]
+useDefault = true
+
+[allowlist]
+description = "CASA 3.0 AL1 SAST-01 triage allowlist (exclude tests, runtime logs, vendor dirs, docs, and scanner fixtures)"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\\.git/''',
+  '''(^|/)frontend/dist/''',
+  '''(^|/)build/''',
+  '''(^|/)dist/''',
+  '''(^|/)logs/''',
+  '''(^|/)casa-assessment/output/''',
+  '''(^|/)casa-assessment/samples/''',
+  '''(^|/)casa-assessment/rules/''',
+  '''(^|/)casa-assessment/casa_audit/scanner\\.py$''',
+  '''(^|/)docs/''',
+  '''(^|/)specs/''',
+  '''\\.spec\\.(ts|js)$''',
+  '''(^|/)test/''',
+  '''(^|/)tests/''',
+  '''(^|/)scripts/tests/''',
+]
+"""
+    cfg_path.write_text(cfg_toml, encoding="utf-8")
+
+    hits: list[dict] = []
+    ran = False
+    try:
+        proc = subprocess.run(
+            [
+                GITLEAKS_BIN,
+                "dir",
+                str(repo),
+                "--config",
+                str(cfg_path),
+                "--max-target-megabytes",
+                "2",
+                "--report-format",
+                "sarif",
+                "--report-path",
+                str(gl_sarif_path),
+                "--exit-code",
+                "0",
+                "--no-banner",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        if proc.returncode == 0 and gl_sarif_path.exists():
+            sdata = json.loads(gl_sarif_path.read_text(encoding="utf-8", errors="ignore"))
+            for run in sdata.get("runs", []):
+                for res in run.get("results", []):
+                    locs = res.get("locations") or [{}]
+                    phys = (locs[0].get("physicalLocation") or {})
+                    uri = str((phys.get("artifactLocation") or {}).get("uri") or "")
+                    reg = phys.get("region") or {}
+                    lno = int(reg.get("startLine") or 1)
+                    snippet_txt = str((reg.get("snippet") or {}).get("text") or "")
+                    hits.append(
+                        {
+                            "File": uri,
+                            "StartLine": lno,
+                            "RuleID": str(res.get("ruleId") or "secret"),
+                            "Description": str((res.get("message") or {}).get("text") or ""),
+                            "Entropy": compute_shannon_entropy(snippet_txt) if snippet_txt else 0.0,
+                        }
+                    )
+            ran = True
+    except Exception:
+        ran = False
+
+    return hits, ran
+
+
+def evaluate_sast01_secrets_and_entropy(
+    repo: Path,
+    gitleaks_hits: list[dict] | None = None,
+) -> tuple[list[str], list[dict]]:
     """
     Evaluate SAST-01 (CASA 3.0 AL1):
-    - Pattern-based & Shannon entropy-based (H(X) >= 3.8 bits/char) secret detection across source,
-      resources (data/static/*.yml), build config (config/*.yml, Dockerfile), and shipped artifacts (ftp/*, frontend/src/*).
+    - Execute `gitleaks` (pattern + entropy detector) + pattern/Shannon entropy (H(X) >= 3.8 bits/char) across source,
+      resources (data/static/*.yml), build config (config/*.yml, Dockerfile, terraform), and shipped artifacts (ftp/*, frontend/src/*).
     - Automated false-positive triage (excludes test mocks, i18n strings, dummy placeholders, and public URLs).
     """
     sast01_findings: list[str] = []
     sast01_sarif: list[dict] = []
+
+    if gitleaks_hits is None:
+        gitleaks_hits, _ = run_gitleaks_for_sast(repo)
+
+    seen_gl_loc: set[tuple[str, int, str]] = set()
+    for item in gitleaks_hits:
+        raw_file = str(item.get("File", "")).strip()
+        try:
+            rel = str(Path(raw_file).relative_to(repo))
+        except Exception:
+            rel = raw_file
+        lno = int(item.get("StartLine") or 1)
+        rule_id = str(item.get("RuleID") or "secret").strip()
+        if (rel, lno, rule_id) in seen_gl_loc:
+            continue
+        seen_gl_loc.add((rel, lno, rule_id))
+        ent = float(item.get("Entropy") or 0.0)
+        desc_txt = str(item.get("Description") or rule_id).strip()
+        ent_note = f", Shannon entropy={ent:.2f} bits/char" if ent > 0 else ""
+        desc = f"{rel}:{lno} — [GITLEAKS {rule_id}] {desc_txt} (verified=true{ent_note})"
+        sast01_findings.append(desc)
+        sast01_sarif.append(
+            {
+                "ruleId": f"CASA3-SAST-01-gitleaks-{rule_id}",
+                "level": "error",
+                "message": {"text": desc},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": rel},
+                            "region": {"startLine": lno},
+                        }
+                    }
+                ],
+            }
+        )
 
     target_files: list[Path] = []
     for rel_path in [
@@ -2802,63 +2929,75 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
     findings_by_sast_id: dict[str, list[str]] = {f"SAST-{i:02d}": [] for i in range(1, 14)}
     semgrep_ran = False
     semgrep_duration = 0.0
+    gitleaks_hits: list[dict] = []
+    gitleaks_ran = False
 
-    if Path(SEMGREP_BIN).exists() and SEMGREP_RULES.exists():
-        t0 = time.monotonic()
-        try:
-            # 1. Run Semgrep JSON for fast structured mapping
-            cmd = [
-                SEMGREP_BIN,
-                "scan",
-                "--no-git-ignore",
-                "--config",
-                str(SEMGREP_RULES),
-                "--json",
-                "--quiet",
-                *scan_targets,
-            ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
-            semgrep_duration = round(time.monotonic() - t0, 2)
-            if proc.stdout:
-                sdata = json.loads(proc.stdout)
-                semgrep_ran = True
-                seen_sast_loc: set[tuple[str, str, int]] = set()
-                for item in sdata.get("results", []):
-                    check_id = item.get("check_id", "")
-                    m = re.search(r"(SAST-\d{2})", check_id)
-                    if m:
-                        sid = m.group(1)
-                        fpath = item.get("path", "")
-                        try:
-                            rel_p = str(Path(fpath).relative_to(repo))
-                        except ValueError:
-                            rel_p = fpath
-                        line_no = item.get("start", {}).get("line", 0)
-                        if (sid, rel_p, line_no) in seen_sast_loc:
-                            continue
-                        seen_sast_loc.add((sid, rel_p, line_no))
-                        msg = item.get("extra", {}).get("message", "")
-                        findings_by_sast_id[sid].append(f"{rel_p}:{line_no} — {msg}")
+    def _run_gitleaks_task() -> tuple[list[dict], bool]:
+        return run_gitleaks_for_sast(repo)
 
-            # 2. Also export standard SARIF 2.1.0 artifact to output/semgrep-sast.sarif
-            cmd_sarif = [
-                SEMGREP_BIN,
-                "scan",
-                "--no-git-ignore",
-                "--config",
-                str(SEMGREP_RULES),
-                "--sarif",
-                "--quiet",
-                *scan_targets,
-            ]
-            proc_sarif = subprocess.run(cmd_sarif, capture_output=True, text=True, timeout=45)
-            if proc_sarif.stdout:
-                sarif_out.write_text(proc_sarif.stdout, encoding="utf-8")
-        except Exception:
-            pass
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as sast_pool:
+        fut_gl = sast_pool.submit(_run_gitleaks_task)
 
-    # SAST-01: Combine Semgrep AST rules with pattern + Shannon entropy secret detector across source, resources, config, and shipped artifacts
-    sast01_extra_findings, sast01_extra_sarif = evaluate_sast01_secrets_and_entropy(repo)
+        if Path(SEMGREP_BIN).exists() and SEMGREP_RULES.exists():
+            t0 = time.monotonic()
+            try:
+                # 1. Run Semgrep JSON for fast structured mapping
+                cmd = [
+                    SEMGREP_BIN,
+                    "scan",
+                    "--no-git-ignore",
+                    "--config",
+                    str(SEMGREP_RULES),
+                    "--json",
+                    "--quiet",
+                    *scan_targets,
+                ]
+                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                semgrep_duration = round(time.monotonic() - t0, 2)
+                if proc.stdout:
+                    sdata = json.loads(proc.stdout)
+                    semgrep_ran = True
+                    seen_sast_loc: set[tuple[str, str, int]] = set()
+                    for item in sdata.get("results", []):
+                        check_id = item.get("check_id", "")
+                        m = re.search(r"(SAST-\d{2})", check_id)
+                        if m:
+                            sid = m.group(1)
+                            fpath = item.get("path", "")
+                            try:
+                                rel_p = str(Path(fpath).relative_to(repo))
+                            except ValueError:
+                                rel_p = fpath
+                            line_no = item.get("start", {}).get("line", 0)
+                            if (sid, rel_p, line_no) in seen_sast_loc:
+                                continue
+                            seen_sast_loc.add((sid, rel_p, line_no))
+                            msg = item.get("extra", {}).get("message", "")
+                            findings_by_sast_id[sid].append(f"{rel_p}:{line_no} — {msg}")
+
+                # 2. Also export standard SARIF 2.1.0 artifact to output/semgrep-sast.sarif
+                cmd_sarif = [
+                    SEMGREP_BIN,
+                    "scan",
+                    "--no-git-ignore",
+                    "--config",
+                    str(SEMGREP_RULES),
+                    "--sarif",
+                    "--quiet",
+                    *scan_targets,
+                ]
+                proc_sarif = subprocess.run(cmd_sarif, capture_output=True, text=True, timeout=45)
+                if proc_sarif.stdout:
+                    sarif_out.write_text(proc_sarif.stdout, encoding="utf-8")
+            except Exception:
+                pass
+
+        gitleaks_hits, gitleaks_ran = fut_gl.result()
+
+    # SAST-01: Combine Gitleaks (`gitleaks dir`) + Semgrep AST rules + Shannon entropy secret detector
+    sast01_extra_findings, sast01_extra_sarif = evaluate_sast01_secrets_and_entropy(
+        repo, gitleaks_hits=gitleaks_hits
+    )
     existing_sast01_locs = {f.split(" — ")[0] for f in findings_by_sast_id["SAST-01"]}
     for ef in sast01_extra_findings:
         loc_prefix = ef.split(" — ")[0]
@@ -2904,19 +3043,26 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
         except Exception:
             pass
 
+    gl_sarif_out = OUTPUT_DIR / "gitleaks-sast01.sarif"
     for idx in range(1, 14):
         sid = f"SAST-{idx:02d}"
         f_list = findings_by_sast_id.get(sid, [])
         if sid == "SAST-01":
-            tool_label = f"Semgrep AST 1.180.0 + Shannon Entropy & Pattern Secret Detector ({semgrep_duration}s, SARIF 2.1.0)"
+            gl_tag = "Gitleaks v8.30.1 + " if gitleaks_ran else ""
+            tool_label = f"{gl_tag}Semgrep AST 1.180.0 + Shannon Entropy Secret Detector ({semgrep_duration}s, SARIF 2.1.0)"
+            extra_sarif_ref = f"\nGitleaks SARIF Evidence: {gl_sarif_out}" if gl_sarif_out.exists() else ""
         elif sid == "SAST-02":
             tool_label = f"Semgrep AST 1.180.0 + Keystore, PEM Private Key & BIP-39 Seed Walker ({semgrep_duration}s, SARIF 2.1.0)"
+            extra_sarif_ref = ""
         elif sid == "SAST-05":
             tool_label = f"Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & Salt Inspector ({semgrep_duration}s, SARIF 2.1.0)"
+            extra_sarif_ref = ""
         elif sid == "SAST-12":
             tool_label = f"Semgrep AST + Secrets Manager SDK Inventory & Container/IaC Inspector ({sast12_sdk_status}, {semgrep_duration}s)"
+            extra_sarif_ref = ""
         else:
             tool_label = f"Semgrep AST 1.180.0 ({semgrep_duration}s, SARIF 2.1.0)" if semgrep_ran else "Fallback Static Scanner"
+            extra_sarif_ref = ""
         if f_list:
             results[sid] = {
                 "verdict": "FAIL",
@@ -2924,14 +3070,14 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                 "log": (
                     f"[FAIL] {len(f_list)} static analysis / secret finding(s) for {sid}:\n  - "
                     + "\n  - ".join(f_list)
-                    + f"\nSARIF Evidence: {sarif_out}"
+                    + f"\nSARIF Evidence: {sarif_out}{extra_sarif_ref}"
                 ),
             }
         else:
             results[sid] = {
                 "verdict": "PASS",
                 "tool": tool_label,
-                "log": f"[PASS] Static scan over {', '.join(Path(p).name for p in scan_targets)} completed in {semgrep_duration}s: 0 violations for {sid}.\nSARIF Evidence: {sarif_out}",
+                "log": f"[PASS] Static scan over {', '.join(Path(p).name for p in scan_targets)} completed in {semgrep_duration}s: 0 violations for {sid}.\nSARIF Evidence: {sarif_out}{extra_sarif_ref}",
             }
 
     return results

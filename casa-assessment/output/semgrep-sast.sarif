@@ -2630,6 +2630,139 @@
           "ruleId": "casa-assessment.rules.CASA3-SAST-07-mass-assignment"
         },
         {
+          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:88 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/data/static/users.yml. (verified=true, Shannon entropy=4.33 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 88
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:151 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/data/static/users.yml. (verified=true, Shannon entropy=4.35 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 151
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
+          "level": "error",
+          "message": {
+            "text": "frontend/src/app/faucet/faucet.component.ts:34 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/frontend/src/app/faucet/faucet.component.ts. (verified=true, Shannon entropy=4.24 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "frontend/src/app/faucet/faucet.component.ts"
+                },
+                "region": {
+                  "startLine": 34
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
+          "level": "error",
+          "message": {
+            "text": "routes/login.ts:64 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/routes/login.ts. (verified=true, Shannon entropy=4.33 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/login.ts"
+                },
+                "region": {
+                  "startLine": 64
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
           "ruleId": "CASA3-SAST-01-entropy-hmac",
           "level": "error",
           "message": {

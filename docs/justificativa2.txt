@@ -236,3 +236,72 @@ Domínio 1: Software Composition & Supply Chain
   * Artefatos gerados: `sbom.cdx.json` (com os 14 pacotes Debian 13.7),
     `trivy-sca03.sarif` e `sca-findings.sarif`.
 ================================================================================
+
+================================================================================
+CONTROLE 04/61: SCA-04 (Iteração SDD 074)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SCA-04
+- Requisito (CASA 3.0 AL1):
+  "A complete, machine-readable SBOM is published for the assessed build, and
+   it matches an SBOM the assessor generates independently."
+- Referências: OWASP ASVS V14.2.5 (L2); NTIA Minimum Elements; CycloneDX 1.5.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `syft`, `cyclonedx-cli`.
+- Formatos de Evidência Exigidos:
+  SBOM gerado pelo avaliador (`CycloneDX 1.5+` ou `SPDX 2.3+`) + achados de
+  divergência em `OASIS SARIF 2.1.0`.
+- Critério Determinístico de Veredito:
+  * PASS: O SBOM publicado faz parsing como CycloneDX 1.5+ ou SPDX 2.3+, cada
+    componente traz todos os Elementos Mínimos da NTIA e a diferença de
+    conjuntos (`Assessor_SBOM − Published_SBOM`) é vazia.
+  * FAIL: SBOM ausente, não parseável ou fora de CycloneDX 1.5+ / SPDX 2.3+,
+    componente sem elemento mínimo da NTIA, ou >= 1 componente presente no SBOM
+    do avaliador ausente no SBOM publicado.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 074)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 074:
+  A validação de formato e a diferença de conjuntos eram feitas apenas por
+  heurísticas em Python sobre o JSON, sem executar o utilitário oficial
+  `cyclonedx-cli` listado no Guia para validação formal de schema CycloneDX e
+  diff estrutural de versões.
+- O que foi feito e melhorado na Iteração SDD 074:
+  1) Instalação do binário oficial gratuito **`cyclonedx-cli` (`v0.33.1`)** em
+     `/home/user/.local/bin/cyclonedx` (`CYCLONEDX_BIN`), trabalhando em conjunto
+     com o **`syft` (`v1.57.2`)**.
+  2) Implementação de `run_cyclonedx_validate_and_diff` em
+     `casa-assessment/casa_audit/scanner.py` e integração em
+     `evaluate_sca04_sbom_completeness`:
+     - Salva cópia local do SBOM publicado (`output/published-sbom.cdx.json`)
+       quando extraído da imagem do contêiner (`/juice-shop/bom.json`);
+     - Executa **`cyclonedx validate --input-format json --input-version v1_<minor> --fail-on-errors`**
+       para validar formalmente o schema CycloneDX >= 1.5;
+     - Executa **`cyclonedx diff <pub> <assessor> --component-versions --output-format json`**
+       gerando o artefato `casa-assessment/output/cyclonedx-diff.json`.
+  3) Preservação da auditoria completa dos Elementos Mínimos da NTIA
+     (`timestamp`, `tools`/`authors`, `dependencies`, `supplier`/`author`/`publisher`,
+     `name`, `version`, `purl`/`bom-ref`) e diferença normalizada de conjuntos
+     (`Assessor_SBOM − Published_SBOM`) com emissão em `sca-findings.sarif` (`CASA3-SCA-04`).
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master` e
+  `container:bkimminich/juice-shop:latest:/juice-shop/bom.json`:
+  * Veredito `SCA-04`: **FAIL** (`CycloneDX 1.6`, `537` componentes no SBOM
+    publicado da imagem vs. `722` componentes no SBOM gerado por `Syft + Trivy`).
+  * Ferramenta reportada: `Syft + cyclonedx-cli + NTIA Minimum Elements & Set-Diff Verifier`.
+  * **3 falhas determinísticas comprovadas (`CASA3-SCA-04`):**
+    1. Ausência de SBOM publicado no repositório-fonte `juice-shop-master`;
+    2. **66/537 componentes** em `/juice-shop/bom.json` sem `supplier`/`author`/`publisher`
+       (lacuna de Elementos Mínimos da NTIA);
+    3. **SetDiff = 220 componentes** presentes no SBOM do avaliador (incluindo os
+       14 pacotes OS Debian 13.7, `@npmcli/fs@1.1.1` e desvios de versão como
+       `@ai-sdk/*` e `@otplib/*`) ausentes ou divergentes no `/juice-shop/bom.json`.
+  * Artefato `cyclonedx-diff.json` gerado formalmente com `661` entradas
+    (`added=248`, `removed=62`), validando também a conformidade de schema do
+    `CycloneDX 1.6` via `cyclonedx validate`.
+================================================================================

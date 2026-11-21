@@ -3,8 +3,8 @@
   "Trivy": {
     "Version": "0.76.2"
   },
-  "ReportID": "01a2004c-613c-7e33-bb1d-f7c3686e519d",
-  "CreatedAt": "2026-11-21T19:48:55.356932597-03:00",
+  "ReportID": "01a20055-942d-7229-9f3a-1f2946e5a6e0",
+  "CreatedAt": "2026-11-21T19:58:58.221143331-03:00",
   "ArtifactID": "sha256:ba511c35f73dece12839c629d1e2925f320b008c26c7a3506dbe027bce749d26",
   "ArtifactName": "bkimminich/juice-shop:latest",
   "ArtifactType": "container_image",

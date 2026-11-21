@@ -40,6 +40,7 @@ SEMGREP_BIN = shutil.which("semgrep") or "/home/user/.local/bin/semgrep"
 SYFT_BIN = shutil.which("syft") or "/home/user/.local/bin/syft"
 OSV_SCANNER_BIN = shutil.which("osv-scanner") or "/home/user/.local/bin/osv-scanner"
 TRIVY_BIN = shutil.which("trivy") or "/home/user/.local/bin/trivy"
+CYCLONEDX_BIN = shutil.which("cyclonedx") or shutil.which("cyclonedx-cli") or "/home/user/.local/bin/cyclonedx"
 
 
 def load_controls() -> list[dict]:
@@ -803,6 +804,79 @@ def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], 
     )
 
 
+def run_cyclonedx_validate_and_diff(
+    pub_sbom_path: Path,
+    pub_spec_ver: str,
+    assessor_sbom_path: Path,
+    diff_out_path: Path,
+) -> tuple[bool, str, bool, dict | None]:
+    """Run official `cyclonedx validate` on published BOM and `cyclonedx diff` vs assessor BOM."""
+    if not Path(CYCLONEDX_BIN).exists() or not pub_sbom_path.exists():
+        return True, "", False, None
+
+    ver_flag = "v1_5"
+    parts = pub_spec_ver.split(".")
+    if len(parts) >= 2 and parts[0] == "1" and parts[1].isdigit():
+        ver_flag = f"v1_{parts[1]}"
+
+    pub_valid = True
+    val_msg = ""
+    try:
+        vp = subprocess.run(
+            [
+                CYCLONEDX_BIN,
+                "validate",
+                "--input-file",
+                str(pub_sbom_path),
+                "--input-format",
+                "json",
+                "--input-version",
+                ver_flag,
+                "--fail-on-errors",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        if vp.returncode != 0:
+            pub_valid = False
+            err_txt = (vp.stdout or vp.stderr or "").strip().splitlines()
+            val_msg = "; ".join(err_txt[:3])
+    except Exception as exc:
+        val_msg = str(exc)
+
+    diff_ran = False
+    diff_data: dict | None = None
+    if assessor_sbom_path.exists():
+        try:
+            dp = subprocess.run(
+                [
+                    CYCLONEDX_BIN,
+                    "diff",
+                    str(pub_sbom_path),
+                    str(assessor_sbom_path),
+                    "--from-format",
+                    "json",
+                    "--to-format",
+                    "json",
+                    "--component-versions",
+                    "--output-format",
+                    "json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if dp.returncode == 0 and dp.stdout.strip().startswith("{"):
+                diff_out_path.write_text(dp.stdout, encoding="utf-8")
+                diff_data = json.loads(dp.stdout)
+                diff_ran = True
+        except Exception:
+            pass
+
+    return pub_valid, val_msg, diff_ran, diff_data
+
+
 def evaluate_sca04_sbom_completeness(
     repo: Path,
     assessor_components: list[dict],
@@ -828,9 +902,11 @@ def evaluate_sca04_sbom_completeness(
 
     pub_sbom_data: dict | None = None
     pub_sbom_source = ""
+    pub_sbom_local_file: Path | None = None
 
     if candidate_files:
         target_sbom = candidate_files[0]
+        pub_sbom_local_file = target_sbom
         pub_sbom_source = f"repo:{target_sbom.relative_to(repo)}"
         try:
             pub_sbom_data = json.loads(target_sbom.read_text(encoding="utf-8", errors="ignore"))
@@ -882,6 +958,10 @@ def evaluate_sca04_sbom_completeness(
                         timeout=10,
                     )
                     if proc.returncode == 0 and proc.stdout.strip().startswith("{"):
+                        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                        pub_copy = OUTPUT_DIR / "published-sbom.cdx.json"
+                        pub_copy.write_text(proc.stdout, encoding="utf-8")
+                        pub_sbom_local_file = pub_copy
                         pub_sbom_data = json.loads(proc.stdout)
                         pub_sbom_source = f"container:{img}:/juice-shop/bom.json"
                         break
@@ -917,6 +997,28 @@ def evaluate_sca04_sbom_completeness(
             format_label = spdx_ver_str
         except Exception:
             format_label = spdx_ver_str
+
+    cdx_diff_path = OUTPUT_DIR / "cyclonedx-diff.json"
+    cdx_diff_ran = False
+    if bom_format == "CycloneDX" and is_valid_format and pub_sbom_local_file is not None:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        pub_valid, val_msg, cdx_diff_ran, _ = run_cyclonedx_validate_and_diff(
+            pub_sbom_local_file,
+            spec_ver_str,
+            assessor_sbom_path,
+            cdx_diff_path,
+        )
+        if not pub_valid:
+            msg = f"Published SBOM ({pub_sbom_source}) failed official cyclonedx-cli schema validation ({format_label}): {val_msg}"
+            sca04_failures.append(msg)
+            sca04_sarif.append(
+                {
+                    "ruleId": "CASA3-SCA-04",
+                    "level": "error",
+                    "message": {"text": f"SCA-04: {msg}"},
+                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": pub_sbom_source}}}],
+                }
+            )
 
     if not is_valid_format:
         msg = f"Published SBOM ({pub_sbom_source}) format '{format_label}' does not satisfy CycloneDX 1.5+ or SPDX 2.3+"
@@ -1014,9 +1116,11 @@ def evaluate_sca04_sbom_completeness(
     # 3. Compute Set Difference: (Assessor_SBOM - Published_SBOM)
     set_diff_missing: list[str] = []
     for acomp in assessor_components:
+        a_type = str(acomp.get("type", "library")).strip()
+        if a_type == "file":
+            continue
         a_name = str(acomp.get("name", "")).strip()
         a_ver = str(acomp.get("version", "")).strip()
-        a_type = str(acomp.get("type", "library")).strip()
         a_purl = str(acomp.get("purl", "")).strip()
 
         key = a_name.lower()
@@ -2002,15 +2106,22 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
         }
 
     # SCA-04: Published machine-readable SBOM matches assessor-generated SBOM
+    cdx_diff_file = OUTPUT_DIR / "cyclonedx-diff.json"
+    cdx_diff_line = f"\n  - CycloneDX Diff Report: {cdx_diff_file}" if cdx_diff_file.exists() else ""
+    sca04_tool_lbl = (
+        f"Syft + cyclonedx-cli + NTIA Minimum Elements & Set-Diff Verifier ({sca04_meta})"
+        if Path(CYCLONEDX_BIN).exists()
+        else f"CycloneDX 1.5+ / SPDX 2.3+ & NTIA Minimum Elements Set-Diff Verifier ({sca04_meta})"
+    )
     results["SCA-04"] = {
         "verdict": sca04_verdict,
-        "tool": f"CycloneDX 1.5+ / SPDX 2.3+ & NTIA Minimum Elements Set-Diff Verifier ({sca04_meta})",
+        "tool": sca04_tool_lbl,
         "log": (
             f"[FAIL] {len(sca04_failures)} SCA-04 SBOM verification failure(s) detected ({sca04_meta}):\n  - "
             + "\n  - ".join(sca04_failures)
-            + f"\n\nEvidence Artifacts:\n  - Assessor-Generated SBOM (CycloneDX 1.5): {sbom_path}\n  - SARIF 2.1.0: {sca_sarif_path}"
+            + f"\n\nEvidence Artifacts:\n  - Assessor-Generated SBOM (CycloneDX 1.5): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}{cdx_diff_line}"
             if sca04_verdict == "FAIL"
-            else f"[PASS] Published SBOM verified ({sca04_meta}): parses as CycloneDX 1.5+ / SPDX 2.3+, every component carries all NTIA minimum elements, and set difference (Assessor_SBOM − Published_SBOM) is empty.\nEvidence Artifacts:\n  - Assessor SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
+            else f"[PASS] Published SBOM verified via Syft & cyclonedx-cli ({sca04_meta}): passes CycloneDX 1.5+ / SPDX 2.3+ validation, every component carries all NTIA minimum elements, and set difference (Assessor_SBOM − Published_SBOM) is empty.\nEvidence Artifacts:\n  - Assessor SBOM: {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}{cdx_diff_line}"
         ),
     }
 

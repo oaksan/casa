@@ -11,6 +11,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from casa_audit.scanner import (
+    CYCLONEDX_BIN,
     OSV_SCANNER_BIN,
     SYFT_BIN,
     TRIVY_BIN,
@@ -21,12 +22,14 @@ from casa_audit.scanner import (
     evaluate_oau05_system_browser_policy,
     evaluate_oau06_client_secret_scanner,
     evaluate_sca02_dependencies,
+    evaluate_sca04_sbom_completeness,
     evaluate_whk01_delivery_tls,
     evaluate_whk02_hmac_and_timing_safe,
     evaluate_whk03_ssrf_and_signing_secrets,
     load_controls,
     parse_trivy_os_report,
     run_automated_al1_scan,
+    run_cyclonedx_validate_and_diff,
     trace_package_reachability,
 )
 from casa_audit.server import CasaAssessmentHandler
@@ -434,6 +437,57 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 03/61: SCA-03 (Iteração SDD 073)", just2_txt)
+
+    def test_iteration74_sca04_guide_tooling(self) -> None:
+        self.assertTrue(Path(CYCLONEDX_BIN).exists(), f"cyclonedx-cli binary not found at {CYCLONEDX_BIN}")
+        with tempfile.TemporaryDirectory() as td_sca4:
+            r4 = Path(td_sca4)
+            assessor_comps = [
+                {
+                    "type": "library",
+                    "bom-ref": "pkg:npm/express@4.22.1",
+                    "supplier": {"name": "npm registry"},
+                    "name": "express",
+                    "version": "4.22.1",
+                    "purl": "pkg:npm/express@4.22.1",
+                }
+            ]
+            assessor_sbom = {
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.5",
+                "serialNumber": "urn:uuid:11111111-1111-4111-8111-111111111111",
+                "version": 1,
+                "metadata": {
+                    "timestamp": "2026-11-21T00:00:00Z",
+                    "tools": [{"vendor": "Anchore", "name": "syft", "version": "1.57.2"}],
+                    "component": {"type": "application", "name": "app", "bom-ref": "app"},
+                },
+                "components": assessor_comps,
+                "dependencies": [{"ref": "app", "dependsOn": ["pkg:npm/express@4.22.1"]}],
+            }
+            a_path = r4 / "assessor.cdx.json"
+            a_path.write_text(json.dumps(assessor_sbom), encoding="utf-8")
+            p_path = r4 / "bom.json"
+            p_path.write_text(json.dumps(assessor_sbom), encoding="utf-8")
+            diff_path = r4 / "diff.json"
+
+            # 1. Complete matching published BOM passes both cyclonedx validate and set-difference
+            v_ok, msg_ok, diff_ran, diff_data = run_cyclonedx_validate_and_diff(p_path, "1.5", a_path, diff_path)
+            self.assertTrue(v_ok, f"Expected valid CycloneDX 1.5 BOM: {msg_ok}")
+            self.assertTrue(diff_ran and diff_data is not None)
+            verdict_p, fails_p, _, _ = evaluate_sca04_sbom_completeness(r4, assessor_comps, a_path)
+            self.assertEqual(verdict_p, "PASS", f"Expected PASS, got fails={fails_p}")
+
+            # 2. Published BOM missing component fails Set Difference
+            bad_pub = dict(assessor_sbom, components=[])
+            p_path.write_text(json.dumps(bad_pub), encoding="utf-8")
+            verdict_f, fails_f, sarif_f, _ = evaluate_sca04_sbom_completeness(r4, assessor_comps, a_path)
+            self.assertEqual(verdict_f, "FAIL")
+            self.assertTrue(any("ABSENT from published SBOM" in f for f in fails_f))
+            self.assertTrue(any(s.get("ruleId") == "CASA3-SCA-04" for s in sarif_f))
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 04/61: SCA-04 (Iteração SDD 074)", just2_txt)
 
 
 if __name__ == "__main__":

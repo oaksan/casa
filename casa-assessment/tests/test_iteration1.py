@@ -23,6 +23,7 @@ from casa_audit.scanner import (
     evaluate_oau06_client_secret_scanner,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
+    evaluate_sca05_malicious_and_typosquat,
     evaluate_whk01_delivery_tls,
     evaluate_whk02_hmac_and_timing_safe,
     evaluate_whk03_ssrf_and_signing_secrets,
@@ -488,6 +489,49 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 04/61: SCA-04 (Iteração SDD 074)", just2_txt)
+
+    def test_iteration75_sca05_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sca5:
+            r5 = Path(td_sca5)
+            # 1. Repository with compromised package scanned via osv-scanner
+            (r5 / "package.json").write_text(
+                json.dumps({"name": "sca05-fail", "dependencies": {"eslint-scope": "3.7.2"}}),
+                encoding="utf-8",
+            )
+            v_fail, fails5, sarif5, meta5 = evaluate_sca05_malicious_and_typosquat(r5)
+            self.assertEqual(v_fail, "FAIL")
+            self.assertIn("osv-scanner", meta5)
+            self.assertTrue(any("eslint-scope@3.7.2" in f for f in fails5))
+            self.assertTrue(any(s.get("ruleId") == "CASA3-SCA-05" for s in sarif5))
+
+            # 2. Synthetic MAL-* advisory passed via lockfile osv_data
+            synthetic_osv = {
+                "results": [
+                    {
+                        "source": {"path": str(r5 / "package-lock.json")},
+                        "packages": [
+                            {
+                                "package": {"name": "evil-typosquat", "version": "1.0.0", "ecosystem": "npm"},
+                                "vulnerabilities": [{"id": "MAL-2026-0001", "summary": "Malicious package"}],
+                            }
+                        ],
+                    }
+                ]
+            }
+            (r5 / "package.json").write_text(
+                json.dumps({"name": "sca05-clean-manifest", "dependencies": {"express": "4.22.1"}}),
+                encoding="utf-8",
+            )
+            v_mal, fails_mal, _, _ = evaluate_sca05_malicious_and_typosquat(r5, osv_data=synthetic_osv)
+            self.assertEqual(v_mal, "FAIL")
+            self.assertTrue(any("MAL-2026-0001" in f for f in fails_mal))
+
+            # 3. Clean canonical dependency passes
+            v_pass, fails_p, _, _ = evaluate_sca05_malicious_and_typosquat(r5)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS, got {fails_p}")
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 05/61: SCA-05 (Iteração SDD 075)", just2_txt)
 
 
 if __name__ == "__main__":

@@ -1263,12 +1263,14 @@ def fetch_npm_maintainers(pkg_name: str) -> tuple[list[str], str]:
         return [], ""
 
 
-def evaluate_sca05_malicious_and_typosquat(repo: Path) -> tuple[str, list[str], list[dict], str]:
+def evaluate_sca05_malicious_and_typosquat(
+    repo: Path,
+    osv_data: dict | None = None,
+) -> tuple[str, list[str], list[dict], str]:
     """
     Evaluate SCA-05 (CASA 3.0 AL1):
     - Multi-manifest discovery across repo: package.json, frontend/package.json, ftp/package.json.bak, requirements*.txt.
-    - Query OSV.dev batch API for OpenSSF Malicious Package advisories (MAL-*) and known malicious release advisories
-      (e.g., GHSA-hxxf-q3w9-4xgw for eslint-scope@3.7.2 compromised maintainer attack, GHSA-5rqg-jm4f-cqx7 / GHSA-gh88-3pxp-6fm8 for colors protestware).
+    - Execute `osv-scanner` (backed by OpenSSF Malicious Packages feed `MAL-*` + OSV.dev) over lockfiles and sub-manifests.
     - Check every dependency against Top-10k canonical package names for Levenshtein distance == 1
       or language-suffix typosquatting (<canonical>-js / <canonical>-node) under a different maintainer on registry.npmjs.org.
     """
@@ -1277,37 +1279,148 @@ def evaluate_sca05_malicious_and_typosquat(repo: Path) -> tuple[str, list[str], 
         repo / "frontend" / "package.json",
         repo / "ftp" / "package.json.bak",
     ]
+    req_manifests = [
+        p
+        for p in repo.rglob("requirements*.txt")
+        if p.is_file()
+        and not any(part in {"node_modules", ".git", "output", "samples"} for part in p.parts)
+    ]
+    all_manifests = [m for m in manifest_candidates if m.exists() and m.is_file()] + [
+        r for r in req_manifests if r not in manifest_candidates
+    ]
+
     pkg_entries: list[tuple[str, str, str, str]] = []  # (ecosystem, name, version, manifest_rel)
     seen_entry: set[tuple[str, str, str]] = set()
 
-    for mf in manifest_candidates:
-        if mf.exists() and mf.is_file():
-            rel_mf = str(mf.relative_to(repo))
+    for mf in all_manifests:
+        rel_mf = str(mf.relative_to(repo))
+        if mf.name.startswith("requirements"):
             try:
-                pdata = json.loads(mf.read_text(encoding="utf-8", errors="ignore"))
-                raw_deps = {**pdata.get("dependencies", {}), **pdata.get("devDependencies", {})}
-                for name, ver in raw_deps.items():
-                    clean_ver = re.sub(r"^[\^~>=<v\s]+", "", str(ver)).split(" ")[0]
-                    if re.match(r"^\d+", clean_ver):
+                for line in mf.read_text(encoding="utf-8", errors="ignore").splitlines():
+                    m_py = re.match(r"^([A-Za-z0-9_\-\.]+)\s*(?:==|>=|~=)\s*([0-9][A-Za-z0-9\.\-_]*)", line.strip())
+                    if m_py:
+                        name, clean_ver = m_py.group(1), m_py.group(2).split(",")[0]
                         key = (name, clean_ver, rel_mf)
                         if key not in seen_entry:
                             seen_entry.add(key)
-                            pkg_entries.append(("npm", name, clean_ver, rel_mf))
+                            pkg_entries.append(("PyPI", name, clean_ver, rel_mf))
             except Exception:
                 pass
+            continue
+        try:
+            pdata = json.loads(mf.read_text(encoding="utf-8", errors="ignore"))
+            raw_deps = {**pdata.get("dependencies", {}), **pdata.get("devDependencies", {})}
+            for name, ver in raw_deps.items():
+                clean_ver = re.sub(r"^[\^~>=<v\s]+", "", str(ver)).split(" ")[0]
+                if re.match(r"^\d+", clean_ver):
+                    key = (name, clean_ver, rel_mf)
+                    if key not in seen_entry:
+                        seen_entry.add(key)
+                        pkg_entries.append(("npm", name, clean_ver, rel_mf))
+        except Exception:
+            pass
 
     sca05_failures: list[str] = []
     sca05_sarif: list[dict] = []
+    seen_advisory_hits: set[tuple[str, str, str]] = set()
 
-    # 1. Check OSV.dev for MAL-* advisories and known compromised-maintainer / protestware advisories
     KNOWN_MALICIOUS_ADVISORY_IDS: dict[str, str] = {
         "GHSA-hxxf-q3w9-4xgw": "Compromised Maintainer / Credential Stealer (npm:eslint-scope:20180712 / eslint-scope@3.7.2)",
         "GHSA-5rqg-jm4f-cqx7": "Protestware Sabotage by Maintainer (colors infinite loop DoS)",
         "GHSA-gh88-3pxp-6fm8": "Protestware Sabotage by Maintainer (colors.js infinite loop)",
-        "GHSA-5j98-mcp5-4vw2": "",  # normal vuln, not malicious
     }
 
-    if pkg_entries:
+    def _record_mal_hit(name: str, ver: str, rel_loc: str, vid: str, vobj: dict | None = None) -> None:
+        hit_key = (name, ver, vid)
+        if hit_key in seen_advisory_hits:
+            return
+        is_mal = vid.startswith("MAL-") or vid in KNOWN_MALICIOUS_ADVISORY_IDS
+        if not is_mal and vobj:
+            aliases = [str(a) for a in (vobj.get("aliases") or [])]
+            is_mal = any(a.startswith("MAL-") or a in KNOWN_MALICIOUS_ADVISORY_IDS for a in aliases)
+        if not is_mal:
+            return
+        seen_advisory_hits.add(hit_key)
+        reason = KNOWN_MALICIOUS_ADVISORY_IDS.get(
+            vid,
+            (vobj or {}).get("summary") or "OpenSSF Malicious Package Advisory (MAL-*)",
+        )
+        msg = f"[MALICIOUS/COMPROMISED ADVISORY] {name}@{ver} (in {rel_loc}) matches {vid}: {reason}"
+        sca05_failures.append(msg)
+        sca05_sarif.append(
+            {
+                "ruleId": "CASA3-SCA-05",
+                "level": "error",
+                "message": {"text": f"SCA-05: {msg}"},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel_loc}}}],
+            }
+        )
+
+    # 1a. Inspect lockfile packages already scanned by `osv-scanner` (covers direct + transitive packages for MAL-*)
+    if osv_data:
+        for res_blk in osv_data.get("results", []):
+            src_uri = str((res_blk.get("source") or {}).get("path") or "package-lock.json")
+            try:
+                src_uri = str(Path(src_uri).relative_to(repo))
+            except Exception:
+                pass
+            for pkg_entry in res_blk.get("packages", []):
+                pinfo = pkg_entry.get("package", {})
+                pname = str(pinfo.get("name", "")).strip()
+                pver = str(pinfo.get("version", "")).strip()
+                for v in pkg_entry.get("vulnerabilities", []):
+                    _record_mal_hit(pname, pver, src_uri, str(v.get("id", "")), v)
+
+    # 1b. Scan multi-manifest components through official `osv-scanner` (OpenSSF malicious-packages + OSV feed)
+    osv_ran_sca05 = False
+    if pkg_entries and Path(OSV_SCANNER_BIN).exists():
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        # Map (eco_lower, name, ver) -> manifest_rel for accurate SARIF location reporting
+        manifest_loc_map: dict[tuple[str, str, str], str] = {}
+        bom_comps: list[dict] = []
+        seen_bom_key: set[tuple[str, str, str]] = set()
+        for eco, name, ver, rel_mf in pkg_entries:
+            manifest_loc_map.setdefault((eco.lower(), name, ver), rel_mf)
+            if (eco.lower(), name, ver) in seen_bom_key:
+                continue
+            seen_bom_key.add((eco.lower(), name, ver))
+            purl_eco = "pypi" if eco.lower() == "pypi" else "npm"
+            bom_comps.append(
+                {
+                    "type": "library",
+                    "name": name,
+                    "version": ver,
+                    "purl": f"pkg:{purl_eco}/{urllib.parse.quote(name, safe='@/')}@{ver}",
+                }
+            )
+        sub_bom_path = OUTPUT_DIR / "sca05-manifests.cdx.json"
+        sub_bom_path.write_text(
+            json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1, "components": bom_comps}),
+            encoding="utf-8",
+        )
+        try:
+            proc_osv5 = subprocess.run(
+                [OSV_SCANNER_BIN, "scan", "source", "--sbom", str(sub_bom_path), "--format", "json"],
+                capture_output=True,
+                text=True,
+                timeout=45,
+            )
+            if proc_osv5.returncode in {0, 1} and proc_osv5.stdout.strip().startswith("{"):
+                osv5_data = json.loads(proc_osv5.stdout)
+                osv_ran_sca05 = True
+                for res_blk in osv5_data.get("results", []):
+                    for pkg_entry in res_blk.get("packages", []):
+                        pinfo = pkg_entry.get("package", {})
+                        pname = str(pinfo.get("name", "")).strip()
+                        pver = str(pinfo.get("version", "")).strip()
+                        peco = str(pinfo.get("ecosystem", "npm")).strip().lower()
+                        rel_loc = manifest_loc_map.get((peco, pname, pver)) or manifest_loc_map.get(("npm", pname, pver)) or "package.json"
+                        for v in pkg_entry.get("vulnerabilities", []):
+                            _record_mal_hit(pname, pver, rel_loc, str(v.get("id", "")), v)
+        except Exception:
+            osv_ran_sca05 = False
+
+    if pkg_entries and not osv_ran_sca05:
         queries = [
             {"package": {"name": name, "ecosystem": eco}, "version": ver}
             for eco, name, ver, _ in pkg_entries
@@ -1327,21 +1440,7 @@ def evaluate_sca05_malicious_and_typosquat(repo: Path) -> tuple[str, list[str], 
                 for idx, item in enumerate(q_res):
                     eco, name, ver, rel_mf = pkg_entries[start + idx]
                     for v in item.get("vulns", []):
-                        vid = str(v.get("id", ""))
-                        if vid.startswith("MAL-") or (vid in KNOWN_MALICIOUS_ADVISORY_IDS and KNOWN_MALICIOUS_ADVISORY_IDS[vid]):
-                            reason = KNOWN_MALICIOUS_ADVISORY_IDS.get(vid, "OpenSSF Malicious Package Advisory (MAL-*)")
-                            msg = (
-                                f"[MALICIOUS/COMPROMISED ADVISORY] {name}@{ver} (in {rel_mf}) matches {vid}: {reason}"
-                            )
-                            sca05_failures.append(msg)
-                            sca05_sarif.append(
-                                {
-                                    "ruleId": "CASA3-SCA-05",
-                                    "level": "error",
-                                    "message": {"text": f"SCA-05: {msg}"},
-                                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel_mf}}}],
-                                }
-                            )
+                        _record_mal_hit(name, ver, rel_mf, str(v.get("id", "")), v)
         except Exception:
             pass
 
@@ -1367,7 +1466,7 @@ def evaluate_sca05_malicious_and_typosquat(repo: Path) -> tuple[str, list[str], 
                     pred_type = (
                         f"Levenshtein distance = 1 from top-10k package '{target_canon}'"
                         if dist == 1
-                        else f"Language-suffix typosquat ('-js'distance={dist}) of canonical package '{target_canon}'"
+                        else f"Language-suffix typosquat (dist={dist}) of canonical package '{target_canon}'"
                     )
                     cloned_note = (
                         " [CLONED DESCRIPTION]" if (pkg_desc and pkg_desc == canon_desc) else ""
@@ -1387,10 +1486,11 @@ def evaluate_sca05_malicious_and_typosquat(repo: Path) -> tuple[str, list[str], 
                     )
                 break
 
-    verdict = "FAIL" if sca05_failures else "PASS"
+    verdict = ("FAIL" if sca05_failures else ("PASS" if pkg_entries or osv_data else "Not_Covered"))
+    engine_lbl = "osv-scanner + OpenSSF malicious-packages" if osv_ran_sca05 else "OSV.dev + OpenSSF MAL-*"
     meta_summary = (
-        f"Scanned {len(pkg_entries)} dependencies across {len([m for m in manifest_candidates if m.exists()])} manifest(s) "
-        f"(OpenSSF MAL-* + Levenshtein<=1 / suffix typosquat & npm maintainer verification)"
+        f"{engine_lbl} | Scanned {len(pkg_entries)} manifest dependencies across {len(all_manifests)} manifest(s) "
+        f"+ lockfile transitive packages (Levenshtein<=1 / suffix typosquat & npm maintainer verification)"
     )
     return verdict, sca05_failures, sca05_sarif, meta_summary
 
@@ -1977,7 +2077,9 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
     sarif_results.extend(sca04_sarif)
 
     # SCA-05: No dependency matches a known-malicious package advisory (MAL-*) or typosquat predicate (Levenshtein<=1 / suffix under different maintainer)
-    sca05_verdict, sca05_failures, sca05_sarif, sca05_meta = evaluate_sca05_malicious_and_typosquat(repo)
+    sca05_verdict, sca05_failures, sca05_sarif, sca05_meta = evaluate_sca05_malicious_and_typosquat(
+        repo, osv_data=osv_data
+    )
     sarif_results.extend(sca05_sarif)
 
     # Write SCA SARIF 2.1.0 artifact (covering SCA-01, SCA-02, SCA-03, SCA-04, and SCA-05)
@@ -2128,13 +2230,18 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
     # SCA-05: Known-malicious package advisory (MAL-*) or typosquat predicate
     results["SCA-05"] = {
         "verdict": sca05_verdict,
-        "tool": f"OpenSSF Malicious Packages (MAL-*) & Levenshtein-1 / Maintainer Typosquat Detector ({sca05_meta})",
+        "tool": f"osv-scanner + OpenSSF Malicious Packages (MAL-*) & Levenshtein-1 Typosquat Detector ({sca05_meta}, SARIF 2.1.0)",
         "log": (
             f"[FAIL] {len(sca05_failures)} SCA-05 malicious package / typosquatting violation(s) detected ({sca05_meta}):\n  - "
             + "\n  - ".join(sca05_failures)
-            + f"\n\nEvidence Artifacts:\n  - SBOM (CycloneDX 1.5): {sbom_path}\n  - SARIF 2.1.0: {sca_sarif_path}"
+            + f"\n\nEvidence Artifacts:\n  - Assessor SBOM (CycloneDX 1.5): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}{osv_sarif_line}"
             if sca05_verdict == "FAIL"
-            else f"[PASS] {sca05_meta}: 0 components match a MAL-* or known malicious advisory, and 0 components match the Levenshtein distance-1 / suffix typosquat predicate under a different maintainer.\nEvidence Artifacts:\n  - SBOM: {sbom_path}\n  - SARIF: {sca_sarif_path}"
+            else (
+                f"[PASS] {sca05_meta}: 0 components match a MAL-* or known malicious advisory, and 0 components match the Levenshtein distance-1 / suffix typosquat predicate under a different maintainer.\n"
+                f"Evidence Artifacts:\n  - Assessor SBOM (CycloneDX 1.5): {sbom_path}\n  - Consolidated Findings (SARIF 2.1.0): {sca_sarif_path}{osv_sarif_line}"
+                if sca05_verdict == "PASS"
+                else f"[Not_Covered] No dependency manifests found in {repo} for SCA-05 inspection."
+            )
         ),
     }
 

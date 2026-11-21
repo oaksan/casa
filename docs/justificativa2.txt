@@ -305,3 +305,67 @@ Domínio 1: Software Composition & Supply Chain
     (`added=248`, `removed=62`), validando também a conformidade de schema do
     `CycloneDX 1.6` via `cyclonedx validate`.
 ================================================================================
+
+================================================================================
+CONTROLE 05/61: SCA-05 (Iteração SDD 075)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SCA-05
+- Requisito (CASA 3.0 AL1):
+  "No dependency matches a known-malicious package advisory (typosquat,
+   protestware, compromised maintainer)."
+- Referências: OpenSSF Malicious Packages; CWE-1357.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `osv-scanner`, `OpenSSF malicious-packages feed`.
+- Formatos de Evidência Exigidos:
+  SBOM gerado pelo avaliador (`CycloneDX 1.5+` ou `SPDX 2.3+`) + achados de
+  vulnerabilidades em `OASIS SARIF 2.1.0`.
+- Critério Determinístico de Veredito:
+  * PASS: Zero componentes correspondem a um advisory `MAL-`, e zero componentes
+    estão a distância de Levenshtein = 1 de um pacote top-10k sob outro mantenedor.
+  * FAIL: >= 1 componente corresponde a um advisory `MAL-` ou ao predicado de
+    typosquatting.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 075)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 075:
+  `evaluate_sca05_malicious_and_typosquat` consultava `api.osv.dev/v1/querybatch`
+  diretamente via HTTP sem passar pelo binário oficial `osv-scanner`, além de
+  desconsiderar pacotes transitivos de lockfiles (`package-lock.json`) e
+  manifestos Python (`requirements*.txt`).
+- O que foi feito e melhorado na Iteração SDD 075 (`casa_audit/scanner.py`):
+  1) Integração direta de `evaluate_sca05_malicious_and_typosquat` com o
+     binário oficial **`osv-scanner` (`v2.7.1`)** alimentado pelo banco
+     OSV.dev + **OpenSSF Malicious Packages (`MAL-*`)**:
+     - Analisa todos os pacotes diretos e transitivos do lockfile (`osv_data`
+       de `osv-scanner-sca01.json`);
+     - Gera o inventário CycloneDX dos sub-manifestos (`package.json`,
+       `frontend/package.json`, `ftp/package.json.bak` e `requirements*.txt`)
+       em `output/sca05-manifests.cdx.json` e executa
+       `osv-scanner scan source --sbom ... --format json`.
+  2) Preservação do detector determinístico de typosquatting (distância de
+     Levenshtein == 1 e sufixos `-js`, `.js`, `-node` contra pacotes canônicos)
+     com prova de disjunção de mantenedores via `registry.npmjs.org`.
+  3) Retorno adequado de `Not_Covered` quando não existem manifestos nem
+     pacotes, e emissão consolidada em `sca-findings.sarif` (`CASA3-SCA-05`)
+     referenciando `osv-scanner.sarif` e `sbom.cdx.json`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Veredito `SCA-05`: **FAIL** (`250` dependências de `3` manifestos + pacotes
+    transitivos de `package-lock.json` via `osv-scanner + OpenSSF malicious-packages`).
+  * **3 violações reais confirmadas (`CASA3-SCA-05`):**
+    1. `eslint-scope@3.7.2` (em `ftp/package.json.bak`): detectado via
+       `osv-scanner` com advisory `GHSA-hxxf-q3w9-4xgw` (mantenedor comprometido /
+       ladrão de credenciais);
+    2. `ngy-cookie@6.0.0` (em `frontend/package.json`): typosquatting
+       (`Levenshtein = 1` de `ngx-cookie`), mantenedores distintos (`['bkimminich']`
+       vs. `['sa.alemdar']`) e descrição clonada;
+    3. `epilogue-js@0.7` (em `ftp/package.json.bak`): typosquatting por sufixo
+       (`epilogue`), mantenedores distintos (`['bkimminich']` vs.
+       `['dchester', 'mbroadst']`) e descrição clonada.
+================================================================================

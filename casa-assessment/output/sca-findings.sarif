@@ -1150,7 +1150,7 @@
           "ruleId": "CASA3-SCA-05",
           "level": "error",
           "message": {
-            "text": "SCA-05: [TYPOSQUATTING DETECTED] epilogue-js@0.7 (in ftp/package.json.bak): Language-suffix typosquat ('-js'distance=3) of canonical package 'epilogue' under different maintainer (epilogue-js maintainers=['bkimminich'] vs epilogue maintainers=['dchester', 'mbroadst']) [CLONED DESCRIPTION]"
+            "text": "SCA-05: [TYPOSQUATTING DETECTED] epilogue-js@0.7 (in ftp/package.json.bak): Language-suffix typosquat (dist=3) of canonical package 'epilogue' under different maintainer (epilogue-js maintainers=['bkimminich'] vs epilogue maintainers=['dchester', 'mbroadst']) [CLONED DESCRIPTION]"
           },
           "locations": [
             {

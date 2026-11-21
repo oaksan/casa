@@ -2690,25 +2690,6 @@
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
           },
           "locations": [
@@ -2719,6 +2700,25 @@
                 },
                 "region": {
                   "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }
@@ -3352,10 +3352,10 @@
           ]
         },
         {
-          "ruleId": "CASA3-SAST-02-pem-private-key",
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "lib/insecurity.ts:21 \u2014 [PEM PRIVATE KEY BLOCK] Committed PEM block '-----BEGIN RSA PRIVATE KEY-----' embedded in source code (CWE-321)"
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
           },
           "locations": [
             {
@@ -3365,6 +3365,44 @@
                 },
                 "region": {
                   "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/terraform/networking.tf. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }

@@ -28,6 +28,7 @@ import urllib.parse
 import urllib.request
 import uuid
 import warnings
+import zipfile
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -2263,22 +2264,29 @@ def compute_shannon_entropy(token: str) -> float:
     return round(-sum((c / length) * math.log2(c / length) for c in counts.values()), 2)
 
 
-def run_gitleaks_for_sast(repo: Path) -> tuple[list[dict], bool]:
-    """Run official `gitleaks dir` (pattern + entropy detector) once with CASA triage allowlist,
-    saving native SARIF 2.1.0 (`output/gitleaks-sast01.sarif`) and returning triaged SARIF findings.
-    """
-    if not Path(GITLEAKS_BIN).exists():
-        return [], False
+_SAST02_KEY_RULE_TOKENS = (
+    "private-key",
+    "private_key",
+    "pkcs",
+    "pgp-private",
+    "ssh-private",
+    "pem",
+)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    cfg_path = OUTPUT_DIR / "gitleaks-sast01.toml"
-    gl_sarif_path = OUTPUT_DIR / "gitleaks-sast01.sarif"
 
+def _is_sast02_private_key_rule(rule_id: str) -> bool:
+    """Return True when a Gitleaks ruleId represents private keys, certificates, or trust material."""
+    low = (rule_id or "").lower()
+    return any(tok in low for tok in _SAST02_KEY_RULE_TOKENS)
+
+
+def _write_gitleaks_triage_config(cfg_path: Path) -> None:
+    """Write CASA's default-extended Gitleaks TOML triage allowlist config."""
     cfg_toml = """[extend]
 useDefault = true
 
 [allowlist]
-description = "CASA 3.0 AL1 SAST-01 triage allowlist (exclude tests, runtime logs, vendor dirs, docs, and scanner fixtures)"
+description = "CASA 3.0 AL1 SAST triage allowlist (exclude tests, runtime logs, vendor dirs, docs, and scanner fixtures)"
 paths = [
   '''(^|/)node_modules/''',
   '''(^|/)\\.git/''',
@@ -2300,13 +2308,28 @@ paths = [
 """
     cfg_path.write_text(cfg_toml, encoding="utf-8")
 
+
+def _run_gitleaks_sarif(
+    mode: str,
+    repo: Path,
+    sarif_out: Path,
+    timeout_s: int = 90,
+) -> tuple[list[dict], bool]:
+    """Execute `gitleaks <mode>` (`dir` or `git`) with CASA triage allowlist, saving native SARIF 2.1.0."""
+    if mode not in {"dir", "git"} or not Path(GITLEAKS_BIN).exists():
+        return [], False
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    cfg_path = OUTPUT_DIR / "gitleaks-sast01.toml"
+    _write_gitleaks_triage_config(cfg_path)
+
     hits: list[dict] = []
     ran = False
     try:
         proc = subprocess.run(
             [
                 GITLEAKS_BIN,
-                "dir",
+                mode,
                 str(repo),
                 "--config",
                 str(cfg_path),
@@ -2315,31 +2338,40 @@ paths = [
                 "--report-format",
                 "sarif",
                 "--report-path",
-                str(gl_sarif_path),
+                str(sarif_out),
                 "--exit-code",
                 "0",
                 "--no-banner",
             ],
             capture_output=True,
             text=True,
-            timeout=90,
+            timeout=timeout_s,
         )
-        if proc.returncode == 0 and gl_sarif_path.exists():
-            sdata = json.loads(gl_sarif_path.read_text(encoding="utf-8", errors="ignore"))
+        if proc.returncode == 0 and sarif_out.exists():
+            sdata = json.loads(sarif_out.read_text(encoding="utf-8", errors="ignore"))
             for run in sdata.get("runs", []):
                 for res in run.get("results", []):
                     locs = res.get("locations") or [{}]
-                    phys = (locs[0].get("physicalLocation") or {})
+                    phys = locs[0].get("physicalLocation") or {}
                     uri = str((phys.get("artifactLocation") or {}).get("uri") or "")
                     reg = phys.get("region") or {}
                     lno = int(reg.get("startLine") or 1)
                     snippet_txt = str((reg.get("snippet") or {}).get("text") or "")
+                    pfp = res.get("partialFingerprints") or {}
+                    commit_sha = str(pfp.get("commitSha") or "")
+                    if not commit_sha:
+                        for v in pfp.values():
+                            head = str(v).split(":", 1)[0]
+                            if re.fullmatch(r"[0-9a-f]{7,40}", head):
+                                commit_sha = head[:12]
+                                break
                     hits.append(
                         {
                             "File": uri,
                             "StartLine": lno,
                             "RuleID": str(res.get("ruleId") or "secret"),
                             "Description": str((res.get("message") or {}).get("text") or ""),
+                            "Commit": commit_sha,
                             "Entropy": compute_shannon_entropy(snippet_txt) if snippet_txt else 0.0,
                         }
                     )
@@ -2348,6 +2380,18 @@ paths = [
         ran = False
 
     return hits, ran
+
+
+def run_gitleaks_for_sast(repo: Path) -> tuple[list[dict], bool]:
+    """Run official `gitleaks dir` once with CASA triage allowlist, saving `output/gitleaks-sast01.sarif`."""
+    return _run_gitleaks_sarif("dir", repo, OUTPUT_DIR / "gitleaks-sast01.sarif", timeout_s=90)
+
+
+def run_gitleaks_git_history(repo: Path) -> tuple[list[dict], bool]:
+    """Run official `gitleaks git` over full repository history, saving `output/gitleaks-sast02-git.sarif`."""
+    if not (repo / ".git").exists():
+        return [], False
+    return _run_gitleaks_sarif("git", repo, OUTPUT_DIR / "gitleaks-sast02-git.sarif", timeout_s=90)
 
 
 def evaluate_sast01_secrets_and_entropy(
@@ -2551,15 +2595,46 @@ def evaluate_sast01_secrets_and_entropy(
     return sast01_findings, sast01_sarif
 
 
-def evaluate_sast02_trust_material_and_keys(repo: Path) -> tuple[list[str], list[dict]]:
+def _sast02_sarif_item(rule_id: str, desc: str, uri: str, line_no: int) -> dict:
+    """Build a SARIF 2.1.0 error result entry for SAST-02."""
+    return {
+        "ruleId": rule_id,
+        "level": "error",
+        "message": {"text": desc},
+        "locations": [
+            {
+                "physicalLocation": {
+                    "artifactLocation": {"uri": uri},
+                    "region": {"startLine": max(1, int(line_no or 1))},
+                }
+            }
+        ],
+    }
+
+
+def evaluate_sast02_trust_material_and_keys(
+    repo: Path,
+    gitleaks_dir_hits: list[dict] | None = None,
+    gitleaks_git_hits: list[dict] | None = None,
+) -> tuple[list[str], list[dict]]:
     """
     Evaluate SAST-02 (CASA 3.0 AL1):
-    - Walk repository tree and shipped artifacts (encryptionkeys/, ftp/, config/, lib/, routes/)
-      for key-store, certificate, and private-key files (.key, .pem, .p12, .pfx, .jks, .keystore, .kdbx, .pub).
-    - Scan source files and Git history (if .git exists) for PEM PRIVATE KEY blocks and BIP-39 HDWallet seed phrases.
+    - Execute official `gitleaks` (`dir` + full `.git` history when present) to detect private keys & trust material.
+    - Walk repository tree and shipped archive artifacts (.zip/.jar/.war/.apk/.ipa/.whl) for key-store,
+      certificate, and private-key files (.key, .pem, .p12, .pfx, .jks, .keystore, .kdbx, .pub, .crt, .cer, .der, .csr).
+    - Scan source files for PEM PRIVATE KEY blocks and BIP-39 HDWallet private seed phrases.
     """
     sast02_findings: list[str] = []
     sast02_sarif: list[dict] = []
+    seen_sast02_locs: set[tuple[str, int]] = set()
+
+    def _add_finding(rel_uri: str, line_no: int, rule_id: str, desc: str) -> None:
+        key = (rel_uri, max(1, int(line_no or 1)))
+        if key in seen_sast02_locs:
+            return
+        seen_sast02_locs.add(key)
+        sast02_findings.append(desc)
+        sast02_sarif.append(_sast02_sarif_item(rule_id, desc, rel_uri, key[1]))
 
     keystore_extensions = {
         ".key": "Cryptographic Key File (.key)",
@@ -2570,16 +2645,22 @@ def evaluate_sast02_trust_material_and_keys(repo: Path) -> tuple[list[str], list
         ".keystore": "Keystore File (.keystore)",
         ".kdbx": "KeePass Password / Key Database Store (.kdbx)",
         ".pub": "Committed Cryptographic Key Material (.pub)",
+        ".crt": "X.509 Certificate / Trust Material (.crt)",
+        ".cer": "X.509 Certificate / Trust Material (.cer)",
+        ".der": "DER Certificate / Key Material (.der)",
+        ".csr": "Certificate Signing Request (.csr)",
     }
+    archive_extensions = {".zip", ".jar", ".war", ".apk", ".ipa", ".whl"}
+    pem_block_re = re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----")
 
-    ignored_dirs = {"node_modules", ".git", "dist", "build", "coverage", ".angular"}
+    ignored_dirs = {"node_modules", ".git", "dist", "build", "coverage", ".angular", "samples"}
     for fpath in sorted(repo.rglob("*")):
         if not fpath.is_file():
             continue
         if any(part in ignored_dirs for part in fpath.parts):
             continue
         rel = str(fpath.relative_to(repo))
-        if "test/" in rel or "specs/" in rel:
+        if "test/" in rel or "tests/" in rel or "specs/" in rel or "docs/" in rel:
             continue
 
         ext = fpath.suffix.lower()
@@ -2592,9 +2673,9 @@ def evaluate_sast02_trust_material_and_keys(repo: Path) -> tuple[list[str], list
                 if raw_bytes.startswith(b"\x03\xd9\xa2\x9a"):
                     header_preview = " [KeePass KDBX v4 binary signature 0x03D9A29A verified]"
                 else:
-                    txt_line = raw_bytes.decode("utf-8", errors="ignore").splitlines()[0].strip()
-                    if txt_line:
-                        header_preview = f" [Header: '{txt_line[:42]}']"
+                    txt_lines = raw_bytes.decode("utf-8", errors="ignore").splitlines()
+                    if txt_lines and txt_lines[0].strip():
+                        header_preview = f" [Header: '{txt_lines[0].strip()[:42]}']"
             except Exception:
                 pass
 
@@ -2602,37 +2683,92 @@ def evaluate_sast02_trust_material_and_keys(repo: Path) -> tuple[list[str], list
                 f"{rel}:1 — [COMMITTED KEYSTORE / TRUST MATERIAL FILE] {label} shipped in repository/artifact "
                 f"(size={size_b} bytes){header_preview}"
             )
-            sast02_findings.append(desc)
-            sast02_sarif.append(
-                {
-                    "ruleId": "CASA3-SAST-02-keystore-file",
-                    "level": "error",
-                    "message": {"text": desc},
-                    "locations": [
-                        {
-                            "physicalLocation": {
-                                "artifactLocation": {"uri": rel},
-                                "region": {"startLine": 1},
-                            }
-                        }
-                    ],
-                }
-            )
+            _add_finding(rel, 1, "CASA3-SAST-02-keystore-file", desc)
+            continue
 
-    # Check BIP-39 12-word mnemonic phrase in routes/checkKeys.ts or other source files
+        if ext in archive_extensions and fpath.stat().st_size <= 20 * 1024 * 1024:
+            try:
+                with zipfile.ZipFile(fpath, "r") as zf:
+                    for info in zf.infolist():
+                        if info.is_dir():
+                            continue
+                        entry_ext = Path(info.filename).suffix.lower()
+                        entry_rel = f"{rel}!{info.filename}"
+                        if entry_ext in keystore_extensions:
+                            label = keystore_extensions[entry_ext]
+                            desc = (
+                                f"{entry_rel}:1 — [SHIPPED ARCHIVE TRUST MATERIAL] {label} inside shipped artifact "
+                                f"{rel} (size={info.file_size} bytes)"
+                            )
+                            _add_finding(entry_rel, 1, "CASA3-SAST-02-artifact-trust-material", desc)
+                        elif info.file_size <= 256 * 1024 and not entry_ext.endswith(
+                            (".png", ".jpg", ".gif", ".woff", ".woff2", ".ttf", ".ico", ".class")
+                        ):
+                            try:
+                                raw_entry = zf.read(info.filename).decode("utf-8", errors="ignore")
+                            except Exception:
+                                continue
+                            m_arch_pem = pem_block_re.search(raw_entry)
+                            if m_arch_pem:
+                                desc = (
+                                    f"{entry_rel}:1 — [SHIPPED ARCHIVE PEM PRIVATE KEY] '{m_arch_pem.group(0)}' "
+                                    f"inside shipped artifact {rel} (CWE-321)"
+                                )
+                                _add_finding(entry_rel, 1, "CASA3-SAST-02-artifact-pem-private-key", desc)
+            except Exception:
+                pass
+
+    # 1. Integrate official `gitleaks dir` private-key/trust-material detections first
+    if gitleaks_dir_hits is None:
+        gitleaks_dir_hits, _ = run_gitleaks_for_sast(repo)
+    for item in gitleaks_dir_hits:
+        rule_id = str(item.get("RuleID") or "")
+        if not _is_sast02_private_key_rule(rule_id):
+            continue
+        raw_file = str(item.get("File") or "").strip()
+        try:
+            rel = str(Path(raw_file).relative_to(repo))
+        except Exception:
+            rel = raw_file
+        lno = int(item.get("StartLine") or 1)
+        gl_desc = str(item.get("Description") or f"Gitleaks {rule_id} private key / trust material detected")
+        desc = f"{rel}:{lno} — [GITLEAKS {rule_id}] {gl_desc} (CWE-321)"
+        _add_finding(rel, lno, f"CASA3-SAST-02-gitleaks-{rule_id}", desc)
+
+    # 2. Integrate official `gitleaks git` over full repository history when `.git` is present
+    if gitleaks_git_hits is None and (repo / ".git").exists():
+        gitleaks_git_hits, _ = run_gitleaks_git_history(repo)
+    for item in gitleaks_git_hits or []:
+        rule_id = str(item.get("RuleID") or "")
+        if not _is_sast02_private_key_rule(rule_id):
+            continue
+        raw_file = str(item.get("File") or ".git/logs").strip()
+        try:
+            rel = str(Path(raw_file).relative_to(repo))
+        except Exception:
+            rel = raw_file
+        lno = int(item.get("StartLine") or 1)
+        commit_sha = str(item.get("Commit") or "").strip()
+        commit_ref = f" commit={commit_sha}" if commit_sha else ""
+        gl_desc = str(item.get("Description") or f"Gitleaks git history {rule_id} detected")
+        desc = f".git/history/{rel}:{lno} — [GITLEAKS GIT HISTORY {rule_id}]{commit_ref} {gl_desc} (CWE-321)"
+        _add_finding(f".git/history/{rel}", lno, f"CASA3-SAST-02-gitleaks-git-{rule_id}", desc)
+
+    # 3. Supplement with deterministic BIP-39 12-word mnemonic phrase and PEM block source inspection
     mnemonic_re = re.compile(
         r"""(?ix)(?:mnemonic|seedPhrase)\s*=\s*['"](?P<phrase>[a-z]+(?:\s+[a-z]+){11,23})['"]"""
     )
-    pem_block_re = re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----")
 
-    for dname in ("lib", "routes", "config", "data"):
+    for dname in ("lib", "routes", "config", "data", "infrastructure", "terraform", "src"):
         dp = repo / dname
         if not dp.is_dir():
             continue
         for fp in sorted(dp.rglob("*")):
-            if not fp.is_file() or fp.suffix not in {".ts", ".js", ".py", ".yml", ".yaml", ".json"}:
+            if not fp.is_file() or fp.suffix not in {".ts", ".js", ".py", ".yml", ".yaml", ".json", ".tf"}:
                 continue
             rel = str(fp.relative_to(repo))
+            if rel.endswith((".spec.ts", ".spec.js")):
+                continue
             try:
                 lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
             except Exception:
@@ -2644,22 +2780,7 @@ def evaluate_sast02_trust_material_and_keys(repo: Path) -> tuple[list[str], list
                         f"{rel}:{lno} — [PEM PRIVATE KEY BLOCK] Committed PEM block '{m_pem.group(0)}' "
                         f"embedded in source code (CWE-321)"
                     )
-                    sast02_findings.append(desc)
-                    sast02_sarif.append(
-                        {
-                            "ruleId": "CASA3-SAST-02-pem-private-key",
-                            "level": "error",
-                            "message": {"text": desc},
-                            "locations": [
-                                {
-                                    "physicalLocation": {
-                                        "artifactLocation": {"uri": rel},
-                                        "region": {"startLine": lno},
-                                    }
-                                }
-                            ],
-                        }
-                    )
+                    _add_finding(rel, lno, "CASA3-SAST-02-pem-private-key", desc)
                 m_mnem = mnemonic_re.search(line)
                 if m_mnem:
                     words = m_mnem.group("phrase").split()
@@ -2667,38 +2788,7 @@ def evaluate_sast02_trust_material_and_keys(repo: Path) -> tuple[list[str], list
                         f"{rel}:{lno} — [HDWALLET BIP-39 PRIVATE KEY SEED] Committed {len(words)}-word BIP-39 mnemonic "
                         f"('{words[0]} {words[1]} ... {words[-1]}') deriving Ethereum secp256k1 private key via HDNodeWallet.fromPhrase (CWE-321)"
                     )
-                    sast02_findings.append(desc)
-                    sast02_sarif.append(
-                        {
-                            "ruleId": "CASA3-SAST-02-bip39-private-seed",
-                            "level": "error",
-                            "message": {"text": desc},
-                            "locations": [
-                                {
-                                    "physicalLocation": {
-                                        "artifactLocation": {"uri": rel},
-                                        "region": {"startLine": lno},
-                                    }
-                                }
-                            ],
-                        }
-                    )
-
-    # Also check git history for PEM PRIVATE KEY commits if .git is present
-    if (repo / ".git").exists():
-        try:
-            proc = subprocess.run(
-                ["git", "-C", str(repo), "log", "-S", "BEGIN RSA PRIVATE KEY", "--oneline", "-n", "5"],
-                capture_output=True,
-                text=True,
-                timeout=4,
-            )
-            if proc.returncode == 0 and proc.stdout.strip():
-                commits = "; ".join(proc.stdout.strip().splitlines())
-                desc = f".git/logs:1 — [GIT HISTORY PRIVATE KEY] PEM PRIVATE KEY block found in Git commit history ({commits})"
-                sast02_findings.append(desc)
-        except Exception:
-            pass
+                    _add_finding(rel, lno, "CASA3-SAST-02-bip39-private-seed", desc)
 
     return sast02_findings, sast02_sarif
 
@@ -2931,9 +3021,13 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
     semgrep_duration = 0.0
     gitleaks_hits: list[dict] = []
     gitleaks_ran = False
+    gitleaks_git_hits: list[dict] = []
+    gitleaks_git_ran = False
 
-    def _run_gitleaks_task() -> tuple[list[dict], bool]:
-        return run_gitleaks_for_sast(repo)
+    def _run_gitleaks_task() -> tuple[list[dict], bool, list[dict], bool]:
+        d_hits, d_ran = run_gitleaks_for_sast(repo)
+        g_hits, g_ran = run_gitleaks_git_history(repo)
+        return d_hits, d_ran, g_hits, g_ran
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as sast_pool:
         fut_gl = sast_pool.submit(_run_gitleaks_task)
@@ -2992,7 +3086,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             except Exception:
                 pass
 
-        gitleaks_hits, gitleaks_ran = fut_gl.result()
+        gitleaks_hits, gitleaks_ran, gitleaks_git_hits, gitleaks_git_ran = fut_gl.result()
 
     # SAST-01: Combine Gitleaks (`gitleaks dir`) + Semgrep AST rules + Shannon entropy secret detector
     sast01_extra_findings, sast01_extra_sarif = evaluate_sast01_secrets_and_entropy(
@@ -3005,8 +3099,12 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             findings_by_sast_id["SAST-01"].append(ef)
             existing_sast01_locs.add(loc_prefix)
 
-    # SAST-02: Combine Semgrep AST rules with file-tree & artifact keystore/PEM/BIP-39 private key detector
-    sast02_extra_findings, sast02_extra_sarif = evaluate_sast02_trust_material_and_keys(repo)
+    # SAST-02: Combine Gitleaks (`dir` + `git` history) + Semgrep AST + keystore/cert/archive/PEM/BIP-39 walker
+    sast02_extra_findings, sast02_extra_sarif = evaluate_sast02_trust_material_and_keys(
+        repo,
+        gitleaks_dir_hits=gitleaks_hits,
+        gitleaks_git_hits=gitleaks_git_hits,
+    )
     existing_sast02_locs = {f.split(" — ")[0] for f in findings_by_sast_id["SAST-02"]}
     for ef2 in sast02_extra_findings:
         loc_prefix2 = ef2.split(" — ")[0]
@@ -3044,6 +3142,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             pass
 
     gl_sarif_out = OUTPUT_DIR / "gitleaks-sast01.sarif"
+    gl_git_sarif_out = OUTPUT_DIR / "gitleaks-sast02-git.sarif"
     for idx in range(1, 14):
         sid = f"SAST-{idx:02d}"
         f_list = findings_by_sast_id.get(sid, [])
@@ -3052,8 +3151,15 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             tool_label = f"{gl_tag}Semgrep AST 1.180.0 + Shannon Entropy Secret Detector ({semgrep_duration}s, SARIF 2.1.0)"
             extra_sarif_ref = f"\nGitleaks SARIF Evidence: {gl_sarif_out}" if gl_sarif_out.exists() else ""
         elif sid == "SAST-02":
-            tool_label = f"Semgrep AST 1.180.0 + Keystore, PEM Private Key & BIP-39 Seed Walker ({semgrep_duration}s, SARIF 2.1.0)"
-            extra_sarif_ref = ""
+            gl_mode = "dir + git history" if gitleaks_git_ran else "dir"
+            gl_tag2 = f"Gitleaks v8.30.1 ({gl_mode}) + " if (gitleaks_ran or gitleaks_git_ran) else ""
+            tool_label = f"{gl_tag2}Semgrep AST 1.180.0 + Keystore, Certificate & BIP-39 Seed Walker ({semgrep_duration}s, SARIF 2.1.0)"
+            refs = []
+            if gitleaks_ran and gl_sarif_out.exists():
+                refs.append(f"Gitleaks SARIF Evidence: {gl_sarif_out}")
+            if gitleaks_git_ran and gl_git_sarif_out.exists():
+                refs.append(f"Gitleaks Git History SARIF Evidence: {gl_git_sarif_out}")
+            extra_sarif_ref = ("\n" + "\n".join(refs)) if refs else ""
         elif sid == "SAST-05":
             tool_label = f"Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & Salt Inspector ({semgrep_duration}s, SARIF 2.1.0)"
             extra_sarif_ref = ""

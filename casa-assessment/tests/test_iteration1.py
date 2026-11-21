@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 import threading
 import unittest
 import urllib.request
+import zipfile
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -23,6 +25,7 @@ from casa_audit.scanner import (
     evaluate_oau05_system_browser_policy,
     evaluate_oau06_client_secret_scanner,
     evaluate_sast01_secrets_and_entropy,
+    evaluate_sast02_trust_material_and_keys,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -34,6 +37,7 @@ from casa_audit.scanner import (
     run_automated_al1_scan,
     run_cyclonedx_validate_and_diff,
     run_gitleaks_for_sast,
+    run_gitleaks_git_history,
     trace_package_reachability,
 )
 from casa_audit.server import CasaAssessmentHandler
@@ -562,6 +566,51 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 06/61: SAST-01 (Iteração SDD 076)", just2_txt)
+
+    def test_iteration77_sast02_guide_tooling(self) -> None:
+        self.assertTrue(Path(GITLEAKS_BIN).exists(), f"gitleaks binary not found at {GITLEAKS_BIN}")
+        with tempfile.TemporaryDirectory() as td_sast2:
+            r2 = Path(td_sast2)
+            # 1. Clean repository yields zero SAST-02 findings
+            (r2 / "src").mkdir()
+            (r2 / "src" / "app.ts").write_text("export const ok = true;\n", encoding="utf-8")
+            f_clean, _ = evaluate_sast02_trust_material_and_keys(r2, gitleaks_dir_hits=[], gitleaks_git_hits=[])
+            self.assertEqual(f_clean, [])
+
+            # 2. Shipped archive (.zip) containing trust-material certificate/key triggers SAST-02
+            (r2 / "artifacts").mkdir()
+            with zipfile.ZipFile(r2 / "artifacts" / "release.zip", "w") as zf:
+                zf.writestr("certs/server.crt", "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n")
+            f_arch, s_arch = evaluate_sast02_trust_material_and_keys(r2, gitleaks_dir_hits=[], gitleaks_git_hits=[])
+            self.assertTrue(any("artifacts/release.zip!certs/server.crt" in f for f in f_arch))
+            self.assertTrue(any(s.get("ruleId") == "CASA3-SAST-02-artifact-trust-material" for s in s_arch))
+
+            # 3. Ephemeral Git repo where an RSA private key is committed and removed from HEAD
+            git_repo = Path(td_sast2) / "git_hist"
+            git_repo.mkdir()
+            subprocess.run(["git", "-C", str(git_repo), "init"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(git_repo), "config", "user.email", "ci@example.com"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(git_repo), "config", "user.name", "CI"], check=True, capture_output=True)
+            subprocess.run(
+                ["openssl", "genrsa", "-out", str(git_repo / "legacy.pem"), "1024"],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(["git", "-C", str(git_repo), "add", "legacy.pem"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(git_repo), "commit", "-m", "init key"], check=True, capture_output=True)
+            (git_repo / "legacy.pem").unlink()
+            subprocess.run(["git", "-C", str(git_repo), "add", "-u"], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(git_repo), "commit", "-m", "remove key"], check=True, capture_output=True)
+
+            git_hits, git_ran = run_gitleaks_git_history(git_repo)
+            self.assertTrue(git_ran)
+            self.assertTrue(any("private-key" in str(h.get("RuleID", "")).lower() for h in git_hits))
+            f_git, s_git = evaluate_sast02_trust_material_and_keys(git_repo, gitleaks_dir_hits=[], gitleaks_git_hits=git_hits)
+            self.assertTrue(any("[GITLEAKS GIT HISTORY" in f for f in f_git))
+            self.assertTrue(any("CASA3-SAST-02-gitleaks-git-" in s.get("ruleId", "") for s in s_git))
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 07/61: SAST-02 (Iteração SDD 077)", just2_txt)
 
 
 if __name__ == "__main__":

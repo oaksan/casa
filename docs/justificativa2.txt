@@ -426,3 +426,63 @@ Domínio 2: Static Application Security Testing (SAST)
     `infrastructure/terraform/networking.tf:171`, `terraform/networking.tf:171` e
     `lib/insecurity.ts:21`.
 ================================================================================
+
+================================================================================
+CONTROLE 07/61: SAST-02 (Iteração SDD 077)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-02
+- Requisito (CASA 3.0 AL1):
+  "Verify there are no private keys, certificates, or trust material committed
+   to the repository history or shipped in build/release artifacts."
+- Referências: CWE-321, CWE-798 (ADA-defined).
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `gitleaks`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Veredito:
+  * PASS: Zero arquivos de chave privada, certificado ou keystore e zero blocos
+    PEM `PRIVATE KEY` no histórico do repositório ou em artefatos distribuídos.
+  * FAIL: >= 1 arquivo ou bloco detectado.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 077)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 077:
+  `evaluate_sast02_trust_material_and_keys` utilizava apenas inspeção local por
+  extensão/regex e uma busca textual bruta `git log -S "BEGIN RSA PRIVATE KEY"`
+  (sujeita a falsos positivos sobre mensagens de commit, sem empregar `gitleaks`),
+  além de não inspecionar arquivos de certificado (`.crt`, `.cer`, `.der`, `.csr`),
+  arquivos compactados distribuídos (`.zip`, `.jar`, `.war`, `.apk`, `.ipa`, `.whl`)
+  nem diretórios IaC (`infrastructure/`, `terraform/`).
+- O que foi feito e melhorado na Iteração SDD 077 (`casa_audit/scanner.py`):
+  1) Unificação dos executores **`gitleaks` (`v8.30.1`)** em `_write_gitleaks_triage_config`
+     e `_run_gitleaks_sarif` para suportar tanto varredura em diretório (`dir`,
+     `output/gitleaks-sast01.sarif`) quanto histórico completo do Git (`run_gitleaks_git_history`,
+     `gitleaks git`, `output/gitleaks-sast02-git.sarif`).
+  2) Substituição do `git log -S` frágil pela execução oficial de **`gitleaks git`**
+     sobre `.git`, eliminando falso positivo de mensagem de commit no próprio
+     repositório CASA enquanto mantém detecção real de chaves privadas em histórico.
+  3) Integração prioritária dos achados `Gitleaks` de chave privada/material de
+     confiança (`_is_sast02_private_key_rule`) em `evaluate_sast02_trust_material_and_keys`,
+     combinados com inspeção de extensões `.key/.pem/.p12/.pfx/.jks/.keystore/.kdbx/.pub/.crt/.cer/.der/.csr`,
+     artefatos compactados (`.zip/.jar/.war/.apk/.ipa/.whl`) e blocos PEM/BIP-39
+     incluindo diretórios IaC (`infrastructure/`, `terraform/`).
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Tempo total SAST: `28.37s` (`17.74s` núcleo Semgrep + `gitleaks`).
+  * Ferramenta reportada: `Gitleaks v8.30.1 (dir) + Semgrep AST 1.180.0 + Keystore, Certificate & BIP-39 Seed Walker`.
+  * Veredito `SAST-02`: **FAIL** com **9 achados** confirmados:
+    1. `lib/insecurity.ts:21` (chave privada RSA embarcada / `SAST-02` AST + Gitleaks);
+    2. `routes/checkKeys.ts:10-11` (seed mnemônica BIP-39 12 palavras HDWallet Ethereum);
+    3. `ctf.key:1` (arquivo `.key`, `30 bytes`);
+    4. `encryptionkeys/jwt.pub:1` (material criptográfico `.pub`, `248 bytes`);
+    5. `encryptionkeys/premium.key:1` (chave criptográfica `.key`, `50 bytes`);
+    6. `ftp/incident-support.kdbx:1` (KeePass KDBX v4 assinatura `0x03D9A29A`, `3246 bytes`);
+    7. `infrastructure/terraform/networking.tf:171` (`[GITLEAKS private-key]`);
+    8. `terraform/networking.tf:171` (`[GITLEAKS private-key]`).
+================================================================================

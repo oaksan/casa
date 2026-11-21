@@ -2,7 +2,7 @@
 useDefault = true
 
 [allowlist]
-description = "CASA 3.0 AL1 SAST-01 triage allowlist (exclude tests, runtime logs, vendor dirs, docs, and scanner fixtures)"
+description = "CASA 3.0 AL1 SAST triage allowlist (exclude tests, runtime logs, vendor dirs, docs, and scanner fixtures)"
 paths = [
   '''(^|/)node_modules/''',
   '''(^|/)\.git/''',

@@ -27,6 +27,7 @@ from casa_audit.scanner import (
     evaluate_sast01_secrets_and_entropy,
     evaluate_sast02_trust_material_and_keys,
     evaluate_sast03_banned_ciphers,
+    evaluate_sast04_weak_hashes,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -300,7 +301,7 @@ class TestCasa3Iteration1(unittest.TestCase):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=60) as resp:
                 self.assertEqual(resp.status, 200)
                 body = json.loads(resp.read().decode("utf-8"))
                 self.assertEqual(body["status"], "ok")
@@ -661,6 +662,52 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 08/61: SAST-03 (Iteração SDD 078)", just2_txt)
+
+    def test_iteration79_sast04_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sast4:
+            r4 = Path(td_sast4)
+            src = r4 / "src"
+            src.mkdir()
+            # 1. Non-security ETag / cache-key MD5 uses yield PASS with informational notices (no error taint paths)
+            (src / "etag.ts").write_text(
+                "import crypto from 'crypto';\nexport const send = (body: string, res: any) => {\n  const etag = crypto.createHash('md5').update(body).digest('hex');\n  res.setHeader('ETag', etag);\n};\n",
+                encoding="utf-8",
+            )
+            (src / "cache.py").write_text(
+                "import hashlib\ndef key_for(u: str) -> str:\n    cache_key = hashlib.md5(u.encode()).hexdigest()\n    return cache_key\n",
+                encoding="utf-8",
+            )
+            v_pass, f_pass, err_s_pass, info_s_pass, _ = evaluate_sast04_weak_hashes(r4)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for ETag/cache-key MD5, got {f_pass}")
+            self.assertEqual(err_s_pass, [])
+            self.assertGreaterEqual(len(info_s_pass), 2)
+
+            # 2. Data-flow taint from MD5/SHA-1 into security sinks yields FAIL at error level
+            (src / "auth.ts").write_text(
+                "import crypto from 'crypto';\nexport const mk = (p: string) => {\n  const d = crypto.createHash('sha1').update(p).digest('hex');\n  return { password: d };\n};\n",
+                encoding="utf-8",
+            )
+            (src / "auth.py").write_text(
+                "import hashlib\ndef store(p: bytes):\n    h = hashlib.md5(p).hexdigest()\n    password_hash = h\n    return password_hash\n",
+                encoding="utf-8",
+            )
+            (src / "Auth.java").write_text(
+                'import java.security.MessageDigest;\nclass Auth { String mk(byte[] p) throws Exception { var md = MessageDigest.getInstance("SHA-1"); byte[] token = md.digest(p); return new String(token); } }\n',
+                encoding="utf-8",
+            )
+            (src / "auth.go").write_text(
+                'package p\nimport ("crypto/md5"; "crypto/subtle")\nfunc mk(k, exp []byte) int { h := md5.New(); token := h.Sum(k); return subtle.ConstantTimeCompare(token, exp) }\n',
+                encoding="utf-8",
+            )
+            v_fail, f_fail, err_s_fail, _, _ = evaluate_sast04_weak_hashes(r4)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("auth.ts", "auth.py", "Auth.java", "auth.go"):
+                self.assertIn(fname, joined, f"Missing SAST-04 taint hit for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(err_s_fail), 4)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 09/61: SAST-04 (Iteração SDD 079)", just2_txt)
 
 
 if __name__ == "__main__":

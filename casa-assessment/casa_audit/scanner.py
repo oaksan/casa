@@ -3015,22 +3015,31 @@ def _resolve_semgrep_scan_targets(repo: Path) -> list[str]:
     return targets or [str(repo)]
 
 
-def evaluate_sast03_banned_ciphers(
+_SEMGREP_EXCLUDES = (
+    "--exclude", ".git",
+    "--exclude", "node_modules",
+    "--exclude", "dist",
+    "--exclude", "frontend/dist",
+    "--exclude", "output",
+    "--exclude", "docs",
+    "--exclude", "specs",
+)
+
+
+def _evaluate_semgrep_control_sarif(
     repo: Path,
+    control_id: str,
     rules_path: Path | None = None,
-) -> tuple[str, list[str], list[dict], float]:
-    """
-    Evaluate SAST-03 (CASA 3.0 AL1 / CWE-327 / NIST SP 800-131A Rev.2):
-    Execute Semgrep multi-language AST rules over source code, enforcing deterministic
-    error-level filtering across DES, 3DES, RC4, Blowfish, and ECB mode in SARIF 2.1.0.
-    """
+) -> tuple[str, list[str], list[dict], list[dict], float]:
+    """Run Semgrep SARIF for one CASA SAST control, partitioning error-level vs informational hits."""
     cfg = rules_path or SEMGREP_RULES
     if not Path(SEMGREP_BIN).exists() or not cfg.exists():
-        return "Not_Covered", [], [], 0.0
+        return "Not_Covered", [], [], [], 0.0
 
     targets = _resolve_semgrep_scan_targets(repo)
     findings: list[str] = []
-    sarif_hits: list[dict] = []
+    error_sarif_hits: list[dict] = []
+    info_sarif_hits: list[dict] = []
     t0 = time.monotonic()
     try:
         proc = subprocess.run(
@@ -3038,6 +3047,7 @@ def evaluate_sast03_banned_ciphers(
                 SEMGREP_BIN,
                 "scan",
                 "--no-git-ignore",
+                *_SEMGREP_EXCLUDES,
                 "--config",
                 str(cfg),
                 "--sarif",
@@ -3050,7 +3060,7 @@ def evaluate_sast03_banned_ciphers(
         )
         duration = round(time.monotonic() - t0, 2)
         if not proc.stdout:
-            return "Not_Covered", [], [], duration
+            return "Not_Covered", [], [], [], duration
         sdata = json.loads(proc.stdout)
         seen_locs: set[tuple[str, int, str]] = set()
         for run in sdata.get("runs", []):
@@ -3061,11 +3071,9 @@ def evaluate_sast03_banned_ciphers(
             }
             for res in run.get("results", []):
                 rid = str(res.get("ruleId") or "")
-                if "SAST-03" not in rid:
+                if control_id not in rid:
                     continue
                 eff_level = str(res.get("level") or rule_levels.get(rid) or "warning").lower()
-                if eff_level != "error":
-                    continue
                 phys = ((res.get("locations") or [{}])[0].get("physicalLocation") or {})
                 raw_uri = str((phys.get("artifactLocation") or {}).get("uri") or "")
                 try:
@@ -3077,13 +3085,42 @@ def evaluate_sast03_banned_ciphers(
                 if key in seen_locs:
                     continue
                 seen_locs.add(key)
-                msg = str((res.get("message") or {}).get("text") or "SAST-03 banned cipher finding")
+                if eff_level != "error":
+                    info_sarif_hits.append(res)
+                    continue
+                msg = str((res.get("message") or {}).get("text") or f"{control_id} finding")
                 findings.append(f"{rel_p}:{line_no} — [{rid}] {msg}")
-                sarif_hits.append(res)
+                error_sarif_hits.append(res)
         verdict = "FAIL" if findings else "PASS"
-        return verdict, findings, sarif_hits, duration
+        return verdict, findings, error_sarif_hits, info_sarif_hits, duration
     except Exception:
-        return "Not_Covered", [], [], round(time.monotonic() - t0, 2)
+        return "Not_Covered", [], [], [], round(time.monotonic() - t0, 2)
+
+
+def evaluate_sast03_banned_ciphers(
+    repo: Path,
+    rules_path: Path | None = None,
+) -> tuple[str, list[str], list[dict], float]:
+    """
+    Evaluate SAST-03 (CASA 3.0 AL1 / CWE-327 / NIST SP 800-131A Rev.2):
+    Execute Semgrep multi-language AST rules over source code, enforcing deterministic
+    error-level filtering across DES, 3DES, RC4, Blowfish, and ECB mode in SARIF 2.1.0.
+    """
+    verdict, findings, sarif_hits, _, dur = _evaluate_semgrep_control_sarif(repo, "SAST-03", rules_path=rules_path)
+    return verdict, findings, sarif_hits, dur
+
+
+def evaluate_sast04_weak_hashes(
+    repo: Path,
+    rules_path: Path | None = None,
+) -> tuple[str, list[str], list[dict], list[dict], float]:
+    """
+    Evaluate SAST-04 (CASA 3.0 AL1 / CWE-328 / NIST SP 800-131A Rev.2):
+    Execute Semgrep data-flow (`mode: taint`) rules tracking MD5/SHA-1 calls to
+    security-relevant sinks (`error` level) while reporting ETag/cache-key uses
+    purely as informational (`note`/`INFO` level) notices.
+    """
+    return _evaluate_semgrep_control_sarif(repo, "SAST-04", rules_path=rules_path)
 
 
 def run_sast_checks(repo: Path) -> dict[str, dict]:
@@ -3091,14 +3128,10 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     sarif_out = OUTPUT_DIR / "semgrep-sast.sarif"
 
-    # Determine target paths inside repo to avoid scanning huge compiled bundles
-    candidate_dirs = ["lib", "routes", "models", "data", "src", "app", "server.ts", "app.ts", "config"]
-    scan_targets = [str(repo / d) for d in candidate_dirs if (repo / d).exists()]
-    if not scan_targets:
-        scan_targets = [str(repo)]
     scan_targets = _resolve_semgrep_scan_targets(repo)
 
     findings_by_sast_id: dict[str, list[str]] = {f"SAST-{i:02d}": [] for i in range(1, 14)}
+    info_counts_by_sast_id: dict[str, int] = {f"SAST-{i:02d}": 0 for i in range(1, 14)}
     semgrep_ran = False
     semgrep_duration = 0.0
     gitleaks_hits: list[dict] = []
@@ -3117,12 +3150,12 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
         if Path(SEMGREP_BIN).exists() and SEMGREP_RULES.exists():
             t0 = time.monotonic()
             try:
-                # 1. Run Semgrep JSON for fast structured mapping
                 # Single-pass Semgrep scan producing structured JSON (stdout) + OASIS SARIF 2.1.0 (--sarif-output)
                 cmd = [
                     SEMGREP_BIN,
                     "scan",
                     "--no-git-ignore",
+                    *_SEMGREP_EXCLUDES,
                     "--config",
                     str(SEMGREP_RULES),
                     "--json",
@@ -3131,7 +3164,6 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                     "--quiet",
                     *scan_targets,
                 ]
-                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
                 semgrep_duration = round(time.monotonic() - t0, 2)
                 if proc.stdout:
@@ -3144,7 +3176,9 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                         if m:
                             sid = m.group(1)
                             extra = item.get("extra", {})
-                            if sid == "SAST-03" and str(extra.get("severity", "ERROR")).upper() != "ERROR":
+                            sev = str(extra.get("severity", "ERROR")).upper()
+                            if sid in {"SAST-03", "SAST-04"} and sev != "ERROR":
+                                info_counts_by_sast_id[sid] += 1
                                 continue
                             fpath = item.get("path", "")
                             try:
@@ -3257,6 +3291,13 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                 else "Fallback Static Scanner"
             )
             extra_sarif_ref = ""
+        elif sid == "SAST-04":
+            tool_label = (
+                f"Semgrep AST 1.180.0 (Data-Flow Taint Tracking + CWE-328 Ruleset, {semgrep_duration}s, SARIF 2.1.0)"
+                if semgrep_ran
+                else "Fallback Static Scanner"
+            )
+            extra_sarif_ref = ""
         elif sid == "SAST-05":
             tool_label = f"Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & Salt Inspector ({semgrep_duration}s, SARIF 2.1.0)"
             extra_sarif_ref = ""
@@ -3277,10 +3318,12 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                 ),
             }
         else:
+            info_cnt = info_counts_by_sast_id.get(sid, 0)
+            info_note = f" ({info_cnt} informational ETag/cache notice(s) in SARIF)" if info_cnt else ""
             results[sid] = {
                 "verdict": "PASS",
                 "tool": tool_label,
-                "log": f"[PASS] Static scan over {', '.join(Path(p).name for p in scan_targets)} completed in {semgrep_duration}s: 0 violations for {sid}.\nSARIF Evidence: {sarif_out}{extra_sarif_ref}",
+                "log": f"[PASS] Static scan over {', '.join(Path(p).name for p in scan_targets)} completed in {semgrep_duration}s: 0 violations for {sid}{info_note}.\nSARIF Evidence: {sarif_out}{extra_sarif_ref}",
             }
 
     return results

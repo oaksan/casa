@@ -1,6 +1,6 @@
 {
   "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
-  "scannedAt": "2026-11-21T23:35:21.188370+00:00",
+  "scannedAt": "2026-11-21T23:47:55.677474+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "HSTS_time": 0,

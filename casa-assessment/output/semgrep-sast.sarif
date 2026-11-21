@@ -304,7 +304,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -333,7 +333,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -362,7 +362,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -710,10 +710,10 @@
             }
           ],
           "message": {
-            "text": "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
         },
         {
           "fingerprints": {
@@ -727,22 +727,22 @@
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 63,
+                  "endColumn": 90,
                   "endLine": 41,
                   "snippet": {
                     "text": "export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')"
                   },
-                  "startColumn": 39,
+                  "startColumn": 1,
                   "startLine": 41
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf"
         },
         {
           "fingerprints": {
@@ -971,7 +971,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -1116,7 +1116,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -1145,7 +1145,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -1174,7 +1174,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -1232,7 +1232,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -1464,7 +1464,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -1493,7 +1493,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -1609,7 +1609,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -1870,7 +1870,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -2102,7 +2102,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -2305,7 +2305,7 @@
             }
           ],
           "message": {
-            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
@@ -2690,25 +2690,6 @@
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
           },
           "locations": [
@@ -2719,6 +2700,25 @@
                 },
                 "region": {
                   "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }
@@ -3355,25 +3355,6 @@
           "ruleId": "CASA3-SAST-02-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
           },
           "locations": [
@@ -3384,6 +3365,25 @@
                 },
                 "region": {
                   "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }
@@ -3641,11 +3641,11 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
               },
               "help": {
-                "markdown": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)",
-                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+                "markdown": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)",
+                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash",
               "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash",
@@ -3662,11 +3662,74 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context in Python (CWE-328)"
+                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in HMAC signature context in Go (CWE-328)"
               },
               "help": {
-                "markdown": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context in Python (CWE-328)",
-                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context in Python (CWE-328)"
+                "markdown": "SAST-04: Weak hash function (MD5 or SHA-1) used in HMAC signature context in Go (CWE-328)",
+                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in HMAC signature context in Go (CWE-328)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash-go",
+              "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash-go",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-04-weak-hash-go"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "fullDescription": {
+                "text": "SAST-04: Informational non-security MD5/SHA-1 usage for ETag or cache key (not a security-relevant sink)"
+              },
+              "help": {
+                "markdown": "SAST-04: Informational non-security MD5/SHA-1 usage for ETag or cache key (not a security-relevant sink)",
+                "text": "SAST-04: Informational non-security MD5/SHA-1 usage for ETag or cache key (not a security-relevant sink)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash-informational",
+              "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash-informational",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-04-weak-hash-informational"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "fullDescription": {
+                "text": "SAST-04: Informational non-security MD5/SHA-1 usage for ETag or cache key in Python"
+              },
+              "help": {
+                "markdown": "SAST-04: Informational non-security MD5/SHA-1 usage for ETag or cache key in Python",
+                "text": "SAST-04: Informational non-security MD5/SHA-1 usage for ETag or cache key in Python"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash-informational-python",
+              "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash-informational-python",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-04-weak-hash-informational-python"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in HMAC signature context in Python (CWE-328)"
+              },
+              "help": {
+                "markdown": "SAST-04: Weak hash function (MD5 or SHA-1) used in HMAC signature context in Python (CWE-328)",
+                "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in HMAC signature context in Python (CWE-328)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash-python",
               "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash-python",
@@ -3676,6 +3739,90 @@
               },
               "shortDescription": {
                 "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-04-weak-hash-python"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Go (CWE-328)"
+              },
+              "help": {
+                "markdown": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Go (CWE-328)",
+                "text": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Go (CWE-328)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-go",
+              "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-go",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-go"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Java (CWE-328)"
+              },
+              "help": {
+                "markdown": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Java (CWE-328)",
+                "text": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Java (CWE-328)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-java",
+              "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-java",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-java"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink (password, token, signature, key derivation, or integrity check) (CWE-328)"
+              },
+              "help": {
+                "markdown": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink (password, token, signature, key derivation, or integrity check) (CWE-328)",
+                "text": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink (password, token, signature, key derivation, or integrity check) (CWE-328)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-js",
+              "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-js",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-js"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Python (CWE-328)"
+              },
+              "help": {
+                "markdown": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Python (CWE-328)",
+                "text": "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Python (CWE-328)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-python",
+              "name": "casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-python",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-04-weak-hash-taint-python"
               }
             },
             {

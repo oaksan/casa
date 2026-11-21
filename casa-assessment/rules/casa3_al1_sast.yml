@@ -97,28 +97,167 @@ rules:
       - pattern: TripleDES.Create(...)
       - pattern-regex: "\\bCipherMode\\.ECB\\b"
 
-  - id: CASA3-SAST-04-weak-hash
+  - id: CASA3-SAST-04-weak-hash-taint-js
     languages: [typescript, javascript]
-    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context (HMAC/signature, password, token or integrity sink) (CWE-328)"
+    mode: taint
+    message: "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink (password, token, signature, key derivation, or integrity check) (CWE-328)"
     severity: ERROR
-    pattern-either:
+    pattern-sources:
       - pattern: crypto.createHash('md5')
       - pattern: crypto.createHash('sha1')
       - pattern: crypto.createHmac('md5', ...)
       - pattern: crypto.createHmac('sha1', ...)
       - pattern: CryptoJS.MD5(...)
       - pattern: CryptoJS.SHA1(...)
-      - pattern: $SEC.hash($PASSWORD)
+    pattern-sanitizers:
+      - pattern: etag = $X
+      - pattern: ETag = $X
+      - pattern: cacheKey = $X
+      - pattern: cache_key = $X
+      - pattern: $RES.setHeader("ETag", $X)
+      - pattern: $RES.set("ETag", $X)
+    pattern-sinks:
+      - pattern: |
+          { ..., password: $SINK, ... }
+      - pattern: |
+          { ..., token: $SINK, ... }
+      - pattern: |
+          { ..., signature: $SINK, ... }
+      - pattern: |
+          { ..., hmac: $SINK, ... }
+      - pattern: |
+          { ..., secret: $SINK, ... }
+      - pattern: |
+          { ..., integrity: $SINK, ... }
+      - pattern: |
+          { ..., checksum: $SINK, ... }
+      - pattern: password = $SINK
+      - pattern: token = $SINK
+      - pattern: signature = $SINK
+      - pattern: secret = $SINK
+      - pattern: derivedKey = $SINK
+      - pattern: jwt.sign($SINK, ...)
+      - pattern: $RES.cookie($NAME, $SINK, ...)
+      - pattern: crypto.timingSafeEqual($SINK, ...)
+      - pattern: verify($SINK, ...)
 
-  - id: CASA3-SAST-04-weak-hash-python
-    languages: [python]
-    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant context in Python (CWE-328)"
+  - id: CASA3-SAST-04-weak-hash
+    languages: [typescript, javascript]
+    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
     severity: ERROR
     pattern-either:
+      - pattern: crypto.createHmac('md5', ...)
+      - pattern: crypto.createHmac('sha1', ...)
+      - pattern: |
+          export const hash = ($DATA) => crypto.createHash('md5').update($DATA).digest(...)
+      - pattern: |
+          export const hash = ($DATA) => crypto.createHash('sha1').update($DATA).digest(...)
+      - pattern: security.hash(...)
+
+  - id: CASA3-SAST-04-weak-hash-taint-python
+    languages: [python]
+    mode: taint
+    message: "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Python (CWE-328)"
+    severity: ERROR
+    pattern-sources:
       - pattern: hashlib.md5(...)
       - pattern: hashlib.sha1(...)
       - pattern: hmac.new($KEY, $MSG, hashlib.md5)
       - pattern: hmac.new($KEY, $MSG, hashlib.sha1)
+    pattern-sanitizers:
+      - pattern: etag = $X
+      - pattern: cache_key = $X
+    pattern-sinks:
+      - pattern: password = $SINK
+      - pattern: password_hash = $SINK
+      - pattern: token = $SINK
+      - pattern: signature = $SINK
+      - pattern: secret = $SINK
+      - pattern: derived_key = $SINK
+      - pattern: integrity = $SINK
+      - pattern: checksum = $SINK
+      - pattern: hmac.compare_digest($SINK, ...)
+      - pattern: |
+          { ..., "password": $SINK, ... }
+      - pattern: |
+          { ..., "token": $SINK, ... }
+      - pattern: |
+          { ..., "signature": $SINK, ... }
+
+  - id: CASA3-SAST-04-weak-hash-python
+    languages: [python]
+    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in HMAC signature context in Python (CWE-328)"
+    severity: ERROR
+    pattern-either:
+      - pattern: hmac.new($KEY, $MSG, hashlib.md5)
+      - pattern: hmac.new($KEY, $MSG, hashlib.sha1)
+
+  - id: CASA3-SAST-04-weak-hash-taint-java
+    languages: [java]
+    mode: taint
+    message: "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Java (CWE-328)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: MessageDigest.getInstance("MD5")
+      - pattern: MessageDigest.getInstance("SHA-1")
+      - pattern: MessageDigest.getInstance("SHA1")
+    pattern-sanitizers:
+      - pattern: etag = $X
+      - pattern: cacheKey = $X
+    pattern-sinks:
+      - pattern: password = $SINK
+      - pattern: passwordHash = $SINK
+      - pattern: token = $SINK
+      - pattern: signature = $SINK
+      - pattern: MessageDigest.isEqual($SINK, ...)
+
+  - id: CASA3-SAST-04-weak-hash-taint-go
+    languages: [go]
+    mode: taint
+    message: "SAST-04: Data-flow taint path from weak hash (MD5/SHA-1) into security-relevant sink in Go (CWE-328)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: md5.New()
+      - pattern: sha1.New()
+      - pattern: md5.Sum(...)
+      - pattern: sha1.Sum(...)
+    pattern-sanitizers:
+      - pattern: etag = $X
+      - pattern: cacheKey = $X
+    pattern-sinks:
+      - pattern: password = $SINK
+      - pattern: password := $SINK
+      - pattern: token = $SINK
+      - pattern: token := $SINK
+      - pattern: signature = $SINK
+      - pattern: signature := $SINK
+      - pattern: secret = $SINK
+      - pattern: secret := $SINK
+      - pattern: subtle.ConstantTimeCompare($SINK, ...)
+      - pattern: subtle.ConstantTimeCompare($SINK[:], ...)
+
+  - id: CASA3-SAST-04-weak-hash-go
+    languages: [go]
+    message: "SAST-04: Weak hash function (MD5 or SHA-1) used in HMAC signature context in Go (CWE-328)"
+    severity: ERROR
+    pattern-either:
+      - pattern: hmac.New(md5.New, ...)
+      - pattern: hmac.New(sha1.New, ...)
+
+  - id: CASA3-SAST-04-weak-hash-informational
+    languages: [typescript, javascript]
+    message: "SAST-04: Informational non-security MD5/SHA-1 usage for ETag or cache key (not a security-relevant sink)"
+    severity: INFO
+    pattern-either:
+      - pattern-regex: "(?i)\\b(?:etag|cache[_]?key)\\b[^\\n]{0,80}crypto\\.createHash\\(\\s*['\"](?:md5|sha1)['\"]"
+      - pattern-regex: "(?i)setHeader\\(\\s*['\"]ETag['\"]\\s*,[^\\n]{0,80}crypto\\.createHash"
+
+  - id: CASA3-SAST-04-weak-hash-informational-python
+    languages: [python]
+    message: "SAST-04: Informational non-security MD5/SHA-1 usage for ETag or cache key in Python"
+    severity: INFO
+    pattern-either:
+      - pattern-regex: "(?i)\\b(?:etag|cache_key)\\s*=\\s*hashlib\\.(?:md5|sha1)\\("
 
   - id: CASA3-SAST-05-weak-password-kdf
     languages: [typescript, javascript]

@@ -26,6 +26,7 @@ from casa_audit.scanner import (
     evaluate_oau06_client_secret_scanner,
     evaluate_sast01_secrets_and_entropy,
     evaluate_sast02_trust_material_and_keys,
+    evaluate_sast03_banned_ciphers,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -611,6 +612,55 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 07/61: SAST-02 (Iteração SDD 077)", just2_txt)
+
+    def test_iteration78_sast03_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sast3:
+            r3 = Path(td_sast3)
+            src = r3 / "src"
+            src.mkdir()
+            # 1. Compliant AES-256-GCM across TS and Python yields PASS
+            (src / "good.ts").write_text(
+                "import crypto from 'crypto';\nexport const enc = (k: Buffer, iv: Buffer) => crypto.createCipheriv('aes-256-gcm', k, iv);\n",
+                encoding="utf-8",
+            )
+            (src / "good.py").write_text(
+                "from cryptography.hazmat.primitives.ciphers.aead import AESGCM\ncipher = AESGCM(b'0'*32)\n",
+                encoding="utf-8",
+            )
+            v_pass, f_pass, _, _ = evaluate_sast03_banned_ciphers(r3)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for AES-GCM, got {f_pass}")
+            self.assertEqual(f_pass, [])
+
+            # 2. Multi-language banned cipher detection (JS/TS, Python, Java, Go, C#)
+            (src / "bad.ts").write_text(
+                "import crypto from 'crypto';\nconst c = crypto.createCipheriv('rc4', k, iv);\nconst p = CryptoJS.TripleDES.decrypt(ct, key);\n",
+                encoding="utf-8",
+            )
+            (src / "bad.py").write_text(
+                "from Crypto.Cipher import AES\nc1 = AES.new(k, AES.MODE_ECB)\nc2 = cryptography.hazmat.decrepit.ciphers.algorithms.Blowfish(k)\n",
+                encoding="utf-8",
+            )
+            (src / "Bad.java").write_text(
+                'import javax.crypto.Cipher;\nclass Bad { void f() throws Exception { Cipher.getInstance("DES/ECB/PKCS5Padding"); } }\n',
+                encoding="utf-8",
+            )
+            (src / "bad.go").write_text(
+                'package p\nimport "crypto/rc4"\nfunc f(k []byte) { rc4.NewCipher(k) }\n',
+                encoding="utf-8",
+            )
+            (src / "Bad.cs").write_text(
+                "using System.Security.Cryptography;\nclass Bad { void F() { var d = TripleDES.Create(); } }\n",
+                encoding="utf-8",
+            )
+            v_fail, f_fail, sarif_fail, _ = evaluate_sast03_banned_ciphers(r3)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("bad.ts", "bad.py", "Bad.java", "bad.go", "Bad.cs"):
+                self.assertIn(fname, joined, f"Missing SAST-03 hit for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(sarif_fail), 6)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 08/61: SAST-03 (Iteração SDD 078)", just2_txt)
 
 
 if __name__ == "__main__":

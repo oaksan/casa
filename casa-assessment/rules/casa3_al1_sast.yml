@@ -32,10 +32,18 @@ rules:
       - pattern: crypto.createCipher($ALG, ...)
       - pattern: crypto.createDecipher($ALG, ...)
       - pattern: CryptoJS.DES.encrypt(...)
+      - pattern: CryptoJS.DES.decrypt(...)
       - pattern: CryptoJS.TripleDES.encrypt(...)
+      - pattern: CryptoJS.TripleDES.decrypt(...)
       - pattern: CryptoJS.RC4.encrypt(...)
+      - pattern: CryptoJS.RC4.decrypt(...)
+      - pattern: CryptoJS.RC4Drop.encrypt(...)
+      - pattern: CryptoJS.RC4Drop.decrypt(...)
+      - pattern: CryptoJS.Blowfish.encrypt(...)
+      - pattern: CryptoJS.Blowfish.decrypt(...)
       - pattern-regex: "(?i)(?:createCipheriv|createDecipheriv)\\s*\\(\\s*['\"](?:des|des3|des-ede|des-ede3|desx|rc4|bf|blowfish|[a-z0-9-]+-ecb)"
       - pattern-regex: "(?i)CryptoJS\\.mode\\.ECB"
+      - pattern-regex: "(?i)forge\\.cipher\\.create(?:Cipher|Decipher)\\s*\\(\\s*['\"](?:DES|3DES|AES-ECB|RC2)"
 
   - id: CASA3-SAST-03-weak-cipher-python
     languages: [python]
@@ -46,8 +54,48 @@ rules:
       - pattern: Crypto.Cipher.DES3.new(...)
       - pattern: Crypto.Cipher.ARC4.new(...)
       - pattern: Crypto.Cipher.Blowfish.new(...)
+      - pattern: Cryptodome.Cipher.DES.new(...)
+      - pattern: Cryptodome.Cipher.DES3.new(...)
+      - pattern: Cryptodome.Cipher.ARC4.new(...)
+      - pattern: Cryptodome.Cipher.Blowfish.new(...)
       - pattern: AES.new($KEY, AES.MODE_ECB, ...)
       - pattern: cryptography.hazmat.primitives.ciphers.modes.ECB()
+      - pattern: cryptography.hazmat.primitives.ciphers.algorithms.TripleDES(...)
+      - pattern: cryptography.hazmat.primitives.ciphers.algorithms.Blowfish(...)
+      - pattern: cryptography.hazmat.primitives.ciphers.algorithms.ARC4(...)
+      - pattern: cryptography.hazmat.decrepit.ciphers.algorithms.TripleDES(...)
+      - pattern: cryptography.hazmat.decrepit.ciphers.algorithms.Blowfish(...)
+      - pattern: cryptography.hazmat.decrepit.ciphers.algorithms.ARC4(...)
+      - pattern: cryptography.hazmat.decrepit.ciphers.algorithms.IDEA(...)
+
+  - id: CASA3-SAST-03-weak-cipher-java
+    languages: [java]
+    message: "SAST-03: Deprecated or broken cipher algorithm (DES, DESede/3DES, RC4, Blowfish) or insecure ECB mode in Java JCE (CWE-327)"
+    severity: ERROR
+    pattern-regex: "(?i)Cipher\\.getInstance\\s*\\(\\s*\"(?:DES|DESede|TripleDES|RC4|ARCFOUR|Blowfish|[^\"]*\\/ECB\\/[^\"]*|AES)\""
+
+  - id: CASA3-SAST-03-weak-cipher-go
+    languages: [go]
+    message: "SAST-03: Deprecated or broken cipher algorithm (DES, 3DES, RC4, Blowfish) in Go (CWE-327)"
+    severity: ERROR
+    pattern-either:
+      - pattern: des.NewCipher(...)
+      - pattern: des.NewTripleDESCipher(...)
+      - pattern: rc4.NewCipher(...)
+      - pattern: blowfish.NewCipher(...)
+      - pattern: blowfish.NewSaltedCipher(...)
+
+  - id: CASA3-SAST-03-weak-cipher-csharp
+    languages: [csharp]
+    message: "SAST-03: Deprecated or broken cipher algorithm (DES, 3DES, RC2) or insecure CipherMode.ECB in .NET/C# (CWE-327)"
+    severity: ERROR
+    pattern-either:
+      - pattern: new DESCryptoServiceProvider(...)
+      - pattern: new TripleDESCryptoServiceProvider(...)
+      - pattern: new RC2CryptoServiceProvider(...)
+      - pattern: DES.Create(...)
+      - pattern: TripleDES.Create(...)
+      - pattern-regex: "\\bCipherMode\\.ECB\\b"
 
   - id: CASA3-SAST-04-weak-hash
     languages: [typescript, javascript]

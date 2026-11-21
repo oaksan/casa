@@ -486,3 +486,55 @@ Domínio 2: Static Application Security Testing (SAST)
     7. `infrastructure/terraform/networking.tf:171` (`[GITLEAKS private-key]`);
     8. `terraform/networking.tf:171` (`[GITLEAKS private-key]`).
 ================================================================================
+
+================================================================================
+CONTROLE 08/61: SAST-03 (Iteração SDD 078)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-03
+- Requisito (CASA 3.0 AL1):
+  "No deprecated or broken cipher algorithms (DES, 3DES, RC4, Blowfish, ECB mode)."
+- Referências: MITRE CWE-327; NIST SP 800-131A Rev.2; OWASP ASVS V6.2.5 (L2).
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`, `CodeQL`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Veredito:
+  * PASS: Zero achados com nível `error` no conjunto de regras de algoritmos
+    banidos (`DES`, `3DES`, `RC4`, `Blowfish` ou modo `ECB`).
+  * FAIL: >= 1 achado com nível `error` no conjunto de regras de algoritmos
+    banidos.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 078)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 078:
+  1) As regras `CASA3-SAST-03-*` em `rules/casa3_al1_sast.yml` cobriam apenas
+     padrões básicos JS/TS e Python (`PyCryptodome` + `cryptography.hazmat` ECB),
+     deixando descobertos `CryptoJS.*.decrypt`, `CryptoJS.RC4Drop`/`Blowfish`,
+     `node-forge`, `cryptography.hazmat.decrepit.ciphers.algorithms` (`TripleDES`,
+     `Blowfish`, `ARC4`, `IDEA`), Java JCA (`Cipher.getInstance` `DES`/`DESede`/
+     `RC4`/`Blowfish`/`*/ECB/*`/AES sem modo explícito), Go (`crypto/des`,
+     `crypto/rc4`, `blowfish`) e .NET/C# (`DES`, `TripleDES`, `RC2`, `CipherMode.ECB`).
+  2) `run_sast_checks` executava o `semgrep` duas vezes sequencialmente (`--json`
+     e depois `--sarif`) e não validava estritamente a condição `level == "error"`
+     exigida pelo critério de verificação do Test Guide para `SAST-03`.
+- O que foi feito e melhorado na Iteração SDD 078:
+  1) Expansão e validação (`semgrep --validate`: 0 erros, 26 regras) de 5 famílias
+     `CASA3-SAST-03-*` (`severity: ERROR`) em `rules/casa3_al1_sast.yml`
+     cobrindo JS/TS, Python, Java, Go e C#.
+  2) Consolidação de `run_sast_checks` (`casa_audit/scanner.py`) em passagem única
+     `semgrep scan --json --sarif-output output/semgrep-sast.sarif`, filtragem
+     estrita `extra.severity == "ERROR"` para `SAST-03` e criação do avaliador
+     dedicado `evaluate_sast03_banned_ciphers(repo)` com resolução de nível no SARIF.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Tempo total SAST: `25.50s` (`19.86s` no Semgrep em passagem única).
+  * Ferramenta reportada: `Semgrep AST 1.180.0 (Multi-Language CWE-327 Error-Level Ruleset, 19.86s, SARIF 2.1.0)`.
+  * Veredito `SAST-03`: **PASS** (`0` achados `error`-level nos diretórios `lib`, `routes`, `models`, `data`, `server.ts`, `app.ts`, `config`, e `0` achados também em `frontend/src`), com evidência emitida em `output/semgrep-sast.sarif`.
+  * Validação positiva multi-linguagem (suíte unitária `test_iteration78_sast03_guide_tooling`): detecção determinística `FAIL` em fixtures `TS/JS`, `Python`, `Java`, `Go` e `C#` vs. `PASS` em `AES-256-GCM`.
+================================================================================

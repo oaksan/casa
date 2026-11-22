@@ -4773,6 +4773,12 @@ def run_zap_automation(
             f"    failOnWarning: false\n"
             f"    continueOnFailure: true\n"
             f"jobs:\n"
+            f"  - type: passiveScan-config\n"
+            f"    rules:\n"
+            f"      - id: 10015\n"
+            f"        threshold: Low\n"
+            f"      - id: 10049\n"
+            f"        threshold: Low\n"
             f"  - type: spider\n"
             f"    parameters:\n"
             f"      maxDuration: 1\n"
@@ -6080,6 +6086,201 @@ def evaluate_cfg06_xcto(
     }
 
 
+def evaluate_cfg07_anti_caching(
+    target_url: str,
+    *,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate CFG-07 using OWASP ZAP (Rules 10049/10015) + Authenticated Cache-Control: no-store Inspector."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+
+    def _default_probe(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}
+        if headers:
+            req_hdrs.update(headers)
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            try:
+                err_body = he.read(16384).decode("utf-8", errors="ignore")
+            except Exception:
+                err_body = ""
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, err_body
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    probe = http_probe_fn or _default_probe
+
+    auth_token = ""
+    auth_bid = 1
+    auth_uid = 1
+    try:
+        sess_email = f"casa3_dast_cfg07_{int(time.time())}@juice-sh.op"
+        reg_payload = json.dumps(
+            {
+                "email": sess_email,
+                "password": "Casa3Cfg07Session!99",
+                "passwordRepeat": "Casa3Cfg07Session!99",
+            }
+        ).encode("utf-8")
+        reg_st, _, reg_body = probe("/api/Users/", method="POST", headers={"Content-Type": "application/json"}, body=reg_payload)
+        if 200 <= reg_st < 300 and reg_body:
+            try:
+                auth_uid = json.loads(reg_body).get("data", {}).get("id", 1) or 1
+            except Exception:
+                auth_uid = 1
+        login_payload = json.dumps({"email": sess_email, "password": "Casa3Cfg07Session!99"}).encode("utf-8")
+        login_st, _, login_body = probe("/rest/user/login", method="POST", headers={"Content-Type": "application/json"}, body=login_payload)
+        if 200 <= login_st < 300 and login_body:
+            auth_obj = json.loads(login_body).get("authentication", {})
+            auth_token = auth_obj.get("token", "")
+            auth_bid = auth_obj.get("bid", 1) or 1
+    except Exception:
+        auth_token = ""
+
+    auth_req_headers = (
+        {"Authorization": f"Bearer {auth_token}", "Cookie": f"token={auth_token}"}
+        if auth_token
+        else {}
+    )
+    cfg07_targets = [
+        "/rest/user/whoami",
+        f"/rest/basket/{auth_bid}",
+        f"/api/Users/{auth_uid}",
+        "/rest/wallet/balance",
+        "/api/Cards",
+        "/rest/2fa/status",
+        "/rest/admin/application-configuration",
+        "/support/logs",
+        "/encryptionkeys",
+    ]
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[f"{base_url}{ep}" for ep in ["/rest/user/whoami", "/rest/admin/application-configuration", "/support/logs", "/encryptionkeys"]],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    cfg07_checked = 0
+    cfg07_findings: list[dict] = []
+    compliant_urls: set[str] = set()
+    violating_by_url: dict[str, dict] = {}
+    target_paths = {ep.rstrip("/") for ep in cfg07_targets}
+
+    for ep7 in cfg07_targets:
+        st7, hdrs7, _ = probe(ep7, headers=auth_req_headers)
+        if not (200 <= st7 < 300):
+            continue
+        cfg07_checked += 1
+        full_u7 = f"{base_url}{ep7}"
+        norm_u7 = full_u7.rstrip("/")
+        raw_cc = hdrs7.get("cache-control", "").strip()
+        cc_directives = {d.strip().lower().split("=", 1)[0] for d in raw_cc.split(",") if d.strip()}
+        if "no-store" in cc_directives:
+            compliant_urls.add(norm_u7)
+        else:
+            etag_note = f", ETag={hdrs7['etag']}" if hdrs7.get("etag") else ""
+            item = {
+                "url": full_u7,
+                "status": st7,
+                "cacheControl": raw_cc or "<missing>",
+                "authenticated": bool(auth_token),
+                "source": "Header",
+                "detail": (
+                    f"GET {full_u7} (HTTP {st7}, authenticated={bool(auth_token)}) "
+                    f"Cache-Control='{raw_cc or '<missing>'}'{etag_note} lacks required 'no-store' directive"
+                ),
+            }
+            cfg07_findings.append(item)
+            violating_by_url[norm_u7] = item
+
+    zap_matched_plugins: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid in {"10049", "10015"} or "cache" in low_a:
+            if "non-storable" in low_a:
+                continue
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                norm_uri = uri.rstrip("/")
+                inst_path = urllib.parse.urlparse(uri).path.rstrip("/")
+                if inst_path not in target_paths:
+                    continue
+                if norm_uri in compliant_urls:
+                    continue
+                zap_matched_plugins.add(pid or "10049")
+                if norm_uri in violating_by_url:
+                    violating_by_url[norm_uri]["source"] = f"OWASP ZAP:{pid or '10049'}+Header"
+                else:
+                    cfg07_checked += 1
+                    item = {
+                        "url": uri,
+                        "status": 200,
+                        "cacheControl": str(inst.get("evidence") or "<missing>"),
+                        "authenticated": bool(auth_token),
+                        "source": f"OWASP ZAP:{pid or '10049'}",
+                        "detail": f"[OWASP ZAP {pid or '10049'}] {aname} at {uri} (missing 'Cache-Control: no-store')",
+                    }
+                    cfg07_findings.append(item)
+                    violating_by_url[norm_uri] = item
+
+    sarif_items: list[dict] = []
+    for cf7 in cfg07_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-07",
+                "level": "error",
+                "message": {"text": cf7["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": cf7["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-07",
+                    "source": cf7["source"],
+                    "httpStatus": cf7["status"],
+                    "cacheControl": cf7["cacheControl"],
+                    "authenticated": cf7["authenticated"],
+                },
+            }
+        )
+
+    cc_ok = cfg07_checked > 0 and len(cfg07_findings) == 0
+    return {
+        "verdict": "PASS" if cc_ok else "FAIL",
+        "cc_ok": cc_ok,
+        "checkedCount": cfg07_checked,
+        "authenticated": bool(auth_token),
+        "authToken": auth_token,
+        "authUid": auth_uid,
+        "authBid": auth_bid,
+        "authHeaders": auth_req_headers,
+        "findings": cfg07_findings,
+        "sarifResults": sarif_items,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -6679,107 +6880,30 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-07: Anti-caching headers (strict Cache-Control: no-store) on all authenticated and sensitive responses (SARIF 2.1.0 + HAR 1.2)
-    auth_token = ""
-    auth_bid = 1
-    auth_uid = 1
-    try:
-        sess_email = f"casa3_dast_cfg07_{int(time.time())}@juice-sh.op"
-        reg_payload = json.dumps(
-            {
-                "email": sess_email,
-                "password": "Casa3Cfg07Session!99",
-                "passwordRepeat": "Casa3Cfg07Session!99",
-            }
-        ).encode("utf-8")
-        reg_st, _, reg_body = http_probe("/api/Users/", method="POST", headers={"Content-Type": "application/json"}, body=reg_payload)
-        if 200 <= reg_st < 300 and reg_body:
-            try:
-                auth_uid = json.loads(reg_body).get("data", {}).get("id", 1) or 1
-            except Exception:
-                auth_uid = 1
-        login_payload = json.dumps({"email": sess_email, "password": "Casa3Cfg07Session!99"}).encode("utf-8")
-        login_st, _, login_body = http_probe("/rest/user/login", method="POST", headers={"Content-Type": "application/json"}, body=login_payload)
-        if 200 <= login_st < 300 and login_body:
-            auth_obj = json.loads(login_body).get("authentication", {})
-            auth_token = auth_obj.get("token", "")
-            auth_bid = auth_obj.get("bid", 1) or 1
-    except Exception:
-        auth_token = ""
-
-    auth_req_headers = (
-        {"Authorization": f"Bearer {auth_token}", "Cookie": f"token={auth_token}"}
-        if auth_token
-        else {}
+    # CFG-07: OWASP ZAP (Rules 10049/10015) + Authenticated Anti-Caching Headers (strict Cache-Control: no-store) Inspector (SARIF 2.1.0 + HAR 1.2)
+    cfg07_eval = evaluate_cfg07_anti_caching(
+        base_url,
+        zap_report=zap_domain4_report,
+        http_probe_fn=http_probe,
     )
-    cfg07_targets = [
-        "/rest/user/whoami",
-        f"/rest/basket/{auth_bid}",
-        f"/api/Users/{auth_uid}",
-        "/rest/wallet/balance",
-        "/api/Cards",
-        "/rest/2fa/status",
-        "/rest/admin/application-configuration",
-        "/support/logs",
-        "/encryptionkeys",
-    ]
-    cfg07_checked = 0
-    cfg07_findings: list[dict] = []
-    for ep7 in cfg07_targets:
-        st7, hdrs7, _ = http_probe(ep7, headers=auth_req_headers)
-        if not (200 <= st7 < 300):
-            continue
-        cfg07_checked += 1
-        raw_cc = hdrs7.get("cache-control", "").strip()
-        cc_directives = {d.strip().lower().split("=", 1)[0] for d in raw_cc.split(",") if d.strip()}
-        if "no-store" not in cc_directives:
-            etag_note = f", ETag={hdrs7['etag']}" if hdrs7.get("etag") else ""
-            cfg07_findings.append(
-                {
-                    "url": f"{base_url}{ep7}",
-                    "status": st7,
-                    "cacheControl": raw_cc or "<missing>",
-                    "authenticated": bool(auth_token),
-                    "detail": (
-                        f"GET {base_url}{ep7} (HTTP {st7}, authenticated={bool(auth_token)}) "
-                        f"Cache-Control='{raw_cc or '<missing>'}'{etag_note} lacks required 'no-store' directive"
-                    ),
-                }
-            )
-
-    for cf7 in cfg07_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-07",
-                "level": "error",
-                "message": {"text": cf7["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": cf7["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-07",
-                    "httpStatus": cf7["status"],
-                    "cacheControl": cf7["cacheControl"],
-                    "authenticated": cf7["authenticated"],
-                },
-            }
-        )
-
-    cc_ok = cfg07_checked > 0 and len(cfg07_findings) == 0
+    auth_token = cfg07_eval["authToken"]
+    auth_uid = cfg07_eval["authUid"]
+    auth_bid = cfg07_eval["authBid"]
+    auth_req_headers = cfg07_eval["authHeaders"]
+    cfg07_findings = cfg07_eval["findings"]
+    dast_sarif_results.extend(cfg07_eval["sarifResults"])
+    cfg07_checked = cfg07_eval["checkedCount"]
+    cc_ok = cfg07_eval["cc_ok"]
     cfg07_lines = [cf7["detail"] for cf7 in cfg07_findings]
     results["CFG-07"] = {
         "verdict": "PASS" if cc_ok else "FAIL",
-        "tool": f"Authenticated Anti-Caching Inspector ({cfg07_checked} authenticated/sensitive 2xx routes inspected, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"OWASP ZAP {zap_ver_label} (Rules 10049/10015) & Authenticated Anti-Caching Inspector ({cfg07_checked} authenticated/sensitive 2xx routes inspected, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[PASS] All {cfg07_checked} authenticated/sensitive 2xx response(s) carry strict 'Cache-Control: no-store'.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            f"[PASS] OWASP ZAP {zap_ver_label} and authenticated session inspection confirmed strict 'Cache-Control: no-store' on all {cfg07_checked} 2xx route(s).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
             if cc_ok
-            else f"[FAIL] {len(cfg07_findings)}/{cfg07_checked} authenticated/sensitive 2xx response(s) omit mandatory 'Cache-Control: no-store' directive (ASVS V8.2.1):\n  - "
+            else f"[FAIL] {len(cfg07_findings)}/{cfg07_checked} authenticated/sensitive 2xx response(s) omit mandatory 'Cache-Control: no-store' directive (ASVS V8.2.1, ZAP plugins={cfg07_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(cfg07_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

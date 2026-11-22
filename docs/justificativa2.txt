@@ -1639,3 +1639,43 @@ CONTROLE 30/61: CFG-06 (Iteração SDD 100)
   * Endpoint Prometheus `/metrics` (HTTP 200) responde sem `X-Content-Type-Options`
     -> conformidade `< 100%` -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 31/61: CFG-07 (Iteração SDD 101)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-07` — *Anti-caching headers on all authenticated and sensitive responses* (ASVS V8.2.1 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (contraparte open-source do Burp Suite, regras passivas `10049`
+    *Storable and Cacheable Content* e `10015` *Re-examine Cache-control Directives*)
+    + inspeção de todas as respostas autenticadas/sensíveis em SARIF 2.1.0 e HAR 1.2.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 101`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-07` executava o fluxo autenticado inline dentro de `run_dynamic_and_protocol_checks`,
+  sem consumir os alertas passivos `10049` e `10015` do relatório do **OWASP ZAP**.
+- O que foi feito e melhorado na Iteração SDD 101:
+  1) Extração para `evaluate_cfg07_anti_caching(...)` em `casa_audit/scanner.py`
+     com provisionamento de sessão autenticada (`POST /api/Users/` + `POST /rest/user/login`)
+     e sondagem das rotas autenticadas e sensíveis exigindo `no-store` em
+     `Cache-Control`.
+  2) Correlação dos alertas passivos **OWASP ZAP `10049`/`10015`** sobre os
+     endpoints autenticados/sensíveis (filtrando ruído informacional *Non-Storable*)
+     com geração SARIF 2.1.0 (`CASA3-CFG-07`) e HAR 1.2.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration101_cfg07_guide_tooling`) com OWASP ZAP `2.17.0`:
+  * **`PASS`** com `Cache-Control: no-store, no-cache, must-revalidate` em rotas
+    autenticadas (`0` violações).
+  * **`FAIL`** quando ausente `Cache-Control` (capturado diretamente pelas regras
+    `10049`/`10015` do ZAP) e com `Cache-Control: private, max-age=0` sem `no-store`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Rotas autenticadas e sensíveis (incluindo `/rest/user/whoami`, `/rest/basket/:id`,
+    `/api/Users/:id`, `/rest/wallet/balance`, `/api/Cards`, `/rest/2fa/status`,
+    `/rest/admin/application-configuration`, `/support/logs` e `/encryptionkeys`)
+    respondem sem `Cache-Control: no-store` -> Veredito **`FAIL`**.
+================================================================================

@@ -964,7 +964,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-Fu5BcZmg9dPC+ScvMsEzQ9i+A48\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/user/whoami (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"97-Ggz23yYrPHnGAJbtkt0Y4bIiLWo\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -977,6 +977,7 @@
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -986,19 +987,20 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/63 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-lvSONSY6+RX+/gKFbRnn+w1yZAE\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/basket/69 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"9b-yz6lzbDSphf3RMuBTzSJQnLMMZI\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/63"
+                  "uri": "http://localhost:3000/rest/basket/69"
                 }
               }
             }
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -1008,19 +1010,20 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/api/Users/80 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-hJxMJynwCirS7pXwdUJKIYuMwFk\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/api/Users/86 (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"14a-4Adhj0wlrjr1tE3mFc43xZAlhc4\" lacks required 'no-store' directive"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/api/Users/80"
+                  "uri": "http://localhost:3000/api/Users/86"
                 }
               }
             }
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -1043,6 +1046,7 @@
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -1065,6 +1069,7 @@
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -1074,7 +1079,7 @@
           "ruleId": "CASA3-CFG-07",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-5AgHnNgUE+5l5YzdSHcWchhV4MM\" lacks required 'no-store' directive"
+            "text": "GET http://localhost:3000/rest/2fa/status (HTTP 200, authenticated=True) Cache-Control='<missing>', ETag=W/\"1c5-OLdChnMpDeV488V1E7QRXM3LmpU\" lacks required 'no-store' directive"
           },
           "locations": [
             {
@@ -1087,6 +1092,7 @@
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -1109,6 +1115,7 @@
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -1131,6 +1138,7 @@
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -1153,6 +1161,7 @@
           ],
           "properties": {
             "controlId": "CFG-07",
+            "source": "Header",
             "httpStatus": 200,
             "cacheControl": "<missing>",
             "authenticated": true
@@ -1592,6 +1601,29 @@
           "ruleId": "CASA3-CFG-10",
           "level": "error",
           "message": {
+            "text": "Administrative/operational endpoint GET http://localhost:3000/metrics reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=0.924 >= 0.90)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/metrics"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "controlId": "CFG-10",
+            "findingKind": "exposed_admin_wordlist_path",
+            "unauthStatus": 200,
+            "authStatus": 200,
+            "lcsSimilarity": 0.924
+          }
+        },
+        {
+          "ruleId": "CASA3-CFG-10",
+          "level": "error",
+          "message": {
             "text": "Administrative/operational endpoint GET http://localhost:3000/api-docs/ reachable unauthenticated (HTTP 200 vs auth HTTP 200, LCS line similarity=1.000 >= 0.90)"
           },
           "locations": [
@@ -1725,7 +1757,7 @@
           "ruleId": "CASA3-AUT-02",
           "level": "error",
           "message": {
-            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 4.28s: only 5/200 distinct (195 exact duplicate tokens, max identical collision=48/200; NIST SP 800-90B MCV min-entropy=2.06 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
+            "text": "Collected 200 session tokens from fresh logins to POST http://localhost:3000/rest/user/login in 5.02s: only 6/200 distinct (194 exact duplicate tokens, max identical collision=44/200; NIST SP 800-90B MCV min-entropy=2.18 bits < 64.0 bits threshold \u2014 deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
           },
           "locations": [
             {
@@ -1739,10 +1771,10 @@
           "properties": {
             "controlId": "AUT-02",
             "samplesCollected": 200,
-            "distinctTokens": 5,
-            "duplicateTokens": 195,
-            "maxCollisionFrequency": 48,
-            "minEntropyBits": 2.06
+            "distinctTokens": 6,
+            "duplicateTokens": 194,
+            "maxCollisionFrequency": 44,
+            "minEntropyBits": 2.18
           }
         },
         {
@@ -1830,13 +1862,13 @@
           "ruleId": "CASA3-AUT-05",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/63 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
+            "text": "GET http://localhost:3000/rest/basket/69 returned HTTP 200 when replaying Bearer/Cookie session token after logout (no server-side /logout route (client-only token removal))"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/63"
+                  "uri": "http://localhost:3000/rest/basket/69"
                 }
               }
             }
@@ -1987,7 +2019,7 @@
           "ruleId": "CASA3-AUT-08",
           "level": "error",
           "message": {
-            "text": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(66); value='66') at http://localhost:3000/#/search."
+            "text": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(72); value='72') at http://localhost:3000/#/search."
           },
           "locations": [
             {
@@ -2004,7 +2036,7 @@
             "storage": "sessionStorage",
             "key": "bid",
             "reasons": [
-              "canary(66)"
+              "canary(72)"
             ]
           }
         },
@@ -2037,7 +2069,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_removed, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_removed_1795381134' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_removed, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_removed_1795385401' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2058,7 +2090,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_replaced, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_replaced_1795381134' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_replaced, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_replaced_1795385401' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2079,7 +2111,7 @@
           "ruleId": "CASA3-AZI-01",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile (csrf_token_second_session, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_sess2_1795381134' was confirmed on re-reading GET /profile."
+            "text": "POST http://localhost:3000/profile (csrf_token_second_session, Origin: https://evil.example.com, Cookie-only auth, form_csrf_field=False) succeeded (HTTP 200) and state mutation 'casa3_csrf_sess2_1795385401' was confirmed on re-reading GET /profile."
           },
           "locations": [
             {
@@ -2100,7 +2132,7 @@
           "ruleId": "CASA3-AZI-02",
           "level": "error",
           "message": {
-            "text": "Headless Chrome executed injected JavaScript payload at http://localhost:3000/#/search and triggered live out-of-band HTTP callback GET 127.0.0.1:35611/cb?vec=dom_search (CWE-79 / ASVS V5.3.3)."
+            "text": "Headless Chrome executed injected JavaScript payload at http://localhost:3000/#/search and triggered live out-of-band HTTP callback GET 127.0.0.1:42965/cb?vec=dom_search (CWE-79 / ASVS V5.3.3)."
           },
           "locations": [
             {
@@ -2254,7 +2286,7 @@
           "ruleId": "CASA3-AZI-05",
           "level": "error",
           "message": {
-            "text": "POST http://localhost:3000/profile/image/url (imageUrl=http://127.0.0.1:36807/casa3_rfi_probe.svg) caused the server to fetch arbitrary remote resource(s) ['/casa3_rfi_probe.svg'] (HTTP 200, RFI/SSRF \u2014 CWE-98)."
+            "text": "POST http://localhost:3000/profile/image/url (imageUrl=http://127.0.0.1:33323/casa3_rfi_probe.svg) caused the server to fetch arbitrary remote resource(s) ['/casa3_rfi_probe.svg'] (HTTP 200, RFI/SSRF \u2014 CWE-98)."
           },
           "locations": [
             {
@@ -3117,13 +3149,13 @@
           "ruleId": "CASA3-OAU-09",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'unsigned_alg_none' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
+            "text": "GET http://localhost:3000/rest/basket/69 ACCEPTED crafted token 'unsigned_alg_none' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/63"
+                  "uri": "http://localhost:3000/rest/basket/69"
                 }
               }
             }
@@ -3139,13 +3171,13 @@
           "ruleId": "CASA3-OAU-09",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'alg_confusion_hs256_pubkey' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
+            "text": "GET http://localhost:3000/rest/basket/69 ACCEPTED crafted token 'alg_confusion_hs256_pubkey' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/63"
+                  "uri": "http://localhost:3000/rest/basket/69"
                 }
               }
             }
@@ -3161,13 +3193,13 @@
           "ruleId": "CASA3-OAU-09",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'wrong_audience_aud' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
+            "text": "GET http://localhost:3000/rest/basket/69 ACCEPTED crafted token 'wrong_audience_aud' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/63"
+                  "uri": "http://localhost:3000/rest/basket/69"
                 }
               }
             }
@@ -3183,13 +3215,13 @@
           "ruleId": "CASA3-OAU-09",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'wrong_issuer_iss' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
+            "text": "GET http://localhost:3000/rest/basket/69 ACCEPTED crafted token 'wrong_issuer_iss' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/63"
+                  "uri": "http://localhost:3000/rest/basket/69"
                 }
               }
             }
@@ -3205,13 +3237,13 @@
           "ruleId": "CASA3-OAU-09",
           "level": "error",
           "message": {
-            "text": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'insufficient_scope' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
+            "text": "GET http://localhost:3000/rest/basket/69 ACCEPTED crafted token 'insufficient_scope' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 \u00a74.9 / RFC 8725 / CWE-347)."
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "http://localhost:3000/rest/basket/63"
+                  "uri": "http://localhost:3000/rest/basket/69"
                 }
               }
             }

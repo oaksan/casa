@@ -275,6 +275,15 @@
               "message": {
                 "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/weakPasswordChallenge_4.ts:1:\n `User.init(\n      password: {\n        type: DataTypes.STRING,\n        set (clearTextPassword: string) {\n          validatePasswordIsNotInTopOneMillionCommonPasswordsList(clearTextPassword)\n          this.setDataValue('password', security.hash(clearTextPassword))\n        }\n      },` was unexpected"
               }
+            },
+            {
+              "descriptor": {
+                "id": "Timeout"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Timeout when running casa-assessment.rules.CASA3-SAST-13-sensitive-logging on /home/user/felipe/speckit/juice-shop-master/server.ts:\n "
+              }
             }
           ]
         }
@@ -2624,7 +2633,7 @@
             }
           ],
           "message": {
-            "text": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale auto-binding (CWE-915, OWASP API6:2023)"
+            "text": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale/Epilogue auto-binding (CWE-915, OWASP API6:2023)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-07-mass-assignment"
@@ -2690,25 +2699,6 @@
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
           },
           "locations": [
@@ -2719,6 +2709,25 @@
                 },
                 "region": {
                   "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }
@@ -3355,25 +3364,6 @@
           "ruleId": "CASA3-SAST-02-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
           },
           "locations": [
@@ -3384,6 +3374,25 @@
                 },
                 "region": {
                   "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }
@@ -3479,6 +3488,25 @@
                 },
                 "region": {
                   "startLine": 38
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-07-active-mass-assignment",
+          "level": "error",
+          "message": {
+            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=96) | GET http://localhost:3000/api/Users/96 verified lab-account read-back with role=\"admin\" (HTTP 200)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "http://localhost:3000/api/Users/"
+                },
+                "region": {
+                  "startLine": 1
                 }
               }
             }
@@ -3956,11 +3984,11 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale auto-binding (CWE-915, OWASP API6:2023)"
+                "text": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale/Epilogue auto-binding (CWE-915, OWASP API6:2023)"
               },
               "help": {
-                "markdown": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale auto-binding (CWE-915, OWASP API6:2023)",
-                "text": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale auto-binding (CWE-915, OWASP API6:2023)"
+                "markdown": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale/Epilogue auto-binding (CWE-915, OWASP API6:2023)",
+                "text": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale/Epilogue auto-binding (CWE-915, OWASP API6:2023)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-07-mass-assignment",
               "name": "casa-assessment.rules.CASA3-SAST-07-mass-assignment",
@@ -3977,11 +4005,53 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-07: Mass assignment / unguarded request payload unpacked into ORM model in Python (CWE-915)"
+                "text": "SAST-07: Mass assignment / unguarded direct request body binding onto model struct in Go (CWE-915)"
               },
               "help": {
-                "markdown": "SAST-07: Mass assignment / unguarded request payload unpacked into ORM model in Python (CWE-915)",
-                "text": "SAST-07: Mass assignment / unguarded request payload unpacked into ORM model in Python (CWE-915)"
+                "markdown": "SAST-07: Mass assignment / unguarded direct request body binding onto model struct in Go (CWE-915)",
+                "text": "SAST-07: Mass assignment / unguarded direct request body binding onto model struct in Go (CWE-915)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-07-mass-assignment-go",
+              "name": "casa-assessment.rules.CASA3-SAST-07-mass-assignment-go",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-07-mass-assignment-go"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-07: Mass assignment / unguarded Spring entity binding or BeanUtils property copy in Java (CWE-915)"
+              },
+              "help": {
+                "markdown": "SAST-07: Mass assignment / unguarded Spring entity binding or BeanUtils property copy in Java (CWE-915)",
+                "text": "SAST-07: Mass assignment / unguarded Spring entity binding or BeanUtils property copy in Java (CWE-915)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-07-mass-assignment-java",
+              "name": "casa-assessment.rules.CASA3-SAST-07-mass-assignment-java",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-07-mass-assignment-java"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-07: Mass assignment / unguarded request payload or unrestricted ModelForm fields in Python (CWE-915, OWASP API6:2023)"
+              },
+              "help": {
+                "markdown": "SAST-07: Mass assignment / unguarded request payload or unrestricted ModelForm fields in Python (CWE-915, OWASP API6:2023)",
+                "text": "SAST-07: Mass assignment / unguarded request payload or unrestricted ModelForm fields in Python (CWE-915, OWASP API6:2023)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-07-mass-assignment-python",
               "name": "casa-assessment.rules.CASA3-SAST-07-mass-assignment-python",

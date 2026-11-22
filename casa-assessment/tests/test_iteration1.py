@@ -30,6 +30,8 @@ from casa_audit.scanner import (
     evaluate_sast04_weak_hashes,
     evaluate_sast05_password_kdf,
     evaluate_sast06_csprng_randomness,
+    evaluate_sast07_framework_binding,
+    evaluate_sast07_mass_assignment_probe,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -813,6 +815,104 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 11/61: SAST-06 (Iteração SDD 081)", just2_txt)
+
+    def test_iteration82_sast07_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+
+        with tempfile.TemporaryDirectory() as td_sast7:
+            r7 = Path(td_sast7)
+            src = r7 / "src"
+            src.mkdir()
+            # 1. Explicit allowlist field picking passes static framework binder check
+            (src / "safe.ts").write_text(
+                "export const mk = (req: any, User: any) => User.create({ email: req.body.email, name: req.body.name });\n",
+                encoding="utf-8",
+            )
+            v_pass, f_pass, _, _ = evaluate_sast07_framework_binding(r7)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for allowlisted fields, got {f_pass}")
+
+            # 2. Multi-language unrestricted binders trigger SAST-07 via Semgrep
+            (src / "bad.ts").write_text("export const up = (req: any, User: any) => User.update(req.body, { where: { id: 1 } });\n", encoding="utf-8")
+            (src / "bad.py").write_text("class UserForm:\n    class Meta:\n        fields = '__all__'\n", encoding="utf-8")
+            (src / "Bad.java").write_text("class C { void f(Object dto, Object ent) { BeanUtils.copyProperties(dto, ent); } }\n", encoding="utf-8")
+            (src / "bad.go").write_text("package p\nfunc h(c any, u any) { c.ShouldBindJSON(&u) }\n", encoding="utf-8")
+            v_fail, f_fail, sarif_fail, _ = evaluate_sast07_framework_binding(r7)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("bad.ts", "bad.py", "Bad.java", "bad.go"):
+                self.assertIn(fname, joined, f"Missing SAST-07 finding for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(sarif_fail), 4)
+
+            # 3. Active update + read-back verification (mock vulnerable vs hardened endpoints)
+            class _MassAssignHandler(BaseHTTPRequestHandler):
+                vulnerable = True
+                role_stored = "customer"
+
+                def log_message(self, fmt, *args):
+                    pass
+
+                def do_POST(self):
+                    ln = int(self.headers.get("Content-Length", "0"))
+                    body = json.loads(self.rfile.read(ln).decode() or "{}")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    if self.path.endswith("/login"):
+                        self.wfile.write(json.dumps({"authentication": {"token": "tok-1"}}).encode())
+                        return
+                    if type(self).vulnerable and "role" in body:
+                        type(self).role_stored = body["role"]
+                    self.wfile.write(json.dumps({"data": {"id": 1, "role": type(self).role_stored}}).encode())
+
+                def do_PUT(self):
+                    ln = int(self.headers.get("Content-Length", "0"))
+                    body = json.loads(self.rfile.read(ln).decode() or "{}")
+                    if type(self).vulnerable and "role" in body:
+                        type(self).role_stored = body["role"]
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"data": {"id": 1, "role": type(self).role_stored}}).encode())
+
+                def do_GET(self):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"data": {"id": 1, "role": type(self).role_stored}}).encode())
+
+            sarif_tmp = Path(td_sast7) / "out.sarif"
+            sarif_tmp.write_text(json.dumps({"version": "2.1.0", "runs": [{"results": []}]}), encoding="utf-8")
+            srv = ThreadingHTTPServer(("127.0.0.1", 0), _MassAssignHandler)
+            port = srv.server_address[1]
+            t = threading.Thread(target=srv.serve_forever, daemon=True)
+            t.start()
+            try:
+                _MassAssignHandler.vulnerable = True
+                _MassAssignHandler.role_stored = "customer"
+                hit_vuln = evaluate_sast07_mass_assignment_probe(
+                    f"http://127.0.0.1:{port}",
+                    dast_sarif_path=Path(td_sast7) / "missing.sarif",
+                    sarif_out=sarif_tmp,
+                )
+                self.assertIsNotNone(hit_vuln)
+                self.assertIn("Update+ReadBack", hit_vuln)
+                sdata = json.loads(sarif_tmp.read_text(encoding="utf-8"))
+                self.assertEqual(sdata["runs"][0]["results"][0]["ruleId"], "CASA3-SAST-07-active-mass-assignment")
+
+                _MassAssignHandler.vulnerable = False
+                _MassAssignHandler.role_stored = "customer"
+                hit_safe = evaluate_sast07_mass_assignment_probe(
+                    f"http://127.0.0.1:{port}",
+                    dast_sarif_path=Path(td_sast7) / "missing.sarif",
+                    sarif_out=sarif_tmp,
+                )
+                self.assertIsNone(hit_safe)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 12/61: SAST-07 (Iteração SDD 082)", just2_txt)
 
 
 if __name__ == "__main__":

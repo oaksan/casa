@@ -724,3 +724,63 @@ Domínio 2: Static Application Security Testing (SAST)
     aleatoriedade benigna (`price`), e **`FAIL`** por `taint path` em
     `rng_bad.ts`, `rng_bad.py`, `RngBad.java` e `rng_bad.go`.
 ================================================================================
+
+================================================================================
+CONTROLE 12/61: SAST-07 (Iteração SDD 082)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-07
+- Requisito (CASA 3.0 AL1):
+  "Frameworks protect against mass assignment / unsafe auto-binding."
+- Referências: OWASP ASVS V5.1.2 (L1); MITRE CWE-915; OWASP API6:2023.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`, `ZAP`, `Burp Suite` *(exceção aplicada ao Burp Suite comercial:
+  substituição integral pelas ferramentas gratuitas **`semgrep`**, **`OWASP ZAP`**
+  e sonda HTTP ativa autenticada de atualização + releitura em laboratório)*.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Verificação:
+  * PASS: Zero achados de nível `error` de binders irrestritos **e** nenhum campo
+    privilegiado injetado é relido como alterado após requisição de atualização.
+  * FAIL: >= 1 achado de nível `error` de auto-binder irrestrito, ou >= 1 campo
+    privilegiado injetado persistido e confirmado na releitura.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 082)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 082:
+  1) As regras `CASA3-SAST-07-mass-assignment*` em `rules/casa3_al1_sast.yml`
+     cobrira apenas JS/TS e 2 padrões Python, deixando sem cobertura `Epilogue`,
+     spreads `{ ...req.body }`, `findOneAndUpdate`, `ModelForm` `fields='__all__'`,
+     Java Spring `BeanUtils.copyProperties` e Go Gin `ShouldBindJSON`/`BindJSON`.
+  2) `evaluate_sast07_mass_assignment_probe` testava apenas `POST /api/Users/`
+     sem login da conta de laboratório (`Bearer` + `Cookie`), sem envio de
+     requisições de atualização (`PUT`/`PATCH`) com campos privilegiados e
+     releitura via `GET`, sem correlação ao SARIF do `OWASP ZAP` e sem gravar o
+     achado ativo em `output/semgrep-sast.sarif`.
+- O que foi feito e melhorado na Iteração SDD 082:
+  1) Expansão e validação (`semgrep --validate`: 0 erros, 38 regras) de
+     `CASA3-SAST-07-mass-assignment*` (`TS/JS`, `Python`, `Java`, `Go`) e
+     criação de `evaluate_sast07_framework_binding(repo)`.
+  2) Evolução de `evaluate_sast07_mass_assignment_probe` para fluxo completo em
+     laboratório: registro + autenticação (`Bearer` + `Cookie`), releitura via
+     `GET /api/Users/{id}` / `/rest/user/whoami`, tentativas de `PUT`/`PATCH`
+     com injeção de `role: "admin"` / `isAdmin: true` + releitura de confirmação,
+     correlação com alertas de mass assignment no SARIF do **OWASP ZAP**
+     (`dast-findings.sarif`) e gravação de `CASA3-SAST-07-active-mass-assignment`
+     em `output/semgrep-sast.sarif` (`SARIF 2.1.0`).
+  3) Substituição explícita de ferramenta paga (`Burp Suite`) documentada no
+     rótulo da ferramenta: `Semgrep AST 1.180.0 (CWE-915 Framework Binder Ruleset) + OWASP ZAP / Lab-Account Update & Read-Back Probe (free alternative to Burp Suite)`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução completa (`test_iteration82_sast07_guide_tooling` + scan ao vivo):
+  * Análise estática (`Semgrep AST 1.180.0`): detecta `server.ts:529`
+    (`finale.resource(...)` auto-binding CWE-915) em nível `error`.
+  * Sonda HTTP de laboratório + releitura: confirma **`FAIL`** com persistência
+    de `"role": "admin"` em `POST /api/Users/` seguida de releitura autenticada
+    `GET /api/Users/{id}` retornando `role="admin"` (`HTTP 200`), registrando
+    `CASA3-SAST-07-active-mass-assignment` em `output/semgrep-sast.sarif`.
+================================================================================

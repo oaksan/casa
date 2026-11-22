@@ -460,23 +460,46 @@ rules:
 
   - id: CASA3-SAST-07-mass-assignment
     languages: [typescript, javascript]
-    message: "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale auto-binding (CWE-915, OWASP API6:2023)"
+    message: "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale/Epilogue auto-binding (CWE-915, OWASP API6:2023)"
     severity: ERROR
     pattern-either:
       - pattern: "$MODEL.create(req.body, ...)"
       - pattern: "$MODEL.create(req.body)"
       - pattern: "$MODEL.update(req.body, ...)"
+      - pattern: "$MODEL.findOneAndUpdate($Q, req.body, ...)"
       - pattern: "$MODEL.create({ ...req.body, ... })"
+      - pattern: "$MODEL.update({ ...req.body, ... }, ...)"
       - pattern: "Object.assign($USER, req.body)"
+      - pattern: "$REPO.save(req.body)"
       - pattern: "finale.resource(...)"
+      - pattern: "epilogue.resource(...)"
 
   - id: CASA3-SAST-07-mass-assignment-python
     languages: [python]
-    message: "SAST-07: Mass assignment / unguarded request payload unpacked into ORM model in Python (CWE-915)"
+    message: "SAST-07: Mass assignment / unguarded request payload or unrestricted ModelForm fields in Python (CWE-915, OWASP API6:2023)"
     severity: ERROR
     pattern-either:
       - pattern: "$MODEL.objects.create(**$REQ.data)"
       - pattern: "$MODEL(**$REQ.json)"
+      - pattern: "setattr($OBJ, $K, $REQ.json[$K])"
+      - pattern-regex: "fields\\s*=\\s*['\"]__all__['\"]"
+
+  - id: CASA3-SAST-07-mass-assignment-java
+    languages: [java]
+    message: "SAST-07: Mass assignment / unguarded Spring entity binding or BeanUtils property copy in Java (CWE-915)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "BeanUtils.copyProperties($SRC, $DST)"
+      - pattern: "PropertyUtils.copyProperties($DST, $SRC)"
+
+  - id: CASA3-SAST-07-mass-assignment-go
+    languages: [go]
+    message: "SAST-07: Mass assignment / unguarded direct request body binding onto model struct in Go (CWE-915)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "$CTX.ShouldBindJSON(&$MODEL)"
+      - pattern: "$CTX.BindJSON(&$MODEL)"
+      - pattern: "$CTX.ShouldBind(&$MODEL)"
 
   - id: CASA3-SAST-08-sql-injection
     languages: [typescript, javascript]

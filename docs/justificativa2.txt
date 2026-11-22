@@ -784,3 +784,61 @@ Domínio 2: Static Application Security Testing (SAST)
     `GET /api/Users/{id}` retornando `role="admin"` (`HTTP 200`), registrando
     `CASA3-SAST-07-active-mass-assignment` em `output/semgrep-sast.sarif`.
 ================================================================================
+
+================================================================================
+CONTROLE 13/61: SAST-08 (Iteração SDD 083)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-08
+- Requisito (CASA 3.0 AL1):
+  "Database access exclusively uses parameterized queries, ORMs or escaped input."
+- Referências: OWASP ASVS V5.3.4 (L1); MITRE CWE-89 / CWE-943.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `CodeQL`, `semgrep`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Verificação:
+  * PASS: Zero achados de nível `error` de construção de consultas por
+    concatenação ou interpolação sobre um valor contaminado (`tainted value`).
+  * FAIL: >= 1 achado de nível `error` de construção SQL/NoSQL sobre entrada
+    contaminada.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 083)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 083:
+  1) As regras anteriores `CASA3-SAST-08-sql*` usavam casamento sintático plano
+     (`pattern-regex`), o que não acompanhava o fluxo de dados (`mode: taint`)
+     entre fontes HTTP (`req.query`, `req.body`, `req.params`) e variáveis
+     intermediárias de consulta, além de gerar 8 ruídos sobre snippets
+     didáticos estáticos em `data/static/codefixes/` (incluindo arquivos
+     `*_correct.ts`).
+  2) Faltava cobertura multi-linguagem `mode: taint` para Java JDBC/JPA e Go
+     `database/sql`, bem como separação estrita para consultas parametrizadas
+     (`replacements`, `bind`, placeholders `?`/`%s`).
+- O que foi feito e melhorado na Iteração SDD 083:
+  1) Conversão das regras `CASA3-SAST-08-*` em `rules/casa3_al1_sast.yml` para
+     **Semgrep `mode: taint` multi-linguagem** (`TS/JS`, `Python`, `Java`, `Go`),
+     com sanitização/exclusão de queries parametrizadas (`replacements`/`bind` e
+     placeholders) e exclusão de snippets educativos estáticos (`**/codefixes/**`),
+     validado com `semgrep --validate` (0 erros, 40 regras).
+  2) Adição de `evaluate_sast08_sql_injection(repo)` em `casa_audit/scanner.py`
+     delegando a `_evaluate_semgrep_control_sarif(repo, "SAST-08")`, filtragem
+     `sev == "ERROR"` para `SAST-08` em `run_sast_checks` e identificação
+     `Semgrep AST 1.180.0 (SQL/NoSQL Taint Tracking + CWE-89/943 Ruleset, SARIF 2.1.0)`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Veredito `SAST-08`: **FAIL** com os **4 caminhos reais de injeção SQL/NoSQL**
+    na aplicação confirmados por `taint path` em `output/semgrep-sast.sarif`:
+    1. `routes/login.ts:34` (`req.body` -> `models.sequelize.query`);
+    2. `routes/search.ts:23` (`req.query.q` -> `models.sequelize.query`);
+    3. `routes/showProductReviews.ts:36` (`req.params.id` -> `find({ $where })`);
+    4. `routes/trackOrder.ts:18` (`req.params.id` -> `find({ $where })`).
+  * Validação unitária `test_iteration83_sast08_guide_tooling`: **`PASS`** em
+    consultas parametrizadas (`replacements` / `%s`) e **`FAIL`** por fluxo
+    `taint` em `sqli.ts`, `sqli.py`, `Sqli.java` e `sqli.go`.
+================================================================================

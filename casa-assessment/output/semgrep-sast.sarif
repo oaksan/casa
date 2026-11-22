@@ -275,15 +275,6 @@
               "message": {
                 "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/weakPasswordChallenge_4.ts:1:\n `User.init(\n      password: {\n        type: DataTypes.STRING,\n        set (clearTextPassword: string) {\n          validatePasswordIsNotInTopOneMillionCommonPasswordsList(clearTextPassword)\n          this.setDataValue('password', security.hash(clearTextPassword))\n        }\n      },` was unexpected"
               }
-            },
-            {
-              "descriptor": {
-                "id": "Timeout"
-              },
-              "level": "warning",
-              "message": {
-                "text": "Timeout when running casa-assessment.rules.CASA3-SAST-13-sensitive-logging on /home/user/felipe/speckit/juice-shop-master/server.ts:\n "
-              }
             }
           ]
         }
@@ -375,238 +366,6 @@
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/static/codefixes/chatbotGreedyInjectionChallenge_1.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 89,
-                  "endLine": 65,
-                  "snippet": {
-                    "text": "      return await db.reviewsCollection.find({ $where: 'this.product == ' + productId }) as Review[]"
-                  },
-                  "startColumn": 20,
-                  "startLine": 65
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/static/codefixes/chatbotGreedyInjectionChallenge_2_correct.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 89,
-                  "endLine": 66,
-                  "snippet": {
-                    "text": "      return await db.reviewsCollection.find({ $where: 'this.product == ' + productId }) as Review[]"
-                  },
-                  "startColumn": 20,
-                  "startLine": 66
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/static/codefixes/chatbotGreedyInjectionChallenge_3.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 89,
-                  "endLine": 66,
-                  "snippet": {
-                    "text": "      return await db.reviewsCollection.find({ $where: 'this.product == ' + productId }) as Review[]"
-                  },
-                  "startColumn": 20,
-                  "startLine": 66
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/static/codefixes/chatbotGreedyInjectionChallenge_4.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 89,
-                  "endLine": 66,
-                  "snippet": {
-                    "text": "      return await db.reviewsCollection.find({ $where: 'this.product == ' + productId }) as Review[]"
-                  },
-                  "startColumn": 20,
-                  "startLine": 66
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/static/codefixes/dbSchemaChallenge_1.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 163,
-                  "endLine": 5,
-                  "snippet": {
-                    "text": "    models.sequelize.query(\"SELECT * FROM Products WHERE ((name LIKE '%\"+criteria+\"%' OR description LIKE '%\"+criteria+\"%') AND deletedAt IS NULL) ORDER BY name\")"
-                  },
-                  "startColumn": 5,
-                  "startLine": 5
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/static/codefixes/dbSchemaChallenge_3.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 110,
-                  "endLine": 11,
-                  "snippet": {
-                    "text": "    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)"
-                  },
-                  "startColumn": 12,
-                  "startLine": 11
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/static/codefixes/unionSqlInjectionChallenge_1.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 110,
-                  "endLine": 6,
-                  "snippet": {
-                    "text": "    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)"
-                  },
-                  "startColumn": 12,
-                  "startLine": 6
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/static/codefixes/unionSqlInjectionChallenge_3.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 110,
-                  "endLine": 10,
-                  "snippet": {
-                    "text": "    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)"
-                  },
-                  "startColumn": 12,
-                  "startLine": 10
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
         },
         {
           "fingerprints": {
@@ -1515,35 +1274,6 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/chat.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 93,
-                  "endLine": 149,
-                  "snippet": {
-                    "text": "          return await db.reviewsCollection.find({ $where: 'this.product == ' + productId }) as Review[]"
-                  },
-                  "startColumn": 24,
-                  "startLine": 149
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
                   "uri": "/home/user/felipe/speckit/juice-shop-master/routes/checkKeys.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
@@ -1838,19 +1568,19 @@
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 107,
+                  "endColumn": 206,
                   "endLine": 34,
                   "snippet": {
                     "text": "    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge"
                   },
-                  "startColumn": 12,
+                  "startColumn": 5,
                   "startLine": 34
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
+            "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
@@ -2186,19 +1916,19 @@
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 110,
+                  "endColumn": 161,
                   "endLine": 23,
                   "snippet": {
                     "text": "    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`) // vuln-code-snippet vuln-line unionSqlInjectionChallenge dbSchemaChallenge"
                   },
-                  "startColumn": 12,
+                  "startColumn": 5,
                   "startLine": 23
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
+            "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
@@ -2227,7 +1957,7 @@
             }
           ],
           "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
+            "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
@@ -2244,19 +1974,19 @@
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 61,
+                  "endColumn": 69,
                   "endLine": 18,
                   "snippet": {
                     "text": "    db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {"
                   },
-                  "startColumn": 32,
+                  "startColumn": 5,
                   "startLine": 18
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
+            "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
@@ -3497,7 +3227,7 @@
           "ruleId": "CASA3-SAST-07-active-mass-assignment",
           "level": "error",
           "message": {
-            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=96) | GET http://localhost:3000/api/Users/96 verified lab-account read-back with role=\"admin\" (HTTP 200)"
+            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=101) | GET http://localhost:3000/api/Users/101 verified lab-account read-back with role=\"admin\" (HTTP 200)"
           },
           "locations": [
             {
@@ -4068,11 +3798,32 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
+                "text": "SAST-08: Tainted HTTP request input flows into unparameterized SQL query in Go (CWE-89)"
               },
               "help": {
-                "markdown": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)",
-                "text": "SAST-08: Unparameterized SQL or NoSQL ($where) query constructed via string interpolation or concatenation (CWE-89 / CWE-943)"
+                "markdown": "SAST-08: Tainted HTTP request input flows into unparameterized SQL query in Go (CWE-89)",
+                "text": "SAST-08: Tainted HTTP request input flows into unparameterized SQL query in Go (CWE-89)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-08-sql-go",
+              "name": "casa-assessment.rules.CASA3-SAST-08-sql-go",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-08-sql-go"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
+              },
+              "help": {
+                "markdown": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)",
+                "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-08-sql-injection",
               "name": "casa-assessment.rules.CASA3-SAST-08-sql-injection",
@@ -4089,11 +3840,32 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-08: Unparameterized SQL query constructed via string formatting or concatenation in Python (CWE-89)"
+                "text": "SAST-08: Tainted request parameter flows into unparameterized JDBC/JPA SQL query in Java (CWE-89)"
               },
               "help": {
-                "markdown": "SAST-08: Unparameterized SQL query constructed via string formatting or concatenation in Python (CWE-89)",
-                "text": "SAST-08: Unparameterized SQL query constructed via string formatting or concatenation in Python (CWE-89)"
+                "markdown": "SAST-08: Tainted request parameter flows into unparameterized JDBC/JPA SQL query in Java (CWE-89)",
+                "text": "SAST-08: Tainted request parameter flows into unparameterized JDBC/JPA SQL query in Java (CWE-89)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-08-sql-java",
+              "name": "casa-assessment.rules.CASA3-SAST-08-sql-java",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-08-sql-java"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-08: Tainted request input flows into unparameterized SQL or NoSQL query in Python (CWE-89 / CWE-943)"
+              },
+              "help": {
+                "markdown": "SAST-08: Tainted request input flows into unparameterized SQL or NoSQL query in Python (CWE-89 / CWE-943)",
+                "text": "SAST-08: Tainted request input flows into unparameterized SQL or NoSQL query in Python (CWE-89 / CWE-943)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-08-sql-nosql-python",
               "name": "casa-assessment.rules.CASA3-SAST-08-sql-nosql-python",

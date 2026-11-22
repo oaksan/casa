@@ -3276,6 +3276,19 @@ def evaluate_sast07_framework_binding(
     return verdict, findings, sarif_hits, dur
 
 
+def evaluate_sast08_sql_injection(
+    repo: Path,
+    rules_path: Path | None = None,
+) -> tuple[str, list[str], list[dict], float]:
+    """
+    Evaluate SAST-08 (CASA 3.0 AL1 / ASVS V5.3.4 / CWE-89 / CWE-943):
+    Execute Semgrep multi-language SQL/NoSQL data-flow taint rules (`error` level in SARIF 2.1.0)
+    over application database access paths.
+    """
+    verdict, findings, sarif_hits, _, dur = _evaluate_semgrep_control_sarif(repo, "SAST-08", rules_path=rules_path)
+    return verdict, findings, sarif_hits, dur
+
+
 def run_sast_checks(repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -3330,7 +3343,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                             sid = m.group(1)
                             extra = item.get("extra", {})
                             sev = str(extra.get("severity", "ERROR")).upper()
-                            if sid in {"SAST-03", "SAST-04", "SAST-05", "SAST-06", "SAST-07"} and sev != "ERROR":
+                            if sid in {"SAST-03", "SAST-04", "SAST-05", "SAST-06", "SAST-07", "SAST-08"} and sev != "ERROR":
                                 info_counts_by_sast_id[sid] += 1
                                 continue
                             fpath = item.get("path", "")
@@ -3450,6 +3463,13 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
         elif sid == "SAST-07":
             tool_label = (
                 f"Semgrep AST 1.180.0 (CWE-915 Framework Binder Ruleset, {semgrep_duration}s, SARIF 2.1.0)"
+                if semgrep_ran
+                else "Fallback Static Scanner"
+            )
+            extra_sarif_ref = ""
+        elif sid == "SAST-08":
+            tool_label = (
+                f"Semgrep AST 1.180.0 (SQL/NoSQL Taint Tracking + CWE-89/943 Ruleset, {semgrep_duration}s, SARIF 2.1.0)"
                 if semgrep_ran
                 else "Fallback Static Scanner"
             )

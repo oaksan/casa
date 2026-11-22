@@ -32,6 +32,7 @@ from casa_audit.scanner import (
     evaluate_sast06_csprng_randomness,
     evaluate_sast07_framework_binding,
     evaluate_sast07_mass_assignment_probe,
+    evaluate_sast08_sql_injection,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -913,6 +914,50 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 12/61: SAST-07 (Iteração SDD 082)", just2_txt)
+
+    def test_iteration83_sast08_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sast8:
+            r8 = Path(td_sast8)
+            src = r8 / "src"
+            src.mkdir()
+            # 1. Parameterized queries (ORM replacements / SQL placeholders) -> PASS
+            (src / "safe_sql.ts").write_text(
+                "export const q = (req: any, seq: any) => seq.query('SELECT * FROM users WHERE id = :id', { replacements: { id: req.params.id } });\n",
+                encoding="utf-8",
+            )
+            (src / "safe_sql.py").write_text(
+                "def q(request, cur):\n    cur.execute('SELECT * FROM users WHERE id = %s', (request.args.get('id'),))\n",
+                encoding="utf-8",
+            )
+            v_pass, f_pass, _, _ = evaluate_sast08_sql_injection(r8)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for parameterized queries, got {f_pass}")
+
+            # 2. Multi-language SQL/NoSQL injection taint flows -> FAIL
+            (src / "sqli.ts").write_text(
+                "export const s = (req: any, models: any) => {\n  const q = 'SELECT * FROM Products WHERE name = ' + req.query.q;\n  return models.sequelize.query(q);\n};\n",
+                encoding="utf-8",
+            )
+            (src / "sqli.py").write_text(
+                "def s(request, cursor):\n    sql = f\"SELECT * FROM users WHERE name = '{request.args['u']}'\"\n    cursor.execute(sql)\n",
+                encoding="utf-8",
+            )
+            (src / "Sqli.java").write_text(
+                'class Sqli { void q(javax.servlet.http.HttpServletRequest req, java.sql.Statement st) throws Exception { String u = req.getParameter("u"); st.executeQuery("SELECT * FROM u WHERE n=" + u); } }\n',
+                encoding="utf-8",
+            )
+            (src / "sqli.go").write_text(
+                'package p\nfunc h(r *http.Request, db *sql.DB) { q := "SELECT * FROM u WHERE n=" + r.URL.Query().Get("n"); db.Query(q) }\n',
+                encoding="utf-8",
+            )
+            v_fail, f_fail, sarif_fail, _ = evaluate_sast08_sql_injection(r8)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("sqli.ts", "sqli.py", "Sqli.java", "sqli.go"):
+                self.assertIn(fname, joined, f"Missing SAST-08 taint hit for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(sarif_fail), 4)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 13/61: SAST-08 (Iteração SDD 083)", just2_txt)
 
 
 if __name__ == "__main__":

@@ -1,15 +1,15 @@
 {
-  "scanner": "testssl.sh 3.2.2 73b5651 + HTTP Cleartext Redirect Probe",
-  "scannedAt": "2026-11-22T11:32:35.786783+00:00",
+  "scanner": "testssl.sh 3.2.2 3638acd + HTTP Cleartext Redirect Probe",
+  "scannedAt": "2026-11-22T11:42:10.384482+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "HSTS_time": 0,
   "testssl": {
     "binary": "/home/user/.local/bin/testssl.sh",
-    "version": "3.2.2 73b5651",
+    "version": "3.2.2 3638acd",
     "openssl": "OpenSSL 1.0.2-bad from Fri Mar 28 16:54:51 2025",
     "returncode": 0,
-    "scanTime": 9,
+    "scanTime": 10,
     "rawJsonPath": "/home/user/felipe/speckit/casa/casa-assessment/output/testssl-raw.json",
     "handshakeOk": true,
     "protocolsOffered": [
@@ -123,10 +123,14 @@
     "san": [],
     "notBefore": null,
     "notAfter": null,
+    "signatureAlgorithm": null,
+    "keySize": null,
     "warnings": [],
     "errors": [
-      "No TLS/X.509 endpoint reachable on localhost:3000 ([SSL: RECORD_LAYER_FAILURE] record layer failure (_ssl.c:1033))"
-    ]
+      "No X.509 certificate served over cleartext HTTP on localhost:3000"
+    ],
+    "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
+    "testsslVersion": null
   },
   "vulnerabilities": [
     {
@@ -177,7 +181,7 @@
   "tls02ProtocolEnforcement": {
     "probedPort": 3000,
     "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
-    "testsslVersion": "3.2.2 73b5651",
+    "testsslVersion": "3.2.2 3638acd",
     "modernOffered": [],
     "deprecatedOffered": [],
     "verdict": "FAIL"
@@ -205,10 +209,14 @@
     "san": [],
     "notBefore": null,
     "notAfter": null,
+    "signatureAlgorithm": null,
+    "keySize": null,
     "warnings": [],
     "errors": [
-      "No TLS/X.509 endpoint reachable on localhost:3000 ([SSL: RECORD_LAYER_FAILURE] record layer failure (_ssl.c:1033))"
+      "No X.509 certificate served over cleartext HTTP on localhost:3000"
     ],
+    "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
+    "testsslVersion": null,
     "verdict": "FAIL"
   },
   "tls05Hsts": {

@@ -275,15 +275,6 @@
               "message": {
                 "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/weakPasswordChallenge_4.ts:1:\n `User.init(\n      password: {\n        type: DataTypes.STRING,\n        set (clearTextPassword: string) {\n          validatePasswordIsNotInTopOneMillionCommonPasswordsList(clearTextPassword)\n          this.setDataValue('password', security.hash(clearTextPassword))\n        }\n      },` was unexpected"
               }
-            },
-            {
-              "descriptor": {
-                "id": "Timeout"
-              },
-              "level": "warning",
-              "message": {
-                "text": "Timeout when running casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization on /home/user/felipe/speckit/juice-shop-master/server.ts:\n "
-              }
             }
           ]
         }
@@ -2351,25 +2342,6 @@
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "lib/insecurity.ts"
-                },
-                "region": {
-                  "startLine": 21
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
           },
           "locations": [
@@ -2380,6 +2352,25 @@
                 },
                 "region": {
                   "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
                 }
               }
             }
@@ -3016,25 +3007,6 @@
           "ruleId": "CASA3-SAST-02-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "lib/insecurity.ts"
-                },
-                "region": {
-                  "startLine": 21
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
           },
           "locations": [
@@ -3045,6 +3017,25 @@
                 },
                 "region": {
                   "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
                 }
               }
             }
@@ -3168,7 +3159,7 @@
           "ruleId": "CASA3-SAST-07-active-mass-assignment",
           "level": "error",
           "message": {
-            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=39) | GET http://localhost:3000/api/Users/39 verified lab-account read-back with role=\"admin\" (HTTP 200)"
+            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=44) | GET http://localhost:3000/api/Users/44 verified lab-account read-back with role=\"admin\" (HTTP 200)"
           },
           "locations": [
             {
@@ -3187,7 +3178,7 @@
           "ruleId": "CASA3-SAST-13-canary-log-leak",
           "level": "error",
           "message": {
-            "text": "logs/access.log.2026-11-22:1544 \u2014 [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary value written to log sink: ::ffff:127.0.0.1 - - [22/Nov/2026:11:33:01 +0000] \"GET /rest/user/change-password?current=CASA3_CANARY_CURPWD_1795347181&new=CASA3_CANARY_NEWPWD_1795347181&repeat=CASA3_CANARY_NEWPWD_1795347181 HTTP/1.1\" 500 - \"-\" \"ADA-CASA-3.0-Lab-Scanner/3.0\""
+            "text": "logs/access.log.2026-11-22:2055 \u2014 [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary value written to log sink: ::ffff:127.0.0.1 - - [22/Nov/2026:11:42:35 +0000] \"GET /rest/user/change-password?current=CASA3_CANARY_CURPWD_1795347755&new=CASA3_CANARY_NEWPWD_1795347755&repeat=CASA3_CANARY_NEWPWD_1795347755 HTTP/1.1\" 500 - \"-\" \"ADA-CASA-3.0-Lab-Scanner/3.0\""
           },
           "locations": [
             {
@@ -3196,7 +3187,7 @@
                   "uri": "logs/access.log.2026-11-22"
                 },
                 "region": {
-                  "startLine": 1544
+                  "startLine": 2055
                 }
               }
             }

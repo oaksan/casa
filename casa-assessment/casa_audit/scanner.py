@@ -3710,6 +3710,7 @@ def run_testssl_scan(
     raw_json_path: Path | None = None,
     checks: tuple[str, ...] = ("-p",),
     timeout_sec: int = 35,
+    extra_args: tuple[str, ...] = (),
 ) -> dict:
     """Execute official testssl.sh against host:port and parse its JSON report."""
     binary = TESTSSL_BIN if Path(TESTSSL_BIN).exists() else (shutil.which("testssl.sh") or shutil.which("testssl") or "")
@@ -3748,6 +3749,7 @@ def run_testssl_scan(
         "--openssl-timeout",
         "2",
         *checks,
+        *extra_args,
         "--jsonfile-pretty",
         str(out_file),
         target,
@@ -4189,6 +4191,185 @@ def evaluate_tls03_cipher_enforcement(
     }
 
 
+def parse_testssl_certificate(scan_result: list[dict], target_port: int) -> dict:
+    """Convert official testssl.sh -S serverDefaults output into TLS-04 X.509 audit structure."""
+    fields: dict[str, dict] = {}
+    for entry in scan_result or []:
+        if not isinstance(entry, dict):
+            continue
+        for item in entry.get("serverDefaults", []) or []:
+            if isinstance(item, dict) and item.get("id"):
+                fields[str(item["id"])] = item
+
+    has_cert = bool(
+        fields.get("cert")
+        or fields.get("cert_commonName")
+        or fields.get("cert_fingerprintSHA256")
+        or (str(fields.get("cert_numbers", {}).get("finding", "0")).isdigit() and int(fields["cert_numbers"]["finding"]) > 0)
+    )
+    info: dict = {
+        "probedPort": target_port,
+        "present": has_cert,
+        "chainTrustedToPublicRoot": False,
+        "hostnameMatches": False,
+        "notExpired": False,
+        "remainingDays": None,
+        "subject": fields.get("cert_commonName", {}).get("finding"),
+        "issuer": fields.get("cert_caIssuers", {}).get("finding"),
+        "san": (str(fields.get("cert_subjectAltName", {}).get("finding") or "").split()) if fields.get("cert_subjectAltName", {}).get("finding") not in (None, "", "--") else [],
+        "notBefore": fields.get("cert_notBefore", {}).get("finding"),
+        "notAfter": fields.get("cert_notAfter", {}).get("finding"),
+        "signatureAlgorithm": fields.get("cert_signatureAlgorithm", {}).get("finding"),
+        "keySize": fields.get("cert_keySize", {}).get("finding"),
+        "warnings": [],
+        "errors": [],
+    }
+    if not has_cert:
+        scan_prob = next(
+            (str(e.get("finding")) for e in (scan_result or []) if isinstance(e, dict) and e.get("id") == "scanProblem"),
+            None,
+        )
+        info["errors"].append(scan_prob or f"No X.509 certificate presented on port {target_port}")
+        return info
+
+    chain_item = fields.get("cert_chain_of_trust", {})
+    chain_sev = str(chain_item.get("severity") or "").upper()
+    chain_find = str(chain_item.get("finding") or "")
+    if chain_sev == "OK" or chain_find.lower().startswith("ok"):
+        info["chainTrustedToPublicRoot"] = True
+    else:
+        info["errors"].append(f"Chain of trust failed ({chain_find or chain_sev or 'untrusted'})")
+
+    trust_item = fields.get("cert_trust", {})
+    trust_sev = str(trust_item.get("severity") or "").upper()
+    trust_find = str(trust_item.get("finding") or "")
+    if trust_sev == "OK" or trust_find.lower().startswith("ok"):
+        info["hostnameMatches"] = True
+    else:
+        info["errors"].append(f"Hostname / SAN validation failed ({trust_find or trust_sev or 'mismatch'})")
+
+    exp_item = fields.get("cert_expirationStatus", {})
+    exp_find = str(exp_item.get("finding") or "")
+    exp_low = exp_find.lower()
+    rem_days: int | None = None
+    if info["notAfter"]:
+        try:
+            dt_exp = datetime.datetime.strptime(str(info["notAfter"]).strip(), "%Y-%m-%d %H:%M").replace(tzinfo=datetime.timezone.utc)
+            rem_days = (dt_exp - datetime.datetime.now(datetime.timezone.utc)).days
+        except Exception:
+            pass
+    if rem_days is None:
+        m_days = re.search(r"(-?\d+)\s*(?:>=|>|<|days?)?", exp_find)
+        if m_days:
+            try:
+                rem_days = int(m_days.group(1))
+            except Exception:
+                pass
+    info["remainingDays"] = rem_days
+
+    if "expired" in exp_low and "expires" not in exp_low:
+        info["errors"].append(f"Certificate expired ({exp_find}; notAfter={info['notAfter']})")
+    elif rem_days is not None and rem_days < 0:
+        info["errors"].append(f"Certificate expired {abs(rem_days)} day(s) ago (notAfter={info['notAfter']})")
+    elif rem_days is not None or "expires" in exp_low or str(exp_item.get("severity") or "").upper() == "OK":
+        info["notExpired"] = True
+        if rem_days is not None and rem_days < 30:
+            info["warnings"].append(
+                f"Informational: certificate expires in {rem_days} day(s) (< 30 days threshold; {exp_find})"
+            )
+    else:
+        info["errors"].append(f"Certificate expiration status unknown ({exp_find or 'missing'})")
+
+    return info
+
+
+def evaluate_tls04_certificate_validation(
+    target_url: str,
+    raw_json_path: Path | None = None,
+    testssl_info: dict | None = None,
+    extra_ca_file: Path | None = None,
+) -> dict:
+    """Evaluate TLS-04 X.509 trust, expiry, and CN/SAN match using official testssl.sh -S."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if is_https else 80)
+
+    empty_cert = {
+        "probedPort": port,
+        "present": False,
+        "chainTrustedToPublicRoot": False,
+        "hostnameMatches": False,
+        "notExpired": False,
+        "remainingDays": None,
+        "subject": None,
+        "issuer": None,
+        "san": [],
+        "notBefore": None,
+        "notAfter": None,
+        "signatureAlgorithm": None,
+        "keySize": None,
+        "warnings": [],
+        "errors": [f"No TLS/X.509 endpoint reachable on {host}:{port}" if host else "No host declared"],
+        "source": "cleartext / no host declared",
+        "testsslVersion": None,
+    }
+    if not host:
+        return {"verdict": "FAIL", "tls04_pass": False, "certAudit": empty_cert, "testssl": {}}
+
+    reusable = bool(
+        testssl_info
+        and testssl_info.get("executed")
+        and any(isinstance(e, dict) and e.get("serverDefaults") for e in (testssl_info.get("scanResult") or []))
+    )
+    active_testssl = testssl_info if reusable else None
+    source_label = "testssl.sh --ssl-native -S (reused)"
+
+    if active_testssl is None:
+        if is_https or _quick_tls_capable(host, port):
+            extra_args = ("--add-ca", str(extra_ca_file)) if extra_ca_file is not None else ()
+            active_testssl = run_testssl_scan(
+                host,
+                port,
+                raw_json_path=raw_json_path,
+                checks=("--ssl-native", "-S"),
+                timeout_sec=40,
+                extra_args=extra_args,
+            )
+            source_label = "testssl.sh --ssl-native -S"
+        else:
+            active_testssl = {
+                "executed": False,
+                "version": None,
+                "rawJsonPath": str(raw_json_path or (OUTPUT_DIR / "testssl-tls04-raw.json")),
+                "scanResult": [],
+            }
+            source_label = f"cleartext pre-check on {host}:{port} (non-TLS HTTP endpoint)"
+
+    has_defaults = any(isinstance(e, dict) and e.get("serverDefaults") for e in (active_testssl.get("scanResult") or []))
+    cert_audit = (
+        parse_testssl_certificate(active_testssl.get("scanResult") or [], port)
+        if has_defaults
+        else {**empty_cert, "errors": [f"No X.509 certificate served over cleartext HTTP on {host}:{port}"]}
+    )
+    cert_audit["source"] = source_label
+    cert_audit["testsslVersion"] = active_testssl.get("version")
+
+    tls04_pass = (
+        bool(cert_audit["present"])
+        and bool(cert_audit["chainTrustedToPublicRoot"])
+        and bool(cert_audit["notExpired"])
+        and bool(cert_audit["hostnameMatches"])
+    )
+    return {
+        "verdict": "PASS" if tls04_pass else "FAIL",
+        "tls04_pass": tls04_pass,
+        "certAudit": cert_audit,
+        "testssl": active_testssl,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -4424,114 +4605,13 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     cipher_audit = tls03_eval["cipherAudit"]
     tls03_pass = tls03_eval["tls03_pass"]
 
-    # TLS-04: X.509 certificate chain validation against public root store, hostname/SAN match, expiry & <30d warning
-    def probe_x509_certificate(target_h: str, target_p: int) -> dict:
-        info: dict = {
-            "probedPort": target_p,
-            "present": False,
-            "chainTrustedToPublicRoot": False,
-            "hostnameMatches": False,
-            "notExpired": False,
-            "remainingDays": None,
-            "subject": None,
-            "issuer": None,
-            "san": [],
-            "notBefore": None,
-            "notAfter": None,
-            "warnings": [],
-            "errors": [],
-        }
-        der_cert: bytes | None = None
-        # 1. Strict verification against public root store & hostname
-        try:
-            ctx_strict = ssl.create_default_context()
-            with socket.create_connection((target_h, target_p), timeout=3.0) as s:
-                with ctx_strict.wrap_socket(s, server_hostname=target_h) as ss:
-                    der_cert = ss.getpeercert(binary_form=True)
-                    info["chainTrustedToPublicRoot"] = True
-                    info["hostnameMatches"] = True
-        except ssl.SSLCertVerificationError as verr:
-            msg_v = str(verr)
-            info["errors"].append(f"X.509 verification failed: {msg_v}")
-            if "hostname mismatch" not in msg_v.lower() and "doesn't match" not in msg_v.lower():
-                # Still inspect certificate metadata via unverified socket
-                pass
-        except Exception as exc:
-            info["errors"].append(f"No TLS/X.509 endpoint reachable on {target_h}:{target_p} ({exc})")
-
-        # 2. Extract certificate metadata via binary DER + openssl x509 if TLS endpoint answered
-        if der_cert is None:
-            try:
-                ctx_raw = ssl._create_unverified_context()
-                with socket.create_connection((target_h, target_p), timeout=3.0) as s:
-                    with ctx_raw.wrap_socket(s, server_hostname=target_h) as ss:
-                        der_cert = ss.getpeercert(binary_form=True)
-            except Exception:
-                pass
-
-        if der_cert:
-            info["present"] = True
-            try:
-                x509_proc = subprocess.run(
-                    ["openssl", "x509", "-inform", "DER", "-noout", "-subject", "-issuer", "-dates", "-ext", "subjectAltName"],
-                    input=der_cert,
-                    capture_output=True,
-                    timeout=4,
-                )
-                out_txt = x509_proc.stdout.decode("utf-8", errors="ignore")
-                for line in out_txt.splitlines():
-                    ls = line.strip()
-                    if ls.startswith("subject="):
-                        info["subject"] = ls[len("subject="):].strip()
-                    elif ls.startswith("issuer="):
-                        info["issuer"] = ls[len("issuer="):].strip()
-                    elif ls.startswith("notBefore="):
-                        info["notBefore"] = ls[len("notBefore="):].strip()
-                    elif ls.startswith("notAfter="):
-                        info["notAfter"] = ls[len("notAfter="):].strip()
-                    elif "DNS:" in ls or "IP Address:" in ls:
-                        info["san"] = [item.strip() for item in ls.split(",")]
-
-                if info["notAfter"]:
-                    dt_exp = datetime.datetime.fromtimestamp(ssl.cert_time_to_seconds(info["notAfter"]), tz=datetime.timezone.utc)
-                    now_utc = datetime.datetime.now(datetime.timezone.utc)
-                    rem_days = (dt_exp - now_utc).days
-                    info["remainingDays"] = rem_days
-                    if rem_days >= 0:
-                        info["notExpired"] = True
-                        if rem_days < 30:
-                            info["warnings"].append(
-                                f"Informational: certificate expires in {rem_days} day(s) (< 30 days threshold)"
-                            )
-                    else:
-                        info["errors"].append(f"Certificate expired {abs(rem_days)} day(s) ago (notAfter={info['notAfter']})")
-
-                # Explicit CN/SAN hostname check when strict handshake errored
-                if not info["hostnameMatches"]:
-                    target_l = target_h.lower()
-                    san_hosts = [s.split(":", 1)[1].strip().lower() for s in info["san"] if ":" in s]
-                    cn_m = re.search(r"CN\s*=\s*([^,/]+)", info["subject"] or "")
-                    cn_host = cn_m.group(1).strip().lower() if cn_m else ""
-                    if target_l in san_hosts or target_l == cn_host:
-                        info["hostnameMatches"] = True
-                    else:
-                        info["errors"].append(f"Hostname mismatch: expected '{target_h}', certificate CN='{cn_host}', SAN={san_hosts}")
-            except Exception as exc:
-                info["errors"].append(f"Failed to parse X.509 DER metadata: {exc}")
-
-        return info
-
-    cert_audit = (
-        probe_x509_certificate(host, protocol_target_port)
-        if host
-        else {"present": False, "chainTrustedToPublicRoot": False, "hostnameMatches": False, "notExpired": False, "warnings": [], "errors": ["No host"]}
+    # TLS-04: Official testssl.sh (--ssl-native -S) X.509 certificate trust, expiry & CN/SAN match
+    tls04_eval = evaluate_tls04_certificate_validation(
+        base_url,
+        raw_json_path=OUTPUT_DIR / "testssl-tls04-raw.json",
     )
-    tls04_pass = (
-        bool(cert_audit["present"])
-        and bool(cert_audit["chainTrustedToPublicRoot"])
-        and bool(cert_audit["notExpired"])
-        and bool(cert_audit["hostnameMatches"])
-    )
+    cert_audit = tls04_eval["certAudit"]
+    tls04_pass = tls04_eval["tls04_pass"]
 
     # TLS-05: Strict-Transport-Security multi-endpoint audit & HSTS_time >= 31536000 persistence in TLS JSON
     hsts_endpoints_to_probe = ["/", "/api/Products", "/rest/admin/application-configuration"]
@@ -4824,11 +4904,14 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
+    tls04_ver = tls04_eval["testssl"].get("version") or testssl_ver_label
     results["TLS-04"] = {
         "verdict": "PASS" if tls04_pass else "FAIL",
-        "tool": f"X.509 Certificate Chain, Public Root Store, Expiry & CN/SAN Validator ({host}:{protocol_target_port}, JSON)",
+        "tool": f"testssl.sh {tls04_ver} -S X.509 Trust, Expiry & CN/SAN Validator ({host}:{protocol_target_port}, JSON)",
         "log": (
-            f"[PASS] X.509 certificate on {host}:{protocol_target_port} validates to public root store, matches CN/SAN ({cert_audit.get('san')}), and is unexpired ({cert_audit.get('remainingDays')} days remaining; notAfter={cert_audit.get('notAfter')}).\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            f"[PASS] testssl.sh verified X.509 certificate on {host}:{protocol_target_port}: chain trusted, CN/SAN matches ({cert_audit.get('san')}), unexpired ({cert_audit.get('remainingDays')} days remaining; notAfter={cert_audit.get('notAfter')})."
+            + (f"\nInformational: {'; '.join(cert_audit['warnings'])}" if cert_audit.get("warnings") else "")
+            + f"\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - testssl.sh Raw JSON: {tls04_eval['testssl'].get('rawJsonPath') or testssl_info.get('rawJsonPath')}"
             if tls04_pass
             else f"[FAIL] TLS-04 X.509 validation failed on {host}:{protocol_target_port}: "
             + ("; ".join(cert_audit["errors"]) if cert_audit["errors"] else "No X.509 certificate served over cleartext HTTP")

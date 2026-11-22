@@ -1273,3 +1273,46 @@ CONTROLE 21/61: TLS-03 (Iteração SDD 091)
   * Na porta `3000` (HTTP puro), nenhuma suíte TLS forte com Forward Secrecy é
     oferecida (`strongForwardSecrecyOffered=[]`) -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 22/61: TLS-04 (Iteração SDD 092)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 3 - TRANSPORT SECURITY)
+--------------------------------------------------------------------------------
+- Controle: `TLS-04` — *Certificate chain is valid, trusted, unexpired and matches the hostname* (ASVS V9.2.1 L2; CA/Browser Forum Baseline Requirements).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **`testssl.sh`** (ou Qualys SSL Labs CLI) validando cadeia contra repositório de
+    raízes confiáveis, correspondência de hostname (`CN`/`SAN`) e expiração (reportando
+    vida útil `< 30 dias` como aviso informacional sem reprovar).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 092`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `TLS-04` executava validação X.509 manualmente por `ssl.create_default_context()`
+  e `openssl x509` inline em `probe_x509_certificate`, sem usar o módulo de
+  certificados (`-S`) do `testssl.sh`.
+- O que foi feito e melhorado na Iteração SDD 092:
+  1) Extensão de `run_testssl_scan` com `extra_args` e implementação de
+     `parse_testssl_certificate(scan_result, target_port)` em `casa_audit/scanner.py`,
+     extraindo `cert_trust`, `cert_chain_of_trust`, `cert_expirationStatus`,
+     `cert_commonName`, `cert_subjectAltName`, `cert_notBefore`, `cert_notAfter`,
+     `cert_caIssuers`, `cert_signatureAlgorithm` e `cert_keySize` de `serverDefaults`.
+  2) Implementação de `evaluate_tls04_certificate_validation(...)` executando
+     `testssl.sh --ssl-native -S --jsonfile-pretty` (gravando
+     `output/testssl-tls04-raw.json` e alimentando `.certificate` em `tls-scan.json`),
+     tratando `< 30 dias` de validade restante como **aviso informacional**
+     (`warnings`) e falhando deterministicamente em cadeia não confiável, hostname
+     divergente, certificado expirado ou ausência de endpoint TLS.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration92_tls04_guide_tooling`) executando `testssl.sh 3.2.2`:
+  * **`PASS`** em certificado assinado por CA confiável (`45` dias restantes).
+  * **`PASS` (com alerta informacional `< 30 days`)** em certificado válido com `5` dias.
+  * **`FAIL`** em divergência de hostname/SAN (`wrong.example.org`), certificado
+    autoassinado sem CA confiável e endpoint HTTP cleartext.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Na porta `3000` (HTTP puro), nenhum certificado X.509 é apresentado
+    (`present=False`, `chainTrustedToPublicRoot=False`) -> Veredito **`FAIL`**.
+================================================================================

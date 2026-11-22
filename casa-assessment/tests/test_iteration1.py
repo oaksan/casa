@@ -1548,6 +1548,142 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 21/61: TLS-03 (Iteração SDD 091)", just2_txt)
 
+    def test_iteration92_tls04_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        import ssl
+        import subprocess
+        from casa_audit.scanner import evaluate_tls04_certificate_validation
+
+        with tempfile.TemporaryDirectory() as td_tls4:
+            tdp = Path(td_tls4)
+            ca_k, ca_c = tdp / "ca.key", tdp / "ca.pem"
+            subprocess.run(
+                [
+                    "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                    "-keyout", str(ca_k), "-out", str(ca_c), "-days", "365",
+                    "-subj", "/CN=TestRootCA",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+            def _issue_srv_cert(prefix: str, cn: str, san: str, days: int, self_signed: bool = False):
+                sk = tdp / f"{prefix}.key"
+                sc = tdp / f"{prefix}.pem"
+                if self_signed:
+                    subprocess.run(
+                        [
+                            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                            "-keyout", str(sk), "-out", str(sc), "-days", str(days),
+                            "-subj", f"/CN={cn}", "-addext", f"subjectAltName={san}",
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
+                    return sc, sk
+                csr = tdp / f"{prefix}.csr"
+                ext = tdp / f"{prefix}.ext"
+                ext.write_text(
+                    f"subjectAltName={san}\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n",
+                    encoding="utf-8",
+                )
+                subprocess.run(
+                    ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", str(sk), "-out", str(csr), "-subj", f"/CN={cn}"],
+                    check=True,
+                    capture_output=True,
+                )
+                subprocess.run(
+                    ["openssl", "x509", "-req", "-in", str(csr), "-CA", str(ca_c), "-CAkey", str(ca_k), "-CAcreateserial", "-out", str(sc), "-days", str(days), "-extfile", str(ext)],
+                    check=True,
+                    capture_output=True,
+                )
+                return sc, sk
+
+            class _OkHandler(BaseHTTPRequestHandler):
+                def log_message(self, fmt, *args):
+                    pass
+
+                def do_GET(self):
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+
+            def _start_srv(cert_p: Path, key_p: Path):
+                srv = ThreadingHTTPServer(("127.0.0.1", 0), _OkHandler)
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ctx.load_cert_chain(certfile=str(cert_p), keyfile=str(key_p))
+                srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+                threading.Thread(target=srv.serve_forever, daemon=True).start()
+                return srv, srv.server_address[1]
+
+            c_ok, k_ok = _issue_srv_cert("ok", "127.0.0.1", "DNS:localhost,IP:127.0.0.1", 45)
+            c_short, k_short = _issue_srv_cert("short", "127.0.0.1", "DNS:localhost,IP:127.0.0.1", 5)
+            c_mismatch, k_mismatch = _issue_srv_cert("mismatch", "wrong.example.org", "DNS:wrong.example.org", 45)
+            c_self, k_self = _issue_srv_cert("self", "127.0.0.1", "DNS:localhost,IP:127.0.0.1", 45, self_signed=True)
+
+            s_ok, p_ok = _start_srv(c_ok, k_ok)
+            s_short, p_short = _start_srv(c_short, k_short)
+            s_mismatch, p_mismatch = _start_srv(c_mismatch, k_mismatch)
+            s_self, p_self = _start_srv(c_self, k_self)
+            s_http = ThreadingHTTPServer(("127.0.0.1", 0), _OkHandler)
+            p_http = s_http.server_address[1]
+            threading.Thread(target=s_http.serve_forever, daemon=True).start()
+
+            try:
+                # 1. Valid CA-signed cert >= 30d -> PASS without warnings
+                r_ok = evaluate_tls04_certificate_validation(
+                    f"https://127.0.0.1:{p_ok}",
+                    raw_json_path=tdp / "raw_ok.json",
+                    extra_ca_file=ca_c,
+                )
+                self.assertEqual(r_ok["verdict"], "PASS", f"Expected PASS, got {r_ok}")
+                self.assertTrue(r_ok["certAudit"]["chainTrustedToPublicRoot"])
+                self.assertTrue(r_ok["certAudit"]["hostnameMatches"])
+                self.assertTrue(r_ok["certAudit"]["notExpired"])
+                self.assertGreaterEqual(r_ok["certAudit"]["remainingDays"], 30)
+
+                # 2. Valid CA-signed short-lived cert (<30d) -> PASS + informational warning
+                r_short = evaluate_tls04_certificate_validation(
+                    f"https://127.0.0.1:{p_short}",
+                    raw_json_path=tdp / "raw_short.json",
+                    extra_ca_file=ca_c,
+                )
+                self.assertEqual(r_short["verdict"], "PASS", f"Expected PASS (<30d informational), got {r_short}")
+                self.assertLess(r_short["certAudit"]["remainingDays"], 30)
+                self.assertTrue(any("< 30 days" in w for w in r_short["certAudit"]["warnings"]))
+
+                # 3. Hostname mismatch -> FAIL
+                r_mismatch = evaluate_tls04_certificate_validation(
+                    f"https://127.0.0.1:{p_mismatch}",
+                    raw_json_path=tdp / "raw_mismatch.json",
+                    extra_ca_file=ca_c,
+                )
+                self.assertEqual(r_mismatch["verdict"], "FAIL")
+                self.assertFalse(r_mismatch["certAudit"]["hostnameMatches"])
+
+                # 4. Self-signed / untrusted CA (no extra_ca_file) -> FAIL
+                r_self = evaluate_tls04_certificate_validation(
+                    f"https://127.0.0.1:{p_self}",
+                    raw_json_path=tdp / "raw_self.json",
+                )
+                self.assertEqual(r_self["verdict"], "FAIL")
+                self.assertFalse(r_self["certAudit"]["chainTrustedToPublicRoot"])
+
+                # 5. Cleartext HTTP -> FAIL quickly
+                r_http = evaluate_tls04_certificate_validation(
+                    f"http://127.0.0.1:{p_http}",
+                    raw_json_path=tdp / "raw_http.json",
+                )
+                self.assertEqual(r_http["verdict"], "FAIL")
+                self.assertFalse(r_http["certAudit"]["present"])
+            finally:
+                for srv in (s_ok, s_short, s_mismatch, s_self, s_http):
+                    srv.shutdown()
+                    srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 22/61: TLS-04 (Iteração SDD 092)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

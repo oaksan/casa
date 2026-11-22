@@ -1437,6 +1437,117 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 20/61: TLS-02 (Iteração SDD 090)", just2_txt)
 
+    def test_iteration91_tls03_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        import ssl
+        import subprocess
+        from casa_audit.scanner import evaluate_tls03_cipher_enforcement
+
+        with tempfile.TemporaryDirectory() as td_tls3:
+            tdp = Path(td_tls3)
+            cert, key = tdp / "cert.pem", tdp / "key.pem"
+            subprocess.run(
+                [
+                    "openssl",
+                    "req",
+                    "-x509",
+                    "-newkey",
+                    "rsa:2048",
+                    "-nodes",
+                    "-keyout",
+                    str(key),
+                    "-out",
+                    str(cert),
+                    "-days",
+                    "1",
+                    "-subj",
+                    "/CN=127.0.0.1",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+            class _OkHandler(BaseHTTPRequestHandler):
+                def log_message(self, fmt, *args):
+                    pass
+
+                def do_GET(self):
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+
+            def _mk_tls_srv(cipher_spec: str, min_v: ssl.TLSVersion, max_v: ssl.TLSVersion):
+                srv = ThreadingHTTPServer(("127.0.0.1", 0), _OkHandler)
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ctx.load_cert_chain(certfile=str(cert), keyfile=str(key))
+                ctx.set_ciphers(cipher_spec)
+                ctx.minimum_version = min_v
+                ctx.maximum_version = max_v
+                srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
+                threading.Thread(target=srv.serve_forever, daemon=True).start()
+                return srv, srv.server_address[1]
+
+            # 1. Hardened ECDHE AEAD FS server -> PASS via testssl.sh --ssl-native -s -f
+            srv_hard, port_hard = _mk_tls_srv(
+                "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305",
+                ssl.TLSVersion.TLSv1_2,
+                ssl.TLSVersion.TLSv1_3,
+            )
+            # 2. Static-RSA non-FS TLS 1.2 server -> FAIL via testssl.sh (STRONG_NOFS + zero FS)
+            srv_nofs, port_nofs = _mk_tls_srv(
+                "AES128-GCM-SHA256:AES256-GCM-SHA384",
+                ssl.TLSVersion.TLSv1_2,
+                ssl.TLSVersion.TLSv1_2,
+            )
+            # 3. Legacy CBC-SHA1 server -> FAIL via testssl.sh (cipherlist_OBSOLETED offered)
+            srv_cbc, port_cbc = _mk_tls_srv(
+                "ECDHE-RSA-AES128-SHA:AES128-SHA:@SECLEVEL=0",
+                ssl.TLSVersion.TLSv1_2,
+                ssl.TLSVersion.TLSv1_2,
+            )
+            # 4. Cleartext HTTP only -> FAIL (zero strong FS suites)
+            srv_http = ThreadingHTTPServer(("127.0.0.1", 0), _OkHandler)
+            port_http = srv_http.server_address[1]
+            threading.Thread(target=srv_http.serve_forever, daemon=True).start()
+
+            try:
+                res_hard = evaluate_tls03_cipher_enforcement(
+                    f"https://127.0.0.1:{port_hard}",
+                    raw_json_path=tdp / "tls03_hard.json",
+                )
+                self.assertEqual(res_hard["verdict"], "PASS", f"Expected PASS, got {res_hard}")
+                self.assertEqual(res_hard["cipherAudit"]["bannedSuitesOffered"], [])
+                self.assertEqual(res_hard["cipherAudit"]["nonForwardSecrecyTls12Offered"], [])
+                self.assertTrue(len(res_hard["cipherAudit"]["strongForwardSecrecyOffered"]) >= 1)
+
+                res_nofs = evaluate_tls03_cipher_enforcement(
+                    f"https://127.0.0.1:{port_nofs}",
+                    raw_json_path=tdp / "tls03_nofs.json",
+                )
+                self.assertEqual(res_nofs["verdict"], "FAIL", f"Expected FAIL on non-FS RSA, got {res_nofs}")
+                self.assertTrue(len(res_nofs["cipherAudit"]["nonForwardSecrecyTls12Offered"]) >= 1)
+
+                res_cbc = evaluate_tls03_cipher_enforcement(
+                    f"https://127.0.0.1:{port_cbc}",
+                    raw_json_path=tdp / "tls03_cbc.json",
+                )
+                self.assertEqual(res_cbc["verdict"], "FAIL", f"Expected FAIL on CBC-SHA1, got {res_cbc}")
+                self.assertTrue(any("OBSOLETED" in x for x in res_cbc["cipherAudit"]["bannedSuitesOffered"]))
+
+                res_http = evaluate_tls03_cipher_enforcement(
+                    f"http://127.0.0.1:{port_http}",
+                    raw_json_path=tdp / "tls03_http.json",
+                )
+                self.assertEqual(res_http["verdict"], "FAIL")
+                self.assertEqual(res_http["cipherAudit"]["strongForwardSecrecyOffered"], [])
+            finally:
+                for s in (srv_hard, srv_nofs, srv_cbc, srv_http):
+                    s.shutdown()
+                    s.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 21/61: TLS-03 (Iteração SDD 091)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

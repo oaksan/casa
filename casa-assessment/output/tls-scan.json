@@ -1,12 +1,12 @@
 {
-  "scanner": "testssl.sh 3.2.2 23e82dc + HTTP Cleartext Redirect Probe",
-  "scannedAt": "2026-11-22T11:23:18.827104+00:00",
+  "scanner": "testssl.sh 3.2.2 73b5651 + HTTP Cleartext Redirect Probe",
+  "scannedAt": "2026-11-22T11:32:35.786783+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "HSTS_time": 0,
   "testssl": {
     "binary": "/home/user/.local/bin/testssl.sh",
-    "version": "3.2.2 23e82dc",
+    "version": "3.2.2 73b5651",
     "openssl": "OpenSSL 1.0.2-bad from Fri Mar 28 16:54:51 2025",
     "returncode": 0,
     "scanTime": 9,
@@ -105,7 +105,11 @@
     "probedPort": 3000,
     "strongForwardSecrecyOffered": [],
     "bannedSuitesOffered": [],
-    "nonForwardSecrecyTls12Offered": []
+    "nonForwardSecrecyTls12Offered": [],
+    "cipherCategories": {},
+    "ecdheCurves": [],
+    "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
+    "testsslVersion": null
   },
   "certificate": {
     "probedPort": 3000,
@@ -173,7 +177,7 @@
   "tls02ProtocolEnforcement": {
     "probedPort": 3000,
     "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
-    "testsslVersion": "3.2.2 23e82dc",
+    "testsslVersion": "3.2.2 73b5651",
     "modernOffered": [],
     "deprecatedOffered": [],
     "verdict": "FAIL"
@@ -183,6 +187,10 @@
     "strongForwardSecrecyOffered": [],
     "bannedSuitesOffered": [],
     "nonForwardSecrecyTls12Offered": [],
+    "cipherCategories": {},
+    "ecdheCurves": [],
+    "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
+    "testsslVersion": null,
     "verdict": "FAIL"
   },
   "tls04CertificateValidation": {

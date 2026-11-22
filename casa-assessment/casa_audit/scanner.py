@@ -4057,6 +4057,138 @@ def evaluate_tls02_protocol_enforcement(
     }
 
 
+def parse_testssl_ciphers(scan_result: list[dict], target_port: int) -> dict:
+    """Convert official testssl.sh -s -f scanResult into TLS-03 cipher & FS audit structure."""
+    banned_map = {
+        "cipherlist_NULL": "NULL",
+        "cipherlist_aNULL": "Anonymous(aNULL)",
+        "cipherlist_EXPORT": "EXPORT",
+        "cipherlist_LOW": "LOW/RC4",
+        "cipherlist_3DES_IDEA": "3DES/IDEA",
+        "cipherlist_OBSOLETED": "OBSOLETED/CBC-SHA1",
+    }
+    cipher_categories: dict[str, str] = {}
+    banned_offered: list[str] = []
+    non_fs_tls12: list[str] = []
+    strong_fs: list[str] = []
+    ecdhe_curves: list[str] = []
+    fs_offered_flag = False
+    strong_fs_flag = False
+
+    def _is_offered(finding_str: str) -> bool:
+        low = finding_str.lower()
+        return "offered" in low and "not offered" not in low and "no ciphers" not in low
+
+    for entry in scan_result or []:
+        if not isinstance(entry, dict):
+            continue
+        for citem in entry.get("ciphers", []) or []:
+            if not isinstance(citem, dict):
+                continue
+            cid = str(citem.get("id") or "")
+            finding = str(citem.get("finding") or "")
+            if cid:
+                cipher_categories[cid] = finding
+            if cid in banned_map and _is_offered(finding):
+                banned_offered.append(f"{banned_map[cid]}:{finding}")
+            elif cid == "cipherlist_STRONG_NOFS" and _is_offered(finding):
+                non_fs_tls12.append(f"STRONG_NOFS:{finding}")
+            elif cid == "cipherlist_STRONG_FS" and _is_offered(finding):
+                strong_fs_flag = True
+
+        for fitem in entry.get("fs", []) or []:
+            if not isinstance(fitem, dict):
+                continue
+            fid = str(fitem.get("id") or "")
+            finding = str(fitem.get("finding") or "").strip()
+            if fid == "FS" and _is_offered(finding):
+                fs_offered_flag = True
+            elif fid == "FS_ciphers" and finding:
+                strong_fs.extend(finding.split())
+            elif fid == "FS_ECDHE_curves" and finding:
+                ecdhe_curves.extend(finding.split())
+
+    if (fs_offered_flag or strong_fs_flag) and not strong_fs:
+        strong_fs.append("FS:offered")
+
+    return {
+        "probedPort": target_port,
+        "strongForwardSecrecyOffered": strong_fs,
+        "bannedSuitesOffered": banned_offered,
+        "nonForwardSecrecyTls12Offered": non_fs_tls12,
+        "cipherCategories": cipher_categories,
+        "ecdheCurves": ecdhe_curves,
+    }
+
+
+def evaluate_tls03_cipher_enforcement(
+    target_url: str,
+    raw_json_path: Path | None = None,
+    testssl_info: dict | None = None,
+) -> dict:
+    """Evaluate TLS-03 cipher strength & Forward Secrecy using official testssl.sh -s -f."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if is_https else 80)
+
+    empty_audit = {
+        "probedPort": port,
+        "strongForwardSecrecyOffered": [],
+        "bannedSuitesOffered": [],
+        "nonForwardSecrecyTls12Offered": [],
+        "cipherCategories": {},
+        "ecdheCurves": [],
+        "source": "cleartext / no host declared",
+        "testsslVersion": None,
+    }
+    if not host:
+        return {"verdict": "FAIL", "tls03_pass": False, "cipherAudit": empty_audit, "testssl": {}}
+
+    reusable = bool(
+        testssl_info
+        and testssl_info.get("executed")
+        and any(isinstance(e, dict) and (e.get("ciphers") or e.get("fs")) for e in (testssl_info.get("scanResult") or []))
+    )
+    active_testssl = testssl_info if reusable else None
+    source_label = "testssl.sh --ssl-native -s -f (reused)"
+
+    if active_testssl is None:
+        if is_https or _quick_tls_capable(host, port):
+            active_testssl = run_testssl_scan(
+                host,
+                port,
+                raw_json_path=raw_json_path,
+                checks=("--ssl-native", "-s", "-f"),
+                timeout_sec=40,
+            )
+            source_label = "testssl.sh --ssl-native -s -f"
+        else:
+            active_testssl = {"executed": False, "version": None, "rawJsonPath": str(raw_json_path or (OUTPUT_DIR / "testssl-tls03-raw.json")), "scanResult": []}
+            source_label = f"cleartext pre-check on {host}:{port} (non-TLS HTTP endpoint)"
+
+    has_ciphers = any(
+        isinstance(e, dict) and (e.get("ciphers") or e.get("fs"))
+        for e in (active_testssl.get("scanResult") or [])
+    )
+    audit = parse_testssl_ciphers(active_testssl.get("scanResult") or [], port) if has_ciphers else empty_audit
+    audit["source"] = source_label
+    audit["testsslVersion"] = active_testssl.get("version")
+
+    tls03_pass = (
+        bool(audit["strongForwardSecrecyOffered"])
+        and len(audit["bannedSuitesOffered"]) == 0
+        and len(audit["nonForwardSecrecyTls12Offered"]) == 0
+    )
+    return {
+        "verdict": "PASS" if tls03_pass else "FAIL",
+        "tls03_pass": tls03_pass,
+        "cipherAudit": audit,
+        "testssl": active_testssl,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -4284,71 +4416,13 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     modern_offered = tls02_eval["modernOffered"]
     tls02_pass = tls02_eval["tls02_pass"]
 
-    # TLS-03: Probe cipher suites for banned algorithms (NULL, EXPORT, aNULL, RC4, 3DES, CBC-SHA1), TLS 1.2 non-FS, and strong FS AEAD
-    def probe_cipher_suites(target_h: str, target_p: int) -> dict:
-        def _try_cipher(c_spec: str, min_v: ssl.TLSVersion | None = None, max_v: ssl.TLSVersion | None = None) -> str | None:
-            try:
-                ctx_c = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-                ctx_c.check_hostname = False
-                ctx_c.verify_mode = ssl.CERT_NONE
-                ctx_c.set_ciphers(c_spec)
-                if min_v is not None:
-                    ctx_c.minimum_version = min_v
-                if max_v is not None:
-                    ctx_c.maximum_version = max_v
-                with socket.create_connection((target_h, target_p), timeout=2.0) as s:
-                    with ctx_c.wrap_socket(s, server_hostname=target_h) as ss:
-                        c = ss.cipher()
-                        return c[0] if c else None
-            except Exception:
-                return None
-
-        banned_checks = [
-            ("NULL", "eNULL:@SECLEVEL=0"),
-            ("EXPORT", "EXP:@SECLEVEL=0"),
-            ("Anonymous (aNULL)", "aNULL:@SECLEVEL=0"),
-            ("RC4", "RC4:@SECLEVEL=0"),
-            ("3DES", "3DES:@SECLEVEL=0"),
-            ("CBC-SHA1", "AES128-SHA:AES256-SHA:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES128-SHA:@SECLEVEL=0"),
-        ]
-        banned_offered: list[str] = []
-        for cat, spec in banned_checks:
-            res_c = _try_cipher(spec, ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_2)
-            if res_c:
-                banned_offered.append(f"{cat}:{res_c}")
-
-        # Check static RSA key exchange in TLS 1.2 (no Forward Secrecy)
-        non_fs_tls12: list[str] = []
-        res_rsa = _try_cipher("kRSA:!ECDHE:!DHE:!eNULL:!aNULL:@SECLEVEL=0", ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_2)
-        if res_rsa:
-            non_fs_tls12.append(res_rsa)
-
-        # Check preferred strong FS AEAD suites in TLS 1.2 & TLS 1.3
-        strong_fs: list[str] = []
-        fs12 = _try_cipher("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM", ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_2)
-        if fs12:
-            strong_fs.append(f"TLSv1.2:{fs12}")
-        fs13 = _try_cipher("DEFAULT", ssl.TLSVersion.TLSv1_3, ssl.TLSVersion.TLSv1_3)
-        if fs13:
-            strong_fs.append(f"TLSv1.3:{fs13}")
-
-        return {
-            "probedPort": target_p,
-            "strongForwardSecrecyOffered": strong_fs,
-            "bannedSuitesOffered": banned_offered,
-            "nonForwardSecrecyTls12Offered": non_fs_tls12,
-        }
-
-    cipher_audit = (
-        probe_cipher_suites(host, protocol_target_port)
-        if host
-        else {"probedPort": protocol_target_port, "strongForwardSecrecyOffered": [], "bannedSuitesOffered": [], "nonForwardSecrecyTls12Offered": []}
+    # TLS-03: Official testssl.sh (--ssl-native -s -f) cipher strength & Forward Secrecy audit
+    tls03_eval = evaluate_tls03_cipher_enforcement(
+        base_url,
+        raw_json_path=OUTPUT_DIR / "testssl-tls03-raw.json",
     )
-    tls03_pass = (
-        bool(cipher_audit["strongForwardSecrecyOffered"])
-        and len(cipher_audit["bannedSuitesOffered"]) == 0
-        and len(cipher_audit["nonForwardSecrecyTls12Offered"]) == 0
-    )
+    cipher_audit = tls03_eval["cipherAudit"]
+    tls03_pass = tls03_eval["tls03_pass"]
 
     # TLS-04: X.509 certificate chain validation against public root store, hostname/SAN match, expiry & <30d warning
     def probe_x509_certificate(target_h: str, target_p: int) -> dict:
@@ -4732,11 +4806,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
+    tls03_ver = tls03_eval["testssl"].get("version") or testssl_ver_label
     results["TLS-03"] = {
         "verdict": "PASS" if tls03_pass else "FAIL",
-        "tool": f"TLS Cipher Suite & Forward Secrecy Analyzer ({host}:{protocol_target_port}, JSON)",
+        "tool": f"testssl.sh {tls03_ver} -s -f Cipher & Forward Secrecy Analyzer ({host}:{protocol_target_port}, JSON)",
         "log": (
-            f"[PASS] On {host}:{protocol_target_port}, only strong AEAD Forward Secrecy suites offered ({', '.join(cipher_audit['strongForwardSecrecyOffered'])}); 0 banned suites (NULL/EXPORT/aNULL/RC4/3DES/CBC-SHA1) and 0 non-FS TLS 1.2 suites offered.\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            f"[PASS] testssl.sh verified on {host}:{protocol_target_port} that only strong Forward Secrecy suites are offered ({', '.join(cipher_audit['strongForwardSecrecyOffered'][:6])}); 0 banned categories (NULL/EXPORT/aNULL/LOW/3DES/OBSOLETED) and 0 non-FS TLS 1.2 suites offered.\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - testssl.sh Raw JSON: {tls03_eval['testssl'].get('rawJsonPath') or testssl_info.get('rawJsonPath')}"
             if tls03_pass
             else (
                 f"[FAIL] TLS-03 cipher violation on {host}:{protocol_target_port}: "

@@ -666,3 +666,61 @@ Domínio 2: Static Application Security Testing (SAST)
     salt via `Math.random()` / literal, digest `sha1`, `scrypt` `N=16384`,
     `argon2i` e Python `rounds=8` / `250000` iterações.
 ================================================================================
+
+================================================================================
+CONTROLE 11/61: SAST-06 (Iteração SDD 081)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-06
+- Requisito (CASA 3.0 AL1):
+  "All security-relevant randomness uses a CSPRNG."
+- Referências: MITRE CWE-338; OWASP ASVS V6.3.1, V6.3.2 (L2).
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Veredito:
+  * PASS: Zero caminhos de fluxo de dados (`taint paths`) de nível `error` a
+    partir de fonte não-CSPRNG para um sorvedouro de segurança.
+  * FAIL: >= 1 caminho `taint` de nível `error` a partir de fonte não-CSPRNG
+    para sorvedouro de segurança.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 081)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 081:
+  1) As regras `CASA3-SAST-06-insecure-randomness*` (`TS/JS` e `Python`) não
+     cobriam fontes/sinks explícitos exigidos pelo Test Guide como
+     `crypto.pseudoRandomBytes`, `uuid.v1`, `random.randrange`/`getrandbits`/
+     `sample`, `uuid.uuid1`, `passwordResetToken`/`resetToken`, `nonce`,
+     `salt`, `iv`, `otp`, `hashlib.scrypt` e linguagens `Java` (`java.util.Random`,
+     `System.currentTimeMillis()`, `IvParameterSpec`, `SecretKeySpec`) e `Go`
+     (`math/rand`, `time.Now()`).
+  2) Faltava um avaliador dedicado `evaluate_sast06_csprng_randomness(repo)`
+     apoiado no parser SARIF `error`-level e filtragem estrita de severidade
+     `ERROR` para `SAST-06` em `run_sast_checks`.
+- O que foi feito e melhorado na Iteração SDD 081:
+  1) Expansão e validação (`semgrep --validate`: 0 erros, 36 regras) das regras
+     `mode: taint` `CASA3-SAST-06-insecure-randomness*` em `rules/casa3_al1_sast.yml`
+     cobrindo `TS/JS`, `Python`, `Java` e `Go` até sorvedouros de segurança
+     (token, secretKey, encryptionKey, nonce, salt, IV, CAPTCHA e password-reset),
+     preservando ausência de falsos positivos em usos benignos (`price`, `quantity`).
+  2) Adição de `evaluate_sast06_csprng_randomness(repo)` em `casa_audit/scanner.py`
+     reutilizando `_evaluate_semgrep_control_sarif(repo, "SAST-06")`, filtragem
+     estrita `sev == "ERROR"` e identificação da ferramenta como
+     `Semgrep AST 1.180.0 (CSPRNG Data-Flow Taint Tracking + CWE-338 Ruleset, SARIF 2.1.0)`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Veredito `SAST-06`: **FAIL** com **7 achados** reais de fluxo `taint` não-CSPRNG
+    em contexto crítico (`lib/insecurity.ts:53`, `routes/b2bOrder.ts:41` e
+    `routes/captcha.ts:14, 15, 16, 18, 19`), sem nenhum falso positivo nos usos
+    benignos de `data/datacreator.ts`, emitidos em `output/semgrep-sast.sarif`.
+  * Validação multi-linguagem (`test_iteration81_sast06_guide_tooling`): confirma
+    **`PASS`** em `CSPRNG` (`crypto.randomBytes`, `secrets.token_urlsafe`) +
+    aleatoriedade benigna (`price`), e **`FAIL`** por `taint path` em
+    `rng_bad.ts`, `rng_bad.py`, `RngBad.java` e `rng_bad.go`.
+================================================================================

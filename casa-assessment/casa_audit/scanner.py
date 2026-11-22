@@ -3251,6 +3251,19 @@ def evaluate_sast04_weak_hashes(
     return _evaluate_semgrep_control_sarif(repo, "SAST-04", rules_path=rules_path)
 
 
+def evaluate_sast06_csprng_randomness(
+    repo: Path,
+    rules_path: Path | None = None,
+) -> tuple[str, list[str], list[dict], float]:
+    """
+    Evaluate SAST-06 (CASA 3.0 AL1 / CWE-338 / ASVS V6.3.1, V6.3.2):
+    Execute Semgrep data-flow (`mode: taint`) rules tracking non-CSPRNG and time-based
+    sources to token, key, nonce, salt, IV, CAPTCHA, and password-reset sinks (`error` level).
+    """
+    verdict, findings, sarif_hits, _, dur = _evaluate_semgrep_control_sarif(repo, "SAST-06", rules_path=rules_path)
+    return verdict, findings, sarif_hits, dur
+
+
 def run_sast_checks(repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -3305,7 +3318,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                             sid = m.group(1)
                             extra = item.get("extra", {})
                             sev = str(extra.get("severity", "ERROR")).upper()
-                            if sid in {"SAST-03", "SAST-04", "SAST-05"} and sev != "ERROR":
+                            if sid in {"SAST-03", "SAST-04", "SAST-05", "SAST-06"} and sev != "ERROR":
                                 info_counts_by_sast_id[sid] += 1
                                 continue
                             fpath = item.get("path", "")
@@ -3414,6 +3427,13 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             extra_sarif_ref = ""
         elif sid == "SAST-05":
             tool_label = f"Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & CSPRNG Salt Provenance Inspector ({semgrep_duration}s, SARIF 2.1.0)"
+            extra_sarif_ref = ""
+        elif sid == "SAST-06":
+            tool_label = (
+                f"Semgrep AST 1.180.0 (CSPRNG Data-Flow Taint Tracking + CWE-338 Ruleset, {semgrep_duration}s, SARIF 2.1.0)"
+                if semgrep_ran
+                else "Fallback Static Scanner"
+            )
             extra_sarif_ref = ""
         elif sid == "SAST-12":
             tool_label = f"Semgrep AST + Secrets Manager SDK Inventory & Container/IaC Inspector ({sast12_sdk_status}, {semgrep_duration}s)"

@@ -29,6 +29,7 @@ from casa_audit.scanner import (
     evaluate_sast03_banned_ciphers,
     evaluate_sast04_weak_hashes,
     evaluate_sast05_password_kdf,
+    evaluate_sast06_csprng_randomness,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -765,6 +766,53 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 10/61: SAST-05 (Iteração SDD 080)", just2_txt)
+
+    def test_iteration81_sast06_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sast6:
+            r6 = Path(td_sast6)
+            src = r6 / "src"
+            src.mkdir()
+            # 1. CSPRNG randomness + benign non-security random (price/quantity) -> PASS
+            (src / "csprng_ok.ts").write_text(
+                "import crypto from 'crypto';\n"
+                "export const mkToken = () => { const token = crypto.randomBytes(32).toString('hex'); return token; };\n"
+                "export const mockPrice = () => { const price = Math.floor(Math.random() * 100); return price; };\n",
+                encoding="utf-8",
+            )
+            (src / "csprng_ok.py").write_text(
+                "import secrets\ndef mk_reset():\n    reset_token = secrets.token_urlsafe(32)\n    return reset_token\n",
+                encoding="utf-8",
+            )
+            v_pass, f_pass, _, _ = evaluate_sast06_csprng_randomness(r6)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for CSPRNG & benign Math.random, got {f_pass}")
+            self.assertEqual(f_pass, [])
+
+            # 2. Multi-language non-CSPRNG & time-based taint into security sinks -> FAIL
+            (src / "rng_bad.ts").write_text(
+                "export function mkReset() {\n  const r = Math.random().toString(36);\n  const resetToken = r;\n  return resetToken;\n}\n",
+                encoding="utf-8",
+            )
+            (src / "rng_bad.py").write_text(
+                "import time\ndef mk_nonce():\n    s = str(time.time())\n    nonce = s\n    return nonce\n",
+                encoding="utf-8",
+            )
+            (src / "RngBad.java").write_text(
+                "import javax.crypto.spec.IvParameterSpec;\nclass RngBad { IvParameterSpec mk() { long t = System.currentTimeMillis(); byte[] iv = new byte[]{(byte)t}; return new IvParameterSpec(iv); } }\n",
+                encoding="utf-8",
+            )
+            (src / "rng_bad.go").write_text(
+                'package p\nimport "math/rand"\nfunc mk() int { v := rand.Intn(999999); token := v; return token }\n',
+                encoding="utf-8",
+            )
+            v_fail, f_fail, sarif_fail, _ = evaluate_sast06_csprng_randomness(r6)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("rng_bad.ts", "rng_bad.py", "RngBad.java", "rng_bad.go"):
+                self.assertIn(fname, joined, f"Missing SAST-06 taint hit for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(sarif_fail), 4)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 11/61: SAST-06 (Iteração SDD 081)", just2_txt)
 
 
 if __name__ == "__main__":

@@ -340,17 +340,35 @@ rules:
   - id: CASA3-SAST-06-insecure-randomness
     mode: taint
     languages: [typescript, javascript]
-    message: "SAST-06: Non-CSPRNG randomness (Math.random / time-based seed) flows to a security-relevant sink (JWT secret, password, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
+    message: "SAST-06: Non-CSPRNG randomness (Math.random / pseudoRandomBytes / time-based seed) flows to a security-relevant sink (JWT secret, password reset, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
     severity: ERROR
     pattern-sources:
       - pattern: Math.random()
       - pattern: Date.now()
       - pattern: new Date()
+      - pattern: crypto.pseudoRandomBytes(...)
+      - pattern: uuid.v1(...)
     pattern-sinks:
       - pattern: "expressJwt({ secret: $SINK, ... })"
       - pattern: "expressJwt({ secret: $SINK } as any)"
       - pattern: "jwt.sign($P, $SINK, ...)"
       - pattern: "password: $SINK"
+      - pattern: "resetToken = $SINK"
+      - pattern: "passwordResetToken = $SINK"
+      - pattern: "token = $SINK"
+      - pattern: "nonce = $SINK"
+      - pattern: "salt = $SINK"
+      - pattern: "iv = $SINK"
+      - pattern: "otp = $SINK"
+      - pattern: "secretKey = $SINK"
+      - pattern: "encryptionKey = $SINK"
+      - pattern: "{ ..., resetToken: $SINK, ... }"
+      - pattern: "{ ..., passwordResetToken: $SINK, ... }"
+      - pattern: "{ ..., token: $SINK, ... }"
+      - pattern: "{ ..., nonce: $SINK, ... }"
+      - pattern: "{ ..., salt: $SINK, ... }"
+      - pattern: "{ ..., iv: $SINK, ... }"
+      - pattern: "$RES.cookie($NAME, $SINK, ...)"
       - pattern: "CaptchaModel.create({ ..., captcha: $SINK, ... })"
       - pattern: "CaptchaModel.create($SINK)"
       - pattern: "const firstTerm = $SINK"
@@ -361,6 +379,8 @@ rules:
       - pattern: "crypto.createCipheriv($ALG, $KEY, $SINK)"
       - pattern: "crypto.pbkdf2($PWD, $SINK, ...)"
       - pattern: "crypto.pbkdf2Sync($PWD, $SINK, ...)"
+      - pattern: "crypto.scrypt($PWD, $SINK, ...)"
+      - pattern: "crypto.scryptSync($PWD, $SINK, ...)"
       - pattern: "security.hash($SINK)"
       - pattern: |
           const makeRandomString = ($LEN: number) => {
@@ -371,18 +391,72 @@ rules:
   - id: CASA3-SAST-06-insecure-randomness-python
     mode: taint
     languages: [python]
-    message: "SAST-06: Non-CSPRNG randomness (random.* / time.time) flows to a security-relevant sink in Python (CWE-338)"
+    message: "SAST-06: Non-CSPRNG randomness (random.* / time.time / uuid1) flows to a security-relevant sink in Python (CWE-338)"
     severity: ERROR
     pattern-sources:
       - pattern: random.random()
       - pattern: random.randint(...)
+      - pattern: random.randrange(...)
+      - pattern: random.getrandbits(...)
       - pattern: random.choice(...)
+      - pattern: random.sample(...)
       - pattern: time.time()
+      - pattern: uuid.uuid1(...)
     pattern-sinks:
       - pattern: jwt.encode($P, $SINK, ...)
       - pattern: hashlib.pbkdf2_hmac($H, $PWD, $SINK, ...)
+      - pattern: hashlib.scrypt($PWD, salt=$SINK, ...)
       - pattern: "token = $SINK"
+      - pattern: "reset_token = $SINK"
+      - pattern: "password_reset_token = $SINK"
       - pattern: "secret = $SINK"
+      - pattern: "nonce = $SINK"
+      - pattern: "salt = $SINK"
+      - pattern: "iv = $SINK"
+      - pattern: "otp = $SINK"
+
+  - id: CASA3-SAST-06-insecure-randomness-java
+    mode: taint
+    languages: [java]
+    message: "SAST-06: Non-CSPRNG randomness (java.util.Random / Math.random / currentTimeMillis) flows to a security-relevant sink in Java (CWE-338)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: (java.util.Random $R).nextInt(...)
+      - pattern: (java.util.Random $R).nextLong(...)
+      - pattern: (java.util.Random $R).nextBytes($SINK)
+      - pattern: Math.random()
+      - pattern: System.currentTimeMillis()
+    pattern-sinks:
+      - pattern: new IvParameterSpec($SINK, ...)
+      - pattern: new SecretKeySpec($SINK, ...)
+      - pattern: "token = $SINK"
+      - pattern: "resetToken = $SINK"
+      - pattern: "nonce = $SINK"
+      - pattern: "salt = $SINK"
+
+  - id: CASA3-SAST-06-insecure-randomness-go
+    mode: taint
+    languages: [go]
+    message: "SAST-06: Non-CSPRNG randomness (math/rand / time.Now) flows to a security-relevant sink in Go (CWE-338)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: rand.Int()
+      - pattern: rand.Intn(...)
+      - pattern: rand.Int63()
+      - pattern: rand.Uint32()
+      - pattern: rand.Read(...)
+      - pattern: time.Now()
+    pattern-sinks:
+      - pattern: "token = $SINK"
+      - pattern: "token := $SINK"
+      - pattern: "nonce = $SINK"
+      - pattern: "nonce := $SINK"
+      - pattern: "salt = $SINK"
+      - pattern: "salt := $SINK"
+      - pattern: "iv = $SINK"
+      - pattern: "iv := $SINK"
+      - pattern: "secret = $SINK"
+      - pattern: "secret := $SINK"
 
   - id: CASA3-SAST-07-mass-assignment
     languages: [typescript, javascript]

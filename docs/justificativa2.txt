@@ -1017,3 +1017,65 @@ Domínio 2: Static Application Security Testing (SAST)
     `filepath.Base`) e **`FAIL`** em `trav_bad.ts`, `trav_bad.py`, `TravBad.java`
     e `trav_bad.go`.
 ================================================================================
+
+================================================================================
+CONTROLE 17/61: SAST-12 (Iteração SDD 087)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-12
+- Requisito (CASA 3.0 AL1):
+  "Server-side secrets are held in a managed secrets store, not in config files
+   or environment baked into images."
+- Referências: OWASP ASVS V6.4.1 (L2); MITRE CWE-522.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`, `trivy`, `docker`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Verificação:
+  * PASS: Todo segredo server-side confirmado resolve via chamada a SDK de
+    Secrets Manager ou mount de runtime; zero segredos em arquivos de config,
+    IaC ou camadas de ambiente de imagem Docker.
+  * FAIL: >= 1 segredo confirmado que não resolve via SDK de Secrets Manager ou
+    mount de runtime.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 087)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 087:
+  1) `evaluate_sast12_secrets_management_and_iac` dependia apenas de regex IaC
+     local e `docker inspect` restrito ao nome `juice-shop`, sem executar o
+     binário oficial **`trivy`** exigido pelo Test Guide para secret + misconfig
+     em SARIF 2.1.0 (`output/trivy-sast12.sarif`).
+  2) As regras Semgrep `CASA3-SAST-12-*` não cobriam `ENV <SECRET>=...` em
+     `Dockerfile` nem segredos em `Python` / `Terraform`, e o inventário de
+     SDKs não inspecionava `requirements.txt`, `pyproject.toml`, `pom.xml` nem
+     `go.mod`.
+- O que foi feito e melhorado na Iteração SDD 087:
+  1) Implementação de `run_trivy_sast12(repo)` em `casa_audit/scanner.py`
+     executando **`trivy fs --scanners secret,misconfig --format sarif`**
+     (`v0.76.2`) com exclusões de testes/logs/amostras, salvando evidência
+     nativa em `output/trivy-sast12.sarif` (`SARIF 2.1.0`).
+  2) Integração direta de `run_trivy_sast12` + inventário multi-ecossistema de
+     SDKs de Secrets Manager (`package.json`, `requirements.txt`, `pyproject.toml`,
+     `pom.xml`, `go.mod`, `.ts/.js/.py/.go/.java`) + inspeção generalizada
+     `docker image inspect .Config.Env` para imagens declaradas em `Dockerfile`
+     e `docker-compose.yml` (`_discover_local_docker_images`).
+  3) Expansão de `CASA3-SAST-12-*` em `rules/casa3_al1_sast.yml` (`Python`,
+     `Terraform`, `Dockerfile ENV`, validadas com `semgrep --validate`: 0 erros,
+     48 regras) e rótulo completo `Semgrep AST 1.180.0 + Trivy v0.76.2 (secret/misconfig) + Docker Image Layer`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Execução combinada **Semgrep (`1.180.0`) + Trivy (`v0.76.2`) + Docker**:
+    detecta **0 call sites** de Secrets Manager SDK em `package.json`/código-fonte,
+    confirma chaves privadas em `lib/insecurity.ts:20, 21, 42`,
+    `terraform/networking.tf:171`, `infrastructure/terraform/networking.tf:171`,
+    achados `Trivy` em `output/trivy-sast12.sarif` e **5 artefatos secretos
+    embarcados na camada da imagem** `bkimminich/juice-shop:latest` via `Dockerfile:38`.
+  * Validação unitária `test_iteration87_sast12_guide_tooling`: **`PASS`** com
+    `@aws-sdk/client-secrets-manager` / `SecretsManagerClient` e **`FAIL`** via
+    `Trivy` em segredo `.env` / `Dockerfile`.
+================================================================================

@@ -837,10 +837,16 @@ rules:
       - pattern: "os.WriteFile($SINK, ...)"
 
   - id: CASA3-SAST-12-hardcoded-config-secrets
-    languages: [typescript, javascript, terraform]
+    languages: [typescript, javascript, terraform, python]
     message: "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
     severity: ERROR
-    pattern-regex: "(jwt\\.pub|privateKey\\s*=\\s*['\"]-----BEGIN|private_key\\s*=\\s*\"-----BEGIN|createHmac\\(['\"]sha256['\"]\\s*,\\s*['\"][A-Za-z0-9]{12,})"
+    pattern-regex: "(jwt\\.pub|privateKey\\s*=\\s*['\"]-----BEGIN|private_key\\s*=\\s*\"-----BEGIN|(?:aws_secret_access_key|client_secret)\\s*=\\s*['\"][^$\\s\"']{12,}['\"]|SECRET_KEY\\s*=\\s*['\"][^\\s\"']{8,}['\"]|createHmac\\(['\"]sha256['\"]\\s*,\\s*['\"][A-Za-z0-9]{12,})"
+
+  - id: CASA3-SAST-12-dockerfile-env-secret
+    languages: [dockerfile]
+    message: "SAST-12: Server-side secret/key baked into container image ENV instead of runtime secret mount or Secrets Manager SDK (CWE-522)"
+    severity: ERROR
+    pattern-regex: "(?i)^ENV\\s+[A-Z0-9_]*(?:SECRET|PASSWORD|PRIVATE_KEY|API_KEY|CTF_KEY)[A-Z0-9_]*\\s*[= ]\\s*['\"]?[^$\\s\"']{6,}"
 
   - id: CASA3-SAST-13-sensitive-logging
     mode: taint

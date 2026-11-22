@@ -36,6 +36,7 @@ from casa_audit.scanner import (
     evaluate_sast09_deserialization,
     evaluate_sast10_dynamic_execution,
     evaluate_sast11_path_traversal,
+    evaluate_sast12_secrets_management_and_iac,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -1092,6 +1093,34 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 16/61: SAST-11 (Iteração SDD 086)", just2_txt)
+
+    def test_iteration87_sast12_guide_tooling(self) -> None:
+        self.assertTrue(Path(TRIVY_BIN).exists(), f"trivy binary not found at {TRIVY_BIN}")
+        with tempfile.TemporaryDirectory() as td_sast12:
+            r12 = Path(td_sast12)
+            (r12 / "src").mkdir()
+            # 1. Clean repo using SecretsManagerClient SDK -> 0 SAST-12 findings
+            (r12 / "package.json").write_text('{"dependencies": {"@aws-sdk/client-secrets-manager": "^3.0.0"}}', encoding="utf-8")
+            (r12 / "src" / "secrets.ts").write_text(
+                "import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';\nexport const client = new SecretsManagerClient({});\n",
+                encoding="utf-8",
+            )
+            f_clean, _, sdk_ok = evaluate_sast12_secrets_management_and_iac(r12, run_docker=False)
+            self.assertEqual(f_clean, [])
+            self.assertIn("SecretsManagerClient", sdk_ok)
+
+            # 2. Hardcoded server-side GitHub/Stripe/AWS secret & Dockerfile secret -> caught by Trivy + IaC inspector
+            (r12 / "Dockerfile").write_text("FROM node:20\nENV JWT_SECRET=SuperHardcodedJwtSecret999\n", encoding="utf-8")
+            (r12 / ".env").write_text("AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n", encoding="utf-8")
+            f_bad, s_bad, _ = evaluate_sast12_secrets_management_and_iac(r12, run_docker=False)
+            joined = "\n".join(f_bad)
+            self.assertIn(".env", joined)
+            self.assertTrue(any("[TRIVY" in f for f in f_bad), f"Expected Trivy secret detection in:\n{joined}")
+            self.assertTrue((ROOT_DIR / "casa-assessment" / "output" / "trivy-sast12.sarif").exists())
+            self.assertGreaterEqual(len(s_bad), 2)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 17/61: SAST-12 (Iteração SDD 087)", just2_txt)
 
 
 if __name__ == "__main__":

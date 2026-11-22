@@ -2992,20 +2992,137 @@ def evaluate_sast05_password_kdf(
     return sast05_findings, sast05_sarif
 
 
-def evaluate_sast12_secrets_management_and_iac(repo: Path) -> tuple[list[str], list[dict], str]:
+def run_trivy_sast12(repo: Path) -> tuple[list[str], list[dict], bool]:
+    """
+    Execute official `trivy fs --scanners secret,misconfig --format sarif` for SAST-12,
+    saving native SARIF 2.1.0 (`output/trivy-sast12.sarif`) and returning secret/secret-env findings.
+    """
+    if not Path(TRIVY_BIN).exists():
+        return [], [], False
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    trivy_sarif_out = OUTPUT_DIR / "trivy-sast12.sarif"
+    skip_dirs = [
+        "node_modules", ".git", "dist", "frontend/dist", "build", "logs",
+        "test", "tests", "docs", "specs", "data/static/codefixes",
+        "casa-assessment/output", "casa-assessment/samples", "casa-assessment/tests",
+        "casa-assessment/rules",
+    ]
+    cmd = [
+        TRIVY_BIN,
+        "fs",
+        "--scanners",
+        "secret,misconfig",
+        "--format",
+        "sarif",
+        "--output",
+        str(trivy_sarif_out),
+        "--quiet",
+    ]
+    for sd in skip_dirs:
+        cmd.extend(["--skip-dirs", sd])
+    for sf in ("**/*.spec.ts", "**/*.spec.js", "**/scanner.py", "**/test_*.py"):
+        cmd.extend(["--skip-files", sf])
+    cmd.append(str(repo))
+
+    findings: list[str] = []
+    sarifs: list[dict] = []
+    ran = False
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if proc.returncode == 0 and trivy_sarif_out.exists():
+            ran = True
+            sdata = json.loads(trivy_sarif_out.read_text(encoding="utf-8", errors="ignore"))
+            seen: set[tuple[str, int, str]] = set()
+            for run in sdata.get("runs", []):
+                for res in run.get("results", []):
+                    rid = str(res.get("ruleId") or "")
+                    lvl = str(res.get("level") or "warning").lower()
+                    msg_txt = str((res.get("message") or {}).get("text") or "")
+                    is_misconfig = bool(re.match(r"^(?:AVD-)?(?:DS|AWS|GCP|AZU|KSV|TER)-\d+", rid, re.IGNORECASE))
+                    if is_misconfig:
+                        low_msg = f"{rid} {msg_txt}".lower()
+                        if rid not in {"DS-0010", "AVD-DS-0010"} and not any(
+                            k in low_msg for k in ("secret", "password", "private key", "credential", "api key")
+                        ):
+                            continue
+                    if lvl not in {"error", "warning"}:
+                        continue
+                    phys = ((res.get("locations") or [{}])[0].get("physicalLocation") or {})
+                    uri = str((phys.get("artifactLocation") or {}).get("uri") or "")
+                    if not uri or any(x in uri for x in (".spec.", "casa-assessment/output/", "casa-assessment/samples/", "/tests/", "scanner.py")):
+                        continue
+                    lno = int((phys.get("region") or {}).get("startLine") or 1)
+                    key = (uri, lno, rid)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    first_line = msg_txt.splitlines()[0].strip() if msg_txt else rid
+                    desc = f"{uri}:{lno} — [TRIVY {rid}] {first_line} (CWE-522 / SAST-12)"
+                    findings.append(desc)
+                    sarifs.append(
+                        {
+                            "ruleId": f"CASA3-SAST-12-trivy-{rid}",
+                            "level": "error",
+                            "message": {"text": desc},
+                            "locations": [{"physicalLocation": {"artifactLocation": {"uri": uri}, "region": {"startLine": lno}}}],
+                        }
+                    )
+    except Exception:
+        ran = False
+
+    return findings, sarifs, ran
+
+
+def _discover_local_docker_images(repo: Path, dockerfile: Path) -> list[str]:
+    """Discover local Docker image tags referenced by repo without performing network pulls."""
+    imgs: list[str] = []
+    if "juice-shop" in repo.name.lower():
+        imgs.append("bkimminich/juice-shop:latest")
+    for dc_name in ("docker-compose.yml", "docker-compose.yaml"):
+        dc = repo / dc_name
+        if dc.is_file():
+            for m in re.finditer(r"(?m)^\s*image:\s*([^\s#]+)", dc.read_text(encoding="utf-8", errors="ignore")):
+                imgs.append(m.group(1).strip("'\""))
+    if dockerfile.is_file() and not imgs:
+        for m in re.finditer(r"(?im)^FROM\s+([^\s]+)", dockerfile.read_text(encoding="utf-8", errors="ignore")):
+            imgs.append(m.group(1))
+    return list(dict.fromkeys(imgs))
+
+
+def evaluate_sast12_secrets_management_and_iac(
+    repo: Path,
+    run_trivy: bool = True,
+    run_docker: bool = True,
+) -> tuple[list[str], list[dict], str]:
     """
     Evaluate SAST-12 (CASA 3.0 AL1 / ASVS V6.4.1 / CWE-522):
+    - Run official `trivy fs --scanners secret,misconfig --format sarif` (`output/trivy-sast12.sarif`).
     - Inventory Secrets Manager SDK call sites across package manifests & source code
       (AWS SecretsManager/SSM, GCP SecretManager, Azure KeyVault, HashiCorp Vault).
-    - Inspect IaC & config files (terraform/*.tf, infrastructure/*.tf, config/*.yml, Dockerfile*, .env)
-      for hardcoded server-side secrets/keys.
-    - Inspect container image environment layers (docker inspect .Config.Env) and baked secret artifacts
-      (/juice-shop/ctf.key, /juice-shop/encryptionkeys/*, /juice-shop/data/static/users.yml).
+    - Inspect IaC & config files (terraform/*.tf, infrastructure/*.tf, config/*.yml, Dockerfile*, .env).
+    - Inspect container image environment layers (`docker inspect .Config.Env`) & baked secret artifacts.
     """
     sast12_findings: list[str] = []
     sast12_sarif: list[dict] = []
+    seen_s12_locs: set[tuple[str, int]] = set()
 
-    # 1. Secrets Manager SDK Inventory
+    def _add_s12(rel_uri: str, lno: int, rule_id: str, desc: str) -> None:
+        key = (rel_uri, max(1, int(lno or 1)))
+        if key in seen_s12_locs:
+            return
+        seen_s12_locs.add(key)
+        sast12_findings.append(desc)
+        sast12_sarif.append(
+            {
+                "ruleId": rule_id,
+                "level": "error",
+                "message": {"text": desc},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel_uri}, "region": {"startLine": key[1]}}}],
+            }
+        )
+
+    # 1. Secrets Manager SDK Inventory across manifests & source code
     sdk_markers = (
         "@aws-sdk/client-secrets-manager",
         "SecretsManagerClient",
@@ -3015,20 +3132,22 @@ def evaluate_sast12_secrets_management_and_iac(repo: Path) -> tuple[list[str], l
         "@azure/keyvault-secrets",
         "node-vault",
         "hvac",
+        "secretsmanager",
     )
     sdk_call_sites: list[str] = []
-    pkg_json = repo / "package.json"
-    if pkg_json.exists():
-        p_txt = pkg_json.read_text(encoding="utf-8", errors="ignore")
-        for m in sdk_markers:
-            if m in p_txt:
-                sdk_call_sites.append(f"package.json ({m})")
+    for manifest_name in ("package.json", "requirements.txt", "pyproject.toml", "pom.xml", "go.mod"):
+        mf = repo / manifest_name
+        if mf.is_file():
+            m_txt = mf.read_text(encoding="utf-8", errors="ignore")
+            for m in sdk_markers:
+                if m in m_txt:
+                    sdk_call_sites.append(f"{manifest_name} ({m})")
 
     for dname in ("lib", "routes", "src", "app"):
         dp = repo / dname
         if dp.is_dir():
             for fp in dp.rglob("*"):
-                if fp.is_file() and fp.suffix in {".ts", ".js", ".py"}:
+                if fp.is_file() and fp.suffix in {".ts", ".js", ".py", ".go", ".java"}:
                     txt = fp.read_text(encoding="utf-8", errors="ignore")
                     for m in sdk_markers:
                         if m in txt:
@@ -3040,13 +3159,22 @@ def evaluate_sast12_secrets_management_and_iac(repo: Path) -> tuple[list[str], l
         else "Secrets Manager SDK Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK integrated)"
     )
 
-    # 2. Scan IaC (.tf, docker-compose, Dockerfile) and config (.yml, .env) files
+    # 2. Execute official Trivy FS secret + misconfig detector (SARIF 2.1.0)
+    if run_trivy:
+        trivy_findings, trivy_sarifs, _ = run_trivy_sast12(repo)
+        for tf_desc, tf_sarif in zip(trivy_findings, trivy_sarifs):
+            phys = ((tf_sarif.get("locations") or [{}])[0].get("physicalLocation") or {})
+            uri = str((phys.get("artifactLocation") or {}).get("uri") or "")
+            lno = int((phys.get("region") or {}).get("startLine") or 1)
+            _add_s12(uri, lno, str(tf_sarif.get("ruleId") or "CASA3-SAST-12-trivy"), tf_desc)
+
+    # 3. Scan IaC (.tf, docker-compose, Dockerfile) and config (.yml, .env) files
     iac_files: list[Path] = []
     for sub in ("terraform", "infrastructure", "config"):
         sp = repo / sub
         if sp.is_dir():
             for fp in sorted(sp.rglob("*")):
-                if fp.is_file() and fp.suffix in {".tf", ".yml", ".yaml", ".env", ".json"} or fp.name.startswith("Dockerfile"):
+                if fp.is_file() and (fp.suffix in {".tf", ".yml", ".yaml", ".env", ".json"} or fp.name.startswith("Dockerfile")):
                     iac_files.append(fp)
     for root_name in ("Dockerfile", "docker-compose.yml", "docker-compose.test.yml", ".env"):
         rp = repo / root_name
@@ -3054,7 +3182,7 @@ def evaluate_sast12_secrets_management_and_iac(repo: Path) -> tuple[list[str], l
             iac_files.append(rp)
 
     iac_secret_re = re.compile(
-        r"""(?ix)(?:private_key\s*=\s*["']-----BEGIN|(?:CTF_KEY|JWT_SECRET|API_KEY|DB_PASSWORD|SECRET_KEY)\s*[:=]\s*["']?[^\s"']{6,})"""
+        r"""(?ix)(?:private_key\s*=\s*["']-----BEGIN|(?:CTF_KEY|JWT_SECRET|API_KEY|DB_PASSWORD|SECRET_KEY|AWS_SECRET_ACCESS_KEY)\s*[:=]\s*["']?[^\s"']{6,})"""
     )
     for fpath in iac_files:
         rel = str(fpath.relative_to(repo))
@@ -3063,70 +3191,56 @@ def evaluate_sast12_secrets_management_and_iac(repo: Path) -> tuple[list[str], l
         except Exception:
             continue
         for lno, line in enumerate(lines, start=1):
-            m = iac_secret_re.search(line)
-            if m:
+            if iac_secret_re.search(line):
                 desc = (
                     f"{rel}:{lno} — [SECRET IN IAC / CONFIG FILE] Hardcoded server-side private key/secret in IaC/config "
                     f"instead of managed secrets store ({sdk_status})"
                 )
-                sast12_findings.append(desc)
-                sast12_sarif.append(
-                    {
-                        "ruleId": "CASA3-SAST-12-iac-secret",
-                        "level": "error",
-                        "message": {"text": desc},
-                        "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}],
-                    }
-                )
+                _add_s12(rel, lno, "CASA3-SAST-12-iac-secret", desc)
 
-    # 3. Inspect Dockerfile COPY / ENV layers & live Docker image for baked secret files
+    # 4. Inspect Docker image .Config.Env layers & baked secret files for local container images
     dockerfile = repo / "Dockerfile"
-    if dockerfile.exists() and ("juice-shop" in repo.name.lower()):
+    if run_docker and (dockerfile.exists() or (repo / "docker-compose.yml").exists()):
         docker_env = {**os.environ, "DOCKER_API_VERSION": "1.44"}
-        img = "bkimminich/juice-shop:latest"
-        try:
-            insp = subprocess.run(
-                ["docker", "inspect", img, "--format", "{{json .Config.Env}}"],
-                capture_output=True,
-                text=True,
-                env=docker_env,
-                timeout=6,
-            )
-            baked_check = subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "--rm",
-                    "--entrypoint",
-                    "/nodejs/bin/node",
-                    img,
-                    "-e",
-                    "const fs=require('fs'); console.log(JSON.stringify(['/juice-shop/ctf.key','/juice-shop/encryptionkeys/jwt.pub','/juice-shop/encryptionkeys/premium.key','/juice-shop/ftp/incident-support.kdbx','/juice-shop/data/static/users.yml'].filter(p=>fs.existsSync(p))));",
-                ],
-                capture_output=True,
-                text=True,
-                env=docker_env,
-                timeout=8,
-            )
-            env_vars = insp.stdout.strip() if insp.returncode == 0 else "[]"
-            baked_files = json.loads(baked_check.stdout.strip()) if baked_check.returncode == 0 and baked_check.stdout.strip().startswith("[") else []
-            if baked_files:
-                desc = (
-                    f"Dockerfile:38 — [SECRETS BAKED INTO CONTAINER IMAGE LAYER] Image '{img}' (Config.Env={env_vars}) "
-                    f"bakes server-side secret artifacts directly inside image via COPY instead of runtime secret mount or Secrets Manager SDK: "
-                    f"{', '.join(baked_files)} ({sdk_status})"
+        env_secret_key_re = re.compile(r"(?i)(?:SECRET|PASSWORD|PRIVATE_KEY|API_KEY|CTF_KEY|TOKEN)=")
+        for img in _discover_local_docker_images(repo, dockerfile):
+            try:
+                insp = subprocess.run(
+                    ["docker", "image", "inspect", img, "--format", "{{json .Config.Env}}"],
+                    capture_output=True,
+                    text=True,
+                    env=docker_env,
+                    timeout=6,
                 )
-                sast12_findings.append(desc)
-                sast12_sarif.append(
-                    {
-                        "ruleId": "CASA3-SAST-12-baked-image-secrets",
-                        "level": "error",
-                        "message": {"text": desc},
-                        "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}, "region": {"startLine": 38}}}],
-                    }
-                )
-        except Exception:
-            pass
+                if insp.returncode != 0:
+                    continue
+                env_raw = insp.stdout.strip() or "[]"
+                env_list = json.loads(env_raw) if env_raw.startswith("[") else []
+                secret_envs = [e for e in env_list if isinstance(e, str) and env_secret_key_re.search(e)]
+                if secret_envs:
+                    desc = (
+                        f"Dockerfile:1 — [DOCKER IMAGE ENV SECRET] Image '{img}' exposes server-side secret(s) in .Config.Env "
+                        f"({secret_envs}) instead of runtime secret mount or Secrets Manager SDK ({sdk_status})"
+                    )
+                    _add_s12("Dockerfile", 1, "CASA3-SAST-12-docker-env-secret", desc)
+                if "juice-shop" in img.lower():
+                    baked_check = subprocess.run(
+                        [
+                            "docker", "run", "--rm", "--entrypoint", "/nodejs/bin/node", img, "-e",
+                            "const fs=require('fs'); console.log(JSON.stringify(['/juice-shop/ctf.key','/juice-shop/encryptionkeys/jwt.pub','/juice-shop/encryptionkeys/premium.key','/juice-shop/ftp/incident-support.kdbx','/juice-shop/data/static/users.yml'].filter(p=>fs.existsSync(p))));",
+                        ],
+                        capture_output=True, text=True, env=docker_env, timeout=8,
+                    )
+                    baked_files = json.loads(baked_check.stdout.strip()) if baked_check.returncode == 0 and baked_check.stdout.strip().startswith("[") else []
+                    if baked_files:
+                        desc = (
+                            f"Dockerfile:38 — [SECRETS BAKED INTO CONTAINER IMAGE LAYER] Image '{img}' (.Config.Env={env_raw}) "
+                            f"bakes server-side secret artifacts directly inside image via COPY instead of runtime secret mount or Secrets Manager SDK: "
+                            f"{', '.join(baked_files)} ({sdk_status})"
+                        )
+                        _add_s12("Dockerfile", 38, "CASA3-SAST-12-baked-image-secrets", desc)
+            except Exception:
+                pass
 
     return sast12_findings, sast12_sarif, sdk_status
 
@@ -3384,7 +3498,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                             sid = m.group(1)
                             extra = item.get("extra", {})
                             sev = str(extra.get("severity", "ERROR")).upper()
-                            if sid in {"SAST-03", "SAST-04", "SAST-05", "SAST-06", "SAST-07", "SAST-08", "SAST-09", "SAST-10", "SAST-11"} and sev != "ERROR":
+                            if sid in {"SAST-03", "SAST-04", "SAST-05", "SAST-06", "SAST-07", "SAST-08", "SAST-09", "SAST-10", "SAST-11", "SAST-12"} and sev != "ERROR":
                                 info_counts_by_sast_id[sid] += 1
                                 continue
                             fpath = item.get("path", "")
@@ -3460,6 +3574,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
 
     gl_sarif_out = OUTPUT_DIR / "gitleaks-sast01.sarif"
     gl_git_sarif_out = OUTPUT_DIR / "gitleaks-sast02-git.sarif"
+    trivy_sast12_sarif_out = OUTPUT_DIR / "trivy-sast12.sarif"
     for idx in range(1, 14):
         sid = f"SAST-{idx:02d}"
         f_list = findings_by_sast_id.get(sid, [])
@@ -3537,8 +3652,9 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             )
             extra_sarif_ref = ""
         elif sid == "SAST-12":
-            tool_label = f"Semgrep AST + Secrets Manager SDK Inventory & Container/IaC Inspector ({sast12_sdk_status}, {semgrep_duration}s)"
-            extra_sarif_ref = ""
+            trivy_tag = "Trivy v0.76.2 (secret/misconfig) + " if trivy_sast12_sarif_out.exists() else ""
+            tool_label = f"Semgrep AST 1.180.0 + {trivy_tag}Docker Image Layer & {sast12_sdk_status} ({semgrep_duration}s, SARIF 2.1.0)"
+            extra_sarif_ref = f"\nTrivy SARIF Evidence: {trivy_sast12_sarif_out}" if trivy_sast12_sarif_out.exists() else ""
         else:
             tool_label = f"Semgrep AST 1.180.0 ({semgrep_duration}s, SARIF 2.1.0)" if semgrep_ran else "Fallback Static Scanner"
             extra_sarif_ref = ""

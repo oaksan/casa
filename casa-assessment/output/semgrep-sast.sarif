@@ -2342,25 +2342,6 @@
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
           },
           "locations": [
@@ -2371,6 +2352,25 @@
                 },
                 "region": {
                   "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }
@@ -3007,25 +3007,6 @@
           "ruleId": "CASA3-SAST-02-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
           },
           "locations": [
@@ -3036,6 +3017,25 @@
                 },
                 "region": {
                   "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }
@@ -3080,29 +3080,10 @@
           ]
         },
         {
-          "ruleId": "CASA3-SAST-12-iac-secret",
+          "ruleId": "CASA3-SAST-12-trivy-private-key",
           "level": "error",
           "message": {
-            "text": "terraform/networking.tf:171 \u2014 [SECRET IN IAC / CONFIG FILE] Hardcoded server-side private key/secret in IaC/config instead of managed secrets store (Secrets Manager SDK Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK integrated))"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-12-iac-secret",
-          "level": "error",
-          "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [SECRET IN IAC / CONFIG FILE] Hardcoded server-side private key/secret in IaC/config instead of managed secrets store (Secrets Manager SDK Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK integrated))"
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [TRIVY private-key] Artifact: infrastructure/terraform/networking.tf (CWE-522 / SAST-12)"
           },
           "locations": [
             {
@@ -3118,10 +3099,48 @@
           ]
         },
         {
+          "ruleId": "CASA3-SAST-12-trivy-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [TRIVY private-key] Artifact: lib/insecurity.ts (CWE-522 / SAST-12)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-12-trivy-private-key",
+          "level": "error",
+          "message": {
+            "text": "terraform/networking.tf:171 \u2014 [TRIVY private-key] Artifact: terraform/networking.tf (CWE-522 / SAST-12)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
           "ruleId": "CASA3-SAST-12-baked-image-secrets",
           "level": "error",
           "message": {
-            "text": "Dockerfile:38 \u2014 [SECRETS BAKED INTO CONTAINER IMAGE LAYER] Image 'bkimminich/juice-shop:latest' (Config.Env=[\"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\"SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt\"]) bakes server-side secret artifacts directly inside image via COPY instead of runtime secret mount or Secrets Manager SDK: /juice-shop/ctf.key, /juice-shop/encryptionkeys/jwt.pub, /juice-shop/encryptionkeys/premium.key, /juice-shop/ftp/incident-support.kdbx, /juice-shop/data/static/users.yml (Secrets Manager SDK Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK integrated))"
+            "text": "Dockerfile:38 \u2014 [SECRETS BAKED INTO CONTAINER IMAGE LAYER] Image 'bkimminich/juice-shop:latest' (.Config.Env=[\"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\"SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt\"]) bakes server-side secret artifacts directly inside image via COPY instead of runtime secret mount or Secrets Manager SDK: /juice-shop/ctf.key, /juice-shop/encryptionkeys/jwt.pub, /juice-shop/encryptionkeys/premium.key, /juice-shop/ftp/incident-support.kdbx, /juice-shop/data/static/users.yml (Secrets Manager SDK Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK integrated))"
           },
           "locations": [
             {
@@ -3140,7 +3159,7 @@
           "ruleId": "CASA3-SAST-07-active-mass-assignment",
           "level": "error",
           "message": {
-            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=116) | GET http://localhost:3000/api/Users/116 verified lab-account read-back with role=\"admin\" (HTTP 200)"
+            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=121) | GET http://localhost:3000/api/Users/121 verified lab-account read-back with role=\"admin\" (HTTP 200)"
           },
           "locations": [
             {
@@ -4061,6 +4080,27 @@
               },
               "shortDescription": {
                 "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-11-path-traversal-python"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-12: Server-side secret/key baked into container image ENV instead of runtime secret mount or Secrets Manager SDK (CWE-522)"
+              },
+              "help": {
+                "markdown": "SAST-12: Server-side secret/key baked into container image ENV instead of runtime secret mount or Secrets Manager SDK (CWE-522)",
+                "text": "SAST-12: Server-side secret/key baked into container image ENV instead of runtime secret mount or Secrets Manager SDK (CWE-522)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-12-dockerfile-env-secret",
+              "name": "casa-assessment.rules.CASA3-SAST-12-dockerfile-env-secret",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-12-dockerfile-env-secret"
               }
             },
             {

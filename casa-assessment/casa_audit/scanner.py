@@ -5769,6 +5769,162 @@ def evaluate_cfg04_csp(
     }
 
 
+def _has_valid_frame_ancestors(csp_str: str) -> tuple[bool, list[str]]:
+    if not csp_str:
+        return False, []
+    dirs = _parse_csp_directives(csp_str)
+    fa = dirs.get("frame-ancestors", [])
+    if not fa:
+        return False, []
+    if "*" in fa:
+        return False, fa
+    valid_tokens = [
+        tok for tok in fa
+        if tok in {"'none'", "'self'"} or (tok != "*" and re.match(r"^(?:https?://)?[a-z0-9.*:-]+$", tok))
+    ]
+    return len(valid_tokens) == len(fa) and len(fa) > 0, fa
+
+
+def evaluate_cfg05_clickjacking(
+    target_url: str,
+    *,
+    crawled_exchanges: list[dict] | None = None,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+) -> dict:
+    """Evaluate CFG-05 using OWASP ZAP (Rule 10020) + Multi-Route HTML X-Frame-Options / CSP frame-ancestors Inspector."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+
+    if crawled_exchanges is None:
+        req = urllib.request.Request(base_url + "/", headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}, method="GET")
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                body = resp.read(16384).decode("utf-8", errors="ignore")
+                exchanges = [{"method": "GET", "url": f"{base_url}/", "status": resp.status, "headers": {k.lower(): v for k, v in resp.headers.items()}, "body": body}]
+        except urllib.error.HTTPError as he:
+            body = he.read(16384).decode("utf-8", errors="ignore")
+            exchanges = [{"method": "GET", "url": f"{base_url}/", "status": he.code, "headers": {k.lower(): v for k, v in he.headers.items()}, "body": body}]
+        except Exception as exc:
+            exchanges = [{"method": "GET", "url": f"{base_url}/", "status": 0, "headers": {}, "body": f"Connection error: {exc}"}]
+    else:
+        exchanges = list(crawled_exchanges)
+
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    html_routes_seen: dict[str, dict] = {}
+    for ex in exchanges:
+        hdrs = ex.get("headers") or {}
+        ctype = hdrs.get("content-type", "").lower()
+        body_l = (ex.get("body") or "").lstrip().lower()
+        if "text/html" in ctype or body_l.startswith(("<!doctype html", "<html", "<!-- html")):
+            key_url = f"{ex.get('method', 'GET')} {ex.get('url', base_url)}"
+            if key_url not in html_routes_seen:
+                html_routes_seen[key_url] = ex
+
+    cfg05_findings: list[dict] = []
+    seen_urls: dict[str, dict] = {}
+    protected_urls: set[str] = set()
+    xfo_modes_seen: set[str] = set()
+    fa_routes_ok = 0
+
+    for key_url, ex in html_routes_seen.items():
+        hdrs = ex.get("headers") or {}
+        r_xfo = hdrs.get("x-frame-options", "").strip().upper()
+        r_csp = hdrs.get("content-security-policy", "").strip()
+        xfo_ok = r_xfo in {"DENY", "SAMEORIGIN"}
+        fa_ok, fa_tokens = _has_valid_frame_ancestors(r_csp)
+        if r_xfo:
+            xfo_modes_seen.add(r_xfo)
+        if fa_ok:
+            fa_routes_ok += 1
+        ex_url = ex.get("url", base_url)
+        if xfo_ok or fa_ok:
+            protected_urls.add(ex_url.rstrip("/") or "/")
+        else:
+            finding = {
+                "url": ex_url,
+                "method": ex.get("method", "GET"),
+                "status": ex.get("status", 0),
+                "source": "Header/CSP",
+                "detail": (
+                    f"{key_url} (HTTP {ex.get('status', 0)}) lacks valid anti-clickjacking protection "
+                    f"(X-Frame-Options='{r_xfo or '<missing>'}', CSP frame-ancestors={fa_tokens or '<missing>'})"
+                ),
+            }
+            cfg05_findings.append(finding)
+            seen_urls[ex_url.rstrip("/") or "/"] = finding
+
+    zap_matched_plugins: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid == "10020" or "anti-clickjacking" in low_a or "x-frame-options" in low_a:
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                norm_uri = uri.rstrip("/") or "/"
+                if norm_uri in protected_urls:
+                    continue
+                zap_matched_plugins.add(pid or "10020")
+                if norm_uri in seen_urls:
+                    seen_urls[norm_uri]["source"] = f"OWASP ZAP:{pid or '10020'}+Header"
+                else:
+                    finding = {
+                        "url": uri,
+                        "method": str(inst.get("method") or "GET"),
+                        "status": 200,
+                        "source": f"OWASP ZAP:{pid or '10020'}",
+                        "detail": f"[OWASP ZAP {pid or '10020'}] {aname} at {uri}",
+                    }
+                    cfg05_findings.append(finding)
+                    seen_urls[norm_uri] = finding
+
+    sarif_items: list[dict] = []
+    for cf5 in cfg05_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-05",
+                "level": "error",
+                "message": {"text": cf5["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": cf5["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-05",
+                    "source": cf5["source"],
+                    "httpMethod": cf5["method"],
+                    "httpStatus": cf5["status"],
+                },
+            }
+        )
+
+    clickjack_ok = len(html_routes_seen) > 0 and len(cfg05_findings) == 0
+    return {
+        "verdict": "PASS" if clickjack_ok else "FAIL",
+        "clickjack_ok": clickjack_ok,
+        "htmlRoutesCount": len(html_routes_seen),
+        "xfoModes": sorted(xfo_modes_seen),
+        "faRoutesOk": fa_routes_ok,
+        "findings": cfg05_findings,
+        "sarifResults": sarif_items,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -6318,80 +6474,27 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-05: Clickjacking protection (frame-ancestors or X-Frame-Options DENY/SAMEORIGIN) across all HTML routes (SARIF 2.1.0 + HAR 1.2)
-    def has_valid_frame_ancestors(csp_str: str) -> tuple[bool, list[str]]:
-        if not csp_str:
-            return False, []
-        dirs = parse_csp_directives(csp_str)
-        fa = dirs.get("frame-ancestors", [])
-        if not fa:
-            return False, []
-        if "*" in fa:
-            return False, fa
-        valid_tokens = [
-            tok for tok in fa
-            if tok in {"'none'", "'self'"} or re.match(r"^(?:https?://)?[a-z0-9.*:-]+$", tok)
-        ]
-        return len(valid_tokens) == len(fa) and len(fa) > 0, fa
-
-    cfg05_findings: list[dict] = []
-    xfo_modes_seen: set[str] = set()
-    fa_routes_ok = 0
-
-    for key_url, ex in html_routes_seen.items():
-        r_xfo = ex["headers"].get("x-frame-options", "").strip().upper()
-        r_csp = ex["headers"].get("content-security-policy", "").strip()
-        xfo_ok = r_xfo in {"DENY", "SAMEORIGIN"}
-        fa_ok, fa_tokens = has_valid_frame_ancestors(r_csp)
-        if r_xfo:
-            xfo_modes_seen.add(r_xfo)
-        if fa_ok:
-            fa_routes_ok += 1
-        if not (xfo_ok or fa_ok):
-            cfg05_findings.append(
-                {
-                    "url": ex["url"],
-                    "method": ex["method"],
-                    "status": ex["status"],
-                    "detail": (
-                        f"{key_url} (HTTP {ex['status']}) lacks valid anti-clickjacking protection "
-                        f"(X-Frame-Options='{r_xfo or '<missing>'}', CSP frame-ancestors={fa_tokens or '<missing>'})"
-                    ),
-                }
-            )
-
-    for cf5 in cfg05_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-05",
-                "level": "error",
-                "message": {"text": cf5["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": cf5["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-05",
-                    "httpMethod": cf5["method"],
-                    "httpStatus": cf5["status"],
-                },
-            }
-        )
-
-    clickjack_ok = len(html_routes_seen) > 0 and len(cfg05_findings) == 0
+    # CFG-05: OWASP ZAP (Rule 10020) + Multi-Route Clickjacking Header & CSP frame-ancestors Inspector (SARIF 2.1.0 + HAR 1.2)
+    cfg05_eval = evaluate_cfg05_clickjacking(
+        base_url,
+        crawled_exchanges=crawled_exchanges,
+        zap_report=zap_domain4_report,
+    )
+    cfg05_findings = cfg05_eval["findings"]
+    dast_sarif_results.extend(cfg05_eval["sarifResults"])
+    clickjack_ok = cfg05_eval["clickjack_ok"]
+    xfo_modes_seen = cfg05_eval["xfoModes"]
+    fa_routes_ok = cfg05_eval["faRoutesOk"]
     cfg05_lines = [cf5["detail"] for cf5 in cfg05_findings]
     results["CFG-05"] = {
         "verdict": "PASS" if clickjack_ok else "FAIL",
-        "tool": f"Multi-Route Clickjacking Header & CSP frame-ancestors Inspector ({len(html_routes_seen)} HTML routes inspected, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"OWASP ZAP {zap_ver_label} (Rule 10020) & Multi-Route Clickjacking Inspector ({len(html_routes_seen)} HTML routes inspected, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[PASS] All {len(html_routes_seen)} HTML route(s) enforce anti-clickjacking directives (X-Frame-Options={sorted(xfo_modes_seen) or ['<none>']}, valid CSP frame-ancestors on {fa_routes_ok}/{len(html_routes_seen)} route(s)).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            f"[PASS] OWASP ZAP {zap_ver_label} and multi-route audit confirmed all {len(html_routes_seen)} HTML route(s) enforce anti-clickjacking directives (X-Frame-Options={xfo_modes_seen or ['<none>']}, valid CSP frame-ancestors on {fa_routes_ok}/{len(html_routes_seen)} route(s)).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
             if clickjack_ok
-            else f"[FAIL] {len(cfg05_findings)} HTML route(s) out of {len(html_routes_seen)} lack X-Frame-Options (DENY/SAMEORIGIN) and valid CSP frame-ancestors:\n  - "
+            else f"[FAIL] {len(cfg05_findings)} HTML route(s) out of {len(html_routes_seen)} lack X-Frame-Options (DENY/SAMEORIGIN) and valid CSP frame-ancestors (ZAP plugins={cfg05_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(cfg05_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

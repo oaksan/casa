@@ -2179,6 +2179,74 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 28/61: CFG-04 (Iteração SDD 098)", just2_txt)
 
+    def test_iteration99_cfg05_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg05_clickjacking
+
+        class _Cfg05Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "xfo"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                m = type(self).mode
+                p = self.path.split("?", 1)[0]
+                self.send_response(200 if p == "/" else 404)
+                self.send_header("Content-Type", "text/html")
+                if m == "xfo":
+                    self.send_header("X-Frame-Options", "SAMEORIGIN")
+                elif m == "fa":
+                    self.send_header("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
+                elif m == "wildcard":
+                    self.send_header("Content-Security-Policy", "default-src 'self'; frame-ancestors *")
+                self.end_headers()
+                self.wfile.write(b"<html><body>Page</body></html>")
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg05Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg5:
+            tdp = Path(td_cfg5)
+            try:
+                # 1. X-Frame-Options: SAMEORIGIN -> PASS via OWASP ZAP 2.17.0
+                _Cfg05Handler.mode = "xfo"
+                r_xfo = evaluate_cfg05_clickjacking(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c5_xfo.json",
+                    sarif_out_path=tdp / "zap_c5_xfo.sarif",
+                )
+                self.assertEqual(r_xfo["verdict"], "PASS", f"Expected PASS, got {r_xfo}")
+                self.assertTrue(r_xfo["zap"]["executed"])
+
+                # 2. Missing XFO and CSP frame-ancestors -> FAIL caught by real OWASP ZAP 10020
+                _Cfg05Handler.mode = "vuln"
+                r_vuln = evaluate_cfg05_clickjacking(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c5_vuln.json",
+                    sarif_out_path=tdp / "zap_c5_vuln.sarif",
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                self.assertIn("10020", r_vuln["zapPluginsMatched"], f"Expected ZAP rule 10020, got {r_vuln}")
+
+                # 3. CSP frame-ancestors 'none' -> PASS; frame-ancestors * -> FAIL
+                _Cfg05Handler.mode = "fa"
+                r_fa = evaluate_cfg05_clickjacking(f"http://127.0.0.1:{port}", zap_report=r_xfo["zap"])
+                self.assertEqual(r_fa["verdict"], "PASS")
+
+                _Cfg05Handler.mode = "wildcard"
+                r_wild = evaluate_cfg05_clickjacking(f"http://127.0.0.1:{port}", zap_report=r_xfo["zap"])
+                self.assertEqual(r_wild["verdict"], "FAIL")
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 29/61: CFG-05 (Iteração SDD 099)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1565,3 +1565,41 @@ CONTROLE 28/61: CFG-04 (Iteração SDD 098)
   * Todas as rotas HTML inspecionadas (e alertas ZAP `10038`) apontam ausência
     de cabeçalho enforcing `Content-Security-Policy` -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 29/61: CFG-05 (Iteração SDD 099)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-05` — *Clickjacking prevented via `frame-ancestors` or `X-Frame-Options`* (ASVS V14.4.7 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (contraparte open-source do Burp Suite, regra passiva `10020`
+    *Missing Anti-clickjacking Header*) + inspeção de cabeçalhos `X-Frame-Options`
+    e CSP `frame-ancestors` ao longo do crawl em SARIF 2.1.0 e HAR 1.2.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 099`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-05` executava inspeção anti-clickjacking inline em `run_dynamic_and_protocol_checks`,
+  sem consumir o alerta oficial `10020` do relatório do **OWASP ZAP**.
+- O que foi feito e melhorado na Iteração SDD 099:
+  1) Extração para `evaluate_cfg05_clickjacking(...)` e `_has_valid_frame_ancestors(...)`
+     em `casa_audit/scanner.py`, reutilizando `zap_domain4_report` (ou invocando
+     `run_zap_automation` autonomamente).
+  2) Correlação da regra passiva **OWASP ZAP `10020`** com validação estrita de
+     `X-Frame-Options` (`DENY` / `SAMEORIGIN`) ou `frame-ancestors` (`'none'`, `'self'`
+     ou origens explícitas sem curinga `*`) em 100% das rotas HTML do crawl,
+     mantendo geração SARIF 2.1.0 (`CASA3-CFG-05`) e HAR 1.2.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration99_cfg05_guide_tooling`) com OWASP ZAP `2.17.0`:
+  * **`PASS`** com `X-Frame-Options: SAMEORIGIN` (0 alertas `10020`) e com CSP
+    `frame-ancestors 'none'`.
+  * **`FAIL`** quando ausentes os cabeçalhos (detectado diretamente pela regra
+    `10020` do ZAP) e com `frame-ancestors *`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Middleware Helmet aplica `X-Frame-Options: SAMEORIGIN` em 100% das rotas HTML
+    -> Veredito **`PASS`**.
+================================================================================

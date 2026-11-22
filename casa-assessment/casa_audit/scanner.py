@@ -3444,6 +3444,19 @@ def evaluate_sast11_path_traversal(
     return verdict, findings, sarif_hits, dur
 
 
+def evaluate_sast13_sensitive_logging(
+    repo: Path,
+    rules_path: Path | None = None,
+) -> tuple[str, list[str], list[dict], float]:
+    """
+    Evaluate SAST-13 static log-sink taint (CASA 3.0 AL1 / ASVS V7.1.1 / CWE-532):
+    Execute Semgrep multi-language taint rules from credential, token, and card-number
+    sources into logging sinks without an intervening hash or masking sanitizer.
+    """
+    verdict, findings, sarif_hits, _, dur = _evaluate_semgrep_control_sarif(repo, "SAST-13", rules_path=rules_path)
+    return verdict, findings, sarif_hits, dur
+
+
 def run_sast_checks(repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -3498,7 +3511,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                             sid = m.group(1)
                             extra = item.get("extra", {})
                             sev = str(extra.get("severity", "ERROR")).upper()
-                            if sid in {"SAST-03", "SAST-04", "SAST-05", "SAST-06", "SAST-07", "SAST-08", "SAST-09", "SAST-10", "SAST-11", "SAST-12"} and sev != "ERROR":
+                            if sid in {f"SAST-{i:02d}" for i in range(3, 14)} and sev != "ERROR":
                                 info_counts_by_sast_id[sid] += 1
                                 continue
                             fpath = item.get("path", "")
@@ -3655,6 +3668,13 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             trivy_tag = "Trivy v0.76.2 (secret/misconfig) + " if trivy_sast12_sarif_out.exists() else ""
             tool_label = f"Semgrep AST 1.180.0 + {trivy_tag}Docker Image Layer & {sast12_sdk_status} ({semgrep_duration}s, SARIF 2.1.0)"
             extra_sarif_ref = f"\nTrivy SARIF Evidence: {trivy_sast12_sarif_out}" if trivy_sast12_sarif_out.exists() else ""
+        elif sid == "SAST-13":
+            tool_label = (
+                f"Semgrep AST 1.180.0 (Sensitive Logging Taint Tracking + CWE-532 Ruleset, {semgrep_duration}s, SARIF 2.1.0)"
+                if semgrep_ran
+                else "Fallback Static Scanner"
+            )
+            extra_sarif_ref = ""
         else:
             tool_label = f"Semgrep AST 1.180.0 ({semgrep_duration}s, SARIF 2.1.0)" if semgrep_ran else "Fallback Static Scanner"
             extra_sarif_ref = ""
@@ -10018,11 +10038,15 @@ def evaluate_sast07_mass_assignment_probe(
     return finding_str
 
 
-def evaluate_sast13_canary_log_replay(target_url: str, repo: Path) -> list[str]:
+def evaluate_sast13_canary_log_replay(
+    target_url: str,
+    repo: Path,
+    sarif_out: Path | None = None,
+) -> list[str]:
     """
     Scripted Canary Replay Harness for SAST-13 (CASA 3.0 AL1 Test Guide):
-    Replay authentication / credential-update / token flows with unique canary values
-    and search the application's log sinks (logs/access.log.*) for literal canary matches.
+    Replay authentication, token-refresh, and payment flows with unique canary values
+    and search application log sinks (logs/*.log*, log/*.log*) for literal canary matches.
     """
     if not target_url or not target_url.strip():
         return []
@@ -10031,6 +10055,7 @@ def evaluate_sast13_canary_log_replay(target_url: str, repo: Path) -> list[str]:
     canary_cur = f"CASA3_CANARY_CURPWD_{ts}"
     canary_new = f"CASA3_CANARY_NEWPWD_{ts}"
     canary_tok = f"CASA3_CANARY_TOKEN_{ts}"
+    canary_card = f"411111111111{str(ts)[-4:]}"
 
     replay_requests = [
         urllib.request.Request(
@@ -10044,6 +10069,23 @@ def evaluate_sast13_canary_log_replay(target_url: str, repo: Path) -> list[str]:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {canary_tok}"},
             method="POST",
         ),
+        urllib.request.Request(
+            f"{base}/rest/user/whoami",
+            headers={"Authorization": f"Bearer {canary_tok}", "Cookie": f"token={canary_tok}"},
+            method="GET",
+        ),
+        urllib.request.Request(
+            f"{base}/api/refresh",
+            data=json.dumps({"refresh_token": canary_tok}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {canary_tok}"},
+            method="POST",
+        ),
+        urllib.request.Request(
+            f"{base}/api/Cards/",
+            data=json.dumps({"fullName": "Canary Lab", "cardNum": canary_card, "expMonth": "12", "expYear": "2099"}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {canary_tok}"},
+            method="POST",
+        ),
     ]
     for r in replay_requests:
         try:
@@ -10053,9 +10095,12 @@ def evaluate_sast13_canary_log_replay(target_url: str, repo: Path) -> list[str]:
 
     time.sleep(0.25)
     hits: list[str] = []
-    log_dir = repo / "logs"
-    if log_dir.is_dir():
-        for lf in sorted(log_dir.glob("access.log*")):
+    canaries = (canary_cur, canary_new, canary_tok, canary_card)
+    for log_sub in ("logs", "log"):
+        log_dir = repo / log_sub
+        if not log_dir.is_dir():
+            continue
+        for lf in sorted(log_dir.glob("*.log*")):
             if not lf.is_file():
                 continue
             try:
@@ -10063,10 +10108,37 @@ def evaluate_sast13_canary_log_replay(target_url: str, repo: Path) -> list[str]:
             except Exception:
                 continue
             for lno, line in enumerate(lines, start=1):
-                if canary_cur in line or canary_new in line or canary_tok in line:
-                    hits.append(
-                        f"logs/{lf.name}:{lno} — [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary password written to HTTP access log: {line.strip()}"
+                if any(c in line for c in canaries):
+                    rel_log = f"{log_sub}/{lf.name}"
+                    desc = (
+                        f"{rel_log}:{lno} — [CANARY CREDENTIAL LEAK IN LOG SINK] "
+                        f"Literal canary value written to log sink: {line.strip()}"
                     )
+                    hits.append(desc)
+                    target_sarif = sarif_out or (OUTPUT_DIR / "semgrep-sast.sarif")
+                    if target_sarif.exists():
+                        try:
+                            sdata = json.loads(target_sarif.read_text(encoding="utf-8"))
+                            runs = sdata.get("runs", [])
+                            if runs:
+                                runs[0].setdefault("results", []).append(
+                                    {
+                                        "ruleId": "CASA3-SAST-13-canary-log-leak",
+                                        "level": "error",
+                                        "message": {"text": desc},
+                                        "locations": [
+                                            {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {"uri": rel_log},
+                                                    "region": {"startLine": lno},
+                                                }
+                                            }
+                                        ],
+                                    }
+                                )
+                                target_sarif.write_text(json.dumps(sdata, indent=2), encoding="utf-8")
+                        except Exception:
+                            pass
                     break
     return hits
 
@@ -10145,15 +10217,22 @@ def run_automated_al1_scan(
                 "log": f"{prev.get('log', '')}\n\nActive Mass Assignment Verification:\n  - Lab-account registration/update + read-back probes returned 0 persisted privileged fields.",
             }
 
-    # SAST-13 Hybrid Verification: Combine Semgrep Taint / AST log-sink rules with Scripted Canary Log Replay Harness
+    # SAST-13 Hybrid Verification: Semgrep Taint / AST log-sink rules + Scripted Canary Auth/Token/Payment Replay Harness
     if "SAST-13" in merged and target_url and target_url.strip():
         canary_hits = evaluate_sast13_canary_log_replay(target_url, repo)
+        prev13 = merged["SAST-13"]
+        tool13 = f"{prev13.get('tool', 'Semgrep AST 1.180.0')} + Scripted Canary Auth/Token/Payment Replay Harness"
         if canary_hits:
-            prev13 = merged["SAST-13"]
             merged["SAST-13"] = {
                 "verdict": "FAIL",
-                "tool": f"{prev13.get('tool', 'Semgrep AST')} + Scripted Canary Log Replay Harness",
+                "tool": tool13,
                 "log": f"{prev13.get('log', '')}\n\nDynamic Canary Replay Log Inspection:\n  - " + "\n  - ".join(canary_hits),
+            }
+        else:
+            merged["SAST-13"] = {
+                "verdict": prev13.get("verdict", "PASS"),
+                "tool": tool13,
+                "log": f"{prev13.get('log', '')}\n\nDynamic Canary Replay Log Inspection:\n  - Replayed auth, token-refresh & payment canaries across log sinks: 0 literal canary leaks found.",
             }
 
     final: dict[str, dict] = {}

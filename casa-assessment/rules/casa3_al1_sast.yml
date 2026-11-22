@@ -855,6 +855,9 @@ rules:
     severity: ERROR
     pattern-sources:
       - pattern: "$REQ.body.password"
+      - pattern: "$REQ.body.cardNum"
+      - pattern: "$REQ.body.token"
+      - pattern: "$REQ.body.refreshToken"
       - pattern: "$REQ.headers.authorization"
       - pattern: "$REQ.cookies.token"
       - pattern: "query.current"
@@ -863,7 +866,9 @@ rules:
       - pattern: "$CARD.cardNum"
     pattern-sanitizers:
       - pattern: "sha256(...)"
+      - pattern: "crypto.createHash('sha256').update(...).digest(...)"
       - pattern: "mask(...)"
+      - pattern: "redact(...)"
       - pattern: "$X.replace(/./g, '*')"
     pattern-sinks:
       - pattern: "logger.info(...)"
@@ -892,10 +897,62 @@ rules:
       - pattern: "password"
       - pattern: "authorization"
       - pattern: "access_token"
+      - pattern: "refresh_token"
       - pattern: "card_number"
+    pattern-sanitizers:
+      - pattern: "hashlib.sha256(...)"
+      - pattern: "sha256(...)"
+      - pattern: "mask(...)"
+      - pattern: "redact(...)"
     pattern-sinks:
       - pattern: "logging.info(...)"
+      - pattern: "logging.warning(...)"
       - pattern: "logging.error(...)"
       - pattern: "logging.debug(...)"
       - pattern: "logger.info(...)"
+      - pattern: "logger.error(...)"
       - pattern: "print(...)"
+
+  - id: CASA3-SAST-13-sensitive-logging-java
+    mode: taint
+    languages: [java]
+    message: "SAST-13: Sensitive credential/token/card flows unmasked to log sink in Java (CWE-532)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: "password"
+      - pattern: "authorization"
+      - pattern: "accessToken"
+      - pattern: "refreshToken"
+      - pattern: "cardNumber"
+    pattern-sanitizers:
+      - pattern: "sha256(...)"
+      - pattern: "mask(...)"
+      - pattern: "redact(...)"
+    pattern-sinks:
+      - pattern: "$LOG.info(...)"
+      - pattern: "$LOG.warn(...)"
+      - pattern: "$LOG.error(...)"
+      - pattern: "$LOG.debug(...)"
+      - pattern: "System.out.println(...)"
+
+  - id: CASA3-SAST-13-sensitive-logging-go
+    mode: taint
+    languages: [go]
+    message: "SAST-13: Sensitive credential/token/card flows unmasked to log sink in Go (CWE-532)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: "password"
+      - pattern: "authorization"
+      - pattern: "accessToken"
+      - pattern: "refreshToken"
+      - pattern: "cardNumber"
+    pattern-sanitizers:
+      - pattern: "sha256.Sum256(...)"
+      - pattern: "mask(...)"
+      - pattern: "redact(...)"
+    pattern-sinks:
+      - pattern: "log.Printf(...)"
+      - pattern: "log.Println(...)"
+      - pattern: "slog.Info(...)"
+      - pattern: "slog.Error(...)"
+      - pattern: "fmt.Println(...)"

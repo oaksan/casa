@@ -1079,3 +1079,64 @@ Domínio 2: Static Application Security Testing (SAST)
     `@aws-sdk/client-secrets-manager` / `SecretsManagerClient` e **`FAIL`** via
     `Trivy` em segredo `.env` / `Dockerfile`.
 ================================================================================
+
+================================================================================
+CONTROLE 18/61: SAST-13 (Iteração SDD 088)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-13
+- Requisito (CASA 3.0 AL1):
+  "Credentials, payment details and tokens are never written to logs; session
+   tokens appear only in irreversible hashed form."
+- Referências: OWASP ASVS V7.1.1 (L1); MITRE CWE-532 / CWE-598.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`, `scripted replay harness`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Verificação:
+  * PASS: Nenhum valor canário aparece literalmente em qualquer registro de log
+    **e** zero caminhos de fluxo `taint` de nível `error` de credencial, token
+    ou cartão para um sorvedouro de log sem função de hash/mascaramento.
+  * FAIL: >= 1 valor canário literal no log ou >= 1 fluxo `taint` sem máscara.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 088)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 088:
+  1) As regras Python `CASA3-SAST-13-sensitive-logging-python` não tinham
+     `pattern-sanitizers` (logo `hashlib.sha256(password)` ainda disparava),
+     e faltavam regras multi-linguagem para Java e Go.
+  2) `evaluate_sast13_canary_log_replay` testava apenas autenticação e
+     `change-password`, deixando descobertos fluxos de **refresh de token**
+     (`/rest/user/whoami`, `/api/refresh`) e **pagamento** (`cardNum`), além de
+     não gravar o vazamento dinâmico em `output/semgrep-sast.sarif` nem reportar
+     o status da execução do harness quando `canary_hits == []`.
+- O que foi feito e melhorado na Iteração SDD 088:
+  1) Expansão e validação (`semgrep --validate`: 0 erros, 50 regras) de
+     `CASA3-SAST-13-*` em `rules/casa3_al1_sast.yml` para `TS/JS`, `Python`,
+     `Java` e `Go` com sanitizadores explícitos (`sha256`, `hashlib.sha256`,
+     `sha256.Sum256`, `mask`, `redact`).
+  2) Adição de `evaluate_sast13_sensitive_logging(repo)` e evolução de
+     `evaluate_sast13_canary_log_replay(target_url, repo, sarif_out=...)` em
+     `casa_audit/scanner.py` para executar canários de **autenticação**,
+     **refresh de token** e **cartão de pagamento**, inspecionar `logs/*.log*` e
+     `log/*.log*`, gravar `CASA3-SAST-13-canary-log-leak` em `output/semgrep-sast.sarif`
+     e exibir explicitamente `+ Scripted Canary Auth/Token/Payment Replay Harness`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Análise estática (`Semgrep AST 1.180.0`): detecta `routes/changePassword.ts:14`
+    (transmissão de senha atual/nova via query string `GET`, gravada no `morgan`
+    `access.log`).
+  * Harness dinâmico de replay com canário: confirma vazamento literal das
+    credenciais de troca de senha no log de acesso HTTP (`logs/access.log.*`) e
+    registra `CASA3-SAST-13-canary-log-leak` em `output/semgrep-sast.sarif`
+    -> Veredito **`FAIL`**.
+  * Validação multi-linguagem (`test_iteration88_sast13_guide_tooling`):
+    **`PASS`** em logs com hash/mascaramento (`sha256`, `hashlib.sha256`) e
+    mock com log limpo vs. **`FAIL`** em `log_bad.ts`, `log_bad.py`,
+    `LogBad.java`, `log_bad.go` e leak de canário.
+================================================================================

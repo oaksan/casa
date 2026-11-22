@@ -37,6 +37,8 @@ from casa_audit.scanner import (
     evaluate_sast10_dynamic_execution,
     evaluate_sast11_path_traversal,
     evaluate_sast12_secrets_management_and_iac,
+    evaluate_sast13_canary_log_replay,
+    evaluate_sast13_sensitive_logging,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -1121,6 +1123,99 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 17/61: SAST-12 (Iteração SDD 087)", just2_txt)
+
+    def test_iteration88_sast13_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+
+        with tempfile.TemporaryDirectory() as td_sast13:
+            r13 = Path(td_sast13)
+            src = r13 / "src"
+            src.mkdir()
+            # 1. Hashed / masked log values -> PASS
+            (src / "safe_log.ts").write_text(
+                "export const logTok = (req: any, logger: any) => logger.info(sha256(req.headers.authorization));\n",
+                encoding="utf-8",
+            )
+            (src / "safe_log.py").write_text(
+                "import hashlib, logging\ndef lg(password):\n    logging.info(hashlib.sha256(password).hexdigest())\n",
+                encoding="utf-8",
+            )
+            v_pass, f_pass, _, _ = evaluate_sast13_sensitive_logging(r13)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for hashed logging, got {f_pass}")
+
+            # 2. Unmasked sensitive logging taint across TS, Python, Java, Go -> FAIL
+            (src / "log_bad.ts").write_text(
+                "export const lg = (req: any, logger: any) => { const p = req.body.password; logger.info(p); };\n",
+                encoding="utf-8",
+            )
+            (src / "log_bad.py").write_text(
+                "import logging\ndef lg(authorization):\n    logging.error(authorization)\n",
+                encoding="utf-8",
+            )
+            (src / "LogBad.java").write_text(
+                "class LogBad { void lg(String cardNumber) { System.out.println(cardNumber); } }\n",
+                encoding="utf-8",
+            )
+            (src / "log_bad.go").write_text(
+                'package p\nimport "log"\nfunc lg(refreshToken string) { log.Printf("%s", refreshToken) }\n',
+                encoding="utf-8",
+            )
+            v_fail, f_fail, sarif_fail, _ = evaluate_sast13_sensitive_logging(r13)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("log_bad.ts", "log_bad.py", "LogBad.java", "log_bad.go"):
+                self.assertIn(fname, joined, f"Missing SAST-13 taint hit for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(sarif_fail), 4)
+
+            # 3. Scripted Canary Auth/Token/Payment Replay Harness -> FAIL on leaked query/header, PASS on clean logs
+            log_dir = r13 / "logs"
+            log_dir.mkdir()
+            log_file = log_dir / "access.log"
+            sarif_tmp = r13 / "sast13.sarif"
+            sarif_tmp.write_text(json.dumps({"version": "2.1.0", "runs": [{"results": []}]}), encoding="utf-8")
+
+            class _CanaryHandler(BaseHTTPRequestHandler):
+                leak = True
+
+                def log_message(self, fmt, *args):
+                    pass
+
+                def _handle(self):
+                    if type(self).leak:
+                        auth = self.headers.get("Authorization", "")
+                        log_file.write_text(f"GET {self.path} auth={auth}\n", encoding="utf-8")
+                    self.send_response(200)
+                    self.end_headers()
+
+                def do_GET(self):
+                    self._handle()
+
+                def do_POST(self):
+                    ln = int(self.headers.get("Content-Length", "0"))
+                    _ = self.rfile.read(ln)
+                    self._handle()
+
+            srv = ThreadingHTTPServer(("127.0.0.1", 0), _CanaryHandler)
+            port = srv.server_address[1]
+            t = threading.Thread(target=srv.serve_forever, daemon=True)
+            t.start()
+            try:
+                _CanaryHandler.leak = True
+                hits_leak = evaluate_sast13_canary_log_replay(f"http://127.0.0.1:{port}", r13, sarif_out=sarif_tmp)
+                self.assertGreaterEqual(len(hits_leak), 1)
+                sdata = json.loads(sarif_tmp.read_text(encoding="utf-8"))
+                self.assertEqual(sdata["runs"][0]["results"][0]["ruleId"], "CASA3-SAST-13-canary-log-leak")
+
+                _CanaryHandler.leak = False
+                log_file.write_text("clean request hashed_token=abc123\n", encoding="utf-8")
+                hits_clean = evaluate_sast13_canary_log_replay(f"http://127.0.0.1:{port}", r13, sarif_out=sarif_tmp)
+                self.assertEqual(hits_clean, [])
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 18/61: SAST-13 (Iteração SDD 088)", just2_txt)
 
 
 if __name__ == "__main__":

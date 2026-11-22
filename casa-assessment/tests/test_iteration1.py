@@ -1878,6 +1878,95 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 24/61: TLS-06 (Iteração SDD 094)", just2_txt)
 
+    def test_iteration95_cfg01_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg01_directory_browsing
+
+        class _Cfg01Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "clean"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                m = type(self).mode
+                p = self.path.split("?", 1)[0]
+                if m == "autoindex" and p.rstrip("/") == "/files":
+                    body = (
+                        b"<html><head><title>Index of /files</title></head>"
+                        b'<body><h1>Index of /files</h1><a href="backup.sql">backup.sql</a></body></html>'
+                    )
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if m == "s3" and p.rstrip("/") == "/public":
+                    body = (
+                        b'<?xml version="1.0" encoding="UTF-8"?>'
+                        b"<ListBucketResult><Name>assets</Name><Contents><Key>secret.env</Key></Contents></ListBucketResult>"
+                    )
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/xml")
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p == "/":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<html><body><h1>App Home</h1></body></html>")
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg01Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg1:
+            tdp = Path(td_cfg1)
+            try:
+                # 1. Clean site with OWASP ZAP 2.17.0 spider -> PASS
+                _Cfg01Handler.mode = "clean"
+                r_clean = evaluate_cfg01_directory_browsing(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_clean.json",
+                    sarif_out_path=tdp / "zap_clean.sarif",
+                )
+                self.assertEqual(r_clean["verdict"], "PASS", f"Expected PASS, got {r_clean}")
+                self.assertTrue(r_clean["zap"]["executed"])
+                self.assertTrue((tdp / "zap_clean.json").exists())
+                self.assertTrue((tdp / "zap_clean.sarif").exists())
+
+                # 2. Exposed HTML directory index -> FAIL detected via ZAP plugin 10033 + parser
+                _Cfg01Handler.mode = "autoindex"
+                r_auto = evaluate_cfg01_directory_browsing(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_auto.json",
+                    sarif_out_path=tdp / "zap_auto.sarif",
+                )
+                self.assertEqual(r_auto["verdict"], "FAIL")
+                self.assertIn("/files", r_auto["zapAlertsMatched"])
+                self.assertEqual(r_auto["sarifResults"][0]["ruleId"], "CASA3-CFG-01")
+
+                # 3. Exposed S3 ListBucketResult XML -> FAIL (reusing clean zap report for speed)
+                _Cfg01Handler.mode = "s3"
+                r_s3 = evaluate_cfg01_directory_browsing(
+                    f"http://127.0.0.1:{port}",
+                    zap_report=r_clean["zap"],
+                )
+                self.assertEqual(r_s3["verdict"], "FAIL")
+                self.assertTrue(any("ListBucketResult" in f["format"] for f in r_s3["findings"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 25/61: CFG-01 (Iteração SDD 095)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

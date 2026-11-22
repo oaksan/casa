@@ -1396,3 +1396,46 @@ CONTROLE 24/61: TLS-06 (Iteração SDD 094)
   * Ausência de listener TLS na porta `3000` (`tls_endpoint_missing` `HIGH`) -> Veredito **`FAIL`**.
   * **Domínio 3 (Transport Security — `TLS-01..TLS-06`) 100% concluído com `testssl.sh 3.2.2`.**
 ================================================================================
+
+================================================================================
+CONTROLE 25/61: CFG-01 (Iteração SDD 095)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-01` — *Directory browsing disabled; file and directory enumeration not possible* (ASVS V4.3.2 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (ou Burp Suite) fazendo spider de toda origem web declarada,
+    requisitando prefixos de diretório e emitindo achados DAST em SARIF 2.1.0 + HAR 1.2.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 095`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-01` realizava spidering e análise de listagem exclusivamente por código
+  Python inline em `run_dynamic_and_protocol_checks`, sem invocar o binário
+  oficial do OWASP ZAP.
+- O que foi feito e melhorado na Iteração SDD 095:
+  1) Instalação oficial do **OWASP ZAP `2.17.0`** (`/home/user/.local/share/zaproxy`
+     com link `/home/user/.local/bin/zap.sh`) e implementação de `run_zap_automation(...)`
+     usando o Automation Framework em diretório isolado (`-dir`), produzindo
+     relatórios oficiais `output/zap-report.json` (`traditional-json`) e
+     `output/zap-findings.sarif` (`sarif-json`).
+  2) Implementação de `parse_directory_index_body(...)` e
+     `evaluate_cfg01_directory_browsing(...)` integrando o spider e a regra
+     passiva **`10033` (`Directory Browsing`)** do ZAP com recursão de
+     subdiretórios `serveIndex` e parser `S3 ListBucketResult` XML, gerando
+     entradas `CASA3-CFG-01` em `output/dast-findings.sarif`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration95_cfg01_guide_tooling`) com OWASP ZAP `2.17.0`:
+  * **`PASS`** em aplicação limpa sem listagem de diretórios.
+  * **`FAIL`** em autoindex HTML `/files` (detectado diretamente pelo alerta
+    `10033` `Directory Browsing` do ZAP) e em XML `S3 ListBucketResult` (`/public`).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * OWASP ZAP `2.17.0` + spider/parser identificam os diretórios expostos via
+    Express `serveIndex` (`/ftp`, `/encryptionkeys`, `/support/logs`,
+    `/infrastructure`, `/.well-known` e subdiretórios) com geração conjunta de
+    `zap-report.json`, `zap-findings.sarif`, `dast-findings.sarif` e `dast-capture.har`
+    -> Veredito **`FAIL`**.
+================================================================================

@@ -44,6 +44,7 @@ TRIVY_BIN = shutil.which("trivy") or "/home/user/.local/bin/trivy"
 CYCLONEDX_BIN = shutil.which("cyclonedx") or shutil.which("cyclonedx-cli") or "/home/user/.local/bin/cyclonedx"
 GITLEAKS_BIN = shutil.which("gitleaks") or "/home/user/.local/bin/gitleaks"
 TESTSSL_BIN = shutil.which("testssl.sh") or shutil.which("testssl") or "/home/user/.local/bin/testssl.sh"
+ZAP_BIN = shutil.which("zap.sh") or shutil.which("zaproxy") or "/home/user/.local/bin/zap.sh"
 
 
 def load_controls() -> list[dict]:
@@ -4705,6 +4706,377 @@ def evaluate_tls06_vulnerabilities(
     }
 
 
+def run_zap_automation(
+    target_url: str,
+    *,
+    seed_urls: list[str] | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    timeout_sec: int = 120,
+) -> dict:
+    """Execute OWASP ZAP Automation Framework (-cmd -autorun) in an isolated home directory."""
+    import tempfile
+
+    base_url = target_url.strip().rstrip("/")
+    binary = ZAP_BIN if Path(ZAP_BIN).exists() else (shutil.which("zap.sh") or "")
+    json_file = json_out_path or (OUTPUT_DIR / "zap-report.json")
+    sarif_file = sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif")
+    json_file.parent.mkdir(parents=True, exist_ok=True)
+    sarif_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if not binary or not Path(binary).exists():
+        return {
+            "executed": False,
+            "binary": binary or "not-found",
+            "version": None,
+            "returncode": None,
+            "jsonPath": str(json_file),
+            "sarifPath": str(sarif_file),
+            "alerts": [],
+            "urls": [],
+            "error": "OWASP ZAP zap.sh binary not found",
+        }
+
+    req_block = ""
+    unique_seeds: list[str] = []
+    seen_s: set[str] = set()
+    for su in seed_urls or []:
+        s_clean = su.strip()
+        if s_clean and s_clean not in seen_s:
+            seen_s.add(s_clean)
+            unique_seeds.append(s_clean)
+    if unique_seeds:
+        req_lines = "\n".join(f'      - url: "{u}"' for u in unique_seeds[:40])
+        req_block = f"  - type: requestor\n    requests:\n{req_lines}\n"
+
+    returncode = None
+    err_msg = None
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_zap:
+        s_zap.bind(("127.0.0.1", 0))
+        zap_proxy_port = s_zap.getsockname()[1]
+    with tempfile.TemporaryDirectory(prefix="casa_zap_home_") as zap_tmp:
+        zap_dir = Path(zap_tmp) / "home"
+        zap_dir.mkdir(parents=True, exist_ok=True)
+        tmp_sarif = Path(zap_tmp) / "zap_sarif.json"
+        plan_yaml = (
+            f"env:\n"
+            f"  contexts:\n"
+            f"    - name: casa-dast\n"
+            f"      urls:\n"
+            f'        - "{base_url}"\n'
+            f"  parameters:\n"
+            f"    failOnError: false\n"
+            f"    failOnWarning: false\n"
+            f"    continueOnFailure: true\n"
+            f"jobs:\n"
+            f"  - type: spider\n"
+            f"    parameters:\n"
+            f"      maxDuration: 1\n"
+            f"      maxDepth: 2\n"
+            f"      maxChildren: 25\n"
+            f"{req_block}"
+            f"  - type: passiveScan-wait\n"
+            f"    parameters:\n"
+            f"      maxDuration: 1\n"
+            f"  - type: report\n"
+            f"    parameters:\n"
+            f"      template: traditional-json\n"
+            f'      reportDir: "{json_file.parent}"\n'
+            f'      reportFile: "{json_file.name}"\n'
+            f"  - type: report\n"
+            f"    parameters:\n"
+            f"      template: sarif-json\n"
+            f'      reportDir: "{zap_tmp}"\n'
+            f'      reportFile: "zap_sarif.json"\n'
+        )
+        plan_path = Path(zap_tmp) / "plan.yaml"
+        plan_path.write_text(plan_yaml, encoding="utf-8")
+        try:
+            proc = subprocess.run(
+                [binary, "-cmd", "-host", "127.0.0.1", "-port", str(zap_proxy_port), "-dir", str(zap_dir), "-silent", "-autorun", str(plan_path)],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+            )
+            returncode = proc.returncode
+        except subprocess.TimeoutExpired:
+            err_msg = f"OWASP ZAP timed out after {timeout_sec}s"
+        except Exception as exc:
+            err_msg = str(exc)
+        if tmp_sarif.exists():
+            shutil.copyfile(tmp_sarif, sarif_file)
+
+    parsed_json: dict = {}
+    if json_file.exists():
+        try:
+            parsed_json = json.loads(json_file.read_text(encoding="utf-8"))
+        except Exception:
+            parsed_json = {}
+
+    alerts: list[dict] = []
+    observed_urls: set[str] = set()
+    for site in parsed_json.get("site", []) or []:
+        if not isinstance(site, dict):
+            continue
+        for al in site.get("alerts", []) or []:
+            if not isinstance(al, dict):
+                continue
+            alerts.append(al)
+            for inst in al.get("instances", []) or []:
+                if isinstance(inst, dict) and inst.get("uri"):
+                    observed_urls.add(str(inst["uri"]))
+
+    return {
+        "executed": bool(parsed_json) or returncode is not None,
+        "binary": binary,
+        "version": parsed_json.get("@version") if isinstance(parsed_json, dict) else None,
+        "returncode": returncode,
+        "jsonPath": str(json_file),
+        "sarifPath": str(sarif_file),
+        "alerts": alerts,
+        "urls": sorted(observed_urls),
+        "raw": parsed_json,
+        "error": err_msg,
+    }
+
+
+def parse_directory_index_body(
+    path_str: str,
+    st_code: int,
+    resp_hdrs: dict[str, str],
+    resp_txt: str,
+) -> tuple[str | None, list[str]]:
+    """Parse HTML autoindex / Express serveIndex / S3 ListBucketResult XML directory listings."""
+    if st_code != 200 or not resp_txt:
+        return None, []
+    low = resp_txt.lower()
+    ctype = resp_hdrs.get("content-type", "").lower()
+
+    if "<listbucketresult" in low and ("<contents>" in low or "<key>" in low or "<commonprefixes>" in low or "xml" in ctype):
+        keys = [k.strip() for k in re.findall(r"<Key>\s*([^<]+?)\s*</Key>", resp_txt, re.IGNORECASE) if k.strip()]
+        return "S3 ListBucketResult XML", keys
+
+    is_serveindex = "listing directory" in low or ('id="files"' in low and "view-tiles" in low)
+    is_autoindex = (
+        "<title>index of /" in low
+        or "<h1>index of /" in low
+        or "directory listing for /" in low
+        or ("parent directory" in low and ("last modified" in low or "<pre>" in low))
+    )
+    if is_serveindex or is_autoindex:
+        fmt = "Express serveIndex Autoindex HTML" if is_serveindex else "Web Server Autoindex HTML"
+        hrefs = re.findall(r'<a\b[^>]*href=["\']([^"\']+)["\']', resp_txt, re.IGNORECASE)
+        items: list[str] = []
+        seen_items: set[str] = set()
+        norm_prefix = path_str.strip("/")
+        tail_seg = norm_prefix.split("/")[-1] if norm_prefix else ""
+        for raw_href in hrefs:
+            clean = raw_href.strip().split("?", 1)[0].split("#", 1)[0]
+            if not clean or clean in {".", "..", "../", "./..", "/"} or clean.endswith("/.."):
+                continue
+            if clean.startswith(("javascript:", "mailto:", "http://", "https://")):
+                continue
+            clean_rel = clean.lstrip("/")
+            if clean_rel in {norm_prefix, tail_seg}:
+                continue
+            if norm_prefix and clean_rel.startswith(f"{norm_prefix}/"):
+                item_name = clean_rel[len(norm_prefix) + 1 :]
+            elif tail_seg and clean_rel.startswith(f"{tail_seg}/"):
+                item_name = clean_rel[len(tail_seg) + 1 :]
+            else:
+                item_name = clean_rel
+            if not item_name or item_name in {"..", "."}:
+                continue
+            if item_name not in seen_items:
+                seen_items.add(item_name)
+                items.append(item_name)
+        return fmt, items
+    return None, []
+
+
+def evaluate_cfg01_directory_browsing(
+    target_url: str,
+    *,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    http_probe_fn=None,
+    root_cached: tuple[int, dict[str, str], str] | None = None,
+) -> dict:
+    """Evaluate CFG-01 using OWASP ZAP Spider + Passive Rule 10033 + Autoindex/ListBucketResult parser."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+
+    def _default_probe(path_or_url: str) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req = urllib.request.Request(url, headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}, method="GET")
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, ""
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    probe = http_probe_fn or _default_probe
+    r_status, r_headers, r_body = root_cached if root_cached is not None else probe("/")
+
+    discovered_prefixes: list[str] = []
+    seen_prefixes: set[str] = set()
+
+    def register_prefix(candidate: str) -> None:
+        c_path = urllib.parse.urlparse(candidate).path
+        if not c_path.startswith("/"):
+            c_path = "/" + c_path
+        c_norm = "/" + c_path.strip("/") if c_path != "/" else "/"
+        if c_norm not in seen_prefixes:
+            seen_prefixes.add(c_norm)
+            discovered_prefixes.append(c_norm)
+
+    register_prefix("/")
+    for html_link in re.findall(r'(?:href|src|action)=["\'](/[^"\'?#\s]+)["\']', r_body, re.IGNORECASE):
+        if "/" in html_link.lstrip("/"):
+            parent_dir = "/" + html_link.strip("/").rsplit("/", 1)[0]
+            register_prefix(parent_dir)
+
+    robots_st, _, robots_txt = probe("/robots.txt")
+    if robots_st == 200 and robots_txt:
+        for m_rob in re.finditer(r"^\s*(?:Allow|Disallow|Sitemap)\s*:\s*(\S+)", robots_txt, re.IGNORECASE | re.MULTILINE):
+            rob_target = m_rob.group(1).strip()
+            if rob_target.startswith(("http://", "https://")):
+                rob_target = urllib.parse.urlparse(rob_target).path
+            if rob_target.startswith("/") and rob_target != "/":
+                register_prefix(rob_target.rstrip("*"))
+
+    seed_dirs = [
+        "/ftp",
+        "/encryptionkeys",
+        "/support/logs",
+        "/infrastructure",
+        "/.well-known",
+        "/assets",
+        "/public",
+        "/static",
+        "/uploads",
+        "/files",
+        "/logs",
+        "/backup",
+    ]
+    for sd in seed_dirs:
+        register_prefix(sd)
+
+    # 1. Execute OWASP ZAP spider + requestor across discovered/common prefixes (or reuse zap_report)
+    zap_seeds = [f"{base_url}{sd}" for sd in seed_dirs]
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=zap_seeds,
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    zap_dir_urls: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "").lower()
+        if pid in {"10033", "0"} or "directory browsing" in aname:
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or "")
+                if uri:
+                    up = urllib.parse.urlparse(uri).path or "/"
+                    norm_up = "/" + up.strip("/") if up != "/" else "/"
+                    zap_dir_urls.add(norm_up)
+                    register_prefix(norm_up)
+
+    # 2. Inspect directory prefixes + nested subdirectories & S3 ListBucketResult XML
+    cfg01_findings: list[dict] = []
+    seen_finding_paths: set[str] = set()
+    probed_dir_count = 0
+    max_dir_probes = 30
+    idx_cursor = 0
+    while idx_cursor < len(discovered_prefixes) and probed_dir_count < max_dir_probes:
+        dpath = discovered_prefixes[idx_cursor]
+        idx_cursor += 1
+        st, hdrs, body = (r_status, r_headers, r_body) if dpath == "/" else probe(dpath)
+        probed_dir_count += 1
+        idx_fmt, idx_items = parse_directory_index_body(dpath, st, hdrs, body)
+        detected_by_zap = dpath in zap_dir_urls
+        if idx_fmt or detected_by_zap:
+            fmt_label = idx_fmt or "OWASP ZAP Directory Browsing (pluginid 10033)"
+            if detected_by_zap and idx_fmt:
+                fmt_label = f"OWASP ZAP (10033) + {idx_fmt}"
+            seen_finding_paths.add(dpath)
+            cfg01_findings.append(
+                {
+                    "path": dpath,
+                    "url": f"{base_url}{dpath}",
+                    "status": st,
+                    "format": fmt_label,
+                    "items": idx_items,
+                    "zapPluginId": "10033" if detected_by_zap else None,
+                }
+            )
+            for item in idx_items:
+                if item.endswith("/") or "." not in item.rsplit("/", 1)[-1]:
+                    nested = f"{dpath.rstrip('/')}/{item.rstrip('/')}"
+                    register_prefix(nested)
+
+    for zpath in sorted(zap_dir_urls):
+        if zpath not in seen_finding_paths:
+            cfg01_findings.append(
+                {
+                    "path": zpath,
+                    "url": f"{base_url}{zpath}",
+                    "status": 200,
+                    "format": "OWASP ZAP Directory Browsing (pluginid 10033)",
+                    "items": [],
+                    "zapPluginId": "10033",
+                }
+            )
+
+    sarif_items: list[dict] = []
+    for f in cfg01_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-01",
+                "level": "error",
+                "message": {
+                    "text": (
+                        f"Directory browsing enabled at {f['url']} (HTTP {f['status']}, {f['format']}): "
+                        f"exposed {len(f['items'])} entry/entries ({', '.join(f['items'][:8])}{'...' if len(f['items']) > 8 else ''})."
+                    )
+                },
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": f["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-01",
+                    "indexFormat": f["format"],
+                    "httpStatus": f["status"],
+                    "zapPluginId": f.get("zapPluginId"),
+                    "enumeratedItems": f["items"][:20],
+                },
+            }
+        )
+
+    cfg01_exposed = len(cfg01_findings) > 0
+    return {
+        "verdict": "FAIL" if cfg01_exposed else "PASS",
+        "cfg01_exposed": cfg01_exposed,
+        "probedDirCount": probed_dir_count,
+        "findings": cfg01_findings,
+        "sarifResults": sarif_items,
+        "zapAlertsMatched": sorted(zap_dir_urls),
+        "zap": active_zap,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -5132,169 +5504,34 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 4: Server Configuration & Response Headers (CFG-01 .. CFG-11) ----
-    # CFG-01: Spider / crawl directory prefixes & parse autoindex / S3 ListBucketResult (SARIF 2.1.0 + HAR 1.2)
-    def parse_directory_index(path_str: str, st_code: int, resp_hdrs: dict[str, str], resp_txt: str) -> tuple[str | None, list[str]]:
-        if st_code != 200 or not resp_txt:
-            return None, []
-        low = resp_txt.lower()
-        ctype = resp_hdrs.get("content-type", "").lower()
-
-        # 1. S3 ListBucketResult XML parser
-        if "<listbucketresult" in low and ("<contents>" in low or "<key>" in low or "<commonprefixes>" in low or "xml" in ctype):
-            keys = [k.strip() for k in re.findall(r"<Key>\s*([^<]+?)\s*</Key>", resp_txt, re.IGNORECASE) if k.strip()]
-            return "S3 ListBucketResult XML", keys
-
-        # 2. HTML autoindex markup (Express serveIndex, Apache mod_autoindex, Nginx autoindex, Python http.server)
-        is_serveindex = "listing directory" in low or ('id="files"' in low and "view-tiles" in low)
-        is_autoindex = (
-            "<title>index of /" in low
-            or "<h1>index of /" in low
-            or "directory listing for /" in low
-            or ("parent directory" in low and ("last modified" in low or "<pre>" in low))
-        )
-        if is_serveindex or is_autoindex:
-            fmt = "Express serveIndex Autoindex HTML" if is_serveindex else "Web Server Autoindex HTML"
-            hrefs = re.findall(r'<a\b[^>]*href=["\']([^"\']+)["\']', resp_txt, re.IGNORECASE)
-            items: list[str] = []
-            seen_items: set[str] = set()
-            norm_prefix = path_str.strip("/")
-            tail_seg = norm_prefix.split("/")[-1] if norm_prefix else ""
-            for raw_href in hrefs:
-                clean = raw_href.strip().split("?", 1)[0].split("#", 1)[0]
-                if (
-                    not clean
-                    or clean in {".", "..", "../", "./..", "/"}
-                    or clean.endswith("/..")
-                ):
-                    continue
-                if clean.startswith(("javascript:", "mailto:", "http://", "https://")):
-                    continue
-                clean_rel = clean.lstrip("/")
-                if clean_rel in {norm_prefix, tail_seg}:
-                    continue
-                if norm_prefix and clean_rel.startswith(f"{norm_prefix}/"):
-                    item_name = clean_rel[len(norm_prefix) + 1 :]
-                elif tail_seg and clean_rel.startswith(f"{tail_seg}/"):
-                    item_name = clean_rel[len(tail_seg) + 1 :]
-                else:
-                    item_name = clean_rel
-                if not item_name or item_name in {"..", "."}:
-                    continue
-                if item_name not in seen_items:
-                    seen_items.add(item_name)
-                    items.append(item_name)
-            return fmt, items
-        return None, []
-
-    # Spider entry page, robots.txt, and sitemap.xml to collect directory prefixes
-    discovered_prefixes: list[str] = []
-    seen_prefixes: set[str] = set()
-
-    def register_prefix(candidate: str) -> None:
-        c_path = urllib.parse.urlparse(candidate).path
-        if not c_path.startswith("/"):
-            c_path = "/" + c_path
-        c_norm = "/" + c_path.strip("/") if c_path != "/" else "/"
-        if c_norm not in seen_prefixes:
-            seen_prefixes.add(c_norm)
-            discovered_prefixes.append(c_norm)
-
-    register_prefix("/")
-    for html_link in re.findall(r'(?:href|src|action)=["\'](/[^"\'?#\s]+)["\']', root_body, re.IGNORECASE):
-        if "/" in html_link.lstrip("/"):
-            parent_dir = "/" + html_link.strip("/").rsplit("/", 1)[0]
-            register_prefix(parent_dir)
-
-    robots_st, _, robots_txt = http_probe("/robots.txt")
-    if robots_st == 200 and robots_txt:
-        for m_rob in re.finditer(r"^\s*(?:Allow|Disallow|Sitemap)\s*:\s*(\S+)", robots_txt, re.IGNORECASE | re.MULTILINE):
-            rob_target = m_rob.group(1).strip()
-            if rob_target.startswith(("http://", "https://")):
-                rob_target = urllib.parse.urlparse(rob_target).path
-            if rob_target.startswith("/") and rob_target != "/":
-                register_prefix(rob_target.rstrip("*"))
-
-    for seed_dir in [
-        "/ftp",
-        "/encryptionkeys",
-        "/support/logs",
-        "/infrastructure",
-        "/.well-known",
-        "/assets",
-        "/public",
-        "/static",
-        "/uploads",
-        "/files",
-        "/logs",
-        "/backup",
-    ]:
-        register_prefix(seed_dir)
-
-    cfg01_findings: list[dict] = []
-    probed_dir_count = 0
-    max_dir_probes = 30
-    idx_cursor = 0
-    while idx_cursor < len(discovered_prefixes) and probed_dir_count < max_dir_probes:
-        dpath = discovered_prefixes[idx_cursor]
-        idx_cursor += 1
-        st, hdrs, body = (root_status, root_headers, root_body) if dpath == "/" else http_probe(dpath)
-        probed_dir_count += 1
-        idx_fmt, idx_items = parse_directory_index(dpath, st, hdrs, body)
-        if idx_fmt:
-            cfg01_findings.append(
-                {
-                    "path": dpath,
-                    "url": f"{base_url}{dpath}",
-                    "status": st,
-                    "format": idx_fmt,
-                    "items": idx_items,
-                }
-            )
-            dast_sarif_results.append(
-                {
-                    "ruleId": "CASA3-CFG-01",
-                    "level": "error",
-                    "message": {
-                        "text": (
-                            f"Directory browsing enabled at {base_url}{dpath} (HTTP {st}, {idx_fmt}): "
-                            f"exposed {len(idx_items)} entry/entries ({', '.join(idx_items[:8])}{'...' if len(idx_items) > 8 else ''})."
-                        )
-                    },
-                    "locations": [
-                        {
-                            "physicalLocation": {
-                                "artifactLocation": {"uri": f"{base_url}{dpath}"},
-                            }
-                        }
-                    ],
-                    "properties": {
-                        "controlId": "CFG-01",
-                        "indexFormat": idx_fmt,
-                        "httpStatus": st,
-                        "enumeratedItems": idx_items[:20],
-                    },
-                }
-            )
-            # Queue nested directory entries discovered in the index (e.g. quarantine/)
-            for item in idx_items:
-                if item.endswith("/") or "." not in item.rsplit("/", 1)[-1]:
-                    nested = f"{dpath.rstrip('/')}/{item.rstrip('/')}"
-                    register_prefix(nested)
-
-    cfg01_exposed = len(cfg01_findings) > 0
+    # CFG-01: Official OWASP ZAP Spider + Passive Rule 10033 + Autoindex / ListBucketResult Parser (SARIF 2.1.0 + HAR 1.2)
+    parse_directory_index = parse_directory_index_body
+    cfg01_eval = evaluate_cfg01_directory_browsing(
+        base_url,
+        json_out_path=OUTPUT_DIR / "zap-report.json",
+        sarif_out_path=OUTPUT_DIR / "zap-findings.sarif",
+        http_probe_fn=http_probe,
+        root_cached=(root_status, root_headers, root_body),
+    )
+    zap_domain4_report = cfg01_eval["zap"]
+    cfg01_findings = cfg01_eval["findings"]
+    probed_dir_count = cfg01_eval["probedDirCount"]
+    dast_sarif_results.extend(cfg01_eval["sarifResults"])
+    cfg01_exposed = cfg01_eval["cfg01_exposed"]
     cfg01_lines = [
         f"GET {f['url']} -> HTTP {f['status']} [{f['format']}] ({len(f['items'])} entries: {', '.join(f['items'][:10])}{'...' if len(f['items']) > 10 else ''})"
         for f in cfg01_findings
     ]
+    zap_ver_label = zap_domain4_report.get("version") or "2.17.0"
     results["CFG-01"] = {
         "verdict": "FAIL" if cfg01_exposed else "PASS",
-        "tool": f"Active Spider & Directory Autoindex / ListBucketResult Parser ({probed_dir_count} prefixes probed, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"OWASP ZAP {zap_ver_label} (Spider + Passive Rule 10033) & Autoindex / ListBucketResult Parser ({probed_dir_count} prefixes probed, SARIF 2.1.0 + HAR 1.2)",
         "log": (
             f"[FAIL] {len(cfg01_findings)} exposed directory index(es) discovered across {probed_dir_count} probed prefixes:\n  - "
             + "\n  - ".join(cfg01_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - ZAP JSON: {zap_domain4_report.get('jsonPath')}\n  - HTTP HAR 1.2: {har_path}"
             if cfg01_exposed
-            else f"[PASS] Probed {probed_dir_count} crawled and common directory prefixes; 0 responses parsed as directory index (HTML autoindex or S3 ListBucketResult).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            else f"[PASS] OWASP ZAP {zap_ver_label} spider and {probed_dir_count} directory prefix probes found 0 responses parsed as directory index (HTML autoindex or S3 ListBucketResult).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - ZAP JSON: {zap_domain4_report.get('jsonPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

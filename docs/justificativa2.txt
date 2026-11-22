@@ -1715,3 +1715,39 @@ CONTROLE 32/61: CFG-08 (Iteração SDD 102)
   * Endpoints autenticados/sensíveis e `OPTIONS /rest/user/login` retornam
     `Access-Control-Allow-Origin: *` (também sinalizado pelo ZAP `10098`) -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 33/61: CFG-09 (Iteração SDD 103)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-09` — *4xx/5xx responses return generic messages; no stack traces, internal paths or routing detail* (ASVS V7.4.1 L1; CWE-209).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (regra passiva `90022` *Application Error Disclosure*, junto a
+    sondas equivalentes a Burp Suite / Schemathesis enviando tipos malformados,
+    payloads oversize e erros forçados) com saída SARIF 2.1.0 + HAR 1.2.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 103`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-09` executava as 6 sondas de erro forçado inline em `run_dynamic_and_protocol_checks`,
+  sem consumir alertas `90022` (*Application Error Disclosure*) do **OWASP ZAP**.
+- O que foi feito e melhorado na Iteração SDD 103:
+  1) Extração para `evaluate_cfg09_error_disclosure(...)` em `casa_audit/scanner.py`
+     enviando erros SQL, SyntaxError, 404 ENOENT, 401 sem token, tipo inválido em
+     JSON schema e corpo oversize de 200 KB (`413`).
+  2) Correlação da regra passiva **OWASP ZAP `90022`** com classificação em
+     `stack_frame`, `filesystem_path`, `sql_fragment` e `internal_routing_or_module`
+     sob `CASA3-CFG-09`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration103_cfg09_guide_tooling`) com OWASP ZAP `2.17.0`:
+  * **`PASS`** quando respostas `4xx`/`5xx` retornam JSON genérico (`0` vazamentos).
+  * **`FAIL`** para erro HTTP `500` com sintaxe SQL/traceback (capturado pela
+    regra `90022` do ZAP) e vazamento `ENOENT` de caminho de arquivos em `404`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Múltiplas respostas `4xx`/`5xx` expõem stacktrace (`<ul id="stacktrace">`),
+    caminhos absolutos, `SQLITE_ERROR` e `node_modules/` -> Veredito **`FAIL`**.
+================================================================================

@@ -37,7 +37,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "user-agent" : ""
+                       "user-agent" : "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/141.0.0.0 Safari\/537.36"
                    },
                    "body": {
                        
@@ -55,7 +55,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
                        "ETag" : "W\/\"2700-1a2047ac129\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -123,7 +123,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "11308",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -143,7 +143,7 @@
                   {
                      "physicalLocation": {
                         "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/ftp\/eastere.gg"
+                           "uri": "http:\/\/localhost:3000\/ftp\/package-lock.json.bak"
                         },
                         
                         "region": {
@@ -166,7 +166,7 @@
                "webRequest": {
                    "protocol": "HTTP",
                    "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/ftp\/eastere.gg",
+                   "target": "http:\/\/localhost:3000\/ftp\/package-lock.json.bak",
                    "method": "GET",
                    "headers": {
                        "cache-control" : "no-cache",
@@ -188,73 +188,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:42 GMT",
-                       "Feature-Policy" : "payment 'self'",
-                       "Keep-Alive" : "timeout=5",
-                       "Vary" : "Accept-Encoding",
-                       "X-Content-Type-Options" : "nosniff",
-                       "X-Frame-Options" : "SAMEORIGIN",
-                       "X-Recruiting" : "\/#\/jobs",
-                       "content-length" : "2244"
-                   },
-                   "body": {
-                       "text": "<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Only .md and .pdf files are allowed!<\/title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;\n}\nh1, h2 {\n  font-size: 22px;\n  color: #343434;\n}\nh1 em, h2 em {\n  padding: 0 5px;\n  font-weight: normal;\n}\nh1 {\n  font-size: 60px;\n}\nh2 {\n  margin-top: 10px;\n}\nul li {\n  list-style: none;\n}\n#stacktrace {\n  margin-left: 60px;\n}\n<\/style>\n  <\/head>\n  <body>\n    <div id=\"wrapper\">\n      <h1>OWASP Juice Shop (Express ^4.22.1)<\/h1>\n      <h2><em>403<\/em> Error: Only .md and .pdf files are allowed!<\/h2>\n      <ul id=\"stacktrace\"><li> \u0026nbsp; \u0026nbsp;at verify (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/fileServer.js:68:18)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/fileServer.js:52:13<\/li><li> \u0026nbsp; \u0026nbsp;at Layer.handle [as handle_request] (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5)<\/li><li> \u0026nbsp; \u0026nbsp;at trim_prefix (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:328:13)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:286:9<\/li><li> \u0026nbsp; \u0026nbsp;at param (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:365:14)<\/li><li> \u0026nbsp; \u0026nbsp;at param (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:376:14)<\/li><li> \u0026nbsp; \u0026nbsp;at router.process_params (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:421:3)<\/li><li> \u0026nbsp; \u0026nbsp;at next (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:280:10)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/serve-index\/index.js:149:39<\/li><li> \u0026nbsp; \u0026nbsp;at FSReqCallback.oncomplete (node:fs:199:5)<\/li><\/ul>\n    <\/div>\n  <\/body>\n<\/html>\n"
-                   },
-                   "noResponseReceived": false
-               }
-            },
-            {
-               "level": "warning",
-               "locations": [
-                  {
-                     "physicalLocation": {
-                        "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/ftp\/encrypt.pyc"
-                        },
-                        
-                        "region": {
-                           "startLine": 1,
-                           
-                           "snippet": {
-                               "text": ""
-                           }
-                        }
-                     },
-                     "properties": {
-                         "attack": ""
-                     }
-                  }
-               ],
-               "message": {
-                  "text": "Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files."
-               },
-               "ruleId": "10038",
-               "webRequest": {
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/ftp\/encrypt.pyc",
-                   "method": "GET",
-                   "headers": {
-                       "cache-control" : "no-cache",
-                       "host" : "localhost:3000",
-                       "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000\/ftp",
-                       "user-agent" : ""
-                   },
-                   "body": {
-                       
-                   }
-               },
-               "webResponse": {
-                   "statusCode": 403,
-                   "reasonPhrase": "Forbidden",
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "headers": {
-                       "Access-Control-Allow-Origin" : "*",
-                       "Connection" : "keep-alive",
-                       "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:42 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:08 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -322,7 +256,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
                        "ETag" : "W\/\"2700-1a2047ac129\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -390,7 +324,7 @@
                        "Content-Length" : "156",
                        "Content-Security-Policy" : "default-src 'none'",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:44:18 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Location" : "\/assets\/",
@@ -411,7 +345,7 @@
                   {
                      "physicalLocation": {
                         "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/rolldown-runtime-kqx1xuJ_.js"
+                           "uri": "http:\/\/localhost:3000\/robots.txt"
                         },
                         
                         "region": {
@@ -437,13 +371,12 @@
                "webRequest": {
                    "protocol": "HTTP",
                    "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/rolldown-runtime-kqx1xuJ_.js",
+                   "target": "http:\/\/localhost:3000\/robots.txt",
                    "method": "GET",
                    "headers": {
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
                        "user-agent" : ""
                    },
                    "body": {
@@ -456,97 +389,21 @@
                    "protocol": "HTTP",
                    "version": "1.1",
                    "headers": {
-                       "Accept-Ranges" : "bytes",
                        "Access-Control-Allow-Origin" : "*",
-                       "Cache-Control" : "public, max-age=0",
                        "Connection" : "keep-alive",
-                       "Content-Length" : "262",
-                       "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
-                       "ETag" : "W\/\"106-1a19f2fe20b\"",
+                       "Content-Length" : "28",
+                       "Content-Type" : "text\/plain; charset=utf-8",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
+                       "ETag" : "W\/\"1c-8HgF6mNyhsSFK0pascC9uB0wjX0\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 03 Nov 2026 02:14:37 GMT",
                        "Vary" : "Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
                        "X-Recruiting" : "\/#\/jobs"
                    },
                    "body": {
-                       "text": "var __esmMin=(fn,res,err)=>()=>{if(err)throw err[0];try{return fn\u0026\u0026(res=fn(fn=0)),res}catch(e){throw err=[e],e}};var __commonJSMin=(cb,mod)=>()=>(mod||(cb((mod={exports:{}}).exports,mod,mod.exports),cb=null),mod.exports);export{__esmMin as n,__commonJSMin as t};"
-                   },
-                   "noResponseReceived": false
-               }
-            },
-            {
-               "level": "warning",
-               "locations": [
-                  {
-                     "physicalLocation": {
-                        "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/styles.css"
-                        },
-                        
-                        "region": {
-                           "startLine": 1,
-                           
-                           "properties" : { 
-                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
-                            }, 
-                           "snippet": {
-                               "text": "Access-Control-Allow-Origin: *"
-                           }
-                        }
-                     },
-                     "properties": {
-                         "attack": ""
-                     }
-                  }
-               ],
-               "message": {
-                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
-               },
-               "ruleId": "10098",
-               "webRequest": {
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/styles.css",
-                   "method": "GET",
-                   "headers": {
-                       "cache-control" : "no-cache",
-                       "host" : "localhost:3000",
-                       "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
-                       "user-agent" : ""
-                   },
-                   "body": {
-                       
-                   }
-               },
-               "webResponse": {
-                   "statusCode": 200,
-                   "reasonPhrase": "OK",
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "headers": {
-                       "Accept-Ranges" : "bytes",
-                       "Access-Control-Allow-Origin" : "*",
-                       "Cache-Control" : "public, max-age=0",
-                       "Connection" : "keep-alive",
-                       "Content-Length" : "157528",
-                       "Content-Type" : "text\/css; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
-                       "ETag" : "W\/\"26758-1a19f2fe209\"",
-                       "Feature-Policy" : "payment 'self'",
-                       "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 03 Nov 2026 02:14:37 GMT",
-                       "Vary" : "Accept-Encoding",
-                       "X-Content-Type-Options" : "nosniff",
-                       "X-Frame-Options" : "SAMEORIGIN",
-                       "X-Recruiting" : "\/#\/jobs"
-                   },
-                   "body": {
-                       "text": ".mat-elevation-z0,.mat-mdc-elevation-specific.mat-elevation-z0{box-shadow:var(--mat-app-elevation-shadow-level-0, 0px 0px 0px 0px --mat-sys-shadow, 0px 0px 0px 0px --mat-sys-shadow, 0px 0px 0px 0px --mat-sys-shadow)}.mat-elevation-z1,.mat-mdc-elevation-specific.mat-elevation-z1{box-shadow:var(--mat-app-elevation-shadow-level-1, 0px 2px 1px -1px --mat-sys-shadow, 0px 1px 1px 0px --mat-sys-shadow, 0px 1px 3px 0px --mat-sys-shadow)}.mat-elevation-z2,.mat-mdc-elevation-specific.mat-elevation-z2{box-shadow:var(--mat-app-elevation-shadow-level-2, 0px 3px 1px -2px --mat-sys-shadow, 0px 2px 2px 0px --mat-sys-shadow, 0px 1px 5px 0px --mat-sys-shadow)}.mat-elevation-z3,.mat-mdc-elevation-specific.mat-elevation-z3{box-shadow:var(--mat-app-elevation-shadow-level-3, 0px 3px 3px -2px --mat-sys-shadow, 0px 3px 4px 0px --mat-sys-shadow, 0px 1px 8px 0px --mat-sys-shadow)}.mat-elevation-z4,.mat-mdc-elevation-specific.mat-elevation-z4{box-shadow:var(--mat-app-elevation-shadow-level-4, 0px 2px 4px -1px --mat-sys-shadow, 0px 4px 5px 0px --mat-sys-shadow, 0px 1px 10px 0px --mat-sys-shadow)}.mat-elevation-z5,.mat-mdc-elevation-specific.mat-elevation-z5{box-shadow:var(--mat-app-elevation-shadow-level-5, 0px 3px 5px -1px --mat-sys-shadow, 0px 5px 8px 0px --mat-sys-shadow, 0px 1px 14px 0px --mat-sys-shadow)}.mat-elevation-z6,.mat-mdc-elevation-specific.mat-elevation-z6{box-shadow:var(--mat-app-elevation-shadow-level-6, 0px 3px 5px -1px --mat-sys-shadow, 0px 6px 10px 0px --mat-sys-shadow, 0px 1px 18px 0px --mat-sys-shadow)}.mat-elevation-z7,.mat-mdc-elevation-specific.mat-elevation-z7{box-shadow:var(--mat-app-elevation-shadow-level-7, 0px 4px 5px -2px --mat-sys-shadow, 0px 7px 10px 1px --mat-sys-shadow, 0px 2px 16px 1px --mat-sys-shadow)}.mat-elevation-z8,.mat-mdc-elevation-specific.mat-elevation-z8{box-shadow:var(--mat-app-elevation-shadow-level-8, 0px 5px 5px -3px --mat-sys-shadow, 0px 8px 10px 1px --mat-sys-shadow, 0px 3px 14px 2px --mat-sys-shadow)}.mat-elevation-z9,.mat-mdc-elevation-specific.mat-elevation-z9{box-shadow:var(--mat-app-elevation-shadow-level-9, 0px 5px 6px -3px --mat-sys-shadow, 0px 9px 12px 1px --mat-sys-shadow, 0px 3px 16px 2px --mat-sys-shadow)}.mat-elevation-z10,.mat-mdc-elevation-specific.mat-elevation-z10{box-shadow:var(--mat-app-elevation-shadow-level-10, 0px 6px 6px -3px --mat-sys-shadow, 0px 10px 14px 1px --mat-sys-shadow, 0px 4px 18px 3px --mat-sys-shadow)}.mat-elevation-z11,.mat-mdc-elevation-specific.mat-elevation-z11{box-shadow:var(--mat-app-elevation-shadow-level-11, 0px 6px 7px -4px --mat-sys-shadow, 0px 11px 15px 1px --mat-sys-shadow, 0px 4px 20px 3px --mat-sys-shadow)}.mat-elevation-z12,.mat-mdc-elevation-specific.mat-elevation-z12{box-shadow:var(--mat-app-elevation-shadow-level-12, 0px 7px 8px -4px --mat-sys-shadow, 0px 12px 17px 2px --mat-sys-shadow, 0px 5px 22px 4px --mat-sys-shadow)}.mat-elevation-z13,.mat-mdc-elevation-specific.mat-elevation-z13{box-shadow:var(--mat-app-elevation-shadow-level-13, 0px 7px 8px -4px --mat-sys-shadow, 0px 13px 19px 2px --mat-sys-shadow, 0px 5px 24px 4px --mat-sys-shadow)}.mat-elevation-z14,.mat-mdc-elevation-specific.mat-elevation-z14{box-shadow:var(--mat-app-elevation-shadow-level-14, 0px 7px 9px -4px --mat-sys-shadow, 0px 14px 21px 2px --mat-sys-shadow, 0px 5px 26px 4px --mat-sys-shadow)}.mat-elevation-z15,.mat-mdc-elevation-specific.mat-elevation-z15{box-shadow:var(--mat-app-elevation-shadow-level-15, 0px 8px 9px -5px --mat-sys-shadow, 0px 15px 22px 2px --mat-sys-shadow, 0px 6px 28px 5px --mat-sys-shadow)}.mat-elevation-z16,.mat-mdc-elevation-specific.mat-elevation-z16{box-shadow:var(--mat-app-elevation-shadow-level-16, 0px 8px 10px -5px --mat-sys-shadow, 0px 16px 24px 2px --mat-sys-shadow, 0px 6px 30px 5px --mat-sys-shadow)}.mat-elevation-z17,.mat-mdc-elevation-specific.mat-elevation-z17{box-shadow:var(--mat-app-elevation-shadow-level-17, 0px 8px 11px -5px --mat-sys-shadow, 0px 17px 26px 2px --mat-sys-shadow, 0px 6px 32px 5px --mat-sys-shadow)}.mat-elevation-z18,.mat-mdc-elevation-specific.mat-elevation-z18{box-shadow:var(--mat-app-elevation-shadow-level-18, 0px 9px 11px -5px --mat-sys-shadow, 0px 18px 28px 2px --mat-sys-shadow, 0px 7px 34px 6px --mat-sys-shadow)}.mat-elevation-z19,.mat-mdc-elevation-specific.mat-elevation-z19{box-shadow:var(--mat-app-elevation-shadow-level-19, 0px 9px 12px -6px --mat-sys-shadow, 0px 19px 29px 2px --mat-sys-shadow, 0px 7px 36px 6px --mat-sys-shadow)}.mat-elevation-z20,.mat-mdc-elevation-specific.mat-elevation-z20{box-shadow:var(--mat-app-elevation-shadow-level-20, 0px 10px 13px -6px --mat-sys-shadow, 0px 20px 31px 3px --mat-sys-shadow, 0px 8px 38px 7px --mat-sys-shadow)}.mat-elevation-z21,.mat-mdc-elevation-specific.mat-elevation-z21{box-shadow:var(--mat-app-elevation-shadow-level-21, 0px 10px 13px -6px --mat-sys-shadow, 0px 21px 33px 3px --mat-sys-shadow, 0px 8px 40px 7px --mat-sys-shadow)}.mat-elevation-z22,.mat-mdc-elevation-specific.mat-elevation-z22{box-shadow:var(--mat-app-elevation-shadow-level-22, 0px 10px 14px -6px --mat-sys-shadow, 0px 22px 35px 3px --mat-sys-shadow, 0px 8px 42px 7px --mat-sys-shadow)}.mat-elevation-z23,.mat-mdc-elevation-specific.mat-elevation-z23{box-shadow:var(--mat-app-elevation-shadow-level-23, 0px 11px 14px -7px --mat-sys-shadow, 0px 23px 36px 3px --mat-sys-shadow, 0px 9px 44px 8px --mat-sys-shadow)}.mat-elevation-z24,.mat-mdc-elevation-specific.mat-elevation-z24{box-shadow:var(--mat-app-elevation-shadow-level-24, 0px 11px 15px -7px --mat-sys-shadow, 0px 24px 38px 3px --mat-sys-shadow, 0px 9px 46px 8px --mat-sys-shadow)}.deeppurple-amber-theme{--mat-sys-background: #fef8fc;--mat-sys-error: #ba1a1a;--mat-sys-error-container: #ffdad6;--mat-sys-inverse-on-surface: #f5eff4;--mat-sys-inverse-primary: #d5baff;--mat-sys-inverse-surface: #323033;--mat-sys-on-background: #1d1b1e;--mat-sys-on-error: #ffffff;--mat-sys-on-error-container: #93000a;--mat-sys-on-primary: #ffffff;--mat-sys-on-primary-container: #5f00c0;--mat-sys-on-primary-fixed: #270057;--mat-sys-on-primary-fixed-variant: #5f00c0;--mat-sys-on-secondary: #ffffff;--mat-sys-on-secondary-container: #4b4357;--mat-sys-on-secondary-fixed: #1f182a;--mat-sys-on-secondary-fixed-variant: #4b4357;--mat-sys-on-surface: #1d1b1e;--mat-sys-on-surface-variant: #49454e;--mat-sys-on-tertiary: #ffffff;--mat-sys-on-tertiary-container: #494900;--mat-sys-on-tertiary-fixed: #1d1d00;--mat-sys-on-tertiary-fixed-variant: #494900;--mat-sys-outline: #7b757f;--mat-sys-outline-variant: #cbc4cf;--mat-sys-primary: #7d00fa;--mat-sys-primary-container: #ecdcff;--mat-sys-primary-fixed: #ecdcff;--mat-sys-primary-fixed-dim: #d5baff;--mat-sys-scrim: #000000;--mat-sys-secondary: #645b70;--mat-sys-secondary-container: #eadef7;--mat-sys-secondary-fixed: #eadef7;--mat-sys-secondary-fixed-dim: #cec2db;--mat-sys-shadow: #000000;--mat-sys-surface: #fef8fc;--mat-sys-surface-bright: #fef8fc;--mat-sys-surface-container: #f2ecf1;--mat-sys-surface-container-high: #ede6eb;--mat-sys-surface-container-highest: #e6e1e6;--mat-sys-surface-container-low: #f8f2f6;--mat-sys-surface-container-lowest: #ffffff;--mat-sys-surface-dim: #ded8dd;--mat-sys-surface-tint: #7d00fa;--mat-sys-surface-variant: #e8e0eb;--mat-sys-tertiary: #626200;--mat-sys-tertiary-container: #eaea00;--mat-sys-tertiary-fixed: #eaea00;--mat-sys-tertiary-fixed-dim: #cdcd00;--mat-sys-neutral-variant20: #332f37;--mat-sys-neutral10: #1d1b1e;--mat-sys-level0: 0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1: 0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2: 0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3: 0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4: 0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5: 0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large: 28px;--mat-sys-corner-extra-large-top: 28px 28px 0 0;--m[...]"
+                       "text": "User-agent: *\nDisallow: \/ftp"
                    },
                    "noResponseReceived": false
                }
@@ -605,7 +462,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "368823",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
                        "ETag" : "W\/\"5a0b7-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -675,7 +532,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "190614",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
                        "ETag" : "W\/\"2e896-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -726,7 +583,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
                        "user-agent" : ""
                    },
                    "body": {
@@ -745,7 +602,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "1200618",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
                        "ETag" : "W\/\"1251ea-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -817,7 +674,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
                        "ETag" : "W\/\"2700-1a2047ac129\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -890,7 +747,76 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:42 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:08 GMT",
+                       "ETag" : "W\/\"2700-1a2047ac129\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Sun, 22 Nov 2026 18:18:03 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/files"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "No links have been found while there are scripts, which is an indication that this is a modern web application."
+               },
+               "ruleId": "10109",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/files",
+                   "method": "GET",
+                   "headers": {
+                       "host" : "localhost:3000"
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Sun, 22 Nov 2026 23:02:44 GMT",
                        "ETag" : "W\/\"2700-1a2047ac129\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -959,7 +885,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:44:18 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:44 GMT",
                        "ETag" : "W\/\"2700-1a2047ac129\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1031,76 +957,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:43:36 GMT",
-                       "ETag" : "W\/\"2700-1a2047ac129\"",
-                       "Feature-Policy" : "payment 'self'",
-                       "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Sun, 22 Nov 2026 18:18:03 GMT",
-                       "Vary" : "Accept-Encoding",
-                       "X-Content-Type-Options" : "nosniff",
-                       "X-Frame-Options" : "SAMEORIGIN",
-                       "X-Recruiting" : "\/#\/jobs"
-                   },
-                   "body": {
-                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
-                   },
-                   "noResponseReceived": false
-               }
-            },
-            {
-               "level": "none",
-               "locations": [
-                  {
-                     "physicalLocation": {
-                        "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/uploads"
-                        },
-                        
-                        "region": {
-                           "startLine": 1,
-                           
-                           "properties" : { 
-                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
-                            }, 
-                           "snippet": {
-                               "text": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>"
-                           }
-                        }
-                     },
-                     "properties": {
-                         "attack": ""
-                     }
-                  }
-               ],
-               "message": {
-                  "text": "No links have been found while there are scripts, which is an indication that this is a modern web application."
-               },
-               "ruleId": "10109",
-               "webRequest": {
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/uploads",
-                   "method": "GET",
-                   "headers": {
-                       "host" : "localhost:3000"
-                   },
-                   "body": {
-                       
-                   }
-               },
-               "webResponse": {
-                   "statusCode": 200,
-                   "reasonPhrase": "OK",
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "headers": {
-                       "Accept-Ranges" : "bytes",
-                       "Access-Control-Allow-Origin" : "*",
-                       "Cache-Control" : "public, max-age=0",
-                       "Connection" : "keep-alive",
-                       "Content-Length" : "9984",
-                       "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Sun, 22 Nov 2026 22:44:18 GMT",
+                       "Date" : "Sun, 22 Nov 2026 23:02:02 GMT",
                        "ETag" : "W\/\"2700-1a2047ac129\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",

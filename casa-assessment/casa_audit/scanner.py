@@ -6487,6 +6487,194 @@ def evaluate_cfg08_cors(
     }
 
 
+def evaluate_cfg09_error_disclosure(
+    target_url: str,
+    *,
+    crawled_exchanges: list[dict] | None = None,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate CFG-09 using OWASP ZAP (Rule 90022) + Crawl 4xx/5xx Error Disclosure Probes."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+
+    local_exchanges: list[dict] = list(crawled_exchanges) if crawled_exchanges is not None else []
+
+    def _default_probe(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}
+        if headers:
+            req_hdrs.update(headers)
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                b_txt = resp.read(16384).decode("utf-8", errors="ignore")
+                hdrs_l = {k.lower(): v for k, v in resp.headers.items()}
+                local_exchanges.append({"method": method, "url": url, "status": resp.status, "headers": hdrs_l, "body": b_txt})
+                return resp.status, hdrs_l, b_txt
+        except urllib.error.HTTPError as he:
+            try:
+                err_body = he.read(16384).decode("utf-8", errors="ignore")
+            except Exception:
+                err_body = ""
+            hdrs_l = {k.lower(): v for k, v in he.headers.items()}
+            local_exchanges.append({"method": method, "url": url, "status": he.code, "headers": hdrs_l, "body": err_body})
+            return he.code, hdrs_l, err_body
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    probe = http_probe_fn or _default_probe
+
+    oversize_body = b'{"email":"' + (b"A" * 200000) + b'"}'
+    cfg09_probes = [
+        ("GET", "/rest/products/search?q=%27))", None, None, "SQL syntax forced server error"),
+        ("GET", "/rest/track-order/%27", None, None, "Evaluation SyntaxError probe"),
+        ("GET", "/ftp/nonexistent_cfg09_probe.md", None, None, "Missing file ENOENT path leak probe"),
+        ("GET", "/rest/basket/not_an_id", None, None, "Malformed type / unauthenticated 401 probe"),
+        ("POST", "/api/Feedbacks", {"Content-Type": "application/json"}, b'{"comment":"cfg09","rating":"not_an_int"}', "Malformed parameter type & schema error probe"),
+        ("POST", "/rest/user/login", {"Content-Type": "application/json"}, oversize_body, "Oversize JSON payload (413) probe"),
+    ]
+    for m9, p9, h9, b9, _ in cfg09_probes:
+        st_p, hdrs_p, body_p = probe(p9, method=m9, headers=h9, body=b9)
+        if crawled_exchanges is not None:
+            full_p = f"{base_url}{p9}"
+            if all(not (e.get("method") == m9 and e.get("url") == full_p and e.get("status") == st_p) for e in local_exchanges):
+                local_exchanges.append({"method": m9, "url": full_p, "status": st_p, "headers": hdrs_p, "body": body_p})
+
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[
+                f"{base_url}/rest/products/search?q=%27))",
+                f"{base_url}/ftp/nonexistent_cfg09_probe.md",
+            ],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    error_leak_patterns = [
+        ("stack_frame", re.compile(r'<ul\s+id=["\']stacktrace["\']|\bat\s+[^\s(]+\s+\([^)]+:\d+:\d+\)|Traceback \(most recent call last\):|\.java:\d+|\.cs:line\s+\d+', re.IGNORECASE)),
+        ("filesystem_path", re.compile(r'(?:ENOENT:\s*no such file|/(?:home|Users|var|opt|srv|app|usr|etc)/[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+|[A-Za-z]:\\[A-Za-z0-9_.\\-]+)', re.IGNORECASE)),
+        ("sql_fragment", re.compile(r'SQLITE_ERROR|SequelizeDatabaseError|PG::SyntaxError|ORA-\d{5}|You have an error in your SQL syntax|WHERE parameter .* has invalid|\bSELECT\b.+\bFROM\b.+\bWHERE\b', re.IGNORECASE)),
+        ("internal_routing_or_module", re.compile(r'node_modules[/\\][a-z0-9@._-]+|handle_request|UnauthorizedError|PayloadTooLargeError', re.IGNORECASE)),
+    ]
+
+    cfg09_findings: list[dict] = []
+    seen_cfg09_keys: set[tuple[str, str, int]] = set()
+    findings_by_path: dict[str, dict] = {}
+    cfg09_4xx_5xx_count = 0
+
+    for ex in local_exchanges:
+        st9 = ex.get("status", 0)
+        body9 = ex.get("body") or ""
+        if not (400 <= st9 < 600) or not body9:
+            continue
+        m9 = ex.get("method", "GET")
+        u9 = ex.get("url", base_url)
+        k9 = (m9, u9, st9)
+        if k9 in seen_cfg09_keys:
+            continue
+        seen_cfg09_keys.add(k9)
+        cfg09_4xx_5xx_count += 1
+
+        matched_classes: list[str] = []
+        matched_snippets: list[str] = []
+        for cls_name, cls_re in error_leak_patterns:
+            m9_hit = cls_re.search(body9)
+            if m9_hit:
+                matched_classes.append(cls_name)
+                matched_snippets.append(html.unescape(m9_hit.group(0)).strip()[:80])
+
+        if matched_classes:
+            title_m9 = re.search(r"<title>([^<]+)</title>", body9, re.IGNORECASE)
+            title_9 = html.unescape(title_m9.group(1)).strip()[:120] if title_m9 else body9.strip().splitlines()[0][:120]
+            item = {
+                "url": u9,
+                "method": m9,
+                "status": st9,
+                "classes": matched_classes,
+                "snippets": matched_snippets,
+                "source": "4xx/5xxProbe",
+                "detail": (
+                    f"{m9} {u9} -> HTTP {st9} leaked [{', '.join(matched_classes)}] "
+                    f"('{title_9}'; evidence: {', '.join(matched_snippets[:3])})"
+                ),
+            }
+            cfg09_findings.append(item)
+            ep_p = urllib.parse.urlparse(u9).path.rstrip("/") or "/"
+            findings_by_path[ep_p] = item
+
+    zap_matched_plugins: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid == "90022" or "application error disclosure" in low_a:
+            zap_matched_plugins.add(pid or "90022")
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                inst_path = urllib.parse.urlparse(uri).path.rstrip("/") or "/"
+                ev = str(inst.get("evidence") or aname).strip()[:80]
+                if inst_path in findings_by_path:
+                    findings_by_path[inst_path]["source"] = f"OWASP ZAP:{pid or '90022'}+4xx/5xxProbe"
+                else:
+                    item = {
+                        "url": uri,
+                        "method": str(inst.get("method") or "GET"),
+                        "status": 500,
+                        "classes": ["application_error_disclosure"],
+                        "snippets": [ev] if ev else [],
+                        "source": f"OWASP ZAP:{pid or '90022'}",
+                        "detail": f"[OWASP ZAP {pid or '90022'}] {aname} at {uri} (evidence='{ev}')",
+                    }
+                    cfg09_findings.append(item)
+                    findings_by_path[inst_path] = item
+
+    sarif_items: list[dict] = []
+    for cf9 in cfg09_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-09",
+                "level": "error",
+                "message": {"text": cf9["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": cf9["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-09",
+                    "source": cf9["source"],
+                    "httpMethod": cf9["method"],
+                    "httpStatus": cf9["status"],
+                    "leakClasses": cf9["classes"],
+                    "evidenceSnippets": cf9["snippets"],
+                },
+            }
+        )
+
+    leaks_stack = len(cfg09_findings) > 0
+    return {
+        "verdict": "FAIL" if leaks_stack else "PASS",
+        "leaks_stack": leaks_stack,
+        "inspected4xx5xxCount": cfg09_4xx_5xx_count,
+        "findings": cfg09_findings,
+        "sarifResults": sarif_items,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -7138,99 +7326,27 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-09: 4xx/5xx error disclosure probes (malformed types, oversize bodies, forced server errors across crawl, SARIF 2.1.0 + HAR 1.2)
-    oversize_body = b'{"email":"' + (b"A" * 200000) + b'"}'
-    cfg09_probes = [
-        ("GET", "/rest/products/search?q=%27))", None, None, "SQL syntax forced server error"),
-        ("GET", "/rest/track-order/%27", None, None, "Evaluation SyntaxError probe"),
-        ("GET", "/ftp/nonexistent_cfg09_probe.md", None, None, "Missing file ENOENT path leak probe"),
-        ("GET", "/rest/basket/not_an_id", None, None, "Malformed type / unauthenticated 401 probe"),
-        ("POST", "/api/Feedbacks", {"Content-Type": "application/json"}, b'{"comment":"cfg09","rating":"not_an_int"}', "Malformed parameter type & schema error probe"),
-        ("POST", "/rest/user/login", {"Content-Type": "application/json"}, oversize_body, "Oversize JSON payload (413) probe"),
-    ]
-    for m9, p9, h9, b9, _ in cfg09_probes:
-        http_probe(p9, method=m9, headers=h9, body=b9)
-
-    error_leak_patterns = [
-        ("stack_frame", re.compile(r'<ul\s+id=["\']stacktrace["\']|\bat\s+[^\s(]+\s+\([^)]+:\d+:\d+\)|Traceback \(most recent call last\):|\.java:\d+|\.cs:line\s+\d+', re.IGNORECASE)),
-        ("filesystem_path", re.compile(r'(?:ENOENT:\s*no such file|/(?:home|Users|var|opt|srv|app|usr|etc)/[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+|[A-Za-z]:\\[A-Za-z0-9_.\\-]+)', re.IGNORECASE)),
-        ("sql_fragment", re.compile(r'SQLITE_ERROR|SequelizeDatabaseError|PG::SyntaxError|ORA-\d{5}|You have an error in your SQL syntax|WHERE parameter .* has invalid|\bSELECT\b.+\bFROM\b.+\bWHERE\b', re.IGNORECASE)),
-        ("internal_routing_or_module", re.compile(r'node_modules[/\\][a-z0-9@._-]+|handle_request|UnauthorizedError|PayloadTooLargeError', re.IGNORECASE)),
-    ]
-
-    cfg09_findings: list[dict] = []
-    seen_cfg09_keys: set[tuple[str, str, int]] = set()
-    cfg09_4xx_5xx_count = 0
-
-    for ex in crawled_exchanges:
-        st9 = ex["status"]
-        if not (400 <= st9 < 600) or not ex["body"]:
-            continue
-        k9 = (ex["method"], ex["url"], st9)
-        if k9 in seen_cfg09_keys:
-            continue
-        seen_cfg09_keys.add(k9)
-        cfg09_4xx_5xx_count += 1
-
-        matched_classes: list[str] = []
-        matched_snippets: list[str] = []
-        for cls_name, cls_re in error_leak_patterns:
-            m9_hit = cls_re.search(ex["body"])
-            if m9_hit:
-                matched_classes.append(cls_name)
-                matched_snippets.append(html.unescape(m9_hit.group(0)).strip()[:80])
-
-        if matched_classes:
-            title_m9 = re.search(r"<title>([^<]+)</title>", ex["body"], re.IGNORECASE)
-            title_9 = html.unescape(title_m9.group(1)).strip()[:120] if title_m9 else ex["body"].strip().splitlines()[0][:120]
-            cfg09_findings.append(
-                {
-                    "url": ex["url"],
-                    "method": ex["method"],
-                    "status": st9,
-                    "classes": matched_classes,
-                    "snippets": matched_snippets,
-                    "detail": (
-                        f"{ex['method']} {ex['url']} -> HTTP {st9} leaked [{', '.join(matched_classes)}] "
-                        f"('{title_9}'; evidence: {', '.join(matched_snippets[:3])})"
-                    ),
-                }
-            )
-
-    for cf9 in cfg09_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-09",
-                "level": "error",
-                "message": {"text": cf9["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": cf9["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-09",
-                    "httpMethod": cf9["method"],
-                    "httpStatus": cf9["status"],
-                    "leakClasses": cf9["classes"],
-                    "evidenceSnippets": cf9["snippets"],
-                },
-            }
-        )
-
-    leaks_stack = len(cfg09_findings) > 0
+    # CFG-09: OWASP ZAP (Rule 90022) + Crawl 4xx/5xx Error Disclosure & Oversize/Malformed Probe (SARIF 2.1.0 + HAR 1.2)
+    cfg09_eval = evaluate_cfg09_error_disclosure(
+        base_url,
+        crawled_exchanges=crawled_exchanges,
+        zap_report=zap_domain4_report,
+        http_probe_fn=http_probe,
+    )
+    cfg09_findings = cfg09_eval["findings"]
+    dast_sarif_results.extend(cfg09_eval["sarifResults"])
+    cfg09_4xx_5xx_count = cfg09_eval["inspected4xx5xxCount"]
+    leaks_stack = cfg09_eval["leaks_stack"]
     cfg09_lines = [cf9["detail"] for cf9 in cfg09_findings]
     results["CFG-09"] = {
         "verdict": "FAIL" if leaks_stack else "PASS",
-        "tool": f"Crawl-Wide 4xx/5xx Error Disclosure & Oversize/Malformed Probe ({cfg09_4xx_5xx_count} 4xx/5xx responses inspected, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"OWASP ZAP {zap_ver_label} (Rule 90022) & Crawl 4xx/5xx Error Disclosure Probe ({cfg09_4xx_5xx_count} 4xx/5xx responses inspected, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[FAIL] {len(cfg09_findings)}/{cfg09_4xx_5xx_count} 4xx/5xx error response(s) leak stack frames, file paths, SQL fragments, or internal routing details:\n  - "
+            f"[FAIL] {len(cfg09_findings)}/{cfg09_4xx_5xx_count} 4xx/5xx error response(s) leak stack frames, file paths, SQL fragments, or internal routing details (ZAP plugins={cfg09_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(cfg09_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
             if leaks_stack
-            else f"[PASS] Inspected {cfg09_4xx_5xx_count} 4xx/5xx responses (including malformed types, oversize body, and forced error probes); 0 stack frames, file paths, SQL fragments, or internal route details disclosed.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            else f"[PASS] OWASP ZAP {zap_ver_label} and {cfg09_4xx_5xx_count} inspected 4xx/5xx responses (malformed types, oversize body, forced error probes) found 0 stack frames, file paths, SQL fragments, or internal route details.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

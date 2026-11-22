@@ -2504,6 +2504,114 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 32/61: CFG-08 (Iteração SDD 102)", just2_txt)
 
+    def test_iteration103_cfg09_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg09_error_disclosure
+
+        class _Cfg09Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "generic"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def _read_body(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                if length:
+                    return self.rfile.read(length)
+                return b""
+
+            def do_GET(self):
+                m = type(self).mode
+                p = self.path.split("?", 1)[0]
+                if p == "/":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<html><body>Home</body></html>")
+                    return
+                if m == "generic":
+                    self.send_response(404 if "nonexistent" in p else 400)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"Invalid request"}')
+                    return
+                if m == "sql_trace" and "/rest/products/search" in p:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(
+                        b"<html><body>You have an error in your SQL syntax; SQLITE_ERROR\n"
+                        b"Traceback (most recent call last):\n"
+                        b'<ul id="stacktrace"><li>at Object.search (node_modules/sequelize/lib/model.js:12:4)</li></ul>'
+                        b"</body></html>"
+                    )
+                    return
+                if m == "path_leak" and "nonexistent" in p:
+                    self.send_response(404)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(b"ENOENT: no such file '/srv/app/config/secret.md'")
+                    return
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error":"Invalid request"}')
+
+            def do_POST(self):
+                body = self._read_body()
+                if type(self).mode == "generic":
+                    self.send_response(413 if len(body) > 100000 else 400)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"Request rejected"}')
+                    return
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error":"Request rejected"}')
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg09Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg9:
+            tdp = Path(td_cfg9)
+            try:
+                # 1. Generic 4xx error messages -> PASS via OWASP ZAP 2.17.0
+                _Cfg09Handler.mode = "generic"
+                r_pass = evaluate_cfg09_error_disclosure(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c9_pass.json",
+                    sarif_out_path=tdp / "zap_c9_pass.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertGreaterEqual(r_pass["inspected4xx5xxCount"], 1)
+                self.assertTrue(r_pass["zap"]["executed"])
+
+                # 2. HTTP 500 SQL syntax + Traceback -> FAIL caught by real OWASP ZAP 90022 + probe
+                _Cfg09Handler.mode = "sql_trace"
+                r_sql = evaluate_cfg09_error_disclosure(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c9_sql.json",
+                    sarif_out_path=tdp / "zap_c9_sql.sarif",
+                )
+                self.assertEqual(r_sql["verdict"], "FAIL")
+                self.assertIn("90022", r_sql["zapPluginsMatched"], f"Expected ZAP 90022, got {r_sql}")
+
+                # 3. 404 ENOENT filesystem path leak -> FAIL
+                _Cfg09Handler.mode = "path_leak"
+                r_path = evaluate_cfg09_error_disclosure(f"http://127.0.0.1:{port}", zap_report=r_pass["zap"])
+                self.assertEqual(r_path["verdict"], "FAIL")
+                self.assertTrue(any("filesystem_path" in f["classes"] for f in r_path["findings"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 33/61: CFG-09 (Iteração SDD 103)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

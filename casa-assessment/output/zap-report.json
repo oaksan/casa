@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Sun, 22 Nov 2026 17:16:19",
-	"created": "2026-11-22T20:16:19.050791636Z",
+	"@generated": "Sun, 22 Nov 2026 17:58:38",
+	"created": "2026-11-22T20:58:38.136624227Z",
 	"insights":[
 		{
 			"level": "Low",
@@ -143,7 +143,7 @@
 					"desc": "<p>The Content Security Policy fails to define one of the directives that has no fallback. Missing/excluding them is the same as allowing anything.</p>",
 					"instances":[ 
 						{
-							"id": "68",
+							"id": "70",
 							"uri": "http://localhost:3000/assets",
 							"nodeName": "http:\/\/localhost:3000\/assets",
 							"method": "GET",
@@ -173,7 +173,7 @@
 					"desc": "<p>Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.</p>",
 					"instances":[ 
 						{
-							"id": "6",
+							"id": "5",
 							"uri": "http://localhost:3000",
 							"nodeName": "http:\/\/localhost:3000",
 							"method": "GET",
@@ -193,9 +193,9 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "28",
-							"uri": "http://localhost:3000/ftp/eastere.gg",
-							"nodeName": "http:\/\/localhost:3000\/ftp\/eastere.gg",
+							"id": "22",
+							"uri": "http://localhost:3000/ftp/coupons_2013.md.bak",
+							"nodeName": "http:\/\/localhost:3000\/ftp\/coupons_2013.md.bak",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -203,7 +203,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "22",
+							"id": "28",
 							"uri": "http://localhost:3000/ftp/encrypt.pyc",
 							"nodeName": "http:\/\/localhost:3000\/ftp\/encrypt.pyc",
 							"method": "GET",
@@ -213,7 +213,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "4",
+							"id": "6",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",
@@ -243,7 +243,7 @@
 					"desc": "<p>Web browser data loading may be possible, due to a Cross Origin Resource Sharing (CORS) misconfiguration on the web server.</p>",
 					"instances":[ 
 						{
-							"id": "0",
+							"id": "1",
 							"uri": "http://localhost:3000/assets/public/favicon_js.ico",
 							"nodeName": "http:\/\/localhost:3000\/assets\/public\/favicon_js.ico",
 							"method": "GET",
@@ -254,6 +254,16 @@
 						},
 						{
 							"id": "2",
+							"uri": "http://localhost:3000/chunk-CE5v8pBj.js",
+							"nodeName": "http:\/\/localhost:3000\/chunk-CE5v8pBj.js",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "Access-Control-Allow-Origin: *",
+							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+						},
+						{
+							"id": "3",
 							"uri": "http://localhost:3000/robots.txt",
 							"nodeName": "http:\/\/localhost:3000\/robots.txt",
 							"method": "GET",
@@ -263,19 +273,9 @@
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						},
 						{
-							"id": "3",
-							"uri": "http://localhost:3000/rolldown-runtime-kqx1xuJ_.js",
-							"nodeName": "http:\/\/localhost:3000\/rolldown-runtime-kqx1xuJ_.js",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "Access-Control-Allow-Origin: *",
-							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
-						},
-						{
-							"id": "5",
-							"uri": "http://localhost:3000/sitemap.xml",
-							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
+							"id": "4",
+							"uri": "http://localhost:3000/styles.css",
+							"nodeName": "http:\/\/localhost:3000\/styles.css",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -340,7 +340,7 @@
 					"reference": "",
 					"cweid": "615",
 					"wascid": "13",
-					"sourceid": "27"
+					"sourceid": "23"
 				},
 				{
 					"pluginid": "10109",
@@ -353,7 +353,7 @@
 					"desc": "<p>The application appears to be a modern web application. If you need to explore it automatically then the Ajax Spider may well be more effective than the standard one.</p>",
 					"instances":[ 
 						{
-							"id": "12",
+							"id": "11",
 							"uri": "http://localhost:3000",
 							"nodeName": "http:\/\/localhost:3000",
 							"method": "GET",
@@ -363,7 +363,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "37",
+							"id": "32",
 							"uri": "http://localhost:3000/",
 							"nodeName": "http:\/\/localhost:3000\/",
 							"method": "GET",
@@ -373,9 +373,9 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "65",
-							"uri": "http://localhost:3000/backup",
-							"nodeName": "http:\/\/localhost:3000\/backup",
+							"id": "62",
+							"uri": "http://localhost:3000/files",
+							"nodeName": "http:\/\/localhost:3000\/files",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -393,7 +393,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "7",
+							"id": "12",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",
@@ -410,7 +410,7 @@
 					"reference": "",
 					"cweid": "-1",
 					"wascid": "-1",
-					"sourceid": "7"
+					"sourceid": "1"
 				}
 			]
 		}

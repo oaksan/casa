@@ -5925,6 +5925,161 @@ def evaluate_cfg05_clickjacking(
     }
 
 
+def evaluate_cfg06_xcto(
+    target_url: str,
+    *,
+    crawled_exchanges: list[dict] | None = None,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate CFG-06 using OWASP ZAP (Rule 10021) + 100% Crawl X-Content-Type-Options Inspector."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+
+    def _default_probe(path_or_url: str) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req = urllib.request.Request(url, headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}, method="GET")
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            try:
+                body = he.read(16384).decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, body
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    exchanges = list(crawled_exchanges) if crawled_exchanges is not None else []
+    if crawled_exchanges is None:
+        for p_check in ["/", "/ftp/legal.md", "/metrics"]:
+            st, hdrs, body = _default_probe(p_check)
+            exchanges.append({"method": "GET", "url": f"{base_url}{p_check}", "status": st, "headers": hdrs, "body": body})
+    elif http_probe_fn is not None:
+        for extra_ep in ["/ftp/legal.md", "/metrics"]:
+            st, hdrs, body = http_probe_fn(extra_ep)
+            ep_full = f"{base_url}{extra_ep}"
+            if all(e.get("url") != ep_full for e in exchanges):
+                exchanges.append({"method": "GET", "url": ep_full, "status": st, "headers": hdrs, "body": body})
+
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[f"{base_url}/metrics", f"{base_url}/ftp/legal.md"],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    cfg06_total = 0
+    cfg06_compliant = 0
+    cfg06_violations: list[dict] = []
+    seen_cfg06_urls: set[str] = set()
+    compliant_urls: set[str] = set()
+    violating_by_url: dict[str, dict] = {}
+
+    for ex in exchanges:
+        st = ex.get("status", 0)
+        if st <= 0:
+            continue
+        ex_url = ex.get("url", base_url)
+        ex_method = ex.get("method", "GET")
+        ex_hdrs = ex.get("headers") or {}
+        key_url = f"{ex_method} {ex_url}#{st}"
+        if key_url in seen_cfg06_urls:
+            continue
+        seen_cfg06_urls.add(key_url)
+        cfg06_total += 1
+        xcto_val = ex_hdrs.get("x-content-type-options", "").strip()
+        norm_url = ex_url.rstrip("/") or "/"
+        if xcto_val.lower() == "nosniff":
+            cfg06_compliant += 1
+            compliant_urls.add(norm_url)
+        else:
+            item = {
+                "url": ex_url,
+                "method": ex_method,
+                "status": st,
+                "observed": xcto_val or "<missing>",
+                "source": "Header",
+                "detail": (
+                    f"{ex_method} {ex_url} (HTTP {st}, Content-Type: "
+                    f"{ex_hdrs.get('content-type', '<none>')}) returned "
+                    f"X-Content-Type-Options: '{xcto_val or '<missing>'}' (expected 'nosniff')"
+                ),
+            }
+            cfg06_violations.append(item)
+            violating_by_url[norm_url] = item
+
+    zap_matched_plugins: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid == "10021" or "x-content-type-options" in low_a:
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                norm_uri = uri.rstrip("/") or "/"
+                if norm_uri in compliant_urls and norm_uri not in violating_by_url:
+                    continue
+                zap_matched_plugins.add(pid or "10021")
+                if norm_uri in violating_by_url:
+                    violating_by_url[norm_uri]["source"] = f"OWASP ZAP:{pid or '10021'}+Header"
+                else:
+                    cfg06_total += 1
+                    item = {
+                        "url": uri,
+                        "method": str(inst.get("method") or "GET"),
+                        "status": 200,
+                        "observed": "<missing>",
+                        "source": f"OWASP ZAP:{pid or '10021'}",
+                        "detail": f"[OWASP ZAP {pid or '10021'}] {aname} at {uri} (expected 'X-Content-Type-Options: nosniff')",
+                    }
+                    cfg06_violations.append(item)
+                    violating_by_url[norm_uri] = item
+
+    sarif_items: list[dict] = []
+    for v6 in cfg06_violations:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-06",
+                "level": "error",
+                "message": {"text": v6["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": v6["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-06",
+                    "source": v6["source"],
+                    "httpMethod": v6["method"],
+                    "httpStatus": v6["status"],
+                    "observedHeader": v6["observed"],
+                },
+            }
+        )
+
+    cfg06_pass = cfg06_total > 0 and len(cfg06_violations) == 0
+    cfg06_pct = round((cfg06_compliant / cfg06_total) * 100, 1) if cfg06_total else 0.0
+    return {
+        "verdict": "PASS" if cfg06_pass else "FAIL",
+        "cfg06_pass": cfg06_pass,
+        "totalResponses": cfg06_total,
+        "compliantResponses": cfg06_compliant,
+        "compliancePct": cfg06_pct,
+        "violations": cfg06_violations,
+        "sarifResults": sarif_items,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -6498,75 +6653,29 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-06: X-Content-Type-Options: nosniff present on 100% of HTTP responses across the crawl (SARIF 2.1.0 + HAR 1.2)
-    # Sample representative static file/asset if not yet in crawled_exchanges
-    http_probe("/ftp/legal.md")
-
-    cfg06_total = 0
-    cfg06_compliant = 0
-    cfg06_violations: list[dict] = []
-    seen_cfg06_urls: set[str] = set()
-
-    for ex in crawled_exchanges:
-        if ex["status"] <= 0:
-            continue
-        key_url = f"{ex['method']} {ex['url']}#{ex['status']}"
-        if key_url in seen_cfg06_urls:
-            continue
-        seen_cfg06_urls.add(key_url)
-        cfg06_total += 1
-        xcto_val = ex["headers"].get("x-content-type-options", "").strip()
-        if xcto_val.lower() == "nosniff":
-            cfg06_compliant += 1
-        else:
-            cfg06_violations.append(
-                {
-                    "url": ex["url"],
-                    "method": ex["method"],
-                    "status": ex["status"],
-                    "observed": xcto_val or "<missing>",
-                    "detail": (
-                        f"{ex['method']} {ex['url']} (HTTP {ex['status']}, Content-Type: "
-                        f"{ex['headers'].get('content-type', '<none>')}) returned "
-                        f"X-Content-Type-Options: '{xcto_val or '<missing>'}' (expected 'nosniff')"
-                    ),
-                }
-            )
-
-    for v6 in cfg06_violations:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-06",
-                "level": "error",
-                "message": {"text": v6["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": v6["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-06",
-                    "httpMethod": v6["method"],
-                    "httpStatus": v6["status"],
-                    "observedHeader": v6["observed"],
-                },
-            }
-        )
-
-    cfg06_pass = cfg06_total > 0 and len(cfg06_violations) == 0
-    cfg06_pct = round((cfg06_compliant / cfg06_total) * 100, 1) if cfg06_total else 0.0
+    # CFG-06: OWASP ZAP (Rule 10021) + Crawl-Wide X-Content-Type-Options: nosniff Inspector (SARIF 2.1.0 + HAR 1.2)
+    cfg06_eval = evaluate_cfg06_xcto(
+        base_url,
+        crawled_exchanges=crawled_exchanges,
+        zap_report=zap_domain4_report,
+        http_probe_fn=http_probe,
+    )
+    cfg06_violations = cfg06_eval["violations"]
+    dast_sarif_results.extend(cfg06_eval["sarifResults"])
+    cfg06_total = cfg06_eval["totalResponses"]
+    cfg06_compliant = cfg06_eval["compliantResponses"]
+    cfg06_pass = cfg06_eval["cfg06_pass"]
+    cfg06_pct = cfg06_eval["compliancePct"]
     cfg06_lines = [v["detail"] for v in cfg06_violations]
     results["CFG-06"] = {
         "verdict": "PASS" if cfg06_pass else "FAIL",
-        "tool": f"Crawl-Wide X-Content-Type-Options Inspector ({cfg06_total} HTTP responses inspected, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"OWASP ZAP {zap_ver_label} (Rule 10021) & Crawl-Wide X-Content-Type-Options Inspector ({cfg06_total} HTTP responses inspected, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[PASS] X-Content-Type-Options: nosniff present on 100% ({cfg06_compliant}/{cfg06_total}) of crawled HTTP responses.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            f"[PASS] OWASP ZAP {zap_ver_label} and crawl inspection verified X-Content-Type-Options: nosniff on 100% ({cfg06_compliant}/{cfg06_total}) of HTTP responses.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
             if cfg06_pass
-            else f"[FAIL] X-Content-Type-Options: nosniff present on only {cfg06_compliant}/{cfg06_total} ({cfg06_pct}% < 100%) of crawled HTTP responses ({len(cfg06_violations)} violation(s)):\n  - "
+            else f"[FAIL] X-Content-Type-Options: nosniff present on only {cfg06_compliant}/{cfg06_total} ({cfg06_pct}% < 100%) of crawled HTTP responses ({len(cfg06_violations)} violation(s), ZAP plugins={cfg06_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(cfg06_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

@@ -2247,6 +2247,75 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 29/61: CFG-05 (Iteração SDD 099)", just2_txt)
 
+    def test_iteration100_cfg06_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg06_xcto
+
+        class _Cfg06Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "clean"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                m = type(self).mode
+                p = self.path.split("?", 1)[0]
+                self.send_response(200)
+                if p == "/metrics":
+                    self.send_header("Content-Type", "text/html")
+                    if m == "clean":
+                        self.send_header("X-Content-Type-Options", "nosniff")
+                elif m == "invalid" and p == "/":
+                    self.send_header("Content-Type", "text/html")
+                    self.send_header("X-Content-Type-Options", "invalid")
+                else:
+                    self.send_header("Content-Type", "text/html")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(b"<html><body><a href='/metrics'>metrics</a></body></html>")
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg06Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg6:
+            tdp = Path(td_cfg6)
+            try:
+                # 1. 100% X-Content-Type-Options: nosniff -> PASS via OWASP ZAP 2.17.0
+                _Cfg06Handler.mode = "clean"
+                r_pass = evaluate_cfg06_xcto(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c6_pass.json",
+                    sarif_out_path=tdp / "zap_c6_pass.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertEqual(r_pass["compliancePct"], 100.0)
+                self.assertTrue(r_pass["zap"]["executed"])
+
+                # 2. Missing X-Content-Type-Options on /metrics -> FAIL caught by real OWASP ZAP 10021
+                _Cfg06Handler.mode = "partial"
+                r_partial = evaluate_cfg06_xcto(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c6_partial.json",
+                    sarif_out_path=tdp / "zap_c6_partial.sarif",
+                )
+                self.assertEqual(r_partial["verdict"], "FAIL")
+                self.assertLess(r_partial["compliancePct"], 100.0)
+                self.assertIn("10021", r_partial["zapPluginsMatched"], f"Expected ZAP rule 10021, got {r_partial}")
+
+                # 3. Malformed X-Content-Type-Options -> FAIL
+                _Cfg06Handler.mode = "invalid"
+                r_invalid = evaluate_cfg06_xcto(f"http://127.0.0.1:{port}", zap_report=r_pass["zap"])
+                self.assertEqual(r_invalid["verdict"], "FAIL")
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 30/61: CFG-06 (Iteração SDD 100)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

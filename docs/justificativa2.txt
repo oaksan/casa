@@ -1679,3 +1679,39 @@ CONTROLE 31/61: CFG-07 (Iteração SDD 101)
     `/rest/admin/application-configuration`, `/support/logs` e `/encryptionkeys`)
     respondem sem `Cache-Control: no-store` -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 32/61: CFG-08 (Iteração SDD 102)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-08` — *CORS uses a strict allow list; no wildcard with credentials; no unvalidated origin reflection* (ASVS V14.5.3 L1; CWE-942).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (regra passiva `10098` *Cross-Domain Misconfiguration*,
+    junto a sondas ativas equivalentes a Burp Suite / Schemathesis enviando
+    origens estrangeiras, `null` e sufixo compartilhado) com saída SARIF 2.1.0 + HAR 1.2.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 102`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-08` enviava as 21 sondas multi-origem inline em `run_dynamic_and_protocol_checks`,
+  sem consumir o alerta `10098` (*Cross-Domain Misconfiguration*) do **OWASP ZAP**.
+- O que foi feito e melhorado na Iteração SDD 102:
+  1) Extração para `evaluate_cfg08_cors(...)` em `casa_audit/scanner.py`
+     testando `https://evil.example.com`, `null` e `https://not<host>` em rotas
+     públicas, autenticadas (`auth_req_headers`), administrativas e `OPTIONS`.
+  2) Correlação da regra passiva **OWASP ZAP `10098`** para endpoints sensíveis
+     e deduplicação com violações `null_origin_accepted`, `reflected_*`,
+     `wildcard_with_credentials` e `permissive_wildcard_no_allowlist` sob `CASA3-CFG-08`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration102_cfg08_guide_tooling`) com OWASP ZAP `2.17.0`:
+  * **`PASS`** com allowlist estrita (`0` alertas `10098`, `0` reflexões).
+  * **`FAIL`** em wildcard sensível (capturado pela regra `10098` do ZAP),
+    reflexão de origens estrangeira/`null`/sufixo e `ACAO: *` + `ACAC: true`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Endpoints autenticados/sensíveis e `OPTIONS /rest/user/login` retornam
+    `Access-Control-Allow-Origin: *` (também sinalizado pelo ZAP `10098`) -> Veredito **`FAIL`**.
+================================================================================

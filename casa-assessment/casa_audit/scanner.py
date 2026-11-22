@@ -6282,6 +6282,211 @@ def evaluate_cfg07_anti_caching(
     }
 
 
+def evaluate_cfg08_cors(
+    target_url: str,
+    *,
+    auth_headers: dict[str, str] | None = None,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate CFG-08 using OWASP ZAP (Rule 10098) + Active Multi-Origin CORS Probe."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    host = parsed.hostname or "localhost"
+    is_https = parsed.scheme.lower() == "https"
+
+    def _default_probe(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}
+        if headers:
+            req_hdrs.update(headers)
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            try:
+                err_body = he.read(16384).decode("utf-8", errors="ignore")
+            except Exception:
+                err_body = ""
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, err_body
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    probe = http_probe_fn or _default_probe
+    auth_hdrs = dict(auth_headers or {})
+    suffix_origin = f"https://not{host}"
+    cors_probe_origins = [
+        ("foreign_origin", "https://evil.example.com"),
+        ("null_origin", "null"),
+        ("suffix_sharing_origin", suffix_origin),
+    ]
+    cors_endpoints = [
+        ("GET", "/", {}, False),
+        ("GET", "/rest/products/search?q=apple", {}, False),
+        ("GET", "/rest/user/whoami", auth_hdrs, True),
+        ("GET", "/rest/wallet/balance", auth_hdrs, True),
+        ("GET", "/api/Users/", auth_hdrs, True),
+        ("GET", "/rest/admin/application-configuration", {}, True),
+        ("OPTIONS", "/rest/user/login", {"Access-Control-Request-Method": "POST"}, True),
+    ]
+
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[
+                f"{base_url}/rest/admin/application-configuration",
+                f"{base_url}/rest/user/whoami",
+                f"{base_url}/rest/wallet/balance",
+            ],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    cfg08_findings: list[dict] = []
+    seen_cfg08_keys: set[tuple[str, str, str]] = set()
+    violating_by_path: dict[str, list[dict]] = {}
+    sensitive_paths = {
+        "/rest/user/whoami",
+        "/rest/wallet/balance",
+        "/api/Users/",
+        "/rest/admin/application-configuration",
+        "/rest/user/login",
+    }
+    cors_probes_sent = 0
+
+    for c_method, c_ep, c_base_hdrs, is_sensitive_ep in cors_endpoints:
+        for orig_kind, orig_val in cors_probe_origins:
+            hdrs_in = {**c_base_hdrs, "Origin": orig_val}
+            st8, hdrs8, _ = probe(c_ep, method=c_method, headers=hdrs_in)
+            cors_probes_sent += 1
+            acao = hdrs8.get("access-control-allow-origin", "").strip()
+            acac = hdrs8.get("access-control-allow-credentials", "").strip()
+            acao_l = acao.lower()
+            acac_l = acac.lower()
+
+            violation_type = None
+            detail = None
+            if acao_l == "null":
+                violation_type = "null_origin_accepted"
+                detail = f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} returned Access-Control-Allow-Origin: null (null origin accepted)"
+            elif acao_l == orig_val.lower():
+                violation_type = f"reflected_{orig_kind}"
+                detail = (
+                    f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} reflected untrusted {orig_kind} verbatim "
+                    f"(ACAO='{acao}', ACAC='{acac or 'false'}')"
+                )
+            elif acao_l == "*" and acac_l == "true":
+                violation_type = "wildcard_with_credentials"
+                detail = f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} combined Access-Control-Allow-Origin: * with Access-Control-Allow-Credentials: true"
+            elif acao_l == "*" and is_sensitive_ep:
+                violation_type = "permissive_wildcard_no_allowlist"
+                detail = (
+                    f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} returned wildcard Access-Control-Allow-Origin: * "
+                    f"on sensitive/API endpoint instead of strict allowlist (ASVS V14.5.3; ACAC='{acac or '<none>'}')"
+                )
+
+            if violation_type and detail:
+                dedup_k = (c_method, c_ep, violation_type)
+                if dedup_k not in seen_cfg08_keys:
+                    seen_cfg08_keys.add(dedup_k)
+                    item = {
+                        "url": f"{base_url}{c_ep}",
+                        "method": c_method,
+                        "status": st8,
+                        "violationType": violation_type,
+                        "originKind": orig_kind,
+                        "originSent": orig_val,
+                        "acao": acao,
+                        "acac": acac,
+                        "source": "MultiOriginProbe",
+                        "detail": detail,
+                    }
+                    cfg08_findings.append(item)
+                    ep_path = urllib.parse.urlparse(f"{base_url}{c_ep}").path.rstrip("/") or "/"
+                    violating_by_path.setdefault(ep_path, []).append(item)
+
+    zap_matched_plugins: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid == "10098" or "cross-domain" in low_a or "cors" in low_a:
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                inst_path = urllib.parse.urlparse(uri).path.rstrip("/") or "/"
+                if inst_path in violating_by_path:
+                    zap_matched_plugins.add(pid or "10098")
+                    for existing_item in violating_by_path[inst_path]:
+                        existing_item["source"] = f"OWASP ZAP:{pid or '10098'}+MultiOriginProbe"
+                elif inst_path in sensitive_paths or inst_path.startswith(("/api/", "/rest/admin")):
+                    zap_matched_plugins.add(pid or "10098")
+                    dedup_k = (str(inst.get("method") or "GET"), inst_path, "zap_cross_domain_misconfiguration")
+                    if dedup_k not in seen_cfg08_keys:
+                        seen_cfg08_keys.add(dedup_k)
+                        item = {
+                            "url": uri,
+                            "method": str(inst.get("method") or "GET"),
+                            "status": 200,
+                            "violationType": "zap_cross_domain_misconfiguration",
+                            "originKind": "zap_passive_10098",
+                            "originSent": "*",
+                            "acao": str(inst.get("evidence") or "*"),
+                            "acac": "",
+                            "source": f"OWASP ZAP:{pid or '10098'}",
+                            "detail": f"[OWASP ZAP {pid or '10098'}] {aname} at {uri} (evidence='{inst.get('evidence', '')}')",
+                        }
+                        cfg08_findings.append(item)
+                        violating_by_path.setdefault(inst_path, []).append(item)
+
+    sarif_items: list[dict] = []
+    for cf8 in cfg08_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-08",
+                "level": "error",
+                "message": {"text": cf8["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": cf8["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-08",
+                    "source": cf8["source"],
+                    "violationType": cf8["violationType"],
+                    "originTested": cf8["originSent"],
+                    "acao": cf8["acao"],
+                    "acac": cf8["acac"],
+                    "httpMethod": cf8["method"],
+                    "httpStatus": cf8["status"],
+                },
+            }
+        )
+
+    cors_bad = len(cfg08_findings) > 0
+    return {
+        "verdict": "FAIL" if cors_bad else "PASS",
+        "cors_bad": cors_bad,
+        "probesSent": cors_probes_sent,
+        "endpointsCount": len(cors_endpoints),
+        "suffixOrigin": suffix_origin,
+        "findings": cfg08_findings,
+        "sarifResults": sarif_items,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -6908,112 +7113,28 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-08: Strict CORS allowlist, null/suffix-sharing/foreign origin reflection & wildcard+credentials audit (SARIF 2.1.0 + HAR 1.2)
-    suffix_origin = f"https://not{host}"
-    cors_probe_origins = [
-        ("foreign_origin", "https://evil.example.com"),
-        ("null_origin", "null"),
-        ("suffix_sharing_origin", suffix_origin),
-    ]
-    cors_endpoints = [
-        ("GET", "/", {}, False),
-        ("GET", "/rest/products/search?q=apple", {}, False),
-        ("GET", "/rest/user/whoami", auth_req_headers, True),
-        ("GET", "/rest/wallet/balance", auth_req_headers, True),
-        ("GET", "/api/Users/", auth_req_headers, True),
-        ("GET", "/rest/admin/application-configuration", {}, True),
-        ("OPTIONS", "/rest/user/login", {"Access-Control-Request-Method": "POST"}, True),
-    ]
-
-    cfg08_findings: list[dict] = []
-    seen_cfg08_keys: set[tuple[str, str, str]] = set()
-    cors_probes_sent = 0
-
-    for c_method, c_ep, c_base_hdrs, is_sensitive_ep in cors_endpoints:
-        for orig_kind, orig_val in cors_probe_origins:
-            hdrs_in = {**c_base_hdrs, "Origin": orig_val}
-            st8, hdrs8, _ = http_probe(c_ep, method=c_method, headers=hdrs_in)
-            cors_probes_sent += 1
-            acao = hdrs8.get("access-control-allow-origin", "").strip()
-            acac = hdrs8.get("access-control-allow-credentials", "").strip()
-            acao_l = acao.lower()
-            acac_l = acac.lower()
-
-            violation_type = None
-            detail = None
-            if acao_l == "null":
-                violation_type = "null_origin_accepted"
-                detail = f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} returned Access-Control-Allow-Origin: null (null origin accepted)"
-            elif acao_l == orig_val.lower():
-                violation_type = f"reflected_{orig_kind}"
-                detail = (
-                    f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} reflected untrusted {orig_kind} verbatim "
-                    f"(ACAO='{acao}', ACAC='{acac or 'false'}')"
-                )
-            elif acao_l == "*" and acac_l == "true":
-                violation_type = "wildcard_with_credentials"
-                detail = f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} combined Access-Control-Allow-Origin: * with Access-Control-Allow-Credentials: true"
-            elif acao_l == "*" and is_sensitive_ep:
-                violation_type = "permissive_wildcard_no_allowlist"
-                detail = (
-                    f"{c_method} {base_url}{c_ep} (Origin: {orig_val}) -> HTTP {st8} returned wildcard Access-Control-Allow-Origin: * "
-                    f"on sensitive/API endpoint instead of strict allowlist (ASVS V14.5.3; ACAC='{acac or '<none>'}')"
-                )
-
-            if violation_type and detail:
-                dedup_k = (c_method, c_ep, violation_type)
-                if dedup_k not in seen_cfg08_keys:
-                    seen_cfg08_keys.add(dedup_k)
-                    cfg08_findings.append(
-                        {
-                            "url": f"{base_url}{c_ep}",
-                            "method": c_method,
-                            "status": st8,
-                            "violationType": violation_type,
-                            "originKind": orig_kind,
-                            "originSent": orig_val,
-                            "acao": acao,
-                            "acac": acac,
-                            "detail": detail,
-                        }
-                    )
-
-    for cf8 in cfg08_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-08",
-                "level": "error",
-                "message": {"text": cf8["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": cf8["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-08",
-                    "violationType": cf8["violationType"],
-                    "originTested": cf8["originSent"],
-                    "acao": cf8["acao"],
-                    "acac": cf8["acac"],
-                    "httpMethod": cf8["method"],
-                    "httpStatus": cf8["status"],
-                },
-            }
-        )
-
-    cors_bad = len(cfg08_findings) > 0
+    # CFG-08: OWASP ZAP (Rule 10098) + Active Multi-Origin CORS Allowlist Probe (SARIF 2.1.0 + HAR 1.2)
+    cfg08_eval = evaluate_cfg08_cors(
+        base_url,
+        auth_headers=auth_req_headers,
+        zap_report=zap_domain4_report,
+        http_probe_fn=http_probe,
+    )
+    cfg08_findings = cfg08_eval["findings"]
+    dast_sarif_results.extend(cfg08_eval["sarifResults"])
+    cors_probes_sent = cfg08_eval["probesSent"]
+    suffix_origin = cfg08_eval["suffixOrigin"]
+    cors_bad = cfg08_eval["cors_bad"]
     cfg08_lines = [f"[{cf8['violationType']}] {cf8['detail']}" for cf8 in cfg08_findings]
     results["CFG-08"] = {
         "verdict": "FAIL" if cors_bad else "PASS",
-        "tool": f"Multi-Origin Active CORS Allowlist Probe ({cors_probes_sent} probes across {len(cors_endpoints)} endpoints: foreign, null, suffix-sharing, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"OWASP ZAP {zap_ver_label} (Rule 10098) & Multi-Origin Active CORS Allowlist Probe ({cors_probes_sent} probes across {cfg08_eval['endpointsCount']} endpoints, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[FAIL] {len(cfg08_findings)} CORS policy violation(s) detected across {cors_probes_sent} active probes (tested Origins: https://evil.example.com, null, {suffix_origin}):\n  - "
+            f"[FAIL] {len(cfg08_findings)} CORS policy violation(s) detected across {cors_probes_sent} active probes and ZAP Rule 10098 (tested Origins: https://evil.example.com, null, {suffix_origin}; ZAP plugins={cfg08_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(cfg08_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
             if cors_bad
-            else f"[PASS] Sent {cors_probes_sent} CORS probes across {len(cors_endpoints)} endpoints (foreign, null, and suffix-sharing '{suffix_origin}'): 0 reflected origins, 0 null acceptances, 0 wildcard+credentials, and strict allowlist enforced on sensitive endpoints.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            else f"[PASS] OWASP ZAP {zap_ver_label} and {cors_probes_sent} active CORS probes across {cfg08_eval['endpointsCount']} endpoints (foreign, null, and suffix-sharing '{suffix_origin}') verified strict allowlist with 0 reflected origins, 0 null acceptances, and 0 wildcard+credentials.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

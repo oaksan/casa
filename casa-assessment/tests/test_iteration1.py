@@ -2419,6 +2419,91 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 31/61: CFG-07 (Iteração SDD 101)", just2_txt)
 
+    def test_iteration102_cfg08_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg08_cors
+
+        class _Cfg08Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "strict"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def _reply(self, status: int = 200):
+                m = type(self).mode
+                origin = self.headers.get("Origin", "")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                if m == "strict":
+                    if origin == "https://trusted.example.com":
+                        self.send_header("Access-Control-Allow-Origin", origin)
+                elif m == "wildcard_sensitive":
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                elif m == "reflect_all":
+                    if origin:
+                        self.send_header("Access-Control-Allow-Origin", origin)
+                        self.send_header("Access-Control-Allow-Credentials", "true")
+                elif m == "wildcard_creds":
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.send_header("Access-Control-Allow-Credentials", "true")
+                self.end_headers()
+                if status == 200:
+                    self.wfile.write(b'{"status":"ok"}')
+
+            def do_GET(self):
+                self._reply(200)
+
+            def do_OPTIONS(self):
+                self._reply(204)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg08Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg8:
+            tdp = Path(td_cfg8)
+            try:
+                # 1. Strict allowlist -> PASS via OWASP ZAP 2.17.0
+                _Cfg08Handler.mode = "strict"
+                r_pass = evaluate_cfg08_cors(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c8_pass.json",
+                    sarif_out_path=tdp / "zap_c8_pass.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["zap"]["executed"])
+
+                # 2. Permissive ACAO: * on sensitive routes -> FAIL caught by real OWASP ZAP 10098 + probe
+                _Cfg08Handler.mode = "wildcard_sensitive"
+                r_wild = evaluate_cfg08_cors(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c8_wild.json",
+                    sarif_out_path=tdp / "zap_c8_wild.sarif",
+                )
+                self.assertEqual(r_wild["verdict"], "FAIL")
+                self.assertIn("10098", r_wild["zapPluginsMatched"], f"Expected ZAP 10098, got {r_wild}")
+
+                # 3. Reflection of foreign, null, and suffix-sharing origins -> FAIL
+                _Cfg08Handler.mode = "reflect_all"
+                r_refl = evaluate_cfg08_cors(f"http://127.0.0.1:{port}", zap_report=r_pass["zap"])
+                self.assertEqual(r_refl["verdict"], "FAIL")
+                vtypes = {f["violationType"] for f in r_refl["findings"]}
+                self.assertTrue({"null_origin_accepted", "reflected_foreign_origin", "reflected_suffix_sharing_origin"}.issubset(vtypes))
+
+                # 4. Wildcard + Access-Control-Allow-Credentials: true -> FAIL
+                _Cfg08Handler.mode = "wildcard_creds"
+                r_wc = evaluate_cfg08_cors(f"http://127.0.0.1:{port}", zap_report=r_pass["zap"])
+                self.assertEqual(r_wc["verdict"], "FAIL")
+                self.assertTrue(any(f["violationType"] == "wildcard_with_credentials" for f in r_wc["findings"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 32/61: CFG-08 (Iteração SDD 102)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

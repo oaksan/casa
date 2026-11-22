@@ -2132,6 +2132,53 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 27/61: CFG-03 (Iteração SDD 097)", just2_txt)
 
+    def test_iteration98_cfg04_guide_tooling(self) -> None:
+        from casa_audit.scanner import evaluate_cfg04_csp
+
+        def _ex(url: str, csp: str | None = None, ro_csp: str | None = None) -> dict:
+            hdrs = {"content-type": "text/html; charset=utf-8"}
+            if csp is not None:
+                hdrs["content-security-policy"] = csp
+            if ro_csp is not None:
+                hdrs["content-security-policy-report-only"] = ro_csp
+            return {"method": "GET", "url": url, "status": 200, "headers": hdrs, "body": "<html></html>"}
+
+        with tempfile.TemporaryDirectory() as td_cfg4:
+            tdp = Path(td_cfg4)
+            # 1. Strict CSP (style-src 'unsafe-inline' is allowed when script-src is strict) -> PASS via Google csp-evaluator
+            r_pass = evaluate_cfg04_csp(
+                "http://127.0.0.1:9999",
+                crawled_exchanges=[
+                    _ex("http://127.0.0.1:9999/", "default-src 'none'; script-src 'self' https://scripts.example.com; style-src 'self' 'unsafe-inline'"),
+                    _ex("http://127.0.0.1:9999/login", "default-src 'self'"),
+                ],
+                csp_out_path=tdp / "csp_pass.json",
+            )
+            self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+            self.assertTrue(r_pass["cspEvaluator"]["executed"])
+            self.assertTrue((tdp / "csp_pass.json").exists())
+
+            # 2. Forbidden tokens + missing + Report-Only -> FAIL detected by Google csp-evaluator (types 300/301/302/303/304)
+            r_fail = evaluate_cfg04_csp(
+                "http://127.0.0.1:9999",
+                crawled_exchanges=[
+                    _ex("http://127.0.0.1:9999/inline", "default-src 'self'; script-src 'self' 'unsafe-inline'"),
+                    _ex("http://127.0.0.1:9999/eval", "default-src 'self' 'unsafe-eval'"),
+                    _ex("http://127.0.0.1:9999/data", "default-src 'self'; script-src 'self' data:"),
+                    _ex("http://127.0.0.1:9999/wild", "default-src *; script-src *"),
+                    _ex("http://127.0.0.1:9999/nocsp", csp=None, ro_csp="default-src 'self'"),
+                    _ex("http://127.0.0.1:9999/noscript", "object-src 'none'"),
+                ],
+                csp_out_path=tdp / "csp_fail.json",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertEqual(len(r_fail["findings"]), 6)
+            all_types = {t for f in r_fail["findings"] for t in f.get("cspEvaluatorTypes", [])}
+            self.assertTrue({300, 301, 302, 303, 304}.issubset(all_types), f"Expected csp-evaluator types 300..304, got {all_types}")
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 28/61: CFG-04 (Iteração SDD 098)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

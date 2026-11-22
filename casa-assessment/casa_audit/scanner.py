@@ -47,6 +47,8 @@ GITLEAKS_BIN = shutil.which("gitleaks") or "/home/user/.local/bin/gitleaks"
 TESTSSL_BIN = shutil.which("testssl.sh") or shutil.which("testssl") or "/home/user/.local/bin/testssl.sh"
 ZAP_BIN = shutil.which("zap.sh") or shutil.which("zaproxy") or "/home/user/.local/bin/zap.sh"
 NUCLEI_BIN = shutil.which("nuclei") or "/home/user/.local/bin/nuclei"
+NODE_BIN = shutil.which("node") or "/usr/bin/node"
+CSP_EVALUATOR_PKG = Path("/home/user/.local/share/csp_evaluator/node_modules/csp_evaluator")
 
 
 def load_controls() -> list[dict]:
@@ -5512,6 +5514,261 @@ def evaluate_cfg03_version_disclosure(
     }
 
 
+def _parse_csp_directives(policy_str: str) -> dict[str, list[str]]:
+    directives: dict[str, list[str]] = {}
+    for raw_dir in policy_str.split(";"):
+        parts = raw_dir.strip().split()
+        if not parts:
+            continue
+        dname = parts[0].lower()
+        directives[dname] = [p.strip().lower() for p in parts[1:]]
+    return directives
+
+
+def run_csp_evaluator_batch(
+    policies: list[str],
+    *,
+    json_out_path: Path | None = None,
+    timeout_sec: int = 30,
+) -> dict:
+    """Evaluate Content-Security-Policy strings using Google csp-evaluator via Node.js."""
+    unique_policies: list[str] = []
+    seen_p: set[str] = set()
+    for pol in policies:
+        p = (pol or "").strip()
+        if p and p not in seen_p:
+            seen_p.add(p)
+            unique_policies.append(p)
+
+    report_path = json_out_path or (OUTPUT_DIR / "csp-evaluator.json")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    eval_js = CSP_EVALUATOR_PKG / "dist" / "evaluator.js"
+    parser_js = CSP_EVALUATOR_PKG / "dist" / "parser.js"
+    pkg_json = CSP_EVALUATOR_PKG / "package.json"
+    csp_ver = "unknown"
+    if pkg_json.exists():
+        try:
+            csp_ver = str(json.loads(pkg_json.read_text(encoding="utf-8")).get("version") or "unknown")
+        except Exception:
+            csp_ver = "unknown"
+
+    payload_out: dict = {
+        "tool": "csp-evaluator",
+        "version": csp_ver,
+        "executed": False,
+        "jsonPath": str(report_path),
+        "policiesEvaluated": len(unique_policies),
+        "results": {},
+        "error": None,
+    }
+
+    if not unique_policies:
+        payload_out["executed"] = Path(NODE_BIN).exists() and eval_js.exists() and parser_js.exists()
+        report_path.write_text(json.dumps(payload_out, indent=2, ensure_ascii=False), encoding="utf-8")
+        return payload_out
+
+    if not (Path(NODE_BIN).exists() and eval_js.exists() and parser_js.exists()):
+        payload_out["error"] = f"csp-evaluator runtime missing at {CSP_EVALUATOR_PKG}"
+        report_path.write_text(json.dumps(payload_out, indent=2, ensure_ascii=False), encoding="utf-8")
+        return payload_out
+
+    js_script = (
+        "const { CspEvaluator } = require(process.argv[1]);\n"
+        "const { CspParser } = require(process.argv[2]);\n"
+        "const policies = JSON.parse(process.argv[3]);\n"
+        "const out = {};\n"
+        "for (const pol of policies) {\n"
+        "  const parsed = new CspParser(pol).csp;\n"
+        "  const findings = new CspEvaluator(parsed).evaluate();\n"
+        "  out[pol] = findings.map(f => ({\n"
+        "    type: f.type,\n"
+        "    severity: f.severity,\n"
+        "    directive: f.directive || '',\n"
+        "    value: f.value || '',\n"
+        "    description: f.description || ''\n"
+        "  }));\n"
+        "}\n"
+        "process.stdout.write(JSON.stringify(out));\n"
+    )
+    try:
+        proc = subprocess.run(
+            [NODE_BIN, "-e", js_script, str(eval_js), str(parser_js), json.dumps(unique_policies)],
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            payload_out["results"] = json.loads(proc.stdout)
+            payload_out["executed"] = True
+        else:
+            payload_out["error"] = (proc.stderr or proc.stdout or f"exit {proc.returncode}")[:300]
+    except Exception as exc:
+        payload_out["error"] = str(exc)
+
+    report_path.write_text(json.dumps(payload_out, indent=2, ensure_ascii=False), encoding="utf-8")
+    return payload_out
+
+
+def evaluate_cfg04_csp(
+    target_url: str,
+    *,
+    crawled_exchanges: list[dict] | None = None,
+    zap_report: dict | None = None,
+    csp_out_path: Path | None = None,
+) -> dict:
+    """Evaluate CFG-04 using Google csp-evaluator across every crawled HTML route."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+
+    if crawled_exchanges is None:
+        req = urllib.request.Request(base_url + "/", headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}, method="GET")
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                body = resp.read(16384).decode("utf-8", errors="ignore")
+                exchanges = [{"method": "GET", "url": f"{base_url}/", "status": resp.status, "headers": {k.lower(): v for k, v in resp.headers.items()}, "body": body}]
+        except urllib.error.HTTPError as he:
+            body = he.read(16384).decode("utf-8", errors="ignore")
+            exchanges = [{"method": "GET", "url": f"{base_url}/", "status": he.code, "headers": {k.lower(): v for k, v in he.headers.items()}, "body": body}]
+        except Exception as exc:
+            exchanges = [{"method": "GET", "url": f"{base_url}/", "status": 0, "headers": {}, "body": f"Connection error: {exc}"}]
+    else:
+        exchanges = list(crawled_exchanges)
+
+    html_routes_seen: dict[str, dict] = {}
+    for ex in exchanges:
+        hdrs = ex.get("headers") or {}
+        ctype = hdrs.get("content-type", "").lower()
+        body_l = (ex.get("body") or "").lstrip().lower()
+        if "text/html" in ctype or body_l.startswith(("<!doctype html", "<html", "<!-- html")):
+            key_url = f"{ex.get('method', 'GET')} {ex.get('url', base_url)}"
+            if key_url not in html_routes_seen:
+                html_routes_seen[key_url] = ex
+
+    enforcing_policies = [
+        (ex.get("headers") or {}).get("content-security-policy", "").strip()
+        for ex in html_routes_seen.values()
+        if (ex.get("headers") or {}).get("content-security-policy", "").strip()
+    ]
+    csp_batch = run_csp_evaluator_batch(enforcing_policies, json_out_path=csp_out_path)
+    eval_results_map: dict[str, list[dict]] = csp_batch.get("results", {})
+
+    unsafe_csp_tokens = {"unsafe-inline", "unsafe-eval", "*", "data:", "data"}
+    cfg04_findings: list[dict] = []
+
+    for key_url, ex in html_routes_seen.items():
+        hdrs = ex.get("headers") or {}
+        enforcing_csp = hdrs.get("content-security-policy", "").strip()
+        report_only_csp = hdrs.get("content-security-policy-report-only", "").strip()
+        if not enforcing_csp:
+            note = " (only Content-Security-Policy-Report-Only present — not enforced)" if report_only_csp else ""
+            cfg04_findings.append(
+                {
+                    "url": ex.get("url", base_url),
+                    "method": ex.get("method", "GET"),
+                    "status": ex.get("status", 0),
+                    "issue": "missing_csp",
+                    "cspEvaluatorTypes": [],
+                    "detail": f"{key_url} (HTTP {ex.get('status', 0)}, Content-Type: {hdrs.get('content-type', 'text/html')}) missing enforcing Content-Security-Policy header{note}",
+                }
+            )
+            continue
+
+        dirs = _parse_csp_directives(enforcing_csp)
+        eff_source_name = "script-src" if "script-src" in dirs else ("default-src" if "default-src" in dirs else None)
+        pol_findings = eval_results_map.get(enforcing_csp, [])
+        missing_script_eval = [
+            f for f in pol_findings if f.get("type") == 300 and f.get("directive") in {"script-src", "default-src", ""}
+        ]
+        if not eff_source_name or missing_script_eval:
+            cfg04_findings.append(
+                {
+                    "url": ex.get("url", base_url),
+                    "method": ex.get("method", "GET"),
+                    "status": ex.get("status", 0),
+                    "issue": "no_effective_script_src",
+                    "cspEvaluatorTypes": [f.get("type") for f in missing_script_eval],
+                    "detail": f"{key_url} Content-Security-Policy defines neither script-src nor default-src fallback ('{enforcing_csp}')",
+                }
+            )
+            continue
+
+        eff_tokens = dirs[eff_source_name]
+        bad_tokens = [
+            tok for tok in eff_tokens
+            if tok.strip("'\"") in unsafe_csp_tokens or tok in {"*", "data:"}
+        ]
+        matched_eval_findings: list[dict] = []
+        for f in pol_findings:
+            if f.get("directive") != eff_source_name:
+                continue
+            ftype = f.get("type")
+            fval = str(f.get("value") or "").strip().lower()
+            if ftype in {301, 302}:
+                matched_eval_findings.append(f)
+            elif ftype == 303 and fval.rstrip(":") == "data":
+                matched_eval_findings.append(f)
+            elif ftype == 304 and fval == "*":
+                matched_eval_findings.append(f)
+
+        if matched_eval_findings or bad_tokens:
+            eval_summary = "; ".join(
+                f"csp-evaluator[{f.get('type')}]: {f.get('value')} ({f.get('description')})"
+                for f in matched_eval_findings
+            )
+            cfg04_findings.append(
+                {
+                    "url": ex.get("url", base_url),
+                    "method": ex.get("method", "GET"),
+                    "status": ex.get("status", 0),
+                    "issue": "unsafe_script_src_token",
+                    "cspEvaluatorTypes": sorted({int(f["type"]) for f in matched_eval_findings if f.get("type") is not None}),
+                    "tokens": bad_tokens,
+                    "detail": (
+                        f"{key_url} effective {eff_source_name} includes forbidden token(s) {bad_tokens or [f.get('value') for f in matched_eval_findings]} "
+                        f"in CSP '{enforcing_csp}'" + (f" [{eval_summary}]" if eval_summary else "")
+                    ),
+                }
+            )
+
+    zap_matched_plugins: set[str] = set()
+    for al in (zap_report or {}).get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        if pid in {"10038", "10055"}:
+            zap_matched_plugins.add(pid)
+
+    sarif_items: list[dict] = []
+    for cf4 in cfg04_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-04",
+                "level": "error",
+                "message": {"text": cf4["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": cf4["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-04",
+                    "issue": cf4["issue"],
+                    "cspEvaluatorTypes": cf4.get("cspEvaluatorTypes", []),
+                    "httpMethod": cf4["method"],
+                    "httpStatus": cf4["status"],
+                },
+            }
+        )
+
+    csp_ok = len(html_routes_seen) > 0 and len(cfg04_findings) == 0
+    return {
+        "verdict": "PASS" if csp_ok else "FAIL",
+        "csp_ok": csp_ok,
+        "htmlRoutesCount": len(html_routes_seen),
+        "findings": cfg04_findings,
+        "sarifResults": sarif_items,
+        "cspEvaluator": csp_batch,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -6023,20 +6280,10 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-04: Content-Security-Policy across every HTML route (SARIF 2.1.0 + HAR 1.2)
+    # CFG-04: Content-Security-Policy across every HTML route via Google csp-evaluator (SARIF 2.1.0 + HAR 1.2)
     csp = root_headers.get("content-security-policy", "")
+    parse_csp_directives = _parse_csp_directives
 
-    def parse_csp_directives(policy_str: str) -> dict[str, list[str]]:
-        directives: dict[str, list[str]] = {}
-        for raw_dir in policy_str.split(";"):
-            parts = raw_dir.strip().split()
-            if not parts:
-                continue
-            dname = parts[0].lower()
-            directives[dname] = [p.strip().lower() for p in parts[1:]]
-        return directives
-
-    unsafe_csp_tokens = {"unsafe-inline", "unsafe-eval", "*", "data:", "data"}
     html_routes_seen: dict[str, dict] = {}
     for ex in crawled_exchanges:
         ctype = ex["headers"].get("content-type", "").lower()
@@ -6048,87 +6295,26 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         if key_url not in html_routes_seen:
             html_routes_seen[key_url] = ex
 
-    cfg04_findings: list[dict] = []
-    for key_url, ex in html_routes_seen.items():
-        enforcing_csp = ex["headers"].get("content-security-policy", "").strip()
-        report_only_csp = ex["headers"].get("content-security-policy-report-only", "").strip()
-        if not enforcing_csp:
-            note = " (only Content-Security-Policy-Report-Only present — not enforced)" if report_only_csp else ""
-            cfg04_findings.append(
-                {
-                    "url": ex["url"],
-                    "method": ex["method"],
-                    "status": ex["status"],
-                    "issue": "missing_csp",
-                    "detail": f"{key_url} (HTTP {ex['status']}, Content-Type: {ex['headers'].get('content-type', 'text/html')}) missing enforcing Content-Security-Policy header{note}",
-                }
-            )
-            continue
-
-        dirs = parse_csp_directives(enforcing_csp)
-        eff_source_name = "script-src" if "script-src" in dirs else ("default-src" if "default-src" in dirs else None)
-        if not eff_source_name:
-            cfg04_findings.append(
-                {
-                    "url": ex["url"],
-                    "method": ex["method"],
-                    "status": ex["status"],
-                    "issue": "no_effective_script_src",
-                    "detail": f"{key_url} Content-Security-Policy defines neither script-src nor default-src fallback ('{enforcing_csp}')",
-                }
-            )
-            continue
-
-        eff_tokens = dirs[eff_source_name]
-        bad_tokens = [
-            tok
-            for tok in eff_tokens
-            if tok.strip("'\"") in unsafe_csp_tokens or tok in {"*", "data:"}
-        ]
-        if bad_tokens:
-            cfg04_findings.append(
-                {
-                    "url": ex["url"],
-                    "method": ex["method"],
-                    "status": ex["status"],
-                    "issue": "unsafe_script_src_token",
-                    "detail": f"{key_url} effective {eff_source_name} includes forbidden token(s) {bad_tokens} in CSP '{enforcing_csp}'",
-                }
-            )
-
-    for cf4 in cfg04_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-04",
-                "level": "error",
-                "message": {"text": cf4["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": cf4["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-04",
-                    "issue": cf4["issue"],
-                    "httpMethod": cf4["method"],
-                    "httpStatus": cf4["status"],
-                },
-            }
-        )
-
-    csp_ok = len(html_routes_seen) > 0 and len(cfg04_findings) == 0
+    cfg04_eval = evaluate_cfg04_csp(
+        base_url,
+        crawled_exchanges=crawled_exchanges,
+        zap_report=zap_domain4_report,
+    )
+    cfg04_findings = cfg04_eval["findings"]
+    dast_sarif_results.extend(cfg04_eval["sarifResults"])
+    csp_ok = cfg04_eval["csp_ok"]
+    csp_eval_meta = cfg04_eval["cspEvaluator"]
+    csp_eval_ver = csp_eval_meta.get("version") or "1.1.8"
     cfg04_lines = [cf4["detail"] for cf4 in cfg04_findings]
     results["CFG-04"] = {
         "verdict": "PASS" if csp_ok else "FAIL",
-        "tool": f"Multi-Route CSP Policy Evaluator ({len(html_routes_seen)} HTML routes inspected, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"Google csp-evaluator {csp_eval_ver} & Multi-Route HTML CSP Analyzer ({len(html_routes_seen)} HTML routes inspected, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[PASS] All {len(html_routes_seen)} HTML route(s) enforce Content-Security-Policy with safe effective script-src (excluding unsafe-inline, unsafe-eval, *, data:).\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            f"[PASS] Google csp-evaluator {csp_eval_ver} verified all {len(html_routes_seen)} HTML route(s) enforce Content-Security-Policy with safe effective script-src (excluding unsafe-inline, unsafe-eval, *, data:).\nEvidence Artifacts:\n  - csp-evaluator JSON: {csp_eval_meta.get('jsonPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
             if csp_ok
-            else f"[FAIL] {len(cfg04_findings)} CSP violation(s) across {len(html_routes_seen)} HTML route(s):\n  - "
+            else f"[FAIL] {len(cfg04_findings)} CSP violation(s) across {len(html_routes_seen)} HTML route(s) (csp-evaluator {csp_eval_ver}, ZAP plugins {cfg04_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(cfg04_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - csp-evaluator JSON: {csp_eval_meta.get('jsonPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

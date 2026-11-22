@@ -1523,3 +1523,45 @@ CONTROLE 27/61: CFG-03 (Iteração SDD 097)
     `/metrics` (`nodejs_version_info`) e tracebacks Express `/rest/user/login`
     -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 28/61: CFG-04 (Iteração SDD 098)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-04` — *Content-Security-Policy enforced; `script-src` excludes `unsafe-inline` and `unsafe-eval`* (ASVS V14.4.3 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **`csp-evaluator`** (Google `csp_evaluator@1.1.8` sobre todas as rotas HTML
+    do crawl), apoiado pelos artefatos SARIF 2.1.0 e HAR 1.2.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 098`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-04` utilizava apenas parser Python próprio inline (`parse_csp_directives`),
+  sem invocar a biblioteca oficial **`csp-evaluator`** (`csp_evaluator`) para
+  análise formal das políticas e emissão de relatório dedicado.
+- O que foi feito e melhorado na Iteração SDD 098:
+  1) Instalação oficial do pacote Google **`csp_evaluator@1.1.8`** em
+     `/home/user/.local/share/csp_evaluator` e criação de `NODE_BIN` /
+     `CSP_EVALUATOR_PKG` em `casa_audit/scanner.py`.
+  2) Implementação de `run_csp_evaluator_batch(...)` e `evaluate_cfg04_csp(...)`
+     invocando `CspParser` + `CspEvaluator` via Node.js para cada política
+     enforcing `Content-Security-Policy` coletada no crawl HTML, persistindo
+     `output/csp-evaluator.json` e mapeando rigorosamente os códigos do
+     `csp-evaluator` (`300 MISSING_DIRECTIVES`, `301 SCRIPT_UNSAFE_INLINE`,
+     `302 SCRIPT_UNSAFE_EVAL`, `303 PLAIN_URL_SCHEMES` para `data:`, e
+     `304 PLAIN_WILDCARD` para `*`) sobre `script-src` (ou fallback `default-src`).
+  3) Preservação da detecção de rotas HTML sem header CSP enforcing (inclusive
+     casos com apenas `Content-Security-Policy-Report-Only`) e correlação com
+     alertas `OWASP ZAP` (`10038`/`10055`) sob `CASA3-CFG-04`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration98_cfg04_guide_tooling`) com `csp_evaluator 1.1.8`:
+  * **`PASS`** com `default-src 'none'; script-src 'self' ...; style-src 'self' 'unsafe-inline'` e `default-src 'self'`.
+  * **`FAIL`** para `'unsafe-inline'` (`301`), `'unsafe-eval'` (`302`), `data:` (`303`), `*` (`304`), ausência de `script-src`/`default-src` (`300`) e CSP apenas em `Report-Only`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Todas as rotas HTML inspecionadas (e alertas ZAP `10038`) apontam ausência
+    de cabeçalho enforcing `Content-Security-Policy` -> Veredito **`FAIL`**.
+================================================================================

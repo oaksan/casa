@@ -2793,21 +2793,97 @@ def evaluate_sast02_trust_material_and_keys(
     return sast02_findings, sast02_sarif
 
 
-def evaluate_sast05_password_kdf(repo: Path) -> tuple[list[str], list[dict]]:
+_CSPRNG_SALT_TOKENS = (
+    "randombytes",
+    "randomuuid",
+    "getrandomvalues",
+    "os.urandom",
+    "secrets.token_bytes",
+    "secrets.token_hex",
+    "bcrypt.gensalt",
+    "bcrypt.gensalt(",
+)
+
+
+def _resolve_int_param(raw: str, file_text: str) -> int | None:
+    """Resolve an integer literal or simple constant assignment in the same source file."""
+    tok = raw.strip().replace("_", "")
+    if re.fullmatch(r"\d+", tok):
+        return int(tok)
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", tok):
+        m = re.search(rf"(?m)^(?:\s*(?:const|let|var)\s+)?{re.escape(tok)}\s*[:=]\s*(\d[\d_]*)\b", file_text)
+        if m:
+            return int(m.group(1).replace("_", ""))
+    return None
+
+
+def _salt_has_csprng_provenance(salt_expr: str, local_text: str) -> tuple[bool, str]:
+    """Verify per-record CSPRNG salt provenance statically over the enclosing local window."""
+    s = salt_expr.strip()
+    low = s.lower()
+    if not s or s.startswith(("'", '"', "b'", 'b"', "`")) or "math.random" in low:
+        return False, "literal or Math.random() salt"
+    if any(tok in low for tok in _CSPRNG_SALT_TOKENS):
+        return True, "inline CSPRNG call"
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
+        assign_re = re.compile(rf"(?m)\b{re.escape(s)}\s*=\s*([^\n;]+)")
+        matches = assign_re.findall(local_text)
+        if not matches:
+            return False, f"variable '{s}' has no statically determinable CSPRNG origin"
+        last_rhs = matches[-1].strip()
+        last_low = last_rhs.lower()
+        if "math.random" in last_low or not any(tok in last_low for tok in _CSPRNG_SALT_TOKENS):
+            return False, f"variable '{s}' origin '{last_rhs}' is not CSPRNG"
+        return True, "CSPRNG-derived variable"
+    return False, f"expression '{s}' provenance not statically determinable"
+
+
+def evaluate_sast05_password_kdf(
+    repo: Path,
+    semgrep_hits: list[str] | None = None,
+) -> tuple[list[str], list[dict]]:
     """
     Evaluate SAST-05 (CASA 3.0 AL1 / ASVS V2.4.1 / NIST SP 800-63B §5.1.1.2):
-    Verify that every password-persistence sink uses an approved memory-hard KDF
-    (Argon2id m>=19456 KiB & t>=2, scrypt N>=32768, bcrypt cost>=10, PBKDF2>=600000)
-    with a per-record CSPRNG salt.
+    Verify that every password-persistence sink uses Argon2id, scrypt, bcrypt, or PBKDF2-HMAC-SHA256,
+    meets NIST SP 800-63B cost floors (Argon2id m>=19456 KiB & t>=2, scrypt N>=32768, bcrypt>=10,
+    PBKDF2>=600000), and uses a statically provable per-record CSPRNG salt.
     """
     sast05_findings: list[str] = []
     sast05_sarif: list[dict] = []
+    seen_s5_locs: set[tuple[str, int]] = set()
 
-    bcrypt_re = re.compile(r"bcrypt\.(?:hash|hashSync|genSalt|genSaltSync)\s*\([^,]+,\s*(\d+)")
-    pbkdf2_re = re.compile(r"(?:pbkdf2|pbkdf2Sync)\s*\([^,]+,\s*([^,]+),\s*(\d+)")
-    scrypt_re = re.compile(r"scrypt(?:Sync)?\s*\([^)]*?\b(?:N|cost)\s*:\s*(\d+)")
-    argon_m_re = re.compile(r"memoryCost\s*:\s*(\d+)")
-    argon_t_re = re.compile(r"timeCost\s*:\s*(\d+)")
+    def _add_s5(rel: str, lno: int, rule_id: str, desc: str) -> None:
+        k = (rel, lno)
+        if k in seen_s5_locs:
+            return
+        seen_s5_locs.add(k)
+        sast05_findings.append(desc)
+        sast05_sarif.append(
+            {
+                "ruleId": rule_id,
+                "level": "error",
+                "message": {"text": desc},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}],
+            }
+        )
+
+    # 1. Include Semgrep SAST-05 AST findings when called standalone
+    if semgrep_hits is None:
+        _, sg_findings, sg_sarifs, _, _ = _evaluate_semgrep_control_sarif(repo, "SAST-05")
+        for sf, ss in zip(sg_findings, sg_sarifs):
+            loc_part = sf.split(" — ")[0]
+            rel_s, _, ln_s = loc_part.rpartition(":")
+            _add_s5(rel_s or loc_part, int(ln_s or 1), str(ss.get("ruleId") or "CASA3-SAST-05-semgrep"), sf)
+
+    bcrypt_re = re.compile(r"bcrypt\.(?:hash|hashSync|genSalt|genSaltSync)\s*\([^,]+,\s*([^,)]+)")
+    py_bcrypt_re = re.compile(r"bcrypt\.gensalt\s*\(([^)]*)\)")
+    pbkdf2_re = re.compile(r"(?:pbkdf2|pbkdf2Sync)\s*\([^,]+,\s*([^,]+),\s*([^,]+)(?:,\s*[^,]+,\s*(['\"][A-Za-z0-9_-]+['\"]))?")
+    py_pbkdf2_re = re.compile(r"hashlib\.pbkdf2_hmac\s*\(\s*([^,]+)\s*,\s*[^,]+\s*,\s*([^,]+)\s*,\s*([^,)]+)")
+    scrypt_re = re.compile(r"scrypt(?:Sync)?\s*\([^,]+,\s*([^,]+),\s*[^,]+(?:,\s*\{([^}]*)\})?")
+    py_scrypt_re = re.compile(r"hashlib\.scrypt\s*\(\s*[^,]+\s*,\s*salt\s*=\s*([^,]+)\s*,([^)]*)\)")
+    argon_m_re = re.compile(r"(?:memoryCost|memory_cost)\s*[:=]\s*([A-Za-z0-9_]+)")
+    argon_t_re = re.compile(r"(?:timeCost|time_cost)\s*[:=]\s*([A-Za-z0-9_]+)")
+    argon_type_re = re.compile(r"type\s*[:=]\s*([A-Za-z0-9_.]+)")
 
     for dname in ("models", "routes", "lib", "src", "app"):
         dp = repo / dname
@@ -2820,46 +2896,98 @@ def evaluate_sast05_password_kdf(repo: Path) -> tuple[list[str], list[dict]]:
             if ".spec." in rel or "test/" in rel:
                 continue
             try:
-                lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
+                file_text = fp.read_text(encoding="utf-8", errors="ignore")
             except Exception:
                 continue
+            lines = file_text.splitlines()
 
             for lno, line in enumerate(lines, start=1):
-                # 1. bcrypt cost check (< 10)
+                local_text = "\n".join(lines[max(0, lno - 25) : lno])
+                # 1. JS/TS bcrypt cost check (>= 10 and statically determinable)
                 m_bc = bcrypt_re.search(line)
                 if m_bc:
-                    cost = int(m_bc.group(1))
-                    if cost < 10:
-                        desc = f"{rel}:{lno} — [WEAK KDF PARAMETER] bcrypt cost={cost} is below NIST SP 800-63B floor (cost >= 10)"
-                        sast05_findings.append(desc)
-                        sast05_sarif.append({"ruleId": "CASA3-SAST-05-kdf-floor", "level": "error", "message": {"text": desc}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}]})
+                    cost_raw = m_bc.group(1).strip()
+                    cost_val = _resolve_int_param(cost_raw, local_text) or _resolve_int_param(cost_raw, file_text)
+                    if cost_val is None:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-provenance", f"{rel}:{lno} — [UNPROVABLE KDF COST] bcrypt cost argument '{cost_raw}' is not statically determinable")
+                    elif cost_val < 10:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK KDF PARAMETER] bcrypt cost={cost_val} is below NIST SP 800-63B floor (cost >= 10)")
 
-                # 2. PBKDF2 iterations (< 600000) and static salt check
+                # 1b. Python bcrypt.gensalt(rounds=...)
+                m_pbc = py_bcrypt_re.search(line)
+                if m_pbc:
+                    m_rnd = re.search(r"rounds\s*=\s*([A-Za-z0-9_]+)", m_pbc.group(1))
+                    if m_rnd:
+                        r_val = _resolve_int_param(m_rnd.group(1), local_text) or _resolve_int_param(m_rnd.group(1), file_text)
+                        if r_val is None:
+                            _add_s5(rel, lno, "CASA3-SAST-05-kdf-provenance", f"{rel}:{lno} — [UNPROVABLE KDF COST] bcrypt.gensalt rounds '{m_rnd.group(1)}' is not statically determinable")
+                        elif r_val < 10:
+                            _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK KDF PARAMETER] bcrypt.gensalt rounds={r_val} is below NIST SP 800-63B floor (rounds >= 10)")
+
+                # 2. JS/TS PBKDF2 iterations (>= 600000), digest (>= sha256), and CSPRNG salt provenance
                 m_pb = pbkdf2_re.search(line)
                 if m_pb:
-                    salt_arg, iters = m_pb.group(1).strip(), int(m_pb.group(2))
-                    if iters < 600000 or salt_arg.startswith(("'", '"')):
-                        desc = f"{rel}:{lno} — [WEAK PBKDF2] iterations={iters} (min 600000) or static salt={salt_arg} violates NIST SP 800-63B"
-                        sast05_findings.append(desc)
-                        sast05_sarif.append({"ruleId": "CASA3-SAST-05-kdf-floor", "level": "error", "message": {"text": desc}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}]})
+                    salt_arg, iter_raw, digest_raw = m_pb.group(1).strip(), m_pb.group(2).strip(), (m_pb.group(3) or "").strip("'\" ").lower()
+                    iters = _resolve_int_param(iter_raw, local_text) or _resolve_int_param(iter_raw, file_text)
+                    salt_ok, salt_reason = _salt_has_csprng_provenance(salt_arg, local_text)
+                    if iters is None:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-provenance", f"{rel}:{lno} — [UNPROVABLE PBKDF2 COST] iteration count '{iter_raw}' is not statically determinable")
+                    elif iters < 600000:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK PBKDF2] iterations={iters} below NIST SP 800-63B floor (min 600000)")
+                    if not salt_ok:
+                        _add_s5(rel, lno, "CASA3-SAST-05-non-csprng-salt", f"{rel}:{lno} — [NON-CSPRNG PBKDF2 SALT] {salt_reason} violates NIST SP 800-63B per-record CSPRNG salt")
+                    if digest_raw and digest_raw not in {"sha256", "sha384", "sha512"}:
+                        _add_s5(rel, lno, "CASA3-SAST-05-weak-kdf-digest", f"{rel}:{lno} — [WEAK PBKDF2 DIGEST] digest='{digest_raw}' instead of sha256/sha512")
 
-                # 3. scrypt N (< 32768)
+                # 2b. Python hashlib.pbkdf2_hmac
+                m_ppb = py_pbkdf2_re.search(line)
+                if m_ppb:
+                    alg_raw, salt_arg, iter_raw = m_ppb.group(1).strip("'\" ").lower(), m_ppb.group(2).strip(), m_ppb.group(3).strip()
+                    iters = _resolve_int_param(iter_raw, local_text) or _resolve_int_param(iter_raw, file_text)
+                    salt_ok, salt_reason = _salt_has_csprng_provenance(salt_arg, local_text)
+                    if alg_raw not in {"sha256", "sha384", "sha512"}:
+                        _add_s5(rel, lno, "CASA3-SAST-05-weak-kdf-digest", f"{rel}:{lno} — [WEAK PBKDF2 DIGEST] hash_name='{alg_raw}' instead of sha256/sha512")
+                    if iters is None or iters < 600000:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK PBKDF2] Python pbkdf2_hmac iterations='{iter_raw}' below 600000")
+                    if not salt_ok:
+                        _add_s5(rel, lno, "CASA3-SAST-05-non-csprng-salt", f"{rel}:{lno} — [NON-CSPRNG PBKDF2 SALT] {salt_reason}")
+
+                # 3. JS/TS & Python scrypt N (>= 32768) and CSPRNG salt provenance
                 m_sc = scrypt_re.search(line)
                 if m_sc:
-                    n_val = int(m_sc.group(1))
-                    if n_val < 32768:
-                        desc = f"{rel}:{lno} — [WEAK SCRYPT] cost parameter N={n_val} is below NIST SP 800-63B floor (N >= 32768)"
-                        sast05_findings.append(desc)
-                        sast05_sarif.append({"ruleId": "CASA3-SAST-05-kdf-floor", "level": "error", "message": {"text": desc}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}]})
+                    salt_arg, opts_str = m_sc.group(1).strip(), (m_sc.group(2) or "")
+                    salt_ok, salt_reason = _salt_has_csprng_provenance(salt_arg, local_text)
+                    if not salt_ok:
+                        _add_s5(rel, lno, "CASA3-SAST-05-non-csprng-salt", f"{rel}:{lno} — [NON-CSPRNG SCRYPT SALT] {salt_reason}")
+                    m_n = re.search(r"\b(?:N|cost)\s*:\s*([A-Za-z0-9_]+)", opts_str)
+                    n_val = _resolve_int_param(m_n.group(1), local_text) if m_n else 16384
+                    if n_val is None or n_val < 32768:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK SCRYPT] cost parameter N={n_val} is below NIST SP 800-63B floor (N >= 32768)")
 
-                # 4. Argon2id memoryCost (< 19456 KiB) / timeCost (< 2)
-                if "argon2" in line:
+                m_psc = py_scrypt_re.search(line)
+                if m_psc:
+                    salt_arg, kw_str = m_psc.group(1).strip(), m_psc.group(2)
+                    salt_ok, salt_reason = _salt_has_csprng_provenance(salt_arg, local_text)
+                    if not salt_ok:
+                        _add_s5(rel, lno, "CASA3-SAST-05-non-csprng-salt", f"{rel}:{lno} — [NON-CSPRNG SCRYPT SALT] {salt_reason}")
+                    m_pn = re.search(r"\bn\s*=\s*([A-Za-z0-9_]+)", kw_str)
+                    pn_val = _resolve_int_param(m_pn.group(1), file_text) if m_pn else None
+                    if pn_val is None or pn_val < 32768:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK SCRYPT] Python hashlib.scrypt n={pn_val} below 32768")
+
+                # 4. Argon2id variant check + memoryCost (>= 19456 KiB) / timeCost (>= 2)
+                if "argon2.hash(" in line or "PasswordHasher(" in line:
+                    m_type = argon_type_re.search(line)
+                    if m_type and m_type.group(1).lower() not in {"argon2.argon2id", "argon2id", "type.id"}:
+                        _add_s5(rel, lno, "CASA3-SAST-05-argon2-variant", f"{rel}:{lno} — [UNAPPROVED ARGON2 VARIANT] type='{m_type.group(1)}' must be Argon2id")
                     mm = argon_m_re.search(line)
                     mt = argon_t_re.search(line)
-                    if (mm and int(mm.group(1)) < 19456) or (mt and int(mt.group(1)) < 2):
-                        desc = f"{rel}:{lno} — [WEAK ARGON2ID] parameters below NIST SP 800-63B floor (m >= 19456 KiB, t >= 2)"
-                        sast05_findings.append(desc)
-                        sast05_sarif.append({"ruleId": "CASA3-SAST-05-kdf-floor", "level": "error", "message": {"text": desc}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel}, "region": {"startLine": lno}}}]})
+                    m_val = _resolve_int_param(mm.group(1), file_text) if mm else None
+                    t_val = _resolve_int_param(mt.group(1), file_text) if mt else None
+                    if mm and (m_val is None or m_val < 19456):
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK ARGON2ID] memoryCost={m_val} below NIST SP 800-63B floor (m >= 19456 KiB)")
+                    if mt and (t_val is None or t_val < 2):
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK ARGON2ID] timeCost={t_val} below NIST SP 800-63B floor (t >= 2)")
 
     return sast05_findings, sast05_sarif
 
@@ -3177,7 +3305,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                             sid = m.group(1)
                             extra = item.get("extra", {})
                             sev = str(extra.get("severity", "ERROR")).upper()
-                            if sid in {"SAST-03", "SAST-04"} and sev != "ERROR":
+                            if sid in {"SAST-03", "SAST-04", "SAST-05"} and sev != "ERROR":
                                 info_counts_by_sast_id[sid] += 1
                                 continue
                             fpath = item.get("path", "")
@@ -3189,24 +3317,8 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
                             if (sid, rel_p, line_no) in seen_sast_loc:
                                 continue
                             seen_sast_loc.add((sid, rel_p, line_no))
-                            msg = item.get("extra", {}).get("message", "")
                             msg = extra.get("message", "")
                             findings_by_sast_id[sid].append(f"{rel_p}:{line_no} — {msg}")
-
-                # 2. Also export standard SARIF 2.1.0 artifact to output/semgrep-sast.sarif
-                cmd_sarif = [
-                    SEMGREP_BIN,
-                    "scan",
-                    "--no-git-ignore",
-                    "--config",
-                    str(SEMGREP_RULES),
-                    "--sarif",
-                    "--quiet",
-                    *scan_targets,
-                ]
-                proc_sarif = subprocess.run(cmd_sarif, capture_output=True, text=True, timeout=45)
-                if proc_sarif.stdout:
-                    sarif_out.write_text(proc_sarif.stdout, encoding="utf-8")
             except Exception:
                 pass
 
@@ -3236,8 +3348,10 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             findings_by_sast_id["SAST-02"].append(ef2)
             existing_sast02_locs.add(loc_prefix2)
 
-    # SAST-05: Combine Semgrep AST rules with NIST SP 800-63B KDF parameter & salt inspector
-    sast05_extra_findings, sast05_extra_sarif = evaluate_sast05_password_kdf(repo)
+    # SAST-05: Combine Semgrep AST rules with NIST SP 800-63B KDF parameter & CSPRNG salt provenance inspector
+    sast05_extra_findings, sast05_extra_sarif = evaluate_sast05_password_kdf(
+        repo, semgrep_hits=findings_by_sast_id["SAST-05"]
+    )
     existing_sast05_locs = {f.split(" — ")[0] for f in findings_by_sast_id["SAST-05"]}
     for ef5 in sast05_extra_findings:
         loc_prefix5 = ef5.split(" — ")[0]
@@ -3299,7 +3413,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             )
             extra_sarif_ref = ""
         elif sid == "SAST-05":
-            tool_label = f"Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & Salt Inspector ({semgrep_duration}s, SARIF 2.1.0)"
+            tool_label = f"Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & CSPRNG Salt Provenance Inspector ({semgrep_duration}s, SARIF 2.1.0)"
             extra_sarif_ref = ""
         elif sid == "SAST-12":
             tool_label = f"Semgrep AST + Secrets Manager SDK Inventory & Container/IaC Inspector ({sast12_sdk_status}, {semgrep_duration}s)"

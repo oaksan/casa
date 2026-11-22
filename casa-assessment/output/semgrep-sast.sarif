@@ -739,7 +739,7 @@
             }
           ],
           "message": {
-            "text": "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)"
+            "text": "SAST-05: Password persistence sink uses fast/unsalted hash or KDF parameters below NIST SP 800-63B \u00a75.1.1.2 / ASVS V2.4.1 floor"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf"
@@ -1087,7 +1087,7 @@
             }
           ],
           "message": {
-            "text": "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)"
+            "text": "SAST-05: Password persistence sink uses fast/unsalted hash or KDF parameters below NIST SP 800-63B \u00a75.1.1.2 / ASVS V2.4.1 floor"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf"
@@ -2690,25 +2690,6 @@
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "lib/insecurity.ts"
-                },
-                "region": {
-                  "startLine": 21
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
           },
           "locations": [
@@ -2719,6 +2700,25 @@
                 },
                 "region": {
                   "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
                 }
               }
             }
@@ -3355,25 +3355,6 @@
           "ruleId": "CASA3-SAST-02-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "lib/insecurity.ts"
-                },
-                "region": {
-                  "startLine": 21
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
           },
           "locations": [
@@ -3384,6 +3365,25 @@
                 },
                 "region": {
                   "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
                 }
               }
             }
@@ -3830,11 +3830,11 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)"
+                "text": "SAST-05: Password persistence sink uses fast/unsalted hash or KDF parameters below NIST SP 800-63B \u00a75.1.1.2 / ASVS V2.4.1 floor"
               },
               "help": {
-                "markdown": "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)",
-                "text": "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)"
+                "markdown": "SAST-05: Password persistence sink uses fast/unsalted hash or KDF parameters below NIST SP 800-63B \u00a75.1.1.2 / ASVS V2.4.1 floor",
+                "text": "SAST-05: Password persistence sink uses fast/unsalted hash or KDF parameters below NIST SP 800-63B \u00a75.1.1.2 / ASVS V2.4.1 floor"
               },
               "id": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf",
               "name": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf",
@@ -3844,6 +3844,27 @@
               },
               "shortDescription": {
                 "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-05-weak-password-kdf"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-05: Password KDF in Python below NIST SP 800-63B \u00a75.1.1.2 floor or with static/weak parameters (ASVS V2.4.1)"
+              },
+              "help": {
+                "markdown": "SAST-05: Password KDF in Python below NIST SP 800-63B \u00a75.1.1.2 floor or with static/weak parameters (ASVS V2.4.1)",
+                "text": "SAST-05: Password KDF in Python below NIST SP 800-63B \u00a75.1.1.2 floor or with static/weak parameters (ASVS V2.4.1)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf-python",
+              "name": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf-python",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-05-weak-password-kdf-python"
               }
             },
             {

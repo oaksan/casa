@@ -28,6 +28,7 @@ from casa_audit.scanner import (
     evaluate_sast02_trust_material_and_keys,
     evaluate_sast03_banned_ciphers,
     evaluate_sast04_weak_hashes,
+    evaluate_sast05_password_kdf,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -708,6 +709,62 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 09/61: SAST-04 (Iteração SDD 079)", just2_txt)
+
+    def test_iteration80_sast05_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sast5:
+            r5 = Path(td_sast5)
+            src = r5 / "src"
+            src.mkdir()
+            # 1. Compliant Argon2id + PBKDF2-HMAC-SHA256 with randomBytes CSPRNG salt + bcrypt cost=12 -> 0 findings
+            (src / "kdf_ok.ts").write_text(
+                "import crypto from 'crypto';\n"
+                "import bcrypt from 'bcrypt';\n"
+                "import argon2 from 'argon2';\n"
+                "export async function hashA(pw: string) {\n"
+                "  return argon2.hash(pw, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });\n"
+                "}\n"
+                "export function hashP(pw: string) {\n"
+                "  const salt = crypto.randomBytes(16);\n"
+                "  return crypto.pbkdf2Sync(pw, salt, 600000, 32, 'sha256');\n"
+                "}\n"
+                "export function hashB(pw: string) { return bcrypt.hashSync(pw, 12); }\n",
+                encoding="utf-8",
+            )
+            f_ok, _ = evaluate_sast05_password_kdf(r5)
+            self.assertEqual(f_ok, [], f"Expected 0 SAST-05 findings for NIST-compliant KDFs, got {f_ok}")
+
+            # 2. Sub-floor cost, non-CSPRNG/unproven salt, wrong Argon2 variant, dynamic unprovable cost -> FAIL
+            (src / "kdf_bad.ts").write_text(
+                "import crypto from 'crypto';\n"
+                "import bcrypt from 'bcrypt';\n"
+                "import argon2 from 'argon2';\n"
+                "export function badBcrypt(pw: string, r: number) { return bcrypt.hashSync(pw, r); }\n"
+                "export function badSalt(pw: string) { const s = Math.random().toString(); return crypto.pbkdf2Sync(pw, s, 600000, 32, 'sha256'); }\n"
+                "export function badDigest(pw: string) { const s = crypto.randomBytes(16); return crypto.pbkdf2Sync(pw, s, 600000, 32, 'sha1'); }\n"
+                "export function badScrypt(pw: string) { const s = crypto.randomBytes(16); return crypto.scryptSync(pw, s, 64, { N: 16384 }); }\n"
+                "export async function badArgon(pw: string) { return argon2.hash(pw, { type: argon2.argon2i, memoryCost: 19456, timeCost: 2 }); }\n",
+                encoding="utf-8",
+            )
+            (src / "kdf_bad.py").write_text(
+                "import hashlib, bcrypt, secrets\n"
+                "def b1(): return bcrypt.gensalt(rounds=8)\n"
+                "def b2(pw): s = secrets.token_bytes(16); return hashlib.pbkdf2_hmac('sha256', pw, s, 250000)\n",
+                encoding="utf-8",
+            )
+            f_bad, s_bad = evaluate_sast05_password_kdf(r5)
+            joined = "\n".join(f_bad)
+            self.assertIn("UNPROVABLE KDF COST", joined)
+            self.assertIn("NON-CSPRNG PBKDF2 SALT", joined)
+            self.assertIn("kdf_bad.ts:6", joined)
+            self.assertIn("kdf_bad.ts:7", joined)
+            self.assertIn("CASA3-SAST-05-weak-password-kdf", joined)
+            self.assertIn("UNAPPROVED ARGON2 VARIANT", joined)
+            self.assertIn("kdf_bad.py:2", joined)
+            self.assertIn("kdf_bad.py:3", joined)
+            self.assertGreaterEqual(len(s_bad), 7)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 10/61: SAST-05 (Iteração SDD 080)", just2_txt)
 
 
 if __name__ == "__main__":

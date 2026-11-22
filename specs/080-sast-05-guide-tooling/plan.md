@@ -1,0 +1,6 @@
+# Plan: SDD 080 — SAST-05 Guide Tooling (`semgrep`)
+
+1. Expand `CASA3-SAST-05-weak-password-kdf` and add `CASA3-SAST-05-weak-password-kdf-python` in `casa-assessment/rules/casa3_al1_sast.yml` using Semgrep `metavariable-comparison` for NIST SP 800-63B parameter floors (`bcrypt < 10`, `PBKDF2 < 600000`, `scrypt N < 32768`, `Argon2id m < 19456 / t < 2`) and validate with `semgrep --validate`.
+2. Upgrade `evaluate_sast05_password_kdf` in `casa-assessment/casa_audit/scanner.py` to verify NIST SP 800-63B floors across JS/TS & Python (`bcrypt`, `PBKDF2-HMAC-SHA256`, `scrypt`, `Argon2id`), flag unresolvable/dynamic cost parameters, reject non-CSPRNG/unproven salts on `pbkdf2`/`scrypt`, and accept optional pre-collected `semgrep_hits` to avoid redundant Semgrep invocations during `run_sast_checks`.
+3. Add `test_iteration80_sast05_guide_tooling` in `casa-assessment/tests/test_iteration1.py` covering `PASS` (compliant `Argon2id` + `PBKDF2-HMAC-SHA256` with `randomBytes`) and `FAIL` (sub-floor cost, non-Argon2id variant, static/unproven salt, unproven dynamic cost).
+4. Run full unittest suite, test live `POST /api/scan` against OWASP Juice Shop, document in `docs/justificativa2.txt`, commit, tag `sdd-080`, and push to `origin/main`.

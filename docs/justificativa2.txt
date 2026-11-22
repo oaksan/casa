@@ -602,3 +602,67 @@ Domínio 2: Static Application Security Testing (SAST)
     de cache/ETag e **`FAIL`** multi-linguagem por `taint path` em `auth.ts`,
     `auth.py`, `Auth.java` e `auth.go`.
 ================================================================================
+
+================================================================================
+CONTROLE 10/61: SAST-05 (Iteração SDD 080)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-05
+- Requisito (CASA 3.0 AL1):
+  "Passwords stored using an approved memory-hard KDF with per-user salt."
+- Referências: OWASP ASVS V2.4.1 (L2); NIST SP 800-63B §5.1.1.2 (`Argon2id`,
+  `scrypt`, `bcrypt`, `PBKDF2-HMAC-SHA256`).
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Veredito:
+  * PASS: Todo sorvedouro de persistência de senha usa `Argon2id` (`m >= 19456`
+    KiB, `t >= 2`), `scrypt` (`N >= 32768`), `bcrypt` (`cost >= 10`) ou
+    `PBKDF2-HMAC-SHA256` (`>= 600000` iterações) com salt CSPRNG por registro.
+  * FAIL: Qualquer algoritmo fora do conjunto, parâmetro ou proveniência de
+    salt não determinável estaticamente, custo abaixo do piso NIST ou salt não
+    CSPRNG/estático.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 080)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 080:
+  1) A regra `CASA3-SAST-05-weak-password-kdf` em `rules/casa3_al1_sast.yml`
+     cobrira apenas 4 padrões JS/TS sem comparação numérica nativa de custos no
+     Semgrep (`metavariable-comparison`) e sem suporte a Python.
+  2) `evaluate_sast05_password_kdf` validava apenas literais inteiros diretos e
+     sais entre aspas, ignorando custos dinâmicos não determináveis estaticamente,
+     sais derivados de `Math.random()` ou variáveis sem proveniência CSPRNG,
+     variantes Argon2 inválidas (`argon2i`/`argon2d`), digest fraco em PBKDF2
+     (`sha1`/`md5`) e KDFs em Python.
+- O que foi feito e melhorado na Iteração SDD 080:
+  1) Expansão das regras `CASA3-SAST-05-weak-password-kdf` (`TS/JS`) e
+     `CASA3-SAST-05-weak-password-kdf-python` (`Python`) com
+     `metavariable-comparison` nativo no Semgrep (`bcrypt < 10`, `PBKDF2 < 600000`,
+     `scrypt N < 32768`, `Argon2id memoryCost < 19456 / timeCost < 2`), validadas
+     com `semgrep --validate` (0 erros, 34 regras).
+  2) Evolução de `evaluate_sast05_password_kdf(repo, semgrep_hits=...)` com
+     resolução de constantes locais (`_resolve_int_param`), prova estática de
+     salt CSPRNG (`_salt_has_csprng_provenance`: `crypto.randomBytes`,
+     `randomUUID`, `os.urandom`, `secrets.token_bytes`, `bcrypt.gensalt`),
+     validação de variante `Argon2id` e digest `sha256+`, rejeição de custos
+     dinâmicos opacos, e remoção do resíduo de segunda execução `cmd_sarif` em
+     `run_sast_checks`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Tempo total SAST: `27.35s` (`22.09s` Semgrep AST).
+  * Ferramenta reportada: `Semgrep AST 1.180.0 + NIST SP 800-63B KDF Parameter & CSPRNG Salt Provenance Inspector (22.09s, SARIF 2.1.0)`.
+  * Veredito `SAST-05`: **FAIL** com **2 achados** reais de persistência de senha
+    sem KDF aprovado (`lib/insecurity.ts:41` e `models/user.ts:73`), emitidos
+    em `output/semgrep-sast.sarif`.
+  * Validação unitária `test_iteration80_sast05_guide_tooling`: **`PASS`** para
+    `Argon2id` (`m=19456, t=2`), `PBKDF2-HMAC-SHA256` (`600000`, `randomBytes`)
+    e `bcrypt` (`12`), e **`FAIL`** determinístico para custo dinâmico opaco,
+    salt via `Math.random()` / literal, digest `sha1`, `scrypt` `N=16384`,
+    `argon2i` e Python `rounds=8` / `250000` iterações.
+================================================================================

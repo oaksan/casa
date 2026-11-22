@@ -261,7 +261,7 @@ rules:
 
   - id: CASA3-SAST-05-weak-password-kdf
     languages: [typescript, javascript]
-    message: "SAST-05: Password persistence sink uses fast/unsalted hash instead of memory-hard KDF (Argon2id, scrypt, bcrypt, PBKDF2 >= 600k) with per-user CSPRNG salt (ASVS V2.4.1)"
+    message: "SAST-05: Password persistence sink uses fast/unsalted hash or KDF parameters below NIST SP 800-63B §5.1.1.2 / ASVS V2.4.1 floor"
     severity: ERROR
     pattern-either:
       - pattern: |
@@ -272,6 +272,70 @@ rules:
           crypto.pbkdf2Sync($PWD, "...", ...)
       - pattern: |
           crypto.pbkdf2($PWD, "...", ...)
+      - pattern: crypto.pbkdf2Sync($PWD, $SALT, $ITERS, $KL, 'sha1', ...)
+      - pattern: crypto.pbkdf2Sync($PWD, $SALT, $ITERS, $KL, 'md5', ...)
+      - patterns:
+          - pattern-either:
+              - pattern: bcrypt.hash($PWD, $COST, ...)
+              - pattern: bcrypt.hashSync($PWD, $COST)
+              - pattern: bcrypt.genSalt($COST, ...)
+              - pattern: bcrypt.genSaltSync($COST)
+          - metavariable-comparison:
+              metavariable: $COST
+              comparison: $COST < 10
+      - patterns:
+          - pattern-either:
+              - pattern: crypto.pbkdf2Sync($PWD, $SALT, $ITERS, ...)
+              - pattern: crypto.pbkdf2($PWD, $SALT, $ITERS, ...)
+          - metavariable-comparison:
+              metavariable: $ITERS
+              comparison: $ITERS < 600000
+      - patterns:
+          - pattern: "crypto.scryptSync($PWD, $SALT, $KL, { ..., N: $N, ... })"
+          - metavariable-comparison:
+              metavariable: $N
+              comparison: $N < 32768
+      - patterns:
+          - pattern: "argon2.hash($PWD, { ..., memoryCost: $M, ... })"
+          - metavariable-comparison:
+              metavariable: $M
+              comparison: $M < 19456
+      - patterns:
+          - pattern: "argon2.hash($PWD, { ..., timeCost: $T, ... })"
+          - metavariable-comparison:
+              metavariable: $T
+              comparison: $T < 2
+
+  - id: CASA3-SAST-05-weak-password-kdf-python
+    languages: [python]
+    message: "SAST-05: Password KDF in Python below NIST SP 800-63B §5.1.1.2 floor or with static/weak parameters (ASVS V2.4.1)"
+    severity: ERROR
+    pattern-either:
+      - patterns:
+          - pattern: bcrypt.gensalt(..., rounds=$ROUNDS, ...)
+          - metavariable-comparison:
+              metavariable: $ROUNDS
+              comparison: $ROUNDS < 10
+      - patterns:
+          - pattern: hashlib.pbkdf2_hmac($ALG, $PWD, $SALT, $ITERS, ...)
+          - metavariable-comparison:
+              metavariable: $ITERS
+              comparison: $ITERS < 600000
+      - patterns:
+          - pattern: hashlib.scrypt($PWD, ..., n=$N, ...)
+          - metavariable-comparison:
+              metavariable: $N
+              comparison: $N < 32768
+      - patterns:
+          - pattern: PasswordHasher(..., memory_cost=$M, ...)
+          - metavariable-comparison:
+              metavariable: $M
+              comparison: $M < 19456
+      - patterns:
+          - pattern: PasswordHasher(..., time_cost=$T, ...)
+          - metavariable-comparison:
+              metavariable: $T
+              comparison: $T < 2
 
   - id: CASA3-SAST-06-insecure-randomness
     mode: taint

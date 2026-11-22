@@ -2317,6 +2317,8 @@ class TestCasa3Iteration1(unittest.TestCase):
         self.assertIn("CONTROLE 30/61: CFG-06 (Iteração SDD 100)", just2_txt)
 
     def test_iteration101_cfg07_guide_tooling(self) -> None:
+        import ssl
+        import subprocess
         from http.server import BaseHTTPRequestHandler
         from casa_audit.scanner import evaluate_cfg07_anti_caching
 
@@ -2363,18 +2365,32 @@ class TestCasa3Iteration1(unittest.TestCase):
                 self.send_response(404)
                 self.end_headers()
 
-        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg07Handler)
-        srv.daemon_threads = True
-        port = srv.server_address[1]
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
-
         with tempfile.TemporaryDirectory() as td_cfg7:
             tdp = Path(td_cfg7)
+            cert_path = tdp / "cert.pem"
+            key_path = tdp / "key.pem"
+            subprocess.run(
+                [
+                    "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                    "-keyout", str(key_path), "-out", str(cert_path),
+                    "-days", "1", "-subj", "/CN=127.0.0.1",
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg07Handler)
+            srv.daemon_threads = True
+            ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_ctx.load_cert_chain(str(cert_path), str(key_path))
+            srv.socket = ssl_ctx.wrap_socket(srv.socket, server_side=True)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
             try:
                 # 1. Strict Cache-Control: no-store -> PASS via OWASP ZAP 2.17.0
                 _Cfg07Handler.mode = "strict"
                 r_pass = evaluate_cfg07_anti_caching(
-                    f"http://127.0.0.1:{port}",
+                    f"https://127.0.0.1:{port}",
                     json_out_path=tdp / "zap_c7_pass.json",
                     sarif_out_path=tdp / "zap_c7_pass.sarif",
                 )
@@ -2382,19 +2398,19 @@ class TestCasa3Iteration1(unittest.TestCase):
                 self.assertTrue(r_pass["authenticated"])
                 self.assertTrue(r_pass["zap"]["executed"])
 
-                # 2. Missing Cache-Control -> FAIL caught by real OWASP ZAP 10049/10015 + authenticated probe
+                # 2. Missing Cache-Control -> FAIL caught by real OWASP ZAP 10015 + authenticated probe
                 _Cfg07Handler.mode = "missing"
                 r_miss = evaluate_cfg07_anti_caching(
-                    f"http://127.0.0.1:{port}",
+                    f"https://127.0.0.1:{port}",
                     json_out_path=tdp / "zap_c7_miss.json",
                     sarif_out_path=tdp / "zap_c7_miss.sarif",
                 )
                 self.assertEqual(r_miss["verdict"], "FAIL")
-                self.assertTrue({"10049", "10015"} & set(r_miss["zapPluginsMatched"]), f"Expected ZAP 10049/10015, got {r_miss}")
+                self.assertTrue({"10049", "10015"} & set(r_miss["zapPluginsMatched"]), f"Expected ZAP 10015/10049, got {r_miss}")
 
                 # 3. Cache-Control: private (without no-store) -> FAIL
                 _Cfg07Handler.mode = "private_only"
-                r_priv = evaluate_cfg07_anti_caching(f"http://127.0.0.1:{port}", zap_report=r_pass["zap"])
+                r_priv = evaluate_cfg07_anti_caching(f"https://127.0.0.1:{port}", zap_report=r_pass["zap"])
                 self.assertEqual(r_priv["verdict"], "FAIL")
             finally:
                 srv.shutdown()

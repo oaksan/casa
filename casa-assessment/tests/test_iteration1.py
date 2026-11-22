@@ -35,6 +35,7 @@ from casa_audit.scanner import (
     evaluate_sast08_sql_injection,
     evaluate_sast09_deserialization,
     evaluate_sast10_dynamic_execution,
+    evaluate_sast11_path_traversal,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -1043,6 +1044,54 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 15/61: SAST-10 (Iteração SDD 085)", just2_txt)
+
+    def test_iteration86_sast11_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sast11:
+            r11 = Path(td_sast11)
+            src = r11 / "src"
+            src.mkdir()
+            # 1. Sanitized path components (basename / secure_filename / filepath.Base) -> PASS
+            (src / "safe_path.ts").write_text(
+                "import path from 'path';\nimport fs from 'fs';\nexport const read = (req: any) => fs.readFileSync(path.resolve('/srv/uploads', path.basename(req.params.file)));\n",
+                encoding="utf-8",
+            )
+            (src / "safe_path.py").write_text(
+                "import os\ndef save(request):\n    fn = os.path.basename(request.args['f'])\n    return open('/srv/' + fn)\n",
+                encoding="utf-8",
+            )
+            (src / "safe_path.go").write_text(
+                'package p\nimport ("os"; "path/filepath")\nfunc rd(r *http.Request) { p := filepath.Base(r.URL.Query().Get("f")); os.ReadFile(p) }\n',
+                encoding="utf-8",
+            )
+            v_pass, f_pass, _, _ = evaluate_sast11_path_traversal(r11)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for sanitized paths, got {f_pass}")
+
+            # 2. Unsanitized path construction & Zip Slip across TS, Python, Java, Go -> FAIL
+            (src / "trav_bad.ts").write_text(
+                "import fs from 'fs';\nexport const dl = (req: any) => fs.readFileSync('/srv/' + req.query.file);\n",
+                encoding="utf-8",
+            )
+            (src / "trav_bad.py").write_text(
+                "def extract_zip(zipinfo):\n    target = '/var/app/' + zipinfo.filename\n    return open(target, 'wb')\n",
+                encoding="utf-8",
+            )
+            (src / "TravBad.java").write_text(
+                'import java.io.*; import java.util.zip.*;\nclass TravBad { File unzip(ZipEntry entry) { File dst = new File("/tmp/" + entry.getName()); return dst; } }\n',
+                encoding="utf-8",
+            )
+            (src / "trav_bad.go").write_text(
+                'package p\nfunc dl(r *http.Request) { f := "/var/www/" + r.URL.Query().Get("p"); os.Open(f) }\n',
+                encoding="utf-8",
+            )
+            v_fail, f_fail, sarif_fail, _ = evaluate_sast11_path_traversal(r11)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("trav_bad.ts", "trav_bad.py", "TravBad.java", "trav_bad.go"):
+                self.assertIn(fname, joined, f"Missing SAST-11 taint hit for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(sarif_fail), 4)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 16/61: SAST-11 (Iteração SDD 086)", just2_txt)
 
 
 if __name__ == "__main__":

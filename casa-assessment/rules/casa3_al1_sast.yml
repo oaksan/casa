@@ -763,28 +763,78 @@ rules:
     pattern-sinks:
       - pattern: "res.sendFile(path.resolve($DIR, $SINK))"
       - pattern: "res.sendFile($SINK)"
+      - pattern: "res.download($SINK, ...)"
       - pattern: "fs.readFile($SINK, ...)"
       - pattern: "fs.readFileSync($SINK, ...)"
       - pattern: "fs.createWriteStream($SINK, ...)"
       - pattern: "fs.writeFile($SINK, ...)"
+      - pattern: "fs.writeFileSync($SINK, ...)"
+      - pattern: "fs.promises.readFile($SINK, ...)"
+      - pattern: "fs.promises.writeFile($SINK, ...)"
       - pattern: "path.resolve($SINK)"
       - pattern: "res.render($VIEW, { ...$SINK, ... })"
 
   - id: CASA3-SAST-11-path-traversal-python
     mode: taint
     languages: [python]
-    message: "SAST-11: File path constructed from unvalidated user input or archive member in Python (CWE-22)"
+    message: "SAST-11: File path constructed from unvalidated user input, uploaded filename or archive member in Python (CWE-22)"
     severity: ERROR
     pattern-sources:
       - pattern: "request.args"
       - pattern: "request.form"
+      - pattern: "request.json"
+      - pattern: "request.files"
       - pattern: "member.filename"
+      - pattern: "member.name"
+      - pattern: "tarinfo.name"
+      - pattern: "zipinfo.filename"
     pattern-sanitizers:
       - pattern: "os.path.basename(...)"
       - pattern: "secure_filename(...)"
     pattern-sinks:
       - pattern: "open($SINK, ...)"
       - pattern: "send_file($SINK, ...)"
+      - pattern: "shutil.copy($SRC, $SINK)"
+      - pattern: "$ARCHIVE.extract($SINK, ...)"
+
+  - id: CASA3-SAST-11-path-traversal-java
+    mode: taint
+    languages: [java]
+    message: "SAST-11: File path constructed from unvalidated HTTP input, uploaded filename or ZipEntry in Java (CWE-22 / Zip Slip)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: "$REQ.getParameter(...)"
+      - pattern: "$FILE.getOriginalFilename()"
+      - pattern: "$ENTRY.getName()"
+    pattern-sanitizers:
+      - pattern: "FilenameUtils.getName(...)"
+    pattern-sinks:
+      - pattern: "new File($SINK)"
+      - pattern: "new File($BASE, $SINK)"
+      - pattern: "Paths.get(..., $SINK, ...)"
+      - pattern: "new FileInputStream($SINK)"
+      - pattern: "new FileOutputStream($SINK)"
+      - pattern: "Files.write($SINK, ...)"
+      - pattern: "Files.copy($SRC, $SINK, ...)"
+
+  - id: CASA3-SAST-11-path-traversal-go
+    mode: taint
+    languages: [go]
+    message: "SAST-11: File path constructed from unvalidated HTTP input, uploaded header or zip entry in Go (CWE-22 / Zip Slip)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: "$R.URL.Query().Get(...)"
+      - pattern: "$CTX.Query(...)"
+      - pattern: "$CTX.Param(...)"
+      - pattern: "$FH.Filename"
+      - pattern: "$ZF.Name"
+    pattern-sanitizers:
+      - pattern: "filepath.Base(...)"
+    pattern-sinks:
+      - pattern: "os.Open($SINK)"
+      - pattern: "os.ReadFile($SINK)"
+      - pattern: "os.Create($SINK)"
+      - pattern: "os.WriteFile($SINK, ...)"
 
   - id: CASA3-SAST-12-hardcoded-config-secrets
     languages: [typescript, javascript, terraform]

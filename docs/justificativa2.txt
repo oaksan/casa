@@ -958,3 +958,62 @@ Domínio 2: Static Application Security Testing (SAST)
     em entradas contaminadas em `rce_bad.ts`, `rce_bad.py`, `RceBad.java` e
     `rce_bad.go`.
 ================================================================================
+
+================================================================================
+CONTROLE 16/61: SAST-11 (Iteração SDD 086)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-11
+- Requisito (CASA 3.0 AL1):
+  "File paths are not constructed from unvalidated user-supplied metadata."
+- Referências: OWASP ASVS V12.3.1 (L1); MITRE CWE-22 (Path Traversal / Zip Slip).
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`, `CodeQL`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Verificação:
+  * PASS: Zero achados de nível `error` de caminhos de sistema de arquivos
+    construídos a partir de metadados fornecidos pelo usuário sem validação.
+  * FAIL: >= 1 achado de nível `error` de traversal de caminho em entrada do usuário.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 086)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 086:
+  1) As regras `CASA3-SAST-11-path-traversal*` cobriam apenas `TS/JS` e
+     parcialmente `Python`, sem cobertura completa de APIs de arquivo `fs.writeFileSync`,
+     `fs.promises.*`, `res.download`, entradas de arquivo `tarinfo.name`,
+     `zipinfo.filename`, `request.files`, nem cobertura para **Java**
+     (`ZipEntry.getName()`, `getOriginalFilename()`, `getParameter()`, `Paths.get`,
+     `Files.*`, sanitizado por `FilenameUtils.getName`) e **Go** (`URL.Query`,
+     `fh.Filename`, `zf.Name`, `os.Open`/`ReadFile`/`Create`/`WriteFile`,
+     sanitizado por `filepath.Base`).
+  2) Faltava função dedicada `evaluate_sast11_path_traversal(repo)` e filtragem
+     estrita de severidade `ERROR` para `SAST-11` em `run_sast_checks`.
+- O que foi feito e melhorado na Iteração SDD 086:
+  1) Expansão e validação (`semgrep --validate`: 0 erros, 47 regras) das regras
+     `mode: taint` `CASA3-SAST-11-path-traversal*` em `rules/casa3_al1_sast.yml`
+     para `TS/JS`, `Python`, `Java` e `Go` rastreando parâmetros HTTP, nomes de
+     upload e entradas de arquivos compactados (`Zip Slip`) com sanitizadores
+     explícitos (`path.basename`, `os.path.basename`, `secure_filename`,
+     `FilenameUtils.getName`, `filepath.Base`).
+  2) Adição de `evaluate_sast11_path_traversal(repo)` em `casa_audit/scanner.py`,
+     filtragem `sev == "ERROR"` para `SAST-11` em `run_sast_checks` e rótulo
+     `Semgrep AST 1.180.0 (Path Traversal & Zip Slip Taint Tracking + CWE-22 Ruleset, SARIF 2.1.0)`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Veredito `SAST-11`: **FAIL** confirmando os **10 fluxos `taint` reais**
+    de traversal e Zip Slip (`routes/dataErasure.ts:104`, `routes/fileServer.ts:32`,
+    `routes/fileUpload.ts:31, 34`, `routes/keyServer.ts:14`,
+    `routes/logfileServer.ts:14`, `routes/profileImageUrlUpload.ts:29`,
+    `routes/quarantineServer.ts:14`, `routes/vulnCodeFixes.ts:83`,
+    `routes/vulnCodeSnippet.ts:90`), em `output/semgrep-sast.sarif`.
+  * Validação multi-linguagem (`test_iteration86_sast11_guide_tooling`):
+    **`PASS`** em caminhos sanitizados (`path.basename`, `os.path.basename`,
+    `filepath.Base`) e **`FAIL`** em `trav_bad.ts`, `trav_bad.py`, `TravBad.java`
+    e `trav_bad.go`.
+================================================================================

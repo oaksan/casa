@@ -1354,3 +1354,45 @@ CONTROLE 23/61: TLS-05 (Iteração SDD 093)
   * Cabeçalho `Strict-Transport-Security` ausente nos 3 endpoints em HTTP cleartext
     (`HSTS_time=0 < 31536000`) -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 24/61: TLS-06 (Iteração SDD 094)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 3 - TRANSPORT SECURITY)
+--------------------------------------------------------------------------------
+- Controle: `TLS-06` — *No known TLS implementation vulnerabilities (Heartbleed, ROBOT, insecure renegotiation, CRIME)* (ADA-defined; OWASP WSTG-CRYP-01).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **`testssl.sh`** executando checagens de vulnerabilidades conhecidas (`PASS` sem
+    ocorrências `HIGH` ou `CRITICAL` em `heartbleed`, `ROBOT`, `secure_renego`,
+    `secure_client_renego`, `CRIME_TLS` e `ticketbleed`; severidades menores são
+    reportadas como informacionais).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 094`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `TLS-06` utilizava exclusivamente sockets Python/`openssl s_client` inline em
+  `probe_tls_vulnerabilities`, sem invocar o scanner de vulnerabilidades do `testssl.sh`.
+- O que foi feito e melhorado na Iteração SDD 094:
+  1) Implementação de `parse_testssl_vulnerabilities(scan_result, target_port)` em
+     `casa_audit/scanner.py` classificando ocorrências `HIGH`/`CRITICAL` em
+     `highOrCriticalFindings` (`FAIL`) e severidades inferiores em
+     `informationalFindings` sem reprovar o controle.
+  2) Implementação de `evaluate_tls06_vulnerabilities(...)` invocando
+     `testssl.sh -H -I -T -C --jsonfile-pretty` (com `timeout_sec=30` e
+     gravação em `output/testssl-tls06-raw.json` + `.vulnerabilities` /
+     `tls06ImplementationVulnerabilities` em `output/tls-scan.json`) em alvos
+     TLS/HTTPS — complementado por checagens não blocantes de `secure_renego` e
+     `ROBOT` — e falhando rapidamente em endpoints exclusivamente HTTP cleartext.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration94_tls06_guide_tooling`):
+  * **`PASS`** com `testssl.sh 3.2.2 -H -I -T -C` verificando `heartbleed`, `CCS`,
+    `ticketbleed`, `CRIME_TLS`, `secure_renego` e `ROBOT` (~14s) e mantendo
+    achados `LOW`/`MEDIUM` apenas em `informationalFindings`.
+  * **`FAIL`** para achados `HIGH`/`CRITICAL` (`ROBOT`, `heartbleed`) e endpoint HTTP cleartext.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Ausência de listener TLS na porta `3000` (`tls_endpoint_missing` `HIGH`) -> Veredito **`FAIL`**.
+  * **Domínio 3 (Transport Security — `TLS-01..TLS-06`) 100% concluído com `testssl.sh 3.2.2`.**
+================================================================================

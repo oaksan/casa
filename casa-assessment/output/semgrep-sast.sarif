@@ -3178,7 +3178,7 @@
           "ruleId": "CASA3-SAST-13-canary-log-leak",
           "level": "error",
           "message": {
-            "text": "logs/access.log.2026-11-22:2575 \u2014 [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary value written to log sink: ::ffff:127.0.0.1 - - [22/Nov/2026:16:51:38 +0000] \"GET /rest/user/change-password?current=CASA3_CANARY_CURPWD_1795366298&new=CASA3_CANARY_NEWPWD_1795366298&repeat=CASA3_CANARY_NEWPWD_1795366298 HTTP/1.1\" 500 - \"-\" \"ADA-CASA-3.0-Lab-Scanner/3.0\""
+            "text": "logs/access.log.2026-11-22:3104 \u2014 [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary value written to log sink: ::ffff:127.0.0.1 - - [22/Nov/2026:17:49:29 +0000] \"GET /rest/user/change-password?current=CASA3_CANARY_CURPWD_1795369769&new=CASA3_CANARY_NEWPWD_1795369769&repeat=CASA3_CANARY_NEWPWD_1795369769 HTTP/1.1\" 500 - \"-\" \"ADA-CASA-3.0-Lab-Scanner/3.0\""
           },
           "locations": [
             {
@@ -3187,7 +3187,7 @@
                   "uri": "logs/access.log.2026-11-22"
                 },
                 "region": {
-                  "startLine": 2575
+                  "startLine": 3104
                 }
               }
             }

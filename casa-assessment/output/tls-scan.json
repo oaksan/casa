@@ -1,15 +1,15 @@
 {
-  "scanner": "testssl.sh 3.2.2 443d078 + HTTP Cleartext Redirect Probe",
-  "scannedAt": "2026-11-22T16:50:59.028559+00:00",
+  "scanner": "testssl.sh 3.2.2 c4b2375 + HTTP Cleartext Redirect Probe",
+  "scannedAt": "2026-11-22T17:48:47.279401+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "HSTS_time": 0,
   "testssl": {
     "binary": "/home/user/.local/bin/testssl.sh",
-    "version": "3.2.2 443d078",
+    "version": "3.2.2 c4b2375",
     "openssl": "OpenSSL 1.0.2-bad from Fri Mar 28 16:54:51 2025",
     "returncode": 0,
-    "scanTime": 11,
+    "scanTime": 12,
     "rawJsonPath": "/home/user/felipe/speckit/casa/casa-assessment/output/testssl-raw.json",
     "handshakeOk": true,
     "protocolsOffered": [
@@ -181,7 +181,7 @@
   "tls02ProtocolEnforcement": {
     "probedPort": 3000,
     "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
-    "testsslVersion": "3.2.2 443d078",
+    "testsslVersion": "3.2.2 c4b2375",
     "modernOffered": [],
     "deprecatedOffered": [],
     "verdict": "FAIL"
@@ -282,6 +282,9 @@
     "highOrCriticalFindings": [
       "No TLS listener on localhost:3000 (endpoint serves cleartext HTTP; Heartbleed/ROBOT/CRIME/Renegotiation checks cannot pass without TLS)"
     ],
+    "informationalFindings": [],
+    "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
+    "testsslVersion": null,
     "verdict": "FAIL"
   }
 }

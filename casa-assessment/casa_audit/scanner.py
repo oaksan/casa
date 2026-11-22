@@ -4534,6 +4534,177 @@ def evaluate_tls05_hsts_enforcement(
     }
 
 
+def parse_testssl_vulnerabilities(scan_result: list[dict], target_port: int) -> dict:
+    """Parse official testssl.sh vulnerability entries for TLS-06 (HIGH/CRITICAL fail, lower informational)."""
+    vulns: list[dict] = []
+    high_crit: list[str] = []
+    informational: list[str] = []
+
+    for entry in scan_result or []:
+        if not isinstance(entry, dict):
+            continue
+        for v in entry.get("vulnerabilities", []) or []:
+            if not isinstance(v, dict):
+                continue
+            vid = str(v.get("id") or "unknown")
+            sev = str(v.get("severity") or "INFO").upper()
+            finding = str(v.get("finding") or "")
+            rec = {"id": vid, "severity": sev, "finding": finding}
+            if v.get("cve"):
+                rec["cve"] = v["cve"]
+            if v.get("cwe"):
+                rec["cwe"] = v["cwe"]
+            vulns.append(rec)
+            if sev in {"HIGH", "CRITICAL"}:
+                high_crit.append(f"{vid} ({sev}): {finding}")
+            elif sev not in {"OK", "INFO"}:
+                informational.append(f"{vid} ({sev}): {finding}")
+
+    return {
+        "probedPort": target_port,
+        "tlsActive": bool(vulns),
+        "vulnerabilities": vulns,
+        "highOrCriticalFindings": high_crit,
+        "informationalFindings": informational,
+    }
+
+
+def evaluate_tls06_vulnerabilities(
+    target_url: str,
+    raw_json_path: Path | None = None,
+    testssl_info: dict | None = None,
+    cipher_audit: dict | None = None,
+) -> dict:
+    """Evaluate TLS-06 implementation vulnerabilities using official testssl.sh -H -I -T -C + renegotiation/ROBOT."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if is_https else 80)
+
+    if not host:
+        audit = {
+            "probedPort": port,
+            "tlsActive": False,
+            "vulnerabilities": [],
+            "highOrCriticalFindings": ["No host provided"],
+            "informationalFindings": [],
+            "source": "no host declared",
+            "testsslVersion": None,
+        }
+        return {"verdict": "FAIL", "tls06_pass": False, "vulnAudit": audit, "testssl": {}}
+
+    reusable = bool(
+        testssl_info
+        and testssl_info.get("executed")
+        and any(isinstance(e, dict) and e.get("vulnerabilities") for e in (testssl_info.get("scanResult") or []))
+    )
+    active_testssl = testssl_info if reusable else None
+    source_label = "testssl.sh (reused)"
+
+    if active_testssl is None:
+        if is_https or _quick_tls_capable(host, port):
+            active_testssl = run_testssl_scan(
+                host,
+                port,
+                raw_json_path=raw_json_path,
+                checks=("-H", "-I", "-T", "-C"),
+                timeout_sec=30,
+            )
+            source_label = "testssl.sh -H -I -T -C + renegotiation/ROBOT"
+        else:
+            missing_v = {
+                "id": "tls_endpoint_missing",
+                "severity": "HIGH",
+                "finding": f"No TLS listener on {host}:{port} (endpoint serves cleartext HTTP; Heartbleed/ROBOT/CRIME/Renegotiation checks cannot pass without TLS)",
+            }
+            audit = {
+                "probedPort": port,
+                "tlsActive": False,
+                "vulnerabilities": [missing_v],
+                "highOrCriticalFindings": [missing_v["finding"]],
+                "informationalFindings": [],
+                "source": f"cleartext pre-check on {host}:{port} (non-TLS HTTP endpoint)",
+                "testsslVersion": None,
+            }
+            return {
+                "verdict": "FAIL",
+                "tls06_pass": False,
+                "vulnAudit": audit,
+                "testssl": {"executed": False, "version": None, "rawJsonPath": str(raw_json_path or (OUTPUT_DIR / "testssl-tls06-raw.json")), "scanResult": []},
+            }
+
+    audit = parse_testssl_vulnerabilities(active_testssl.get("scanResult") or [], port)
+    seen_ids = {v["id"] for v in audit["vulnerabilities"]}
+
+    if not audit["vulnerabilities"]:
+        prob = active_testssl.get("scanProblem") or f"No TLS vulnerability data returned on {host}:{port}"
+        audit["vulnerabilities"].append({"id": "tls_endpoint_missing", "severity": "HIGH", "finding": prob})
+        audit["highOrCriticalFindings"].append(f"tls_endpoint_missing (HIGH): {prob}")
+        audit["tlsActive"] = False
+    elif not reusable:
+        # Supplement fast non-blocking renegotiation & ROBOT checks so socket servers never hang
+        if "secure_renego" not in seen_ids:
+            renego_insecure = False
+            try:
+                op = subprocess.run(
+                    ["openssl", "s_client", "-connect", f"{host}:{port}", "-servername", host],
+                    input=b"",
+                    capture_output=True,
+                    timeout=4,
+                )
+                out_s = (op.stdout + op.stderr).decode("utf-8", errors="ignore")
+                if "Secure Renegotiation IS NOT supported" in out_s:
+                    renego_insecure = True
+            except Exception:
+                pass
+            rec_r = {
+                "id": "secure_renego",
+                "severity": "HIGH" if renego_insecure else "OK",
+                "finding": "Secure Renegotiation extension NOT supported (CVE-2009-3555)" if renego_insecure else "Secure Renegotiation IS supported",
+            }
+            audit["vulnerabilities"].append(rec_r)
+            if renego_insecure:
+                audit["highOrCriticalFindings"].append(f"secure_renego (HIGH): {rec_r['finding']}")
+
+        if "ROBOT" not in seen_ids:
+            krsa_list: list[str] = list((cipher_audit or {}).get("nonForwardSecrecyTls12Offered") or [])
+            if cipher_audit is None:
+                try:
+                    ctx_rsa = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                    ctx_rsa.check_hostname = False
+                    ctx_rsa.verify_mode = ssl.CERT_NONE
+                    ctx_rsa.set_ciphers("kRSA:!ECDHE:!DHE:!eNULL:!aNULL:@SECLEVEL=0")
+                    ctx_rsa.minimum_version = ssl.TLSVersion.TLSv1_2
+                    ctx_rsa.maximum_version = ssl.TLSVersion.TLSv1_2
+                    with socket.create_connection((host, port), timeout=2.0) as s:
+                        with ctx_rsa.wrap_socket(s, server_hostname=host) as ss:
+                            c = ss.cipher()
+                            if c:
+                                krsa_list.append(c[0])
+                except Exception:
+                    pass
+            krsa_offered = bool(krsa_list)
+            rec_b = {
+                "id": "ROBOT",
+                "severity": "HIGH" if krsa_offered else "OK",
+                "finding": f"Static RSA key exchange ({krsa_list}) enabled — exposed to ROBOT" if krsa_offered else "Not vulnerable to ROBOT (static RSA disabled)",
+            }
+            audit["vulnerabilities"].append(rec_b)
+            if krsa_offered:
+                audit["highOrCriticalFindings"].append(f"ROBOT (HIGH): {rec_b['finding']}")
+
+    audit["source"] = source_label
+    audit["testsslVersion"] = active_testssl.get("version")
+    tls06_pass = bool(audit["tlsActive"]) and len(audit["highOrCriticalFindings"]) == 0
+    return {
+        "verdict": "PASS" if tls06_pass else "FAIL",
+        "tls06_pass": tls06_pass,
+        "vulnAudit": audit,
+        "testssl": active_testssl,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -4789,141 +4960,14 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     min_hsts_time = tls05_eval["HSTS_time"]
     tls05_pass = tls05_eval["tls05_pass"]
 
-    # TLS-06: Active TLS implementation vulnerability probes (heartbleed, CRIME_TLS, secure_renego, secure_client_renego, ROBOT, ticketbleed)
-    def probe_tls_vulnerabilities(target_h: str, target_p: int, c_audit: dict) -> dict:
-        vulns: list[dict] = []
-        tls_active = False
-        try:
-            ctx_chk = ssl._create_unverified_context()
-            with socket.create_connection((target_h, target_p), timeout=2.0) as s:
-                with ctx_chk.wrap_socket(s, server_hostname=target_h) as ss:
-                    tls_active = bool(ss.version())
-                    comp = ss.compression()
-        except Exception:
-            comp = None
-
-        if not tls_active:
-            vulns.append(
-                {
-                    "id": "tls_endpoint_missing",
-                    "severity": "HIGH",
-                    "finding": f"No TLS listener on {target_h}:{target_p} (endpoint serves cleartext HTTP; Heartbleed/ROBOT/CRIME/Renegotiation checks cannot pass without TLS)",
-                }
-            )
-            return {
-                "probedPort": target_p,
-                "tlsActive": False,
-                "vulnerabilities": vulns,
-                "highOrCriticalFindings": [v["finding"] for v in vulns],
-            }
-
-        # 1. CRIME_TLS: TLS DEFLATE Compression check
-        vulns.append(
-            {
-                "id": "CRIME_TLS",
-                "severity": "HIGH" if comp else "OK",
-                "finding": f"TLS compression active ({comp}) — vulnerable to CRIME" if comp else "TLS compression disabled (null)",
-            }
-        )
-
-        # 2. Heartbleed (CVE-2014-0160): malformed TLS Heartbeat request (payload length 0x4000)
-        hb_vuln = False
-        try:
-            hb_hello = (
-                b"\x16\x03\x02\x00\x31\x01\x00\x00\x2d\x03\x02"
-                + b"\x53\x43\x5b\x90" + b"\x11" * 28
-                + b"\x00\x00\x04\x00\x2f\x00\xff\x01\x00\x00\x04\x00\x0f\x00\x01\x01"
-            )
-            hb_req = b"\x18\x03\x02\x00\x03\x01\x40\x00"
-            with socket.create_connection((target_h, target_p), timeout=2.0) as s:
-                s.settimeout(2.0)
-                s.sendall(hb_hello)
-                _ = s.recv(2048)
-                s.sendall(hb_req)
-                hb_resp = s.recv(16384)
-                if len(hb_resp) > 32 and hb_resp[0] == 0x18:
-                    hb_vuln = True
-        except Exception:
-            pass
-        vulns.append(
-            {
-                "id": "heartbleed",
-                "severity": "CRITICAL" if hb_vuln else "OK",
-                "finding": "Server leaked memory in response to malformed Heartbeat (CVE-2014-0160)" if hb_vuln else "Not vulnerable to Heartbleed (CVE-2014-0160)",
-            }
-        )
-
-        # 3. Secure Renegotiation (CVE-2009-3555) via OpenSSL s_client
-        renego_insecure = False
-        try:
-            op = subprocess.run(
-                ["openssl", "s_client", "-connect", f"{target_h}:{target_p}", "-servername", target_h],
-                input=b"",
-                capture_output=True,
-                timeout=4,
-            )
-            out_s = (op.stdout + op.stderr).decode("utf-8", errors="ignore")
-            if "Secure Renegotiation IS NOT supported" in out_s:
-                renego_insecure = True
-        except Exception:
-            pass
-        vulns.append(
-            {
-                "id": "secure_renego",
-                "severity": "HIGH" if renego_insecure else "OK",
-                "finding": "Secure Renegotiation extension NOT supported (CVE-2009-3555)" if renego_insecure else "Secure Renegotiation IS supported",
-            }
-        )
-
-        # 4. ROBOT prerequisite (static RSA kRSA cipher offered in TLS 1.2)
-        krsa_offered = bool(c_audit.get("nonForwardSecrecyTls12Offered"))
-        vulns.append(
-            {
-                "id": "ROBOT",
-                "severity": "HIGH" if krsa_offered else "OK",
-                "finding": f"Static RSA key exchange ({c_audit.get('nonForwardSecrecyTls12Offered')}) enabled — exposed to ROBOT padding oracle" if krsa_offered else "Not vulnerable to ROBOT (RSA key exchange disabled)",
-            }
-        )
-
-        # 5. Ticketbleed (CVE-2016-9244): 16-byte Session ID echoed uninitialized
-        tb_vuln = False
-        try:
-            sid = b"\xaa" * 16
-            tb_body = b"\x03\x03" + b"\x11" * 32 + bytes([len(sid)]) + sid + b"\x00\x04\xc0\x2f\x00\x2f\x01\x00\x00\x04\x00\x23\x00\x00"
-            tb_hs = b"\x01" + len(tb_body).to_bytes(3, "big") + tb_body
-            tb_rec = b"\x16\x03\x03" + len(tb_hs).to_bytes(2, "big") + tb_hs
-            with socket.create_connection((target_h, target_p), timeout=2.0) as s:
-                s.settimeout(2.0)
-                s.sendall(tb_rec)
-                r = s.recv(1024)
-                if len(r) > 45 and r[0] == 0x16 and r[5] == 0x02:
-                    sid_len = r[43]
-                    if sid_len == 32 and r[44:60] == sid and r[60:76] != b"\x00" * 16:
-                        tb_vuln = True
-        except Exception:
-            pass
-        vulns.append(
-            {
-                "id": "ticketbleed",
-                "severity": "CRITICAL" if tb_vuln else "OK",
-                "finding": "Uninitialized memory leaked in Session ID (CVE-2016-9244)" if tb_vuln else "Not vulnerable to Ticketbleed (CVE-2016-9244)",
-            }
-        )
-
-        high_crit = [f"{v['id']} ({v['severity']}): {v['finding']}" for v in vulns if v["severity"] in {"HIGH", "CRITICAL"}]
-        return {
-            "probedPort": target_p,
-            "tlsActive": True,
-            "vulnerabilities": vulns,
-            "highOrCriticalFindings": high_crit,
-        }
-
-    tls_vuln_audit = (
-        probe_tls_vulnerabilities(host, protocol_target_port, cipher_audit)
-        if host
-        else {"probedPort": protocol_target_port, "tlsActive": False, "vulnerabilities": [], "highOrCriticalFindings": ["No host provided"]}
+    # TLS-06: Official testssl.sh (-H -I -T -C) + renegotiation/ROBOT vulnerability checks
+    tls06_eval = evaluate_tls06_vulnerabilities(
+        base_url,
+        raw_json_path=OUTPUT_DIR / "testssl-tls06-raw.json",
+        cipher_audit=cipher_audit,
     )
-    tls06_pass = bool(tls_vuln_audit["tlsActive"]) and len(tls_vuln_audit["highOrCriticalFindings"]) == 0
+    tls_vuln_audit = tls06_eval["vulnAudit"]
+    tls06_pass = tls06_eval["tls06_pass"]
 
     tls_scan_report = {
         "scanner": f"testssl.sh {testssl_info.get('version') or '3.2.2'} + HTTP Cleartext Redirect Probe",
@@ -5072,11 +5116,14 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             + f"\n\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HAR 1.2: {har_path}"
         ),
     }
+    tls06_ver = tls06_eval["testssl"].get("version") or testssl_ver_label
     results["TLS-06"] = {
         "verdict": "PASS" if tls06_pass else "FAIL",
-        "tool": f"TLS Vulnerability Probe (Heartbleed, CRIME, Renegotiation, ROBOT, Ticketbleed on {host}:{protocol_target_port}, JSON)",
+        "tool": f"testssl.sh {tls06_ver} -H -I -T -C Vulnerability Probe ({host}:{protocol_target_port}, JSON)",
         "log": (
-            f"[PASS] Zero HIGH/CRITICAL TLS implementation vulnerabilities detected on {host}:{protocol_target_port} (checked heartbleed, CRIME_TLS, secure_renego, ROBOT, ticketbleed).\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            f"[PASS] testssl.sh verified zero HIGH/CRITICAL TLS implementation vulnerabilities on {host}:{protocol_target_port} (checked heartbleed, CCS, ticketbleed, CRIME_TLS, secure_renego, ROBOT)."
+            + (f"\nInformational: {'; '.join(tls_vuln_audit.get('informationalFindings', []))}" if tls_vuln_audit.get("informationalFindings") else "")
+            + f"\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - testssl.sh Raw JSON: {tls06_eval['testssl'].get('rawJsonPath') or testssl_info.get('rawJsonPath')}"
             if tls06_pass
             else f"[FAIL] {len(tls_vuln_audit['highOrCriticalFindings'])} TLS-06 HIGH/CRITICAL finding(s) on {host}:{protocol_target_port}:\n  - "
             + "\n  - ".join(tls_vuln_audit["highOrCriticalFindings"])

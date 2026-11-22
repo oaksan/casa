@@ -1773,6 +1773,111 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 23/61: TLS-05 (Iteração SDD 093)", just2_txt)
 
+    def test_iteration94_tls06_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        import ssl
+        import subprocess
+        from casa_audit.scanner import evaluate_tls06_vulnerabilities
+
+        with tempfile.TemporaryDirectory() as td_tls6:
+            tdp = Path(td_tls6)
+            cert, key = tdp / "cert.pem", tdp / "key.pem"
+            subprocess.run(
+                [
+                    "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                    "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=127.0.0.1",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+            class _OkTimeoutHandler(BaseHTTPRequestHandler):
+                timeout = 2
+
+                def log_message(self, fmt, *args):
+                    pass
+
+                def do_GET(self):
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+
+            srv_tls = ThreadingHTTPServer(("127.0.0.1", 0), _OkTimeoutHandler)
+            srv_tls.daemon_threads = True
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(certfile=str(cert), keyfile=str(key))
+            ctx.set_ciphers("ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305")
+            srv_tls.socket = ctx.wrap_socket(srv_tls.socket, server_side=True)
+            tls_port = srv_tls.server_address[1]
+            threading.Thread(target=srv_tls.serve_forever, daemon=True).start()
+
+            srv_http = ThreadingHTTPServer(("127.0.0.1", 0), _OkTimeoutHandler)
+            srv_http.daemon_threads = True
+            http_port = srv_http.server_address[1]
+            threading.Thread(target=srv_http.serve_forever, daemon=True).start()
+
+            try:
+                # 1. Real testssl.sh -H -I -T -C + renegotiation/ROBOT on hardened TLS server -> PASS (~14s)
+                r_pass = evaluate_tls06_vulnerabilities(
+                    f"https://127.0.0.1:{tls_port}",
+                    raw_json_path=tdp / "tls06_pass.json",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                vids = {v["id"] for v in r_pass["vulnAudit"]["vulnerabilities"]}
+                for req_id in ("heartbleed", "CCS", "ticketbleed", "CRIME_TLS", "secure_renego", "ROBOT"):
+                    self.assertIn(req_id, vids)
+                self.assertEqual(r_pass["vulnAudit"]["highOrCriticalFindings"], [])
+
+                # 2. Lower-severity (LOW/MEDIUM) finding remains informational -> PASS
+                r_info = evaluate_tls06_vulnerabilities(
+                    f"https://127.0.0.1:{tls_port}",
+                    testssl_info={
+                        "executed": True,
+                        "version": "3.2.2",
+                        "scanResult": [{
+                            "vulnerabilities": [
+                                {"id": "heartbleed", "severity": "OK", "finding": "not vulnerable (OK)"},
+                                {"id": "BREACH", "severity": "LOW", "finding": "HTTP compression"},
+                            ]
+                        }],
+                    },
+                )
+                self.assertEqual(r_info["verdict"], "PASS")
+                self.assertEqual(len(r_info["vulnAudit"]["informationalFindings"]), 1)
+
+                # 3. HIGH / CRITICAL finding -> FAIL
+                r_crit = evaluate_tls06_vulnerabilities(
+                    f"https://127.0.0.1:{tls_port}",
+                    testssl_info={
+                        "executed": True,
+                        "version": "3.2.2",
+                        "scanResult": [{
+                            "vulnerabilities": [
+                                {"id": "ROBOT", "severity": "HIGH", "finding": "vulnerable"},
+                                {"id": "heartbleed", "severity": "CRITICAL", "finding": "vulnerable"},
+                            ]
+                        }],
+                    },
+                )
+                self.assertEqual(r_crit["verdict"], "FAIL")
+                self.assertEqual(len(r_crit["vulnAudit"]["highOrCriticalFindings"]), 2)
+
+                # 4. Cleartext HTTP -> FAIL quickly
+                r_http = evaluate_tls06_vulnerabilities(
+                    f"http://127.0.0.1:{http_port}",
+                    raw_json_path=tdp / "tls06_http.json",
+                )
+                self.assertEqual(r_http["verdict"], "FAIL")
+                self.assertEqual(r_http["vulnAudit"]["vulnerabilities"][0]["id"], "tls_endpoint_missing")
+            finally:
+                srv_tls.shutdown()
+                srv_tls.server_close()
+                srv_http.shutdown()
+                srv_http.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 24/61: TLS-06 (Iteração SDD 094)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

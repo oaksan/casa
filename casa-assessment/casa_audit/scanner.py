@@ -4370,6 +4370,170 @@ def evaluate_tls04_certificate_validation(
     }
 
 
+def parse_testssl_hsts(scan_result: list[dict]) -> dict:
+    """Parse HSTS_time, HSTS_subdomains, and HSTS_preload from testssl.sh -h headerResponse."""
+    hsts_time: int | None = None
+    offered = False
+    include_subdomains = False
+    preload = False
+    raw_finding = None
+
+    for entry in scan_result or []:
+        if not isinstance(entry, dict):
+            continue
+        for item in entry.get("headerResponse", []) or []:
+            if not isinstance(item, dict):
+                continue
+            iid = str(item.get("id") or "")
+            finding = str(item.get("finding") or "").strip()
+            if iid == "HSTS_time":
+                offered = True
+                raw_finding = finding
+                m_sec = re.search(r"=\s*(\d+)\s*seconds?", finding, re.IGNORECASE)
+                if m_sec:
+                    hsts_time = int(m_sec.group(1))
+            elif iid == "HSTS":
+                raw_finding = finding
+                if "not offered" in finding.lower():
+                    offered = False
+                    if hsts_time is None:
+                        hsts_time = 0
+            elif iid == "HSTS_subdomains":
+                include_subdomains = "includes subdomains" in finding.lower()
+            elif iid == "HSTS_preload":
+                low_p = finding.lower()
+                preload = "marked for preloading" in low_p and "not marked" not in low_p
+
+    return {
+        "offered": offered,
+        "HSTS_time": hsts_time or 0,
+        "includeSubDomains": include_subdomains,
+        "preload": preload,
+        "finding": raw_finding,
+    }
+
+
+def evaluate_tls05_hsts_enforcement(
+    target_url: str,
+    raw_json_path: Path | None = None,
+    http_probe_fn=None,
+    endpoints: list[str] | None = None,
+    testssl_info: dict | None = None,
+) -> dict:
+    """Evaluate TLS-05 HSTS (>= 31536000s) using official testssl.sh -h + HTTPS probes."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if is_https else 80)
+    hsts_endpoints = endpoints or ["/", "/api/Products", "/rest/admin/application-configuration"]
+
+    def _default_probe(ep: str) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{ep}" if ep.startswith("/") else ep
+        req = urllib.request.Request(url, headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}, method="GET")
+        handlers = []
+        if is_https:
+            ctx_u = ssl._create_unverified_context()
+            handlers.append(urllib.request.HTTPSHandler(context=ctx_u))
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(4096).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, ""
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    probe = http_probe_fn or _default_probe
+    reusable = bool(
+        testssl_info
+        and testssl_info.get("executed")
+        and any(isinstance(e, dict) and e.get("headerResponse") for e in (testssl_info.get("scanResult") or []))
+    )
+    active_testssl = testssl_info if reusable else None
+    source_label = "testssl.sh --ssl-native -h (reused)"
+
+    if active_testssl is None:
+        if host and (is_https or _quick_tls_capable(host, port)):
+            active_testssl = run_testssl_scan(
+                host,
+                port,
+                raw_json_path=raw_json_path,
+                checks=("--ssl-native", "-h"),
+                timeout_sec=35,
+            )
+            source_label = "testssl.sh --ssl-native -h"
+        else:
+            active_testssl = {
+                "executed": False,
+                "version": None,
+                "rawJsonPath": str(raw_json_path or (OUTPUT_DIR / "testssl-tls05-raw.json")),
+                "scanResult": [],
+            }
+            source_label = f"cleartext pre-check on {host or 'unknown'}:{port} (non-TLS HTTP endpoint)"
+
+    testssl_hsts = parse_testssl_hsts(active_testssl.get("scanResult") or [])
+    hsts_results_by_ep: list[dict] = []
+    hsts_violations: list[str] = []
+    min_hsts_time: int | None = None
+
+    if active_testssl.get("executed") and any(
+        isinstance(e, dict) and e.get("headerResponse") for e in (active_testssl.get("scanResult") or [])
+    ):
+        t_age = int(testssl_hsts["HSTS_time"] or 0)
+        min_hsts_time = t_age
+        if not testssl_hsts["offered"]:
+            hsts_violations.append(
+                f"testssl.sh -h reported HSTS not offered on {host}:{port} ({testssl_hsts.get('finding') or 'not offered'})"
+            )
+        elif t_age < 31536000:
+            hsts_violations.append(
+                f"testssl.sh -h reported HSTS_time={t_age} < 31536000 ({testssl_hsts.get('finding') or ''})"
+            )
+
+    for ep in hsts_endpoints:
+        st, hdrs, _ = probe(ep)
+        raw_hsts = hdrs.get("strict-transport-security", "")
+        m_age = re.search(r"max-age\s*=\s*(\d+)", raw_hsts, re.IGNORECASE)
+        age_val = int(m_age.group(1)) if m_age else None
+        inc_sub = "includesubdomains" in raw_hsts.lower()
+        preloaded = "preload" in raw_hsts.lower()
+        if age_val is not None:
+            min_hsts_time = age_val if min_hsts_time is None else min(min_hsts_time, age_val)
+        ep_ok = is_https and (age_val is not None and age_val >= 31536000)
+        hsts_results_by_ep.append(
+            {
+                "endpoint": ep,
+                "status": st,
+                "header": raw_hsts or None,
+                "HSTS_time": age_val,
+                "includeSubDomains": inc_sub,
+                "preload": preloaded,
+                "overHttps": is_https,
+                "compliant": ep_ok,
+            }
+        )
+        if not raw_hsts:
+            hsts_violations.append(f"GET {base_url}{ep} missing Strict-Transport-Security header (HSTS_time=0 < 31536000)")
+        elif age_val is None or age_val < 31536000:
+            hsts_violations.append(f"GET {base_url}{ep} HSTS_time={age_val or 0} < 31536000 ('{raw_hsts}')")
+        elif not is_https:
+            hsts_violations.append(f"GET {base_url}{ep} sent HSTS over cleartext HTTP (ignored per RFC 6797 §7.2)")
+
+    tls05_pass = is_https and len(hsts_violations) == 0 and (min_hsts_time is not None and min_hsts_time >= 31536000)
+    return {
+        "verdict": "PASS" if tls05_pass else "FAIL",
+        "tls05_pass": tls05_pass,
+        "HSTS_time": min_hsts_time or 0,
+        "endpointsChecked": hsts_results_by_ep,
+        "hstsEndpointsToProbe": hsts_endpoints,
+        "violations": hsts_violations,
+        "testsslHsts": testssl_hsts,
+        "source": source_label,
+        "testssl": active_testssl,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -4613,42 +4777,17 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     cert_audit = tls04_eval["certAudit"]
     tls04_pass = tls04_eval["tls04_pass"]
 
-    # TLS-05: Strict-Transport-Security multi-endpoint audit & HSTS_time >= 31536000 persistence in TLS JSON
-    hsts_endpoints_to_probe = ["/", "/api/Products", "/rest/admin/application-configuration"]
-    hsts_results_by_ep: list[dict] = []
-    hsts_violations: list[str] = []
-    min_hsts_time: int | None = None
-
-    for ep in hsts_endpoints_to_probe:
-        st, hdrs, _ = (root_status, root_headers, root_body) if ep == "/" else http_probe(ep)
-        raw_hsts = hdrs.get("strict-transport-security", "")
-        m_age = re.search(r"max-age\s*=\s*(\d+)", raw_hsts, re.IGNORECASE)
-        age_val = int(m_age.group(1)) if m_age else None
-        inc_sub = "includesubdomains" in raw_hsts.lower()
-        preloaded = "preload" in raw_hsts.lower()
-        if age_val is not None:
-            min_hsts_time = age_val if min_hsts_time is None else min(min_hsts_time, age_val)
-        ep_ok = is_https and (age_val is not None and age_val >= 31536000)
-        hsts_results_by_ep.append(
-            {
-                "endpoint": ep,
-                "status": st,
-                "header": raw_hsts or None,
-                "HSTS_time": age_val,
-                "includeSubDomains": inc_sub,
-                "preload": preloaded,
-                "overHttps": is_https,
-                "compliant": ep_ok,
-            }
-        )
-        if not raw_hsts:
-            hsts_violations.append(f"GET {base_url}{ep} missing Strict-Transport-Security header (HSTS_time=0 < 31536000)")
-        elif age_val is None or age_val < 31536000:
-            hsts_violations.append(f"GET {base_url}{ep} HSTS_time={age_val or 0} < 31536000 ('{raw_hsts}')")
-        elif not is_https:
-            hsts_violations.append(f"GET {base_url}{ep} sent HSTS over cleartext HTTP (ignored per RFC 6797 §7.2)")
-
-    tls05_pass = len(hsts_violations) == 0 and (min_hsts_time is not None and min_hsts_time >= 31536000)
+    # TLS-05: Official testssl.sh (--ssl-native -h) + multi-endpoint HSTS_time >= 31536000 audit
+    tls05_eval = evaluate_tls05_hsts_enforcement(
+        base_url,
+        raw_json_path=OUTPUT_DIR / "testssl-tls05-raw.json",
+        http_probe_fn=lambda ep: (root_status, root_headers, root_body) if ep == "/" else http_probe(ep),
+    )
+    hsts_endpoints_to_probe = tls05_eval["hstsEndpointsToProbe"]
+    hsts_results_by_ep = tls05_eval["endpointsChecked"]
+    hsts_violations = tls05_eval["violations"]
+    min_hsts_time = tls05_eval["HSTS_time"]
+    tls05_pass = tls05_eval["tls05_pass"]
 
     # TLS-06: Active TLS implementation vulnerability probes (heartbleed, CRIME_TLS, secure_renego, secure_client_renego, ROBOT, ticketbleed)
     def probe_tls_vulnerabilities(target_h: str, target_p: int, c_audit: dict) -> dict:
@@ -4843,6 +4982,9 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         },
         "tls05Hsts": {
             "HSTS_time": min_hsts_time or 0,
+            "source": tls05_eval["source"],
+            "testsslVersion": tls05_eval["testssl"].get("version"),
+            "testsslHsts": tls05_eval["testsslHsts"],
             "endpointsChecked": hsts_results_by_ep,
             "violations": hsts_violations,
             "verdict": "PASS" if tls05_pass else "FAIL",
@@ -4918,11 +5060,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             + f".\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
         ),
     }
+    tls05_ver = tls05_eval["testssl"].get("version") or testssl_ver_label
     results["TLS-05"] = {
         "verdict": "PASS" if tls05_pass else "FAIL",
-        "tool": f"Strict-Transport-Security Multi-Endpoint & HSTS_time Inspector ({len(hsts_endpoints_to_probe)} endpoints, JSON + HAR 1.2)",
+        "tool": f"testssl.sh {tls05_ver} -h HSTS Inspector ({len(hsts_endpoints_to_probe)} endpoints, JSON + HAR 1.2)",
         "log": (
-            f"[PASS] Strict-Transport-Security present on all {len(hsts_endpoints_to_probe)} endpoints over HTTPS with HSTS_time={min_hsts_time} >= 31536000.\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HAR 1.2: {har_path}"
+            f"[PASS] testssl.sh -h and HTTPS probes verified Strict-Transport-Security on all {len(hsts_endpoints_to_probe)} endpoints with HSTS_time={min_hsts_time} >= 31536000.\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - testssl.sh Raw JSON: {tls05_eval['testssl'].get('rawJsonPath') or testssl_info.get('rawJsonPath')}\n  - HAR 1.2: {har_path}"
             if tls05_pass
             else f"[FAIL] {len(hsts_violations)} TLS-05 HSTS violation(s) detected (HSTS_time={min_hsts_time or 0}, required >= 31536000):\n  - "
             + "\n  - ".join(hsts_violations)

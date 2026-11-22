@@ -1316,3 +1316,41 @@ CONTROLE 22/61: TLS-04 (Iteração SDD 092)
   * Na porta `3000` (HTTP puro), nenhum certificado X.509 é apresentado
     (`present=False`, `chainTrustedToPublicRoot=False`) -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 23/61: TLS-05 (Iteração SDD 093)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 3 - TRANSPORT SECURITY)
+--------------------------------------------------------------------------------
+- Controle: `TLS-05` — *`Strict-Transport-Security` present with `max-age` >= 31536000* (ASVS V14.4.5 L1; RFC 6797).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **`testssl.sh`** lendo `Strict-Transport-Security` e `HSTS_time` na resposta
+    HTTP sobre TLS (`PASS` quando `HSTS_time >= 31536000` em todo host/endpoint).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 093`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `TLS-05` auditava `Strict-Transport-Security` apenas via `http_probe` inline em
+  `run_dynamic_and_protocol_checks`, sem invocar `testssl.sh -h`.
+- O que foi feito e melhorado na Iteração SDD 093:
+  1) Implementação de `parse_testssl_hsts(scan_result)` em `casa_audit/scanner.py`
+     extraindo `HSTS_time` (segundos), `HSTS` (`not offered`), `HSTS_subdomains` e
+     `HSTS_preload` da seção `headerResponse` do `testssl.sh`.
+  2) Implementação de `evaluate_tls05_hsts_enforcement(...)` executando
+     `testssl.sh --ssl-native -h --jsonfile-pretty` (gravando
+     `output/testssl-tls05-raw.json` e alimentando `tls05Hsts` / `HSTS_time` em
+     `output/tls-scan.json`) em conjunto com verificação multi-endpoint (`/`,
+     `/api/Products`, `/rest/admin/application-configuration`) e regra RFC 6797 §7.2
+     sobre HTTPS.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration93_tls05_guide_tooling`) executando `testssl.sh 3.2.2`:
+  * **`PASS`** em servidor HTTPS com `max-age=31536000; includeSubDomains; preload`.
+  * **`FAIL`** com `max-age=600` (`< 31536000`), cabeçalho ausente (`HSTS not offered`),
+    e cabeçalho enviado sobre HTTP cleartext (RFC 6797 §7.2).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Cabeçalho `Strict-Transport-Security` ausente nos 3 endpoints em HTTP cleartext
+    (`HSTS_time=0 < 31536000`) -> Veredito **`FAIL`**.
+================================================================================

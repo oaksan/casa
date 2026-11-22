@@ -1684,6 +1684,95 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 22/61: TLS-04 (Iteração SDD 092)", just2_txt)
 
+    def test_iteration93_tls05_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        import ssl
+        import subprocess
+        from casa_audit.scanner import evaluate_tls05_hsts_enforcement
+
+        with tempfile.TemporaryDirectory() as td_tls5:
+            tdp = Path(td_tls5)
+            cert, key = tdp / "cert.pem", tdp / "key.pem"
+            subprocess.run(
+                [
+                    "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                    "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=127.0.0.1",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+            class _HstsHandler(BaseHTTPRequestHandler):
+                hsts_header = "max-age=31536000; includeSubDomains; preload"
+
+                def log_message(self, fmt, *args):
+                    pass
+
+                def do_GET(self):
+                    self.send_response(200)
+                    if type(self).hsts_header:
+                        self.send_header("Strict-Transport-Security", type(self).hsts_header)
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+
+            srv_tls = ThreadingHTTPServer(("127.0.0.1", 0), _HstsHandler)
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(certfile=str(cert), keyfile=str(key))
+            srv_tls.socket = ctx.wrap_socket(srv_tls.socket, server_side=True)
+            tls_port = srv_tls.server_address[1]
+            threading.Thread(target=srv_tls.serve_forever, daemon=True).start()
+
+            srv_http = ThreadingHTTPServer(("127.0.0.1", 0), _HstsHandler)
+            http_port = srv_http.server_address[1]
+            threading.Thread(target=srv_http.serve_forever, daemon=True).start()
+
+            try:
+                # 1. HTTPS with max-age=31536000 -> PASS via testssl.sh -h + endpoint probes
+                _HstsHandler.hsts_header = "max-age=31536000; includeSubDomains; preload"
+                r_pass = evaluate_tls05_hsts_enforcement(
+                    f"https://127.0.0.1:{tls_port}",
+                    raw_json_path=tdp / "hsts_pass.json",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertGreaterEqual(r_pass["HSTS_time"], 31536000)
+                self.assertTrue(r_pass["testsslHsts"]["offered"])
+                self.assertTrue(r_pass["testsslHsts"]["includeSubDomains"])
+
+                # 2. HTTPS with weak max-age=600 (< 31536000) -> FAIL
+                _HstsHandler.hsts_header = "max-age=600"
+                r_low = evaluate_tls05_hsts_enforcement(
+                    f"https://127.0.0.1:{tls_port}",
+                    raw_json_path=tdp / "hsts_low.json",
+                )
+                self.assertEqual(r_low["verdict"], "FAIL")
+                self.assertEqual(r_low["HSTS_time"], 600)
+
+                # 3. HTTPS missing HSTS header -> FAIL
+                _HstsHandler.hsts_header = ""
+                r_none = evaluate_tls05_hsts_enforcement(
+                    f"https://127.0.0.1:{tls_port}",
+                    raw_json_path=tdp / "hsts_none.json",
+                )
+                self.assertEqual(r_none["verdict"], "FAIL")
+                self.assertFalse(r_none["testsslHsts"]["offered"])
+
+                # 4. Cleartext HTTP even with HSTS header -> FAIL (RFC 6797 §7.2)
+                _HstsHandler.hsts_header = "max-age=31536000; includeSubDomains"
+                r_http = evaluate_tls05_hsts_enforcement(
+                    f"http://127.0.0.1:{http_port}",
+                    raw_json_path=tdp / "hsts_http.json",
+                )
+                self.assertEqual(r_http["verdict"], "FAIL")
+                self.assertTrue(any("cleartext HTTP" in v for v in r_http["violations"]))
+            finally:
+                srv_tls.shutdown()
+                srv_tls.server_close()
+                srv_http.shutdown()
+                srv_http.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 23/61: TLS-05 (Iteração SDD 093)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

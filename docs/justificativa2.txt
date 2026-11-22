@@ -1751,3 +1751,40 @@ CONTROLE 33/61: CFG-09 (Iteração SDD 103)
   * Múltiplas respostas `4xx`/`5xx` expõem stacktrace (`<ul id="stacktrace">`),
     caminhos absolutos, `SQLITE_ERROR` e `node_modules/` -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 34/61: CFG-10 (Iteração SDD 104)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-10` — *No administrative interface reachable without authentication* (CWE-306; ADA-defined).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (inventário/descoberta de URLs, contraparte ao Burp Suite) +
+    wordlist **SecLists** (`casa-assessment/rules/seclists_cfg10_admin.txt`) com
+    replay autenticado vs. não autenticado e comparação LCS `>= 0,90`.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 104`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-10` usava lista fixa inline de 12 caminhos em `run_dynamic_and_protocol_checks`,
+  sem arquivo dedicado SecLists nem correlação com URLs descobertas pelo **OWASP ZAP**.
+- O que foi feito e melhorado na Iteração SDD 104:
+  1) Criação da wordlist curada **SecLists** (`rules/seclists_cfg10_admin.txt`)
+     e de `_load_seclists_admin_wordlist()` + `SECLISTS_CFG10_WORDLIST`.
+  2) Implementação de `evaluate_cfg10_admin_reachability(...)` com replay sem
+     credenciais, comparação diferencial LCS (`>= 0,90`) com filtro anti-SPA e
+     absorção dinâmica de caminhos administrativos descobertos no crawl do ZAP.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration104_cfg10_guide_tooling`) com OWASP ZAP `2.17.0` + SecLists:
+  * **`PASS`** com rotas protegidas por `401`.
+  * **`FAIL`** quando rotas administrativas (`/admin`, `/support/logs`,
+    `/rest/admin/application-configuration`) ou `/rest/wallet/balance` aceitam
+    acesso não autenticado (`LCS >= 0,90`).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Interfaces administrativas/operacionais (`/rest/admin/application-configuration`,
+    `/rest/admin/application-version`, `/support/logs`, `/support/logs/audit.json`,
+    `/metrics`, `/api-docs/`) acessíveis sem autenticação (`LCS >= 0,90`) -> Veredito **`FAIL`**.
+================================================================================

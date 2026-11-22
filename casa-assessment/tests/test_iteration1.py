@@ -2528,7 +2528,10 @@ class TestCasa3Iteration1(unittest.TestCase):
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html")
                     self.end_headers()
-                    self.wfile.write(b"<html><body>Home</body></html>")
+                    if m == "sql_trace":
+                        self.wfile.write(b'<html><body><a href="/rest/products/search?q=%27))">search</a></body></html>')
+                    else:
+                        self.wfile.write(b"<html><body>Home</body></html>")
                     return
                 if m == "generic":
                     self.send_response(404 if "nonexistent" in p else 400)
@@ -2611,6 +2614,109 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 33/61: CFG-09 (Iteração SDD 103)", just2_txt)
+
+    def test_iteration104_cfg10_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg10_admin_reachability
+
+        class _Cfg10Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "protected"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                m = type(self).mode
+                p = self.path.split("?", 1)[0]
+                is_auth = self.headers.get("Authorization") == "Bearer admin-jwt"
+
+                if p in {"/admin", "/support/logs", "/rest/admin/application-configuration"}:
+                    if m == "admin_exposed" or is_auth:
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(b'{"admin":"panel","logs":["audit-1","audit-2"]}')
+                        return
+                    self.send_response(401)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"Unauthorized"}')
+                    return
+
+                if p == "/rest/wallet/balance":
+                    if m == "wallet_bypass" or is_auth:
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(b'{"balance":999.5}')
+                        return
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+
+                if p in {"/rest/basket/1", "/api/Users/1", "/api/Cards", "/rest/2fa/status", "/rest/user/whoami"}:
+                    if is_auth:
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(b'{"data":"ok"}')
+                        return
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg10Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg10:
+            tdp = Path(td_cfg10)
+            auth_h = {"Authorization": "Bearer admin-jwt"}
+            try:
+                # 1. Protected admin & authenticated endpoints -> PASS via OWASP ZAP 2.17.0 + SecLists
+                _Cfg10Handler.mode = "protected"
+                r_pass = evaluate_cfg10_admin_reachability(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers=auth_h,
+                    json_out_path=tdp / "zap_c10_pass.json",
+                    sarif_out_path=tdp / "zap_c10_pass.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertGreaterEqual(r_pass["wordlistCount"], 20)
+                self.assertTrue(r_pass["zap"]["executed"])
+
+                # 2. Admin paths exposed unauthenticated with LCS >= 0.90 -> FAIL (ZAP discovery + SecLists)
+                _Cfg10Handler.mode = "admin_exposed"
+                r_adm = evaluate_cfg10_admin_reachability(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers=auth_h,
+                    json_out_path=tdp / "zap_c10_adm.json",
+                    sarif_out_path=tdp / "zap_c10_adm.sarif",
+                )
+                self.assertEqual(r_adm["verdict"], "FAIL")
+                self.assertTrue(any(f["kind"] == "exposed_admin_wordlist_path" and f["similarity"] >= 0.90 for f in r_adm["findings"]))
+                self.assertGreaterEqual(len(r_adm["zapDiscoveredAdminUrls"]), 1)
+
+                # 3. Authenticated route (/rest/wallet/balance) bypass -> FAIL
+                _Cfg10Handler.mode = "wallet_bypass"
+                r_wal = evaluate_cfg10_admin_reachability(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers=auth_h,
+                    zap_report=r_pass["zap"],
+                )
+                self.assertEqual(r_wal["verdict"], "FAIL")
+                self.assertTrue(any(f["kind"] == "authenticated_route_bypass" for f in r_wal["findings"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 34/61: CFG-10 (Iteração SDD 104)", just2_txt)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+# Curated SecLists Discovery/Web-Content Admin & Operations Paths (danielmiessler/SecLists)
+/rest/admin/application-configuration
+/rest/admin/application-version
+/support/logs
+/support/logs/audit.json
+/metrics
+/api-docs/
+/admin
+/admin/
+/admin.php
+/admin.html
+/admin/login
+/administration
+/administrator
+/manage
+/management
+/manager/html
+/grafana
+/console
+/phpmyadmin
+/wp-admin
+/system
+/dashboard

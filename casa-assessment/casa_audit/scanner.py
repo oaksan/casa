@@ -36,6 +36,7 @@ CASA_ASSESS_DIR = ROOT_DIR / "casa-assessment"
 CONTROLS_JSON = CASA_ASSESS_DIR / "data" / "casa3_controls.json"
 SEMGREP_RULES = CASA_ASSESS_DIR / "rules" / "casa3_al1_sast.yml"
 NUCLEI_CFG02_DIR = CASA_ASSESS_DIR / "rules" / "nuclei_cfg02"
+SECLISTS_CFG10_WORDLIST = CASA_ASSESS_DIR / "rules" / "seclists_cfg10_admin.txt"
 OUTPUT_DIR = CASA_ASSESS_DIR / "output"
 
 SEMGREP_BIN = shutil.which("semgrep") or "/home/user/.local/bin/semgrep"
@@ -4780,6 +4781,8 @@ def run_zap_automation(
             f"    rules:\n"
             f"      - id: 10015\n"
             f"        threshold: Low\n"
+            f"      - id: 90022\n"
+            f"        threshold: Low\n"
             f"  - type: spider\n"
             f"    parameters:\n"
             f"      maxDuration: 1\n"
@@ -6675,6 +6678,223 @@ def evaluate_cfg09_error_disclosure(
     }
 
 
+def _lcs_line_similarity(txt_a: str, txt_b: str) -> float:
+    norm_a = [" ".join(ln.split()) for ln in txt_a.splitlines() if ln.strip()]
+    norm_b = [" ".join(ln.split()) for ln in txt_b.splitlines() if ln.strip()]
+    if not norm_a and not norm_b:
+        return 1.0
+    if not norm_a or not norm_b:
+        return 0.0
+    return round(difflib.SequenceMatcher(None, norm_a, norm_b).ratio(), 3)
+
+
+def _load_seclists_admin_wordlist() -> list[str]:
+    if SECLISTS_CFG10_WORDLIST.exists():
+        paths: list[str] = []
+        for raw_ln in SECLISTS_CFG10_WORDLIST.read_text(encoding="utf-8").splitlines():
+            ln = raw_ln.strip()
+            if not ln or ln.startswith("#"):
+                continue
+            if not ln.startswith("/"):
+                ln = "/" + ln
+            if ln not in paths:
+                paths.append(ln)
+        if paths:
+            return paths
+    return [
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/support/logs",
+        "/support/logs/audit.json",
+        "/metrics",
+        "/api-docs/",
+        "/admin",
+        "/administration",
+        "/administrator",
+        "/manage",
+        "/grafana",
+        "/console",
+    ]
+
+
+def evaluate_cfg10_admin_reachability(
+    target_url: str,
+    *,
+    auth_headers: dict[str, str] | None = None,
+    auth_uid: int | str = 1,
+    auth_bid: int | str = 1,
+    is_spa_fallback_fn=None,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate CFG-10 using OWASP ZAP + SecLists Admin Wordlist & Differential Auth/Unauth LCS >= 0.90."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+
+    def _default_probe(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}
+        if headers:
+            req_hdrs.update(headers)
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            try:
+                err_body = he.read(16384).decode("utf-8", errors="ignore")
+            except Exception:
+                err_body = ""
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, err_body
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    probe = http_probe_fn or _default_probe
+    auth_hdrs = dict(auth_headers or {})
+
+    if is_spa_fallback_fn is None:
+        _, _, root_b = probe("/")
+        spa_shell = "<app-root" in root_b.lower()
+
+        def _check_spa(txt: str) -> bool:
+            return spa_shell and "<app-root" in txt.lower()
+    else:
+        _check_spa = is_spa_fallback_fn
+
+    cfg10_auth_routes = [
+        f"/rest/basket/{auth_bid}",
+        f"/api/Users/{auth_uid}",
+        "/rest/wallet/balance",
+        "/api/Cards",
+        "/rest/2fa/status",
+        "/rest/user/whoami",
+    ]
+    cfg10_admin_wordlist = _load_seclists_admin_wordlist()
+
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[f"{base_url}{p}" for p in cfg10_admin_wordlist[:10]],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    zap_discovered_admin_urls: list[str] = []
+    seen_wordlist = {p.rstrip("/") or "/" for p in cfg10_admin_wordlist}
+    admin_kw_re = re.compile(r"(?:admin|manage|dashboard|console|grafana|support/logs|metrics|api-docs|phpmyadmin|wp-admin)", re.IGNORECASE)
+    for zu in active_zap.get("urls", []) or []:
+        zpath = urllib.parse.urlparse(str(zu)).path.rstrip("/") or "/"
+        if admin_kw_re.search(zpath):
+            zap_discovered_admin_urls.append(str(zu))
+            if zpath not in seen_wordlist:
+                seen_wordlist.add(zpath)
+                cfg10_admin_wordlist.append(zpath)
+
+    cfg10_findings: list[dict] = []
+    seen_urls: set[str] = set()
+    cfg10_probed_count = 0
+
+    for ar_ep in cfg10_auth_routes:
+        st_auth, _, body_auth = probe(ar_ep, headers=auth_hdrs)
+        st_unauth, _, body_unauth = probe(ar_ep)
+        cfg10_probed_count += 2
+        if 200 <= st_auth < 300 and 200 <= st_unauth < 300:
+            sim_auth = _lcs_line_similarity(body_auth, body_unauth)
+            if sim_auth >= 0.90 and body_unauth.strip() not in {"{}", '{"user":{}}', "[]"}:
+                full_u = f"{base_url}{ar_ep}"
+                if full_u not in seen_urls:
+                    seen_urls.add(full_u)
+                    cfg10_findings.append(
+                        {
+                            "url": full_u,
+                            "kind": "authenticated_route_bypass",
+                            "source": "AuthReplay",
+                            "unauthStatus": st_unauth,
+                            "authStatus": st_auth,
+                            "similarity": sim_auth,
+                            "detail": (
+                                f"Authenticated route GET {full_u} accepted unauthenticated replay "
+                                f"(auth HTTP {st_auth}, unauth HTTP {st_unauth}, LCS similarity={sim_auth:.3f} >= 0.90)"
+                            ),
+                        }
+                    )
+
+    zap_url_set = {urllib.parse.urlparse(u).path.rstrip("/") or "/" for u in zap_discovered_admin_urls}
+    for adm_ep in cfg10_admin_wordlist:
+        st_auth, _, body_auth = probe(adm_ep, headers=auth_hdrs)
+        st_unauth, _, body_unauth = probe(adm_ep)
+        cfg10_probed_count += 2
+        if 200 <= st_unauth < 300 and not _check_spa(body_unauth):
+            sim_adm = _lcs_line_similarity(body_auth, body_unauth) if (200 <= st_auth < 300) else 0.0
+            if sim_adm >= 0.90:
+                full_u = f"{base_url}{adm_ep}"
+                if full_u not in seen_urls:
+                    seen_urls.add(full_u)
+                    norm_adm = adm_ep.rstrip("/") or "/"
+                    src_lbl = "OWASP ZAP+SecLists" if norm_adm in zap_url_set else "SecListsWordlist"
+                    cfg10_findings.append(
+                        {
+                            "url": full_u,
+                            "kind": "exposed_admin_wordlist_path",
+                            "source": src_lbl,
+                            "unauthStatus": st_unauth,
+                            "authStatus": st_auth,
+                            "similarity": sim_adm,
+                            "detail": (
+                                f"Administrative/operational endpoint GET {full_u} reachable unauthenticated "
+                                f"(HTTP {st_unauth} vs auth HTTP {st_auth}, LCS line similarity={sim_adm:.3f} >= 0.90)"
+                            ),
+                        }
+                    )
+
+    sarif_items: list[dict] = []
+    for cf10 in cfg10_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-10",
+                "level": "error",
+                "message": {"text": cf10["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": cf10["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-10",
+                    "source": cf10["source"],
+                    "findingKind": cf10["kind"],
+                    "unauthStatus": cf10["unauthStatus"],
+                    "authStatus": cf10["authStatus"],
+                    "lcsSimilarity": cf10["similarity"],
+                },
+            }
+        )
+
+    admin_exposed = len(cfg10_findings) > 0
+    return {
+        "verdict": "FAIL" if admin_exposed else "PASS",
+        "admin_exposed": admin_exposed,
+        "authRoutesCount": len(cfg10_auth_routes),
+        "wordlistCount": len(cfg10_admin_wordlist),
+        "probedCount": cfg10_probed_count,
+        "wordlistPath": str(SECLISTS_CFG10_WORDLIST),
+        "zapDiscoveredAdminUrls": sorted(set(zap_discovered_admin_urls)),
+        "findings": cfg10_findings,
+        "sarifResults": sarif_items,
+        "zap": active_zap,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -7350,121 +7570,31 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-10: Administrative interface reachability & differential unauthenticated replay vs LCS similarity >= 0.90 (SARIF 2.1.0 + HAR 1.2)
-    def lcs_line_similarity(txt_a: str, txt_b: str) -> float:
-        norm_a = [" ".join(ln.split()) for ln in txt_a.splitlines() if ln.strip()]
-        norm_b = [" ".join(ln.split()) for ln in txt_b.splitlines() if ln.strip()]
-        if not norm_a and not norm_b:
-            return 1.0
-        if not norm_a or not norm_b:
-            return 0.0
-        return round(difflib.SequenceMatcher(None, norm_a, norm_b).ratio(), 3)
-
-    # Part 1: Replay authenticated routes with credentials removed
-    cfg10_auth_routes = [
-        f"/rest/basket/{auth_bid}",
-        f"/api/Users/{auth_uid}",
-        "/rest/wallet/balance",
-        "/api/Cards",
-        "/rest/2fa/status",
-        "/rest/user/whoami",
-    ]
-    # Part 2: Administrative & operational wordlist compared authenticated vs unauthenticated
-    cfg10_admin_wordlist = [
-        "/rest/admin/application-configuration",
-        "/rest/admin/application-version",
-        "/support/logs",
-        "/support/logs/audit.json",
-        "/metrics",
-        "/api-docs/",
-        "/admin",
-        "/administration",
-        "/administrator",
-        "/manage",
-        "/grafana",
-        "/console",
-    ]
-
-    cfg10_findings: list[dict] = []
-    cfg10_probed_count = 0
-
-    for ar_ep in cfg10_auth_routes:
-        st_auth, _, body_auth = http_probe(ar_ep, headers=auth_req_headers)
-        st_unauth, _, body_unauth = http_probe(ar_ep)
-        cfg10_probed_count += 2
-        if 200 <= st_auth < 300 and 200 <= st_unauth < 300:
-            sim_auth = lcs_line_similarity(body_auth, body_unauth)
-            if sim_auth >= 0.90 and body_unauth.strip() not in {"{}", '{"user":{}}', "[]"}:
-                cfg10_findings.append(
-                    {
-                        "url": f"{base_url}{ar_ep}",
-                        "kind": "authenticated_route_bypass",
-                        "unauthStatus": st_unauth,
-                        "authStatus": st_auth,
-                        "similarity": sim_auth,
-                        "detail": (
-                            f"Authenticated route GET {base_url}{ar_ep} accepted unauthenticated replay "
-                            f"(auth HTTP {st_auth}, unauth HTTP {st_unauth}, LCS similarity={sim_auth:.3f} >= 0.90)"
-                        ),
-                    }
-                )
-
-    for adm_ep in cfg10_admin_wordlist:
-        st_auth, _, body_auth = http_probe(adm_ep, headers=auth_req_headers)
-        st_unauth, _, body_unauth = http_probe(adm_ep)
-        cfg10_probed_count += 2
-        if 200 <= st_unauth < 300 and not is_spa_fallback(body_unauth):
-            # Compare against authenticated response when available (or self non-empty administrative content)
-            sim_adm = lcs_line_similarity(body_auth, body_unauth) if (200 <= st_auth < 300) else 0.0
-            if sim_adm >= 0.90:
-                cfg10_findings.append(
-                    {
-                        "url": f"{base_url}{adm_ep}",
-                        "kind": "exposed_admin_wordlist_path",
-                        "unauthStatus": st_unauth,
-                        "authStatus": st_auth,
-                        "similarity": sim_adm,
-                        "detail": (
-                            f"Administrative/operational endpoint GET {base_url}{adm_ep} reachable unauthenticated "
-                            f"(HTTP {st_unauth} vs auth HTTP {st_auth}, LCS line similarity={sim_adm:.3f} >= 0.90)"
-                        ),
-                    }
-                )
-
-    for cf10 in cfg10_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-10",
-                "level": "error",
-                "message": {"text": cf10["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": cf10["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-10",
-                    "findingKind": cf10["kind"],
-                    "unauthStatus": cf10["unauthStatus"],
-                    "authStatus": cf10["authStatus"],
-                    "lcsSimilarity": cf10["similarity"],
-                },
-            }
-        )
-
-    admin_exposed = len(cfg10_findings) > 0
+    # CFG-10: OWASP ZAP + SecLists Admin Wordlist Differential Unauthenticated Replay (LCS similarity >= 0.90, SARIF 2.1.0 + HAR 1.2)
+    lcs_line_similarity = _lcs_line_similarity
+    cfg10_eval = evaluate_cfg10_admin_reachability(
+        base_url,
+        auth_headers=auth_req_headers,
+        auth_uid=auth_uid,
+        auth_bid=auth_bid,
+        is_spa_fallback_fn=is_spa_fallback,
+        zap_report=zap_domain4_report,
+        http_probe_fn=http_probe,
+    )
+    cfg10_findings = cfg10_eval["findings"]
+    dast_sarif_results.extend(cfg10_eval["sarifResults"])
+    cfg10_probed_count = cfg10_eval["probedCount"]
+    admin_exposed = cfg10_eval["admin_exposed"]
     cfg10_lines = [cf10["detail"] for cf10 in cfg10_findings]
     results["CFG-10"] = {
         "verdict": "FAIL" if admin_exposed else "PASS",
-        "tool": f"Differential Auth Replay & Admin Wordlist LCS Analyzer ({cfg10_probed_count} auth/unauth probes, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"OWASP ZAP {zap_ver_label} & SecLists Admin Wordlist LCS Analyzer ({cfg10_probed_count} auth/unauth probes, SARIF 2.1.0 + HAR 1.2)",
         "log": (
-            f"[FAIL] {len(cfg10_findings)} administrative/authenticated route(s) reachable without authentication (LCS similarity >= 0.90):\n  - "
+            f"[FAIL] {len(cfg10_findings)} administrative/authenticated route(s) reachable without authentication (LCS similarity >= 0.90; wordlist={cfg10_eval['wordlistPath']}):\n  - "
             + "\n  - ".join(cfg10_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - SecLists Wordlist: {cfg10_eval['wordlistPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
             if admin_exposed
-            else f"[PASS] Replayed {len(cfg10_auth_routes)} authenticated routes and {len(cfg10_admin_wordlist)} administrative wordlist paths unauthenticated; all authenticated routes denied and 0 admin paths returned 2xx unauthenticated with LCS similarity >= 0.90.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            else f"[PASS] OWASP ZAP {zap_ver_label} and SecLists differential replay tested {cfg10_eval['authRoutesCount']} authenticated routes and {cfg10_eval['wordlistCount']} admin paths; all denied unauthenticated or below 0.90 LCS similarity.\nEvidence Artifacts:\n  - SecLists Wordlist: {cfg10_eval['wordlistPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

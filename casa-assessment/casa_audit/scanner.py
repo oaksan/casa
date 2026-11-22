@@ -43,6 +43,7 @@ OSV_SCANNER_BIN = shutil.which("osv-scanner") or "/home/user/.local/bin/osv-scan
 TRIVY_BIN = shutil.which("trivy") or "/home/user/.local/bin/trivy"
 CYCLONEDX_BIN = shutil.which("cyclonedx") or shutil.which("cyclonedx-cli") or "/home/user/.local/bin/cyclonedx"
 GITLEAKS_BIN = shutil.which("gitleaks") or "/home/user/.local/bin/gitleaks"
+TESTSSL_BIN = shutil.which("testssl.sh") or shutil.which("testssl") or "/home/user/.local/bin/testssl.sh"
 
 
 def load_controls() -> list[dict]:
@@ -3703,6 +3704,221 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 # 3. Domains 3–8: Active HTTP / TLS / DAST / Auth / OAuth / Webhook Probes
 # ---------------------------------------------------------------------------
+def run_testssl_scan(
+    host: str,
+    port: int,
+    raw_json_path: Path | None = None,
+    checks: tuple[str, ...] = ("-p",),
+    timeout_sec: int = 35,
+) -> dict:
+    """Execute official testssl.sh against host:port and parse its JSON report."""
+    binary = TESTSSL_BIN if Path(TESTSSL_BIN).exists() else (shutil.which("testssl.sh") or shutil.which("testssl") or "")
+    target = f"{host}:{port}"
+    out_file = raw_json_path or (OUTPUT_DIR / "testssl-raw.json")
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    if out_file.exists():
+        out_file.unlink()
+
+    if not binary or not Path(binary).exists():
+        return {
+            "executed": False,
+            "binary": binary or "not-found",
+            "version": None,
+            "openssl": None,
+            "returncode": None,
+            "scanTime": None,
+            "rawJsonPath": str(out_file),
+            "handshakeOk": False,
+            "protocolsOffered": [],
+            "scanProblem": "testssl.sh binary not found",
+            "scanResult": [],
+        }
+
+    cmd = [
+        binary,
+        "--quiet",
+        "--warnings",
+        "batch",
+        "--color",
+        "0",
+        "--ip",
+        "one",
+        "--connect-timeout",
+        "2",
+        "--openssl-timeout",
+        "2",
+        *checks,
+        "--jsonfile-pretty",
+        str(out_file),
+        target,
+    ]
+    returncode = None
+    stderr_txt = ""
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+        )
+        returncode = proc.returncode
+        stderr_txt = (proc.stderr or "").strip()
+    except subprocess.TimeoutExpired:
+        stderr_txt = f"testssl.sh timed out after {timeout_sec}s on {target}"
+    except Exception as exc:
+        stderr_txt = str(exc)
+
+    parsed_json: dict = {}
+    if out_file.exists():
+        try:
+            parsed_json = json.loads(out_file.read_text(encoding="utf-8"))
+        except Exception:
+            parsed_json = {}
+
+    scan_result = parsed_json.get("scanResult", []) if isinstance(parsed_json, dict) else []
+    scan_problem = None
+    protocols_offered: list[str] = []
+    for entry in scan_result:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("id") == "scanProblem" and str(entry.get("severity", "")).upper() == "FATAL":
+            scan_problem = str(entry.get("finding") or "Fatal TLS scan problem")
+        for proto in entry.get("protocols", []) or []:
+            if not isinstance(proto, dict):
+                continue
+            pid = str(proto.get("id") or "")
+            finding = str(proto.get("finding") or "").lower()
+            if pid.startswith(("SSL", "TLS")) and "offered" in finding and "not offered" not in finding:
+                protocols_offered.append(pid)
+
+    handshake_ok = bool(scan_result) and not scan_problem and (bool(protocols_offered) or returncode == 0)
+    if not scan_problem and not handshake_ok and stderr_txt:
+        scan_problem = stderr_txt[:240]
+
+    return {
+        "executed": bool(parsed_json) or returncode is not None,
+        "binary": binary,
+        "version": parsed_json.get("version") if isinstance(parsed_json, dict) else None,
+        "openssl": parsed_json.get("openssl") if isinstance(parsed_json, dict) else None,
+        "returncode": returncode,
+        "scanTime": parsed_json.get("scanTime") if isinstance(parsed_json, dict) else None,
+        "rawJsonPath": str(out_file),
+        "handshakeOk": handshake_ok,
+        "protocolsOffered": protocols_offered,
+        "scanProblem": scan_problem,
+        "scanResult": scan_result,
+    }
+
+
+def evaluate_tls01_transport_enforcement(
+    target_url: str,
+    raw_json_path: Path | None = None,
+    tls_port_override: int | None = None,
+    cleartext_port_override: int | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate TLS-01 using official testssl.sh + no-redirect HTTP cleartext probes."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    host = parsed.hostname or "localhost"
+    port = parsed.port or (443 if is_https else 80)
+    tls_port = tls_port_override if tls_port_override is not None else (port if is_https else 443)
+    cleartext_http_port = cleartext_port_override if cleartext_port_override is not None else (80 if is_https else port)
+
+    def _default_probe(url: str) -> tuple[int, dict[str, str], str]:
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                return None
+
+        req = urllib.request.Request(url, headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}, method="GET")
+        opener = urllib.request.build_opener(_NoRedirect)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            try:
+                body = he.read(16384).decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, body
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    probe = http_probe_fn or _default_probe
+    testssl_info = (
+        run_testssl_scan(host, tls_port, raw_json_path=raw_json_path, checks=("-p",))
+        if host
+        else {
+            "executed": False,
+            "binary": TESTSSL_BIN,
+            "version": None,
+            "openssl": None,
+            "returncode": None,
+            "scanTime": None,
+            "rawJsonPath": str(raw_json_path or (OUTPUT_DIR / "testssl-raw.json")),
+            "handshakeOk": False,
+            "protocolsOffered": [],
+            "scanProblem": "No host declared",
+            "scanResult": [],
+        }
+    )
+
+    cleartext_base = f"http://{host}:{cleartext_http_port}"
+    cleartext_endpoints = ["/", "/rest/user/login", "/api/Products"]
+    cleartext_findings: list[str] = []
+    cleartext_probe_records: list[dict] = []
+
+    if not testssl_info["handshakeOk"]:
+        cleartext_findings.append(
+            f"testssl.sh TLS check on {host}:{tls_port} failed ({testssl_info.get('scanProblem') or 'no TLS listener'})"
+        )
+    if not is_https:
+        cleartext_findings.append(
+            f"Declared target URL '{base_url}' operates directly over unencrypted HTTP cleartext scheme"
+        )
+
+    for ep in cleartext_endpoints:
+        ep_url = f"{cleartext_base}{ep}"
+        c_status, c_headers, c_body = probe(ep_url)
+        loc = c_headers.get("location", "")
+        loc_parsed = urllib.parse.urlparse(loc) if loc else None
+        valid_https_redirect = bool(
+            300 <= c_status < 400
+            and loc_parsed is not None
+            and loc_parsed.scheme.lower() == "https"
+            and (loc_parsed.hostname or "").lower() == (host or "").lower()
+        )
+        cleartext_probe_records.append(
+            {
+                "url": ep_url,
+                "status": c_status,
+                "location": loc,
+                "valid_https_redirect": valid_https_redirect,
+                "cleartext_bytes": len(c_body) if c_status > 0 else 0,
+            }
+        )
+        if c_status == 0:
+            continue
+        if not valid_https_redirect:
+            cleartext_findings.append(
+                f"GET {ep_url} answered HTTP {c_status} in cleartext ({len(c_body)} bytes, Location='{loc or '<none>'}') instead of 3xx redirect to https://{host}/"
+            )
+
+    tls01_pass = bool(testssl_info["handshakeOk"]) and is_https and len(cleartext_findings) == 0
+    return {
+        "verdict": "PASS" if tls01_pass else "FAIL",
+        "tls01_pass": tls01_pass,
+        "tlsPort": tls_port,
+        "cleartextPort": cleartext_http_port,
+        "cleartextEndpoints": cleartext_endpoints,
+        "probes": cleartext_probe_records,
+        "violations": cleartext_findings,
+        "testssl": testssl_info,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -3846,52 +4062,21 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             except Exception:
                 pass
 
-    # TLS-01: Probe cleartext HTTP endpoints without following redirects + verify port 443 TLS handshake
+    # TLS-01: Official testssl.sh TLS check + no-redirect cleartext HTTP probes
+    tls01_eval = evaluate_tls01_transport_enforcement(
+        base_url,
+        raw_json_path=OUTPUT_DIR / "testssl-raw.json",
+        http_probe_fn=lambda url: http_probe(url, follow_redirects=False),
+    )
+    testssl_info = tls01_eval["testssl"]
+    if testssl_info.get("handshakeOk") and not tls_handshake_ok:
+        tls_handshake_ok = True
     root_status, root_headers, root_body = http_probe("/")
-    cleartext_http_port = 80 if is_https else port
-    cleartext_base = f"http://{host}:{cleartext_http_port}"
-    cleartext_endpoints = ["/", "/rest/user/login", "/api/Products"]
-    cleartext_findings: list[str] = []
-    cleartext_probe_records: list[dict] = []
-
-    if not tls_handshake_ok:
-        cleartext_findings.append(
-            f"TLS handshake on {host}:{tls_port} failed ({tls_handshake_error or 'no TLS listener'})"
-        )
-    elif not is_https:
-        cleartext_findings.append(
-            f"Declared target URL '{base_url}' operates directly over unencrypted HTTP cleartext scheme"
-        )
-
-    for ep in cleartext_endpoints:
-        ep_url = f"{cleartext_base}{ep}"
-        c_status, c_headers, c_body = http_probe(ep_url, follow_redirects=False)
-        loc = c_headers.get("location", "")
-        loc_parsed = urllib.parse.urlparse(loc) if loc else None
-        valid_https_redirect = bool(
-            300 <= c_status < 400
-            and loc_parsed is not None
-            and loc_parsed.scheme.lower() == "https"
-            and (loc_parsed.hostname or "").lower() == (host or "").lower()
-        )
-        cleartext_probe_records.append(
-            {
-                "url": ep_url,
-                "status": c_status,
-                "location": loc,
-                "valid_https_redirect": valid_https_redirect,
-                "cleartext_bytes": len(c_body) if c_status > 0 else 0,
-            }
-        )
-        if c_status == 0:
-            # Connection refused / timeout on cleartext HTTP port satisfies no-cleartext-fallback
-            continue
-        if not valid_https_redirect:
-            cleartext_findings.append(
-                f"GET {ep_url} answered HTTP {c_status} in cleartext ({len(c_body)} bytes, Location='{loc or '<none>'}') instead of 3xx redirect to https://{host}/"
-            )
-
-    tls01_pass = tls_handshake_ok and is_https and len(cleartext_findings) == 0
+    cleartext_http_port = tls01_eval["cleartextPort"]
+    cleartext_endpoints = tls01_eval["cleartextEndpoints"]
+    cleartext_findings = tls01_eval["violations"]
+    cleartext_probe_records = tls01_eval["probes"]
+    tls01_pass = tls01_eval["tls01_pass"]
 
     # TLS-02: Probe every SSL/TLS protocol version independently (SSLv2, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, TLS 1.3)
     def probe_protocol_matrix(target_h: str, target_p: int) -> dict[str, str]:
@@ -4309,18 +4494,30 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     tls06_pass = bool(tls_vuln_audit["tlsActive"]) and len(tls_vuln_audit["highOrCriticalFindings"]) == 0
 
     tls_scan_report = {
-        "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
+        "scanner": f"testssl.sh {testssl_info.get('version') or '3.2.2'} + HTTP Cleartext Redirect Probe",
         "scannedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "targetHost": host,
         "declaredUrl": base_url,
         "HSTS_time": min_hsts_time or 0,
+        "testssl": {
+            "binary": testssl_info.get("binary"),
+            "version": testssl_info.get("version"),
+            "openssl": testssl_info.get("openssl"),
+            "returncode": testssl_info.get("returncode"),
+            "scanTime": testssl_info.get("scanTime"),
+            "rawJsonPath": testssl_info.get("rawJsonPath"),
+            "handshakeOk": testssl_info.get("handshakeOk"),
+            "protocolsOffered": testssl_info.get("protocolsOffered"),
+            "scanProblem": testssl_info.get("scanProblem"),
+            "scanResult": testssl_info.get("scanResult"),
+        },
         "tlsHandshake": {
             "port": tls_port,
             "completed": tls_handshake_ok,
             "trustedCertificateChain": cert_valid,
             "negotiatedProtocol": tls_version,
             "cipherSuite": cipher_info[0] if cipher_info else None,
-            "error": tls_handshake_error or None,
+            "error": tls_handshake_error or testssl_info.get("scanProblem") or None,
         },
         "protocols": protocols_matrix,
         "cipherSuites": cipher_audit,
@@ -4328,6 +4525,9 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         "vulnerabilities": tls_vuln_audit["vulnerabilities"],
         "tls01CleartextEnforcement": {
             "cleartextPort": cleartext_http_port,
+            "testsslHandshakeOk": testssl_info.get("handshakeOk"),
+            "testsslProtocolsOffered": testssl_info.get("protocolsOffered"),
+            "testsslScanProblem": testssl_info.get("scanProblem"),
             "probes": cleartext_probe_records,
             "violations": cleartext_findings,
             "verdict": "PASS" if tls01_pass else "FAIL",
@@ -4359,16 +4559,17 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
     tls_json_path.write_text(json.dumps(tls_scan_report, indent=2), encoding="utf-8")
 
+    testssl_ver_label = testssl_info.get("version") or "3.2.2"
     results["TLS-01"] = {
         "verdict": "PASS" if tls01_pass else "FAIL",
-        "tool": f"TLS Handshake & Cleartext No-Redirect Probe ({host}:{tls_port} / HTTP:{cleartext_http_port}, JSON + HAR 1.2)",
+        "tool": f"testssl.sh {testssl_ver_label} ({host}:{tls_port}) + HTTP:{cleartext_http_port} No-Redirect Probe (JSON + HAR 1.2)",
         "log": (
-            f"[PASS] Host '{host}' completed TLS handshake on port {tls_port} ({tls_version}) and all {len(cleartext_endpoints)} HTTP:{cleartext_http_port} probes either refused cleartext or returned 3xx redirect to https://{host}/.\n"
-            f"Evidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HTTP HAR 1.2: {har_path}"
+            f"[PASS] testssl.sh verified TLS handshake on {host}:{tls_port} (protocols: {', '.join(testssl_info.get('protocolsOffered') or ([tls_version] if tls_version else ['TLS']))}) and all {len(cleartext_endpoints)} HTTP:{cleartext_http_port} probes either refused cleartext or returned 3xx redirect to https://{host}/.\n"
+            f"Evidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - testssl.sh Raw JSON: {testssl_info.get('rawJsonPath')}\n  - HTTP HAR 1.2: {har_path}"
             if tls01_pass
             else f"[FAIL] {len(cleartext_findings)} TLS-01 transport enforcement violation(s) on '{host}':\n  - "
             + "\n  - ".join(cleartext_findings)
-            + f"\n\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - testssl.sh Raw JSON: {testssl_info.get('rawJsonPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
     proto_summary = ", ".join(f"{k}={v}" for k, v in protocols_matrix.items())

@@ -1,9 +1,90 @@
 {
-  "scanner": "ADA CASA 3.0 TLS & Transport Security Probe (testssl.sh-compatible JSON)",
-  "scannedAt": "2026-11-22T01:26:02.296207+00:00",
+  "scanner": "testssl.sh 3.2.2 4541eb2 + HTTP Cleartext Redirect Probe",
+  "scannedAt": "2026-11-22T10:58:10.915626+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "HSTS_time": 0,
+  "testssl": {
+    "binary": "/home/user/.local/bin/testssl.sh",
+    "version": "3.2.2 4541eb2",
+    "openssl": "OpenSSL 1.0.2-bad from Fri Mar 28 16:54:51 2025",
+    "returncode": 0,
+    "scanTime": 10,
+    "rawJsonPath": "/home/user/felipe/speckit/casa/casa-assessment/output/testssl-raw.json",
+    "handshakeOk": true,
+    "protocolsOffered": [
+      "TLS1_2",
+      "TLS1_3"
+    ],
+    "scanProblem": null,
+    "scanResult": [
+      {
+        "targetHost": "localhost",
+        "ip": "127.0.0.1",
+        "port": "443",
+        "rDNS": "localhost.",
+        "service": "HTTP",
+        "pretest": [
+          {
+            "id": "pre_128cipher",
+            "severity": "INFO",
+            "finding": "No 128 cipher limit bug"
+          }
+        ],
+        "protocols": [
+          {
+            "id": "SSLv2",
+            "severity": "OK",
+            "finding": "not offered"
+          },
+          {
+            "id": "SSLv3",
+            "severity": "OK",
+            "finding": "not offered"
+          },
+          {
+            "id": "TLS1",
+            "severity": "INFO",
+            "finding": "not offered"
+          },
+          {
+            "id": "TLS1_1",
+            "severity": "INFO",
+            "finding": "not offered"
+          },
+          {
+            "id": "TLS1_2",
+            "severity": "OK",
+            "finding": "offered"
+          },
+          {
+            "id": "TLS1_3",
+            "severity": "OK",
+            "finding": "offered with final"
+          },
+          {
+            "id": "NPN",
+            "severity": "INFO",
+            "finding": "not offered"
+          },
+          {
+            "id": "ALPN",
+            "severity": "INFO",
+            "finding": "http/1.1"
+          }
+        ],
+        "grease": [],
+        "ciphers": [],
+        "serverPreferences": [],
+        "fs": [],
+        "serverDefaults": [],
+        "vulnerabilities": [],
+        "cipherTests": [],
+        "browserSimulations": [],
+        "rating": []
+      }
+    ]
+  },
   "tlsHandshake": {
     "port": 443,
     "completed": true,
@@ -52,6 +133,12 @@
   ],
   "tls01CleartextEnforcement": {
     "cleartextPort": 3000,
+    "testsslHandshakeOk": true,
+    "testsslProtocolsOffered": [
+      "TLS1_2",
+      "TLS1_3"
+    ],
+    "testsslScanProblem": null,
     "probes": [
       {
         "url": "http://localhost:3000/",

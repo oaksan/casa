@@ -1217,6 +1217,122 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 18/61: SAST-13 (Iteração SDD 088)", just2_txt)
 
+    def test_iteration89_tls01_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        import socket
+        import ssl
+        import subprocess
+        from casa_audit.scanner import evaluate_tls01_transport_enforcement
+
+        with tempfile.TemporaryDirectory() as td_tls1:
+            tdp = Path(td_tls1)
+            cert, key = tdp / "cert.pem", tdp / "key.pem"
+            subprocess.run(
+                [
+                    "openssl",
+                    "req",
+                    "-x509",
+                    "-newkey",
+                    "rsa:2048",
+                    "-nodes",
+                    "-keyout",
+                    str(key),
+                    "-out",
+                    str(cert),
+                    "-days",
+                    "1",
+                    "-subj",
+                    "/CN=127.0.0.1",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+            class _TlsHandler(BaseHTTPRequestHandler):
+                def log_message(self, fmt, *args):
+                    pass
+
+                def do_GET(self):
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+
+            class _HttpModeHandler(BaseHTTPRequestHandler):
+                redirect_to_https = True
+                tls_port_num = 443
+
+                def log_message(self, fmt, *args):
+                    pass
+
+                def do_GET(self):
+                    if type(self).redirect_to_https:
+                        self.send_response(301)
+                        self.send_header("Location", f"https://127.0.0.1:{type(self).tls_port_num}{self.path}")
+                        self.end_headers()
+                    else:
+                        self.send_response(200)
+                        self.end_headers()
+                        self.wfile.write(b"cleartext leak")
+
+            tls_srv = ThreadingHTTPServer(("127.0.0.1", 0), _TlsHandler)
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(certfile=str(cert), keyfile=str(key))
+            tls_srv.socket = ctx.wrap_socket(tls_srv.socket, server_side=True)
+            tls_port = tls_srv.server_address[1]
+
+            http_srv = ThreadingHTTPServer(("127.0.0.1", 0), _HttpModeHandler)
+            http_port = http_srv.server_address[1]
+            _HttpModeHandler.tls_port_num = tls_port
+
+            t_tls = threading.Thread(target=tls_srv.serve_forever, daemon=True)
+            t_http = threading.Thread(target=http_srv.serve_forever, daemon=True)
+            t_tls.start()
+            t_http.start()
+            try:
+                # 1. HTTPS TLS server via official testssl.sh + 301 redirect to https://127.0.0.1 -> PASS
+                _HttpModeHandler.redirect_to_https = True
+                res_pass = evaluate_tls01_transport_enforcement(
+                    f"https://127.0.0.1:{tls_port}",
+                    raw_json_path=tdp / "raw_pass.json",
+                    cleartext_port_override=http_port,
+                )
+                self.assertEqual(res_pass["verdict"], "PASS", f"Expected PASS, got {res_pass}")
+                self.assertTrue(res_pass["testssl"]["executed"])
+                self.assertTrue(res_pass["testssl"]["handshakeOk"])
+                self.assertTrue((tdp / "raw_pass.json").exists())
+
+                # 2. Same TLS server + HTTP 200 cleartext response without redirect -> FAIL
+                _HttpModeHandler.redirect_to_https = False
+                res_leak = evaluate_tls01_transport_enforcement(
+                    f"https://127.0.0.1:{tls_port}",
+                    raw_json_path=tdp / "raw_leak.json",
+                    cleartext_port_override=http_port,
+                )
+                self.assertEqual(res_leak["verdict"], "FAIL")
+                self.assertTrue(any("cleartext" in v for v in res_leak["violations"]))
+
+                # 3. Cleartext http:// declared target + closed TLS port -> FAIL with testssl.sh scanProblem
+                closed_sock = socket.socket()
+                closed_sock.bind(("127.0.0.1", 0))
+                closed_port = closed_sock.getsockname()[1]
+                closed_sock.close()
+                res_closed = evaluate_tls01_transport_enforcement(
+                    f"http://127.0.0.1:{http_port}",
+                    raw_json_path=tdp / "raw_closed.json",
+                    tls_port_override=closed_port,
+                )
+                self.assertEqual(res_closed["verdict"], "FAIL")
+                self.assertFalse(res_closed["testssl"]["handshakeOk"])
+                self.assertIsNotNone(res_closed["testssl"]["scanProblem"])
+            finally:
+                tls_srv.shutdown()
+                tls_srv.server_close()
+                http_srv.shutdown()
+                http_srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 19/61: TLS-01 (Iteração SDD 089)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

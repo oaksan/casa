@@ -1,0 +1,86 @@
+{
+          "Invocation"  : "testssl.sh --quiet --warnings batch --color 0 --ip one --connect-timeout 2 --openssl-timeout 2 -p --jsonfile-pretty /home/user/felipe/speckit/casa/casa-assessment/output/testssl-raw.json localhost:443",
+          "at"          : "aut-poc-elk01:/home/user/.local/share/testssl.sh/bin/openssl.Linux.x86_64",
+          "version"     : "3.2.2 4541eb2",
+          "openssl"     : "OpenSSL 1.0.2-bad from Fri Mar 28 16:54:51 2025",
+          "startTime"   : "1795345080",
+          "scanResult"  : [
+          {
+                    "targetHost"      : "localhost",
+                    "ip"              : "127.0.0.1",
+                    "port"            : "443",
+                    "rDNS"            : "localhost.",
+                    "service"         : "HTTP",
+                    "pretest"           : [
+                            {
+                                "id"           : "pre_128cipher",
+                                "severity"     : "INFO",
+                                "finding"      : "No 128 cipher limit bug"
+                           }
+                    ],
+                    "protocols"         : [
+                            {
+                                "id"           : "SSLv2",
+                                "severity"     : "OK",
+                                "finding"      : "not offered"
+                           },{
+                                "id"           : "SSLv3",
+                                "severity"     : "OK",
+                                "finding"      : "not offered"
+                           },{
+                                "id"           : "TLS1",
+                                "severity"     : "INFO",
+                                "finding"      : "not offered"
+                           },{
+                                "id"           : "TLS1_1",
+                                "severity"     : "INFO",
+                                "finding"      : "not offered"
+                           },{
+                                "id"           : "TLS1_2",
+                                "severity"     : "OK",
+                                "finding"      : "offered"
+                           },{
+                                "id"           : "TLS1_3",
+                                "severity"     : "OK",
+                                "finding"      : "offered with final"
+                           },{
+                                "id"           : "NPN",
+                                "severity"     : "INFO",
+                                "finding"      : "not offered"
+                           },{
+                                "id"           : "ALPN",
+                                "severity"     : "INFO",
+                                "finding"      : "http/1.1"
+                           }
+                    ],
+                    "grease"            : [
+
+                    ],
+                    "ciphers"           : [
+
+                    ],
+                    "serverPreferences" : [
+
+                    ],
+                    "fs"                : [
+
+                    ],
+                    "serverDefaults"    : [
+
+                    ],
+                    "vulnerabilities"   : [
+
+                    ],
+                    "cipherTests"       : [
+
+                    ],
+                    "browserSimulations": [
+
+                    ],
+                    "rating"            : [
+
+                    ]
+          }
+          ],
+                    "scanTime"  : 10
+}

@@ -1788,3 +1788,42 @@ CONTROLE 34/61: CFG-10 (Iteração SDD 104)
     `/rest/admin/application-version`, `/support/logs`, `/support/logs/audit.json`,
     `/metrics`, `/api-docs/`) acessíveis sem autenticação (`LCS >= 0,90`) -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 35/61: CFG-11 (Iteração SDD 105)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - CONCLUSION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-11` — *No dangling DNS record on any declared host or its CNAME chain permits subdomain takeover* (ASVS V10.3.3 L1; CWE-350).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **`dnsx`** (ProjectDiscovery `v1.3.1` em `/home/user/.local/bin/dnsx`, resolução
+    DNS/CNAME/A/AAAA em JSON) + **`nuclei`** (`v3.11.1` com template de assinaturas
+    de subdomain takeover em `casa-assessment/rules/nuclei_cfg11/`).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 105`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-11` utilizava `dig` e inspeção direta em bloco inline no
+  `run_dynamic_and_protocol_checks`, sem invocar `dnsx` nem `nuclei`.
+- O que foi feito e melhorado na Iteração SDD 105:
+  1) Instalação oficial do **ProjectDiscovery `dnsx v1.3.1`** em `/home/user/.local/bin/dnsx`
+     e criação de `run_dnsx_resolve(...)` com persistência em `output/dnsx-cfg11.json`.
+  2) Criação e validação do template **`nuclei`** `rules/nuclei_cfg11/takeover-fingerprints.yaml`
+     cobrindo os 16 provedores de cloud (`github.io`, `herokuapp.com`, `s3.amazonaws.com`,
+     `azurewebsites.net`, `netlify.app`, `vercel.app`, `cloudfront.net`, `fastly.net`, etc.).
+  3) Implementação de `evaluate_cfg11_dns_takeover(...)` unificando cadeia CNAME
+     (`dnsx` + `dig`), verificação de `NXDOMAIN` pendente e saída do `nuclei` sob
+     `CASA3-CFG-11`, concluindo o alinhamento de **100% do Domínio 4 (`CFG-01`..`CFG-11`)**.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration105_cfg11_guide_tooling`) com `dnsx 1.3.1` + `nuclei 3.11.1`:
+  * **`PASS`** para resolução limpa de `localhost` (0 banners / 0 CNAME pendente).
+  * **`FAIL`** para cadeia CNAME órfã (`orphan-app.herokuapp.com`, `NXDOMAIN`) e
+    para resposta HTTP com banner real de takeover detectado pelo **Nuclei `v3.11.1`**
+    (`casa3-cfg11-subdomain-takeover`).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Host `localhost` resolvido via `dnsx` (`127.0.0.1`, `::1`), sem cadeia CNAME
+    externa e 0 ocorrências de takeover no `nuclei` -> Veredito **`PASS`**.
+================================================================================

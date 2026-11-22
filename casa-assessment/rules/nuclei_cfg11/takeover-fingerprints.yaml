@@ -1,0 +1,33 @@
+id: casa3-cfg11-subdomain-takeover
+
+info:
+  name: CASA CFG-11 Subdomain Takeover Fingerprints
+  author: casa-assessment
+  severity: high
+  description: Detects unclaimed cloud provider takeover error banners across HTTP responses for declared hosts and CNAME targets.
+  tags: dns,takeover,casa,cfg11
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/"
+    matchers-condition: or
+    matchers:
+      - type: word
+        part: body
+        case-insensitive: true
+        words:
+          - "there isn't a github pages site here."
+          - "no such app"
+          - "herokucdn.com/error-pages/no-such-app.html"
+          - "nosuchbucket"
+          - "the specified bucket does not exist"
+          - "404 web site not found"
+          - "not found - request id:"
+          - "the deployment could not be found"
+          - "error: the request could not be satisfied"
+          - "fastly error: unknown domain"
+          - "sorry, this shop is currently unavailable."
+          - "404 error unknown site"
+          - "unknown to read the docs"
+          - "project not found"

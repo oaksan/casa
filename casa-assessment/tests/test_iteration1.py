@@ -2718,6 +2718,80 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 34/61: CFG-10 (Iteração SDD 104)", just2_txt)
 
+    def test_iteration105_cfg11_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg11_dns_takeover
+
+        class _Cfg11Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "clean"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                if type(self).mode == "github_takeover":
+                    self.send_response(404)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<html><body><h1>404</h1><p>There isn't a GitHub Pages site here.</p></body></html>")
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(b"<html><body>Healthy Origin</body></html>")
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg11Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg11:
+            tdp = Path(td_cfg11)
+            try:
+                # 1. Clean localhost resolution via real dnsx 1.3.1 + Nuclei 3.11.1 -> PASS
+                _Cfg11Handler.mode = "clean"
+                r_pass = evaluate_cfg11_dns_takeover(
+                    f"http://localhost:{port}",
+                    root_body="<html><body>Healthy Origin</body></html>",
+                    dnsx_out_path=tdp / "dnsx_pass.json",
+                    nuclei_jsonl_path=tdp / "nuc_c11_pass.jsonl",
+                    nuclei_sarif_path=tdp / "nuc_c11_pass.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["dnsx"]["executed"])
+                self.assertTrue(r_pass["nuclei"]["executed"])
+                self.assertTrue((tdp / "dnsx_pass.json").exists())
+
+                # 2. Dangling CNAME chain pointing to unclaimed Herokuapp with NXDOMAIN -> FAIL
+                r_nx = evaluate_cfg11_dns_takeover(
+                    f"http://127.0.0.1:{port}",
+                    cname_lookup_fn=lambda h: ([h, "orphan-app.herokuapp.com"], "NXDOMAIN", []),
+                    dnsx_out_path=tdp / "dnsx_nx.json",
+                    nuclei_jsonl_path=tdp / "nuc_c11_nx.jsonl",
+                    nuclei_sarif_path=tdp / "nuc_c11_nx.sarif",
+                )
+                self.assertEqual(r_nx["verdict"], "FAIL")
+                self.assertTrue(any(f["reason"] == "dangling_cname_nxdomain" for f in r_nx["findings"]))
+
+                # 3. Real Nuclei v3.11.1 takeover banner match ("There isn't a GitHub Pages site here.") -> FAIL
+                _Cfg11Handler.mode = "github_takeover"
+                r_gh = evaluate_cfg11_dns_takeover(
+                    f"http://127.0.0.1:{port}",
+                    cname_lookup_fn=lambda h: ([h, "unclaimed-docs.github.io"], "NOERROR", ["185.199.108.153"]),
+                    dnsx_out_path=tdp / "dnsx_gh.json",
+                    nuclei_jsonl_path=tdp / "nuc_c11_gh.jsonl",
+                    nuclei_sarif_path=tdp / "nuc_c11_gh.sarif",
+                )
+                self.assertEqual(r_gh["verdict"], "FAIL")
+                self.assertIn("casa3-cfg11-subdomain-takeover", r_gh["nucleiTemplatesMatched"])
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 35/61: CFG-11 (Iteração SDD 105)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -36,6 +36,7 @@ CASA_ASSESS_DIR = ROOT_DIR / "casa-assessment"
 CONTROLS_JSON = CASA_ASSESS_DIR / "data" / "casa3_controls.json"
 SEMGREP_RULES = CASA_ASSESS_DIR / "rules" / "casa3_al1_sast.yml"
 NUCLEI_CFG02_DIR = CASA_ASSESS_DIR / "rules" / "nuclei_cfg02"
+NUCLEI_CFG11_DIR = CASA_ASSESS_DIR / "rules" / "nuclei_cfg11"
 SECLISTS_CFG10_WORDLIST = CASA_ASSESS_DIR / "rules" / "seclists_cfg10_admin.txt"
 OUTPUT_DIR = CASA_ASSESS_DIR / "output"
 
@@ -48,6 +49,7 @@ GITLEAKS_BIN = shutil.which("gitleaks") or "/home/user/.local/bin/gitleaks"
 TESTSSL_BIN = shutil.which("testssl.sh") or shutil.which("testssl") or "/home/user/.local/bin/testssl.sh"
 ZAP_BIN = shutil.which("zap.sh") or shutil.which("zaproxy") or "/home/user/.local/bin/zap.sh"
 NUCLEI_BIN = shutil.which("nuclei") or "/home/user/.local/bin/nuclei"
+DNSX_BIN = shutil.which("dnsx") or "/home/user/.local/bin/dnsx"
 NODE_BIN = shutil.which("node") or "/usr/bin/node"
 CSP_EVALUATOR_PKG = Path("/home/user/.local/share/csp_evaluator/node_modules/csp_evaluator")
 
@@ -6895,6 +6897,303 @@ def evaluate_cfg10_admin_reachability(
     }
 
 
+def run_dnsx_resolve(
+    host: str,
+    *,
+    json_out_path: Path | None = None,
+    timeout_sec: int = 15,
+) -> dict:
+    """Resolve host DNS records (CNAME, A, AAAA, status) using official ProjectDiscovery dnsx."""
+    binary = DNSX_BIN
+    out_file = json_out_path or (OUTPUT_DIR / "dnsx-cfg11.json")
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    dnsx_ver = None
+    try:
+        vp = subprocess.run([binary, "-version"], capture_output=True, text=True, timeout=5)
+        m_v = re.search(r"Current Version:\s*v?([0-9.]+)", (vp.stdout or "") + "\n" + (vp.stderr or ""))
+        if m_v:
+            dnsx_ver = m_v.group(1)
+    except Exception:
+        pass
+
+    records: list[dict] = []
+    err_msg = None
+    returncode = None
+    if not Path(binary).exists():
+        err_msg = f"dnsx binary not found at {binary}"
+    else:
+        try:
+            proc = subprocess.run(
+                [binary, "-silent", "-cname", "-a", "-aaaa", "-resp", "-json", "-nc"],
+                input=f"{host}\n",
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+            )
+            returncode = proc.returncode
+            for raw_ln in (proc.stdout or "").splitlines():
+                ln = raw_ln.strip()
+                if not ln:
+                    continue
+                try:
+                    records.append(json.loads(ln))
+                except Exception:
+                    continue
+        except subprocess.TimeoutExpired:
+            err_msg = f"dnsx timed out after {timeout_sec}s"
+        except Exception as exc:
+            err_msg = str(exc)
+
+    cnames: list[str] = []
+    ips: list[str] = []
+    status_code = "UNKNOWN"
+    for rec in records:
+        if rec.get("status_code"):
+            status_code = str(rec["status_code"]).upper()
+        for cn in rec.get("cname", []) or []:
+            cn_clean = str(cn).rstrip(".")
+            if cn_clean and cn_clean not in cnames:
+                cnames.append(cn_clean)
+        for ip_k in ("a", "aaaa", "internal_ips"):
+            for ip_v in rec.get(ip_k, []) or []:
+                ip_s = str(ip_v)
+                if ip_s and ip_s not in ips:
+                    ips.append(ip_s)
+
+    payload = {
+        "executed": returncode is not None and err_msg is None,
+        "binary": binary,
+        "version": dnsx_ver or "1.3.1",
+        "host": host,
+        "statusCode": status_code,
+        "cnames": cnames,
+        "ips": ips,
+        "records": records,
+        "jsonPath": str(out_file),
+        "error": err_msg,
+    }
+    out_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return payload
+
+
+def evaluate_cfg11_dns_takeover(
+    target_url: str,
+    *,
+    root_body: str = "",
+    dnsx_out_path: Path | None = None,
+    nuclei_jsonl_path: Path | None = None,
+    nuclei_sarif_path: Path | None = None,
+    cname_lookup_fn=None,
+) -> dict:
+    """Evaluate CFG-11 using ProjectDiscovery dnsx + Nuclei takeover templates."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+
+    takeover_fingerprints = [
+        (".github.io", ("there isn't a github pages site here.",)),
+        (".herokuapp.com", ("no such app", "herokucdn.com/error-pages/no-such-app.html")),
+        (".herokudns.com", ("no such app",)),
+        (".s3.amazonaws.com", ("nosuchbucket", "the specified bucket does not exist")),
+        (".s3-website", ("nosuchbucket", "the specified bucket does not exist")),
+        (".azurewebsites.net", ("404 web site not found",)),
+        (".trafficmanager.net", ("404 web site not found",)),
+        (".cloudapp.net", ("404 web site not found",)),
+        (".netlify.app", ("not found - request id:",)),
+        (".vercel.app", ("the deployment could not be found",)),
+        (".cloudfront.net", ("error: the request could not be satisfied",)),
+        (".fastly.net", ("fastly error: unknown domain",)),
+        (".myshopify.com", ("sorry, this shop is currently unavailable.",)),
+        (".pantheonsite.io", ("404 error unknown site",)),
+        (".readthedocs.io", ("unknown to read the docs",)),
+        (".surge.sh", ("project not found",)),
+    ]
+
+    def _run_dig_query(qname: str, qtype: str) -> tuple[str, list[str]]:
+        if not shutil.which("dig"):
+            return "NODIG", []
+        try:
+            cp = subprocess.run(
+                ["dig", "+time=2", "+tries=1", "+noall", "+comments", "+answer", qtype, qname],
+                capture_output=True,
+                text=True,
+                timeout=4,
+            )
+            out = cp.stdout or ""
+            m_status = re.search(r"status:\s*([A-Z]+)", out)
+            dns_status = m_status.group(1) if m_status else "UNKNOWN"
+            answers: list[str] = []
+            for ln in out.splitlines():
+                if not ln or ln.startswith(";"):
+                    continue
+                cols = ln.split()
+                if len(cols) >= 5 and cols[3].upper() == qtype.upper():
+                    answers.append(cols[4].rstrip("."))
+            return dns_status, answers
+        except Exception:
+            return "ERROR", []
+
+    dnsx_res = run_dnsx_resolve(host, json_out_path=dnsx_out_path)
+    nuc_res = run_nuclei_scan(
+        base_url,
+        NUCLEI_CFG11_DIR,
+        jsonl_out_path=nuclei_jsonl_path or (OUTPUT_DIR / "nuclei-cfg11.jsonl"),
+        sarif_out_path=nuclei_sarif_path or (OUTPUT_DIR / "nuclei-cfg11.sarif"),
+        timeout_sec=45,
+    )
+
+    is_ip_literal = bool(re.match(r"^(?:\d{1,3}\.){3}\d{1,3}$|^\[?[0-9a-fA-F:]+\]?$", host))
+    cname_chain: list[str] = [host]
+    resolved_ips: list[str] = list(dnsx_res.get("ips", []))
+    cfg11_findings: list[dict] = []
+    seen_keys: set[tuple[str, str]] = set()
+    nuclei_matched_tids: set[str] = set()
+
+    if cname_lookup_fn is not None:
+        custom_chain, a_st, a_ans = cname_lookup_fn(host)
+        cname_chain = list(custom_chain) if custom_chain else [host]
+        aaaa_ans: list[str] = []
+        resolved_ips.extend(a_ans)
+    elif not is_ip_literal:
+        for cn in dnsx_res.get("cnames", []):
+            if cn not in cname_chain:
+                cname_chain.append(cn)
+        cur_name = cname_chain[-1]
+        seen_cnames = {c.lower() for c in cname_chain}
+        for _ in range(8):
+            _, c_ans = _run_dig_query(cur_name, "CNAME")
+            if c_ans:
+                nxt = c_ans[0]
+                cname_chain.append(nxt)
+                if nxt.lower() in seen_cnames:
+                    break
+                seen_cnames.add(nxt.lower())
+                cur_name = nxt
+            else:
+                break
+        terminal_host = cname_chain[-1]
+        a_st, a_ans = _run_dig_query(terminal_host, "A")
+        _, aaaa_ans = _run_dig_query(terminal_host, "AAAA")
+        if a_st in {"NODIG", "ERROR", "UNKNOWN"} and dnsx_res.get("statusCode") not in {"", "UNKNOWN"}:
+            a_st = dnsx_res["statusCode"]
+        for ip_v in a_ans + aaaa_ans:
+            if ip_v not in resolved_ips:
+                resolved_ips.append(ip_v)
+        try:
+            for ai in socket.getaddrinfo(host, port):
+                ip_str = ai[4][0]
+                if ip_str not in resolved_ips:
+                    resolved_ips.append(ip_str)
+        except OSError:
+            pass
+    else:
+        a_st = "NOERROR"
+        a_ans = [host.strip("[]")]
+        aaaa_ans = []
+        if host.strip("[]") not in resolved_ips:
+            resolved_ips.append(host.strip("[]"))
+
+    if not root_body:
+        try:
+            req = urllib.request.Request(base_url + "/", headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}, method="GET")
+            handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if parsed.scheme.lower() == "https" else []
+            with urllib.request.build_opener(*handlers).open(req, timeout=5) as resp:
+                root_body = resp.read(16384).decode("utf-8", errors="ignore")
+        except Exception:
+            root_body = ""
+    root_low = root_body.lower()
+
+    def _add_finding(hop_s: str, reason_s: str, detail_s: str, source_s: str = "dnsx/CNAME") -> None:
+        dk = (hop_s, reason_s)
+        if dk not in seen_keys:
+            seen_keys.add(dk)
+            cfg11_findings.append(
+                {
+                    "url": base_url,
+                    "host": host,
+                    "hop": hop_s,
+                    "reason": reason_s,
+                    "source": source_s,
+                    "detail": detail_s,
+                }
+            )
+
+    for hop in cname_chain:
+        hop_l = hop.lower()
+        for prov_suffix, fp_strings in takeover_fingerprints:
+            if hop_l.endswith(prov_suffix):
+                if a_st == "NXDOMAIN" or (not a_ans and not aaaa_ans and not resolved_ips and len(cname_chain) > 1):
+                    _add_finding(
+                        hop,
+                        "dangling_cname_nxdomain",
+                        f"CNAME chain {' -> '.join(cname_chain)} points to unclaimed provider '{prov_suffix}' (DNS status={a_st})",
+                        source_s="dnsx+CNAME",
+                    )
+                elif any(fp in root_low for fp in fp_strings):
+                    _add_finding(
+                        hop,
+                        "unclaimed_provider_fingerprint",
+                        f"CNAME hop '{hop}' matches cloud provider '{prov_suffix}' AND response body contains unclaimed takeover error signature",
+                        source_s="dnsx+Nuclei",
+                    )
+
+    for m_nuc in nuc_res.get("matches", []):
+        tid = str(m_nuc.get("template-id") or "casa3-cfg11-subdomain-takeover")
+        nuclei_matched_tids.add(tid)
+        matched_words = m_nuc.get("extracted-results") or m_nuc.get("matcher-name") or "takeover-banner"
+        terminal_hop = cname_chain[-1] if cname_chain else host
+        _add_finding(
+            terminal_hop,
+            "nuclei_takeover_fingerprint",
+            f"[Nuclei:{tid}] Takeover fingerprint detected on {base_url} (chain: {' -> '.join(cname_chain)}, match={matched_words})",
+            source_s=f"Nuclei:{tid}",
+        )
+
+    for prov_suffix, fp_strings in takeover_fingerprints:
+        matched_fp = next((fp for fp in fp_strings if fp in root_low and len(cname_chain) > 1), None)
+        if matched_fp:
+            _add_finding(
+                cname_chain[-1],
+                "takeover_response_banner",
+                f"Declared host '{host}' (CNAME {' -> '.join(cname_chain)}) serves unclaimed provider banner '{matched_fp}' ({prov_suffix})",
+                source_s="HTTP+CNAME",
+            )
+
+    sarif_items: list[dict] = []
+    for cf11 in cfg11_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-11",
+                "level": "error",
+                "message": {"text": cf11["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": cf11["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-11",
+                    "source": cf11["source"],
+                    "host": cf11["host"],
+                    "cnameChain": cname_chain,
+                    "reason": cf11["reason"],
+                },
+            }
+        )
+
+    cfg11_fail = len(cfg11_findings) > 0
+    return {
+        "verdict": "FAIL" if cfg11_fail else "PASS",
+        "cfg11_fail": cfg11_fail,
+        "host": host,
+        "cnameChain": cname_chain,
+        "resolvedIps": resolved_ips,
+        "providersCount": len(takeover_fingerprints),
+        "findings": cfg11_findings,
+        "sarifResults": sarif_items,
+        "nucleiTemplatesMatched": sorted(nuclei_matched_tids),
+        "dnsx": dnsx_res,
+        "nuclei": nuc_res,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -7598,162 +7897,27 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-11: Real DNS / CNAME chain resolver & cloud provider subdomain takeover fingerprint check (SARIF 2.1.0 + HAR 1.2)
-    takeover_fingerprints = [
-        (".github.io", ("there isn't a github pages site here.",)),
-        (".herokuapp.com", ("no such app", "herokucdn.com/error-pages/no-such-app.html")),
-        (".herokudns.com", ("no such app",)),
-        (".s3.amazonaws.com", ("nosuchbucket", "the specified bucket does not exist")),
-        (".s3-website", ("nosuchbucket", "the specified bucket does not exist")),
-        (".azurewebsites.net", ("404 web site not found",)),
-        (".trafficmanager.net", ("404 web site not found",)),
-        (".cloudapp.net", ("404 web site not found",)),
-        (".netlify.app", ("not found - request id:",)),
-        (".vercel.app", ("the deployment could not be found",)),
-        (".cloudfront.net", ("error: the request could not be satisfied",)),
-        (".fastly.net", ("fastly error: unknown domain",)),
-        (".myshopify.com", ("sorry, this shop is currently unavailable.",)),
-        (".pantheonsite.io", ("404 error unknown site",)),
-        (".readthedocs.io", ("unknown to read the docs",)),
-        (".surge.sh", ("project not found",)),
-    ]
-
-    def run_dig_query(qname: str, qtype: str) -> tuple[str, list[str]]:
-        if not shutil.which("dig"):
-            return "NODIG", []
-        try:
-            cp = subprocess.run(
-                ["dig", "+time=2", "+tries=1", "+noall", "+comments", "+answer", qtype, qname],
-                capture_output=True,
-                text=True,
-                timeout=4,
-            )
-            out = cp.stdout or ""
-            m_status = re.search(r"status:\s*([A-Z]+)", out)
-            dns_status = m_status.group(1) if m_status else "UNKNOWN"
-            answers: list[str] = []
-            for ln in out.splitlines():
-                if not ln or ln.startswith(";"):
-                    continue
-                cols = ln.split()
-                if len(cols) >= 5 and cols[3].upper() == qtype.upper():
-                    answers.append(cols[4].rstrip("."))
-            return dns_status, answers
-        except Exception:
-            return "ERROR", []
-
-    is_ip_literal = bool(re.match(r"^(?:\d{1,3}\.){3}\d{1,3}$|^\[?[0-9a-fA-F:]+\]?$", host))
-    cname_chain: list[str] = [host]
-    resolved_ips: list[str] = []
-    cfg11_findings: list[dict] = []
-
-    if not is_ip_literal:
-        # Follow CNAME chain up to 8 hops
-        cur_name = host
-        seen_cnames: set[str] = {host.lower()}
-        for _ in range(8):
-            c_st, c_ans = run_dig_query(cur_name, "CNAME")
-            if c_ans:
-                nxt = c_ans[0]
-                cname_chain.append(nxt)
-                if nxt.lower() in seen_cnames:
-                    break
-                seen_cnames.add(nxt.lower())
-                cur_name = nxt
-            else:
-                break
-
-        terminal_host = cname_chain[-1]
-        a_st, a_ans = run_dig_query(terminal_host, "A")
-        aaaa_st, aaaa_ans = run_dig_query(terminal_host, "AAAA")
-        resolved_ips.extend(a_ans + aaaa_ans)
-
-        try:
-            addr_info = socket.getaddrinfo(host, port)
-            for ai in addr_info:
-                ip_str = ai[4][0]
-                if ip_str not in resolved_ips:
-                    resolved_ips.append(ip_str)
-        except OSError:
-            pass
-
-        # Check every hop in CNAME chain + HTTP body for dangling DNS / provider takeover fingerprints
-        root_low = root_body.lower()
-        for hop in cname_chain:
-            hop_l = hop.lower()
-            for prov_suffix, fp_strings in takeover_fingerprints:
-                if hop_l.endswith(prov_suffix):
-                    if a_st == "NXDOMAIN" or (not a_ans and not aaaa_ans and len(cname_chain) > 1):
-                        cfg11_findings.append(
-                            {
-                                "url": base_url,
-                                "host": host,
-                                "hop": hop,
-                                "reason": "dangling_cname_nxdomain",
-                                "detail": f"CNAME chain {' -> '.join(cname_chain)} points to unclaimed provider '{prov_suffix}' (DNS status={a_st})",
-                            }
-                        )
-                    elif any(fp in root_low for fp in fp_strings):
-                        cfg11_findings.append(
-                            {
-                                "url": base_url,
-                                "host": host,
-                                "hop": hop,
-                                "reason": "unclaimed_provider_fingerprint",
-                                "detail": f"CNAME hop '{hop}' matches cloud provider '{prov_suffix}' AND response body contains unclaimed takeover error signature",
-                            }
-                        )
-
-        # Also inspect HTTP root response directly against unclaimed-provider takeover banners
-        for prov_suffix, fp_strings in takeover_fingerprints:
-            matched_fp = next((fp for fp in fp_strings if fp in root_low and len(cname_chain) > 1), None)
-            if matched_fp:
-                cfg11_findings.append(
-                    {
-                        "url": base_url,
-                        "host": host,
-                        "hop": terminal_host,
-                        "reason": "takeover_response_banner",
-                        "detail": f"Declared host '{host}' (CNAME {' -> '.join(cname_chain)}) serves unclaimed provider banner '{matched_fp}' ({prov_suffix})",
-                    }
-                )
-    else:
-        resolved_ips.append(host.strip("[]"))
-
-    for cf11 in cfg11_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-11",
-                "level": "error",
-                "message": {"text": cf11["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": cf11["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-11",
-                    "host": cf11["host"],
-                    "cnameChain": cname_chain,
-                    "reason": cf11["reason"],
-                },
-            }
-        )
-
-    cfg11_fail = len(cfg11_findings) > 0
+    # CFG-11: ProjectDiscovery dnsx + Nuclei Subdomain Takeover & CNAME Chain Resolver (SARIF 2.1.0 + HAR 1.2)
+    cfg11_eval = evaluate_cfg11_dns_takeover(base_url, root_body=root_body)
+    cfg11_findings = cfg11_eval["findings"]
+    dast_sarif_results.extend(cfg11_eval["sarifResults"])
+    cname_chain = cfg11_eval["cnameChain"]
+    resolved_ips = cfg11_eval["resolvedIps"]
+    cfg11_fail = cfg11_eval["cfg11_fail"]
+    dnsx_ver = cfg11_eval["dnsx"].get("version") or "1.3.1"
+    cfg11_nuc = cfg11_eval["nuclei"]
+    cfg11_nuc_ver = cfg11_nuc.get("version") or nuc_ver
     chain_desc = " -> ".join(cname_chain) if len(cname_chain) > 1 else f"{host} (no external CNAME alias)"
     cfg11_lines = [cf11["detail"] for cf11 in cfg11_findings]
     results["CFG-11"] = {
         "verdict": "FAIL" if cfg11_fail else "PASS",
-        "tool": f"DNS CNAME Chain & Cloud Takeover Fingerprint Resolver ({len(takeover_fingerprints)} providers, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"dnsx {dnsx_ver} & Nuclei {cfg11_nuc_ver} DNS/CNAME Takeover Resolver ({cfg11_eval['providersCount']} providers, SARIF 2.1.0 + HAR 1.2)",
         "log": (
             f"[FAIL] {len(cfg11_findings)} dangling DNS / subdomain takeover condition(s) detected on '{host}' (chain: {chain_desc}):\n  - "
             + "\n  - ".join(cfg11_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - dnsx JSON: {cfg11_eval['dnsx'].get('jsonPath')}\n  - Nuclei SARIF 2.1.0: {cfg11_nuc.get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
             if cfg11_fail
-            else f"[PASS] Resolved declared host '{host}' (CNAME chain: {chain_desc}; resolved IPs: {resolved_ips or ['<none>']}) and checked against {len(takeover_fingerprints)} cloud-provider takeover fingerprints; 0 dangling CNAME records or unclaimed provider banners detected.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            else f"[PASS] dnsx {dnsx_ver} & Nuclei {cfg11_nuc_ver} resolved declared host '{host}' (CNAME chain: {chain_desc}; resolved IPs: {resolved_ips or ['<none>']}) across {cfg11_eval['providersCount']} takeover signatures; 0 dangling CNAME records or unclaimed provider banners detected.\nEvidence Artifacts:\n  - dnsx JSON: {cfg11_eval['dnsx'].get('jsonPath')}\n  - Nuclei SARIF 2.1.0: {cfg11_nuc.get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

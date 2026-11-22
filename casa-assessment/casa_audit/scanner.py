@@ -5292,6 +5292,226 @@ def evaluate_cfg02_debug_modes(
     }
 
 
+def evaluate_cfg03_version_disclosure(
+    target_url: str,
+    *,
+    crawled_exchanges: list[dict] | None = None,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate CFG-03 using OWASP ZAP (Rules 10036/10037) + Header/Body version token scanner."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+
+    def _default_probe(path_or_url: str) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req = urllib.request.Request(url, headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}, method="GET")
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            try:
+                body = he.read(16384).decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, body
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    exchanges = list(crawled_exchanges) if crawled_exchanges is not None else []
+    if crawled_exchanges is None:
+        for p_check in ["/", "/rest/admin/application-version", "/version", "/metrics"]:
+            st, hdrs, body = _default_probe(p_check)
+            exchanges.append({"method": "GET", "url": f"{base_url}{p_check}", "status": st, "headers": hdrs, "body": body})
+    elif http_probe_fn is not None:
+        for ver_ep in ["/rest/admin/application-version", "/version"]:
+            st, hdrs, body = http_probe_fn(ver_ep)
+            # http_probe in run_dynamic_and_protocol_checks already appends to crawled_exchanges,
+            # so only append if not sharing the exact same list object.
+            ep_full = f"{base_url}{ver_ep}"
+            if all(e.get("url") != ep_full for e in exchanges):
+                exchanges.append({"method": "GET", "url": ep_full, "status": st, "headers": hdrs, "body": body})
+
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[f"{base_url}/rest/admin/application-version", f"{base_url}/version", f"{base_url}/metrics"],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    product_ver_re = re.compile(r"\b([A-Za-z-]+/[0-9]+\.[0-9]+(?:\.[0-9]+)?)\b")
+    stack_banner_headers = ("x-powered-by", "x-aspnet-version", "x-aspnetmvc-version", "x-generator", "x-runtime")
+    cfg03_findings: list[dict] = []
+    seen_cfg03_keys: set[tuple[str, str]] = set()
+    zap_matched_plugins: set[str] = set()
+
+    def record_cfg03(url_str: str, st_code: int, source_kind: str, token_str: str, detail_str: str) -> None:
+        key = (url_str, token_str)
+        if key not in seen_cfg03_keys:
+            seen_cfg03_keys.add(key)
+            cfg03_findings.append(
+                {
+                    "url": url_str,
+                    "status": st_code,
+                    "source": source_kind,
+                    "token": token_str,
+                    "detail": detail_str,
+                }
+            )
+
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid in {"10036", "10037", "10035"} or any(
+            kw in low_a for kw in ("leaks version", "x-powered-by", "x-aspnet")
+        ):
+            zap_matched_plugins.add(pid)
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                ev = str(inst.get("evidence") or aname).strip()
+                record_cfg03(
+                    uri,
+                    200,
+                    f"OWASP ZAP:{pid}",
+                    ev or f"ZAP-{pid}",
+                    f"[OWASP ZAP {pid}] {aname} at {uri} (evidence='{ev}')",
+                )
+
+    for ex in exchanges:
+        ex_url = ex.get("url", base_url)
+        ex_st = ex.get("status", 0)
+        ex_hdrs = ex.get("headers") or {}
+        ex_body = ex.get("body") or ""
+
+        for hk, hv in ex_hdrs.items():
+            hk_l = hk.lower()
+            for m_tok in product_ver_re.findall(hv):
+                if m_tok.upper().startswith("HTTP/"):
+                    continue
+                record_cfg03(
+                    ex_url,
+                    ex_st,
+                    f"Header:{hk}",
+                    m_tok,
+                    f"Response header '{hk}: {hv}' at {ex.get('method', 'GET')} {ex_url} (HTTP {ex_st}) discloses version token '{m_tok}'",
+                )
+            if hk_l in stack_banner_headers and hv.strip():
+                record_cfg03(
+                    ex_url,
+                    ex_st,
+                    f"Header:{hk}",
+                    f"{hk}:{hv.strip()}",
+                    f"Stack-disclosure header '{hk}: {hv.strip()}' present at {ex.get('method', 'GET')} {ex_url}",
+                )
+            if hk_l == "server" and hv.strip() and not product_ver_re.search(hv):
+                if any(prod in hv.lower() for prod in ("apache", "nginx", "iis", "express", "gunicorn", "werkzeug", "openresty", "envoy")):
+                    record_cfg03(
+                        ex_url,
+                        ex_st,
+                        "Header:server",
+                        hv.strip(),
+                        f"Server header '{hv.strip()}' discloses backend technology at {ex.get('method', 'GET')} {ex_url}",
+                    )
+
+        if ex_body:
+            body_no_urls = re.sub(r"https?://[^\s\"'<>]+", " ", ex_body)
+            for m_tok in product_ver_re.findall(body_no_urls):
+                if m_tok.upper().startswith("HTTP/"):
+                    continue
+                record_cfg03(
+                    ex_url,
+                    ex_st,
+                    "Body:ProductVersionToken",
+                    m_tok,
+                    f"Response body from {ex.get('method', 'GET')} {ex_url} (HTTP {ex_st}) discloses product/version token '{m_tok}'",
+                )
+
+            m_node_ver = re.search(r'nodejs_version_info\{[^}]*version="([^"]+)"[^}]*\}', ex_body)
+            if m_node_ver:
+                record_cfg03(
+                    ex_url,
+                    ex_st,
+                    "Body:RuntimeMetric",
+                    f"Node.js/{m_node_ver.group(1)}",
+                    f"{ex_url} (HTTP {ex_st}) discloses exact Node.js runtime version ({m_node_ver.group(0)})",
+                )
+            m_app_metric = re.search(r'([a-z0-9_]+_version_info)\{[^}]*version="([^"]+)"[^}]*\}', ex_body)
+            if m_app_metric and m_app_metric.group(1) != "nodejs_version_info":
+                record_cfg03(
+                    ex_url,
+                    ex_st,
+                    "Body:AppMetric",
+                    f"{m_app_metric.group(1)}={m_app_metric.group(2)}",
+                    f"{ex_url} (HTTP {ex_st}) discloses application release version ({m_app_metric.group(0)})",
+                )
+            if ex_url.endswith(("/application-version", "/version")) and 200 <= ex_st < 300:
+                m_ver_json = re.search(r'"version"\s*:\s*"([0-9]+\.[0-9]+[^"]*)"', ex_body)
+                if m_ver_json:
+                    record_cfg03(
+                        ex_url,
+                        ex_st,
+                        "Body:VersionEndpoint",
+                        f"app-version/{m_ver_json.group(1)}",
+                        f"Unauthenticated version endpoint {ex_url} returns exact release version '{m_ver_json.group(1)}' ({ex_body.strip()[:120]})",
+                    )
+            m_gen = re.search(r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']([^"\']+)["\']', ex_body, re.IGNORECASE)
+            if m_gen:
+                record_cfg03(
+                    ex_url,
+                    ex_st,
+                    "Body:MetaGenerator",
+                    m_gen.group(1),
+                    f'HTML <meta name="generator"> discloses \'{m_gen.group(1)}\' at {ex_url}',
+                )
+            if "node_modules/" in ex_body and '<ul id="stacktrace"' in ex_body.lower():
+                mods = sorted(set(re.findall(r"node_modules/([a-z0-9@._-]+)", ex_body, re.IGNORECASE)))
+                record_cfg03(
+                    ex_url,
+                    ex_st,
+                    "Body:FrameworkStackLeak",
+                    f"stack:{','.join(mods[:5])}",
+                    f"HTTP {ex_st} traceback at {ex.get('method', 'GET')} {ex_url} discloses server dependency stack ({', '.join(mods[:6])})",
+                )
+
+    sarif_items: list[dict] = []
+    for vf in cfg03_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-03",
+                "level": "error",
+                "message": {"text": vf["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": vf["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-03",
+                    "source": vf["source"],
+                    "token": vf["token"],
+                    "httpStatus": vf["status"],
+                },
+            }
+        )
+
+    return {
+        "verdict": "FAIL" if cfg03_findings else "PASS",
+        "ver_disclosed": bool(cfg03_findings),
+        "inspectedExchanges": len(exchanges),
+        "findings": cfg03_findings,
+        "sarifResults": sarif_items,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -5780,162 +6000,26 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-03: Detailed version or stack disclosure across crawled HTTP headers and response bodies (SARIF 2.1.0 + HAR 1.2)
-    for ver_ep in ["/rest/admin/application-version", "/version"]:
-        http_probe(ver_ep)
-
-    product_ver_re = re.compile(r"\b([A-Za-z-]+/[0-9]+\.[0-9]+(?:\.[0-9]+)?)\b")
-    stack_banner_headers = ("x-powered-by", "x-aspnet-version", "x-aspnetmvc-version", "x-generator", "x-runtime")
-    cfg03_findings: list[dict] = []
-    seen_cfg03_keys: set[tuple[str, str]] = set()
-
-    def record_cfg03(url_str: str, st_code: int, source_kind: str, token_str: str, detail_str: str) -> None:
-        key = (url_str, token_str)
-        if key not in seen_cfg03_keys:
-            seen_cfg03_keys.add(key)
-            cfg03_findings.append(
-                {
-                    "url": url_str,
-                    "status": st_code,
-                    "source": source_kind,
-                    "token": token_str,
-                    "detail": detail_str,
-                }
-            )
-
-    for ex in crawled_exchanges:
-        ex_url = ex["url"]
-        ex_st = ex["status"]
-        ex_hdrs = ex["headers"]
-        ex_body = ex["body"]
-
-        # 1. Inspect every HTTP response header for [A-Za-z-]+/[0-9]+\.[0-9]+ or explicit stack headers
-        for hk, hv in ex_hdrs.items():
-            hk_l = hk.lower()
-            for m_tok in product_ver_re.findall(hv):
-                if m_tok.upper().startswith("HTTP/"):
-                    continue
-                record_cfg03(
-                    ex_url,
-                    ex_st,
-                    f"Header:{hk}",
-                    m_tok,
-                    f"Response header '{hk}: {hv}' at {ex['method']} {ex_url} (HTTP {ex_st}) discloses version token '{m_tok}'",
-                )
-            if hk_l in stack_banner_headers and hv.strip():
-                record_cfg03(
-                    ex_url,
-                    ex_st,
-                    f"Header:{hk}",
-                    f"{hk}:{hv.strip()}",
-                    f"Stack-disclosure header '{hk}: {hv.strip()}' present at {ex['method']} {ex_url}",
-                )
-            if hk_l == "server" and hv.strip() and not product_ver_re.search(hv):
-                if any(prod in hv.lower() for prod in ("apache", "nginx", "iis", "express", "gunicorn", "werkzeug", "openresty", "envoy")):
-                    record_cfg03(
-                        ex_url,
-                        ex_st,
-                        "Header:server",
-                        hv.strip(),
-                        f"Server header '{hv.strip()}' discloses backend technology at {ex['method']} {ex_url}",
-                    )
-
-        # 2. Inspect response body across crawl for [A-Za-z-]+/[0-9]+\.[0-9]+ tokens
-        if ex_body:
-            # Strip URLs before scanning body so third-party URLs don't cause false version hits
-            body_no_urls = re.sub(r"https?://[^\s\"'<>]+", " ", ex_body)
-            for m_tok in product_ver_re.findall(body_no_urls):
-                if m_tok.upper().startswith("HTTP/"):
-                    continue
-                record_cfg03(
-                    ex_url,
-                    ex_st,
-                    "Body:ProductVersionToken",
-                    m_tok,
-                    f"Response body from {ex['method']} {ex_url} (HTTP {ex_st}) discloses product/version token '{m_tok}'",
-                )
-
-            # 3. Runtime/framework version & stack telemetry markers (Prometheus info, version API JSON, meta generator, stack paths)
-            m_node_ver = re.search(r'nodejs_version_info\{[^}]*version="([^"]+)"[^}]*\}', ex_body)
-            if m_node_ver:
-                record_cfg03(
-                    ex_url,
-                    ex_st,
-                    "Body:RuntimeMetric",
-                    f"Node.js/{m_node_ver.group(1)}",
-                    f"{ex_url} (HTTP {ex_st}) discloses exact Node.js runtime version ({m_node_ver.group(0)})",
-                )
-            m_app_metric = re.search(r'([a-z0-9_]+_version_info)\{[^}]*version="([^"]+)"[^}]*\}', ex_body)
-            if m_app_metric and m_app_metric.group(1) != "nodejs_version_info":
-                record_cfg03(
-                    ex_url,
-                    ex_st,
-                    "Body:AppMetric",
-                    f"{m_app_metric.group(1)}={m_app_metric.group(2)}",
-                    f"{ex_url} (HTTP {ex_st}) discloses application release version ({m_app_metric.group(0)})",
-                )
-            if ex_url.endswith(("/application-version", "/version")) and 200 <= ex_st < 300:
-                m_ver_json = re.search(r'"version"\s*:\s*"([0-9]+\.[0-9]+[^"]*)"', ex_body)
-                if m_ver_json:
-                    record_cfg03(
-                        ex_url,
-                        ex_st,
-                        "Body:VersionEndpoint",
-                        f"app-version/{m_ver_json.group(1)}",
-                        f"Unauthenticated version endpoint {ex_url} returns exact release version '{m_ver_json.group(1)}' ({ex_body.strip()[:120]})",
-                    )
-            m_gen = re.search(r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']([^"\']+)["\']', ex_body, re.IGNORECASE)
-            if m_gen:
-                record_cfg03(
-                    ex_url,
-                    ex_st,
-                    "Body:MetaGenerator",
-                    m_gen.group(1),
-                    f"HTML <meta name=\"generator\"> discloses '{m_gen.group(1)}' at {ex_url}",
-                )
-            if "node_modules/" in ex_body and "<ul id=\"stacktrace\"" in ex_body.lower():
-                mods = sorted(set(re.findall(r"node_modules/([a-z0-9@._-]+)", ex_body, re.IGNORECASE)))
-                record_cfg03(
-                    ex_url,
-                    ex_st,
-                    "Body:FrameworkStackLeak",
-                    f"stack:{','.join(mods[:5])}",
-                    f"HTTP {ex_st} traceback at {ex['method']} {ex_url} discloses server dependency stack ({', '.join(mods[:6])})",
-                )
-
-    for vf in cfg03_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-03",
-                "level": "error",
-                "message": {"text": vf["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": vf["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-03",
-                    "source": vf["source"],
-                    "token": vf["token"],
-                    "httpStatus": vf["status"],
-                },
-            }
-        )
-
-    ver_disclosed = len(cfg03_findings) > 0
+    # CFG-03: OWASP ZAP (Rules 10036/10037) + Crawl Header & Body Version/Stack Disclosure Analyzer (SARIF 2.1.0 + HAR 1.2)
+    cfg03_eval = evaluate_cfg03_version_disclosure(
+        base_url,
+        crawled_exchanges=crawled_exchanges,
+        zap_report=zap_domain4_report,
+        http_probe_fn=http_probe,
+    )
+    cfg03_findings = cfg03_eval["findings"]
+    dast_sarif_results.extend(cfg03_eval["sarifResults"])
+    ver_disclosed = cfg03_eval["ver_disclosed"]
     cfg03_lines = [f"[{vf['source']}] {vf['detail']}" for vf in cfg03_findings]
     results["CFG-03"] = {
         "verdict": "FAIL" if ver_disclosed else "PASS",
-        "tool": f"Crawl Header & Body Version/Stack Disclosure Analyzer ({len(crawled_exchanges)} HTTP exchanges inspected, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"OWASP ZAP {zap_ver_label} (Rules 10036/10037) & Crawl Header/Body Version Analyzer ({len(crawled_exchanges)} HTTP exchanges inspected, SARIF 2.1.0 + HAR 1.2)",
         "log": (
             f"[FAIL] {len(cfg03_findings)} detailed version / technology stack disclosure(s) detected across {len(crawled_exchanges)} HTTP responses:\n  - "
             + "\n  - ".join(cfg03_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - ZAP JSON: {zap_domain4_report.get('jsonPath')}\n  - HTTP HAR 1.2: {har_path}"
             if ver_disclosed
-            else f"[PASS] Inspected headers and response bodies across {len(crawled_exchanges)} crawled HTTP exchanges; 0 [A-Za-z-]+/[0-9]+\\.[0-9]+ version tokens and 0 stack banners disclosed.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            else f"[PASS] OWASP ZAP {zap_ver_label} and {len(crawled_exchanges)} crawled HTTP exchanges disclosed 0 [A-Za-z-]+/[0-9]+\\.[0-9]+ version tokens and 0 stack banners.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

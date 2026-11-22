@@ -1,12 +1,12 @@
 {
-  "scanner": "testssl.sh 3.2.2 ac9b917 + HTTP Cleartext Redirect Probe",
-  "scannedAt": "2026-11-22T19:22:21.942511+00:00",
+  "scanner": "testssl.sh 3.2.2 913217a + HTTP Cleartext Redirect Probe",
+  "scannedAt": "2026-11-22T19:38:49.237745+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "HSTS_time": 0,
   "testssl": {
     "binary": "/home/user/.local/bin/testssl.sh",
-    "version": "3.2.2 ac9b917",
+    "version": "3.2.2 913217a",
     "openssl": "OpenSSL 1.0.2-bad from Fri Mar 28 16:54:51 2025",
     "returncode": 0,
     "scanTime": 10,
@@ -181,7 +181,7 @@
   "tls02ProtocolEnforcement": {
     "probedPort": 3000,
     "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
-    "testsslVersion": "3.2.2 ac9b917",
+    "testsslVersion": "3.2.2 913217a",
     "modernOffered": [],
     "deprecatedOffered": [],
     "verdict": "FAIL"

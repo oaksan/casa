@@ -2052,6 +2052,86 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 26/61: CFG-02 (Iteração SDD 096)", just2_txt)
 
+    def test_iteration97_cfg03_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg03_version_disclosure
+
+        class _Cfg03Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "clean"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def version_string(self):
+                return "nginx/1.24.0" if type(self).mode == "banner" else "AppGateway"
+
+            def do_GET(self):
+                m = type(self).mode
+                p = self.path.split("?", 1)[0]
+                if m == "banner":
+                    self.send_response(200)
+                    self.send_header("X-Powered-By", "Express")
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<html><body>Hello</body></html>")
+                    return
+                if m == "body_tok" and p == "/":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<html><body>Powered by Apache-Coyote/1.1</body></html>")
+                    return
+                self.send_response(200 if p == "/" else 404)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(b"<html><body>Clean</body></html>")
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg03Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg3:
+            tdp = Path(td_cfg3)
+            try:
+                # 1. Clean headers and bodies -> PASS via OWASP ZAP 2.17.0
+                _Cfg03Handler.mode = "clean"
+                r_pass = evaluate_cfg03_version_disclosure(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c3_pass.json",
+                    sarif_out_path=tdp / "zap_c3_pass.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["zap"]["executed"])
+
+                # 2. Disclosed Server: nginx/1.24.0 + X-Powered-By: Express -> FAIL caught by ZAP 10036/10037 + crawler
+                _Cfg03Handler.mode = "banner"
+                r_banner = evaluate_cfg03_version_disclosure(
+                    f"http://127.0.0.1:{port}",
+                    json_out_path=tdp / "zap_c3_banner.json",
+                    sarif_out_path=tdp / "zap_c3_banner.sarif",
+                )
+                self.assertEqual(r_banner["verdict"], "FAIL")
+                self.assertTrue({"10036", "10037"} & set(r_banner["zapPluginsMatched"]), f"Expected ZAP 10036/10037, got {r_banner}")
+                tokens = {f["token"] for f in r_banner["findings"]}
+                self.assertIn("nginx/1.24.0", tokens)
+
+                # 3. Body version token Apache-Coyote/1.1 -> FAIL (reusing clean zap report)
+                _Cfg03Handler.mode = "body_tok"
+                r_body = evaluate_cfg03_version_disclosure(
+                    f"http://127.0.0.1:{port}",
+                    zap_report=r_pass["zap"],
+                )
+                self.assertEqual(r_body["verdict"], "FAIL")
+                self.assertTrue(any(f["token"] == "Apache-Coyote/1.1" for f in r_body["findings"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 27/61: CFG-03 (Iteração SDD 097)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

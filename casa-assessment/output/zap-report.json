@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Sun, 22 Nov 2026 16:23:14",
-	"created": "2026-11-22T19:23:14.675058565Z",
+	"@generated": "Sun, 22 Nov 2026 16:39:42",
+	"created": "2026-11-22T19:39:42.099471620Z",
 	"insights":[
 		{
 			"level": "Low",
@@ -183,7 +183,17 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "24",
+							"id": "22",
+							"uri": "http://localhost:3000/ftp",
+							"nodeName": "http:\/\/localhost:3000\/ftp",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "",
+							"otherinfo": ""
+						},
+						{
+							"id": "30",
 							"uri": "http://localhost:3000/ftp/coupons_2013.md.bak",
 							"nodeName": "http:\/\/localhost:3000\/ftp\/coupons_2013.md.bak",
 							"method": "GET",
@@ -194,8 +204,8 @@
 						},
 						{
 							"id": "26",
-							"uri": "http://localhost:3000/ftp/encrypt.pyc",
-							"nodeName": "http:\/\/localhost:3000\/ftp\/encrypt.pyc",
+							"uri": "http://localhost:3000/ftp/eastere.gg",
+							"nodeName": "http:\/\/localhost:3000\/ftp\/eastere.gg",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -203,7 +213,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "9",
+							"id": "7",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",
@@ -213,7 +223,7 @@
 							"otherinfo": ""
 						}
 					],
-					"count": "4",
+					"count": "5",
 					"systemic": true,
 					"solution": "<p>Ensure that your web server, application server, load balancer, etc. is configured to set the Content-Security-Policy header.</p>",
 					"otherinfo": "",
@@ -233,7 +243,7 @@
 					"desc": "<p>Web browser data loading may be possible, due to a Cross Origin Resource Sharing (CORS) misconfiguration on the web server.</p>",
 					"instances":[ 
 						{
-							"id": "6",
+							"id": "5",
 							"uri": "http://localhost:3000",
 							"nodeName": "http:\/\/localhost:3000",
 							"method": "GET",
@@ -241,9 +251,29 @@
 							"attack": "",
 							"evidence": "Access-Control-Allow-Origin: *",
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+						},
+						{
+							"id": "2",
+							"uri": "http://localhost:3000/chunk-CE5v8pBj.js",
+							"nodeName": "http:\/\/localhost:3000\/chunk-CE5v8pBj.js",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "Access-Control-Allow-Origin: *",
+							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+						},
+						{
+							"id": "1",
+							"uri": "http://localhost:3000/rolldown-runtime-kqx1xuJ_.js",
+							"nodeName": "http:\/\/localhost:3000\/rolldown-runtime-kqx1xuJ_.js",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "Access-Control-Allow-Origin: *",
+							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						}
 					],
-					"count": "1",
+					"count": "3",
 					"systemic": true,
 					"solution": "<p>Ensure that sensitive data is not available in an unauthenticated manner (using IP address white-listing, for instance).</p><p>Configure the \"Access-Control-Allow-Origin\" HTTP header to a more restrictive set of domains, or remove all CORS headers entirely, to allow the web browser to enforce the Same Origin Policy (SOP) in a more restrictive manner.</p>",
 					"otherinfo": "<p>The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing.</p>",
@@ -263,7 +293,7 @@
 					"desc": "<p>The response appears to contain suspicious comments which may help an attacker.</p>",
 					"instances":[ 
 						{
-							"id": "19",
+							"id": "20",
 							"uri": "http://localhost:3000/chunk-AkObRTpM.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-AkObRTpM.js",
 							"method": "GET",
@@ -273,7 +303,7 @@
 							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"//`)).test(e)){let[,t]=e.split(/\\/\\/[^\\/]+/);return t}return e}function yv(e){return Oe(e)[le.LocaleId]}function vv(e,n,t){let r\", see evidence field for the suspicious comment/snippet."
 						},
 						{
-							"id": "18",
+							"id": "19",
 							"uri": "http://localhost:3000/chunk-B2J0VXxm.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-B2J0VXxm.js",
 							"method": "GET",
@@ -300,7 +330,7 @@
 					"reference": "",
 					"cweid": "615",
 					"wascid": "13",
-					"sourceid": "28"
+					"sourceid": "27"
 				},
 				{
 					"pluginid": "10109",
@@ -323,7 +353,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "37",
+							"id": "40",
 							"uri": "http://localhost:3000/",
 							"nodeName": "http:\/\/localhost:3000\/",
 							"method": "GET",
@@ -333,9 +363,9 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "67",
-							"uri": "http://localhost:3000/backup",
-							"nodeName": "http:\/\/localhost:3000\/backup",
+							"id": "60",
+							"uri": "http://localhost:3000/public",
+							"nodeName": "http:\/\/localhost:3000\/public",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -353,9 +383,9 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "68",
-							"uri": "http://localhost:3000/uploads",
-							"nodeName": "http:\/\/localhost:3000\/uploads",
+							"id": "59",
+							"uri": "http://localhost:3000/static",
+							"nodeName": "http:\/\/localhost:3000\/static",
 							"method": "GET",
 							"param": "",
 							"attack": "",

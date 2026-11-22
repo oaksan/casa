@@ -1483,3 +1483,43 @@ CONTROLE 26/61: CFG-02 (Iteração SDD 096)
     e `casa3-cfg02-debug-traceback-markers` (`POST /rest/user/login` HTTP 500
     Express `errorhandler` `<ul id="stacktrace">`) -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 27/61: CFG-03 (Iteração SDD 097)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-03` — *No detailed version or stack disclosure in headers or response bodies* (ASVS V14.3.3 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (ou Burp Suite) inspecionando cabeçalhos e corpos de resposta ao
+    longo do crawl e aplicando o critério normativo `[A-Za-z-]+/[0-9]+\.[0-9]+`.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 097`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-03` verificava `crawled_exchanges` exclusivamente em bloco inline no
+  `run_dynamic_and_protocol_checks`, sem consumir os alertas oficiais do
+  OWASP ZAP (`10036` *Server Leaks Version Information* e `10037` *X-Powered-By*).
+- O que foi feito e melhorado na Iteração SDD 097:
+  1) Extração e evolução em `evaluate_cfg03_version_disclosure(...)` em
+     `casa_audit/scanner.py` reaproveitando `zap_domain4_report` (ou executando
+     `run_zap_automation` de forma autônoma), consumindo alertas ZAP `10036`,
+     `10037` e `10035`.
+  2) Fusão deduplicada com inspeção transversal de cabeçalhos e corpos de todo
+     o crawl (`[A-Za-z-]+/[0-9]+\.[0-9]+`, `X-Powered-By`, métricas
+     `nodejs_version_info`, `/rest/admin/application-version`, `<meta generator>`
+     e stacks `node_modules/`), mantendo geração SARIF 2.1.0 (`CASA3-CFG-03`).
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration97_cfg03_guide_tooling`) com OWASP ZAP `2.17.0`:
+  * **`PASS`** em servidor limpo (`Server: AppGateway`, sem tokens de versão).
+  * **`FAIL`** com `Server: nginx/1.24.0` + `X-Powered-By: Express` (capturado
+    diretamente pelas regras `10036`/`10037` do ZAP) e em token `Apache-Coyote/1.1`
+    no corpo HTTP.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Identifica vazamentos de versão e stack em `/rest/admin/application-version`,
+    `/metrics` (`nodejs_version_info`) e tracebacks Express `/rest/user/login`
+    -> Veredito **`FAIL`**.
+================================================================================

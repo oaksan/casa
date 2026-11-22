@@ -8,11 +8,281 @@
           "toolExecutionNotifications": [
             {
               "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/chatbotPromptInjectionChallenge_1.ts:11:\n `}` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/chatbotPromptInjectionChallenge_2_correct.ts:15:\n `: tool` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/chatbotPromptInjectionChallenge_3.ts:15:\n `}` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/chatbotPromptInjectionChallenge_4.ts:16:\n `}` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginAdminChallenge_1.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    if (req.body.email.match(/.*['-;].*/) || req.body.password.match(/.*['-;].*/)) {\n      res.status(451).send(res.__('SQL Injection detected.'))\n    }\n    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginAdminChallenge_2.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = $1 AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`,\n      { bind: [ req.body.email ], model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginAdminChallenge_3.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = $1 AND password = $2 AND deletedAt IS NULL`,\n      { bind: [ req.body.email, req.body.password ], model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginAdminChallenge_4_correct.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = $1 AND password = $2 AND deletedAt IS NULL`,\n      { bind: [ req.body.email, security.hash(req.body.password) ], model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginBenderChallenge_1.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    if (req.body.email.match(/.*['-;].*/) || req.body.password.match(/.*['-;].*/)) {\n      res.status(451).send(res.__('SQL Injection detected.'))\n    }\n    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginBenderChallenge_2_correct.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = $mail AND password = $pass AND deletedAt IS NULL`,\n      { bind: { mail: req.body.email, pass: security.hash(req.body.password) }, model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginBenderChallenge_3.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = :mail AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`,\n      { replacements: { mail: req.body.email }, model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginBenderChallenge_4.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: models.User, plain: false })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginJimChallenge_1_correct.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = $1 AND password = $2 AND deletedAt IS NULL`,\n      { bind: [ req.body.email, security.hash(req.body.password) ], model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginJimChallenge_2.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: models.User, plain: false })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginJimChallenge_3.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    models.sequelize.query(`SELECT * FROM Users WHERE email = ? AND password = ? AND deletedAt IS NULL`,\n      { replacements: [ req.body.email, req.body.password ], model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/loginJimChallenge_4.ts:1:\n `export function login () {\n  function afterLogin (user: User, res: Response, next: NextFunction) {\n    BasketModel.findOrCreate({ where: { UserId: user.id } })\n      .then(([basket]: [BasketModel, boolean]) => {\n        const authenticatedUser = { data: user, bid: basket.id } // keep track of original basket\n        const token = security.authorize(authenticatedUser)\n        security.authenticatedUsers.put(token, authenticatedUser)\n        res.json({ authentication: { token, bid: basket.id, umail: user.email } })\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }\n\n  return (req: Request, res: Response, next: NextFunction) => {\n    if (req.body.email.match(/.*['-;].*/) || req.body.password.match(/.*['-;].*/)) {\n      res.status(451).send(res.__('SQL Injection detected.'))\n    }\n    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: models.User, plain: true })\n      .then((authenticatedUser) => {\n        const user = utils.queryResultToJson(authenticatedUser)\n        if (user.data?.id && user.data.totpSecret !== '') {\n          res.status(401).json({\n            status: 'totp_token_required',\n            data: {\n              tmpToken: security.authorize({\n                userId: user.data.id,\n                type: 'password_valid_needs_second_factor_token'\n              })\n            }\n          })\n        } else if (user.data?.id) {\n          afterLogin(user.data, res, next)\n        } else {\n          res.status(401).send(res.__('Invalid email or password.'))\n        }\n      }).catch((error: Error) => {\n        next(error)\n      })\n  }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/registerAdminChallenge_1.ts:1:\n `/* Generated API endpoints */\n  finale.initialize({ app, sequelize: seq })\n\n  const autoModels = [\n    { name: 'User', exclude: ['password', 'totpSecret'], model: UserModel },\n    { name: 'Product', exclude: [], model: ProductModel },\n    { name: 'Feedback', exclude: [], model: FeedbackModel },\n    { name: 'BasketItem', exclude: [], model: BasketItemModel },\n    { name: 'Challenge', exclude: [], model: ChallengeModel, include: [ChallengeDependencyModel] },\n    { name: 'Complaint', exclude: [], model: ComplaintModel },\n    { name: 'Recycle', exclude: [], model: RecycleModel },\n    { name: 'SecurityQuestion', exclude: [], model: SecurityQuestionModel },\n    { name: 'SecurityAnswer', exclude: [], model: SecurityAnswerModel },\n    { name: 'Address', exclude: [], model: AddressModel },\n    { name: 'PrivacyRequest', exclude: [], model: PrivacyRequestModel },\n    { name: 'Card', exclude: [], model: CardModel },\n    { name: 'Quantity', exclude: [], model: QuantityModel },\n    { name: 'Hint', exclude: [], model: HintModel }\n  ]\n\n  for (const { name, exclude, model, include } of autoModels) {\n    const resource = finale.resource({\n      model,\n      endpoints: [`/api/${name}s`, `/api/${name}s/:id`],\n      excludeAttributes: exclude,\n      pagination: false,\n      include\n    })\n\n    // create a wallet when a new user is registered using API\n    if (name === 'User') {\n      resource.create.send.before((req: Request, res: Response, context: { instance: { id: any }, continue: any }) => {\n        WalletModel.create({ UserId: context.instance.id }).catch((err: unknown) => {\n          console.log(err)\n        })\n        context.instance.role = context.instance.role ? context.instance.role : 'customer'\n        return context.continue\n      })\n    }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/registerAdminChallenge_2.ts:1:\n `/* Generated API endpoints */\n  finale.initialize({ app, sequelize: seq })\n\n  const autoModels = [\n    { name: 'Product', exclude: [], model: ProductModel },\n    { name: 'Feedback', exclude: [], model: FeedbackModel },\n    { name: 'BasketItem', exclude: [], model: BasketItemModel },\n    { name: 'Challenge', exclude: [], model: ChallengeModel, include: [ChallengeDependencyModel] },\n    { name: 'Complaint', exclude: [], model: ComplaintModel },\n    { name: 'Recycle', exclude: [], model: RecycleModel },\n    { name: 'SecurityQuestion', exclude: [], model: SecurityQuestionModel },\n    { name: 'SecurityAnswer', exclude: [], model: SecurityAnswerModel },\n    { name: 'Address', exclude: [], model: AddressModel },\n    { name: 'PrivacyRequest', exclude: [], model: PrivacyRequestModel },\n    { name: 'Card', exclude: [], model: CardModel },\n    { name: 'Quantity', exclude: [], model: QuantityModel },\n    { name: 'Hint', exclude: [], model: HintModel }\n  ]\n\n  for (const { name, exclude, model, include } of autoModels) {\n    const resource = finale.resource({\n      model,\n      endpoints: [`/api/${name}s`, `/api/${name}s/:id`],\n      excludeAttributes: exclude,\n      pagination: false,\n      include\n    })` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/registerAdminChallenge_3_correct.ts:1:\n `/* Generated API endpoints */\n  finale.initialize({ app, sequelize: seq })\n\n  const autoModels = [\n    { name: 'User', exclude: ['password', 'totpSecret'], model: UserModel },\n    { name: 'Product', exclude: [], model: ProductModel },\n    { name: 'Feedback', exclude: [], model: FeedbackModel },\n    { name: 'BasketItem', exclude: [], model: BasketItemModel },\n    { name: 'Challenge', exclude: [], model: ChallengeModel, include: [ChallengeDependencyModel] },\n    { name: 'Complaint', exclude: [], model: ComplaintModel },\n    { name: 'Recycle', exclude: [], model: RecycleModel },\n    { name: 'SecurityQuestion', exclude: [], model: SecurityQuestionModel },\n    { name: 'SecurityAnswer', exclude: [], model: SecurityAnswerModel },\n    { name: 'Address', exclude: [], model: AddressModel },\n    { name: 'PrivacyRequest', exclude: [], model: PrivacyRequestModel },\n    { name: 'Card', exclude: [], model: CardModel },\n    { name: 'Quantity', exclude: [], model: QuantityModel },\n    { name: 'Hint', exclude: [], model: HintModel }\n  ]\n\n  for (const { name, exclude, model, include } of autoModels) {\n    const resource = finale.resource({\n      model,\n      endpoints: [`/api/${name}s`, `/api/${name}s/:id`],\n      excludeAttributes: exclude,\n      pagination: false,\n      include\n    })\n\n    // create a wallet when a new user is registered using API\n    if (name === 'User') {\n      resource.create.send.before((req: Request, res: Response, context: { instance: { id: any }, continue: any }) => {\n        WalletModel.create({ UserId: context.instance.id }).catch((err: unknown) => {\n          console.log(err)\n        })\n        context.instance.role = 'customer'\n        return context.continue\n      })\n    }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/registerAdminChallenge_4.ts:1:\n `/* Generated API endpoints */\n  finale.initialize({ app, sequelize: seq })\n\n  const autoModels = [\n    { name: 'User', exclude: ['password', 'totpSecret', 'role'], model: UserModel },\n    { name: 'Product', exclude: [], model: ProductModel },\n    { name: 'Feedback', exclude: [], model: FeedbackModel },\n    { name: 'BasketItem', exclude: [], model: BasketItemModel },\n    { name: 'Challenge', exclude: [], model: ChallengeModel, include: [ChallengeDependencyModel] },\n    { name: 'Complaint', exclude: [], model: ComplaintModel },\n    { name: 'Recycle', exclude: [], model: RecycleModel },\n    { name: 'SecurityQuestion', exclude: [], model: SecurityQuestionModel },\n    { name: 'SecurityAnswer', exclude: [], model: SecurityAnswerModel },\n    { name: 'Address', exclude: [], model: AddressModel },\n    { name: 'PrivacyRequest', exclude: [], model: PrivacyRequestModel },\n    { name: 'Card', exclude: [], model: CardModel },\n    { name: 'Quantity', exclude: [], model: QuantityModel },\n    { name: 'Hint', exclude: [], model: HintModel }\n  ]\n\n  for (const { name, exclude, model, include } of autoModels) {\n    const resource = finale.resource({\n      model,\n      endpoints: [`/api/${name}s`, `/api/${name}s/:id`],\n      excludeAttributes: exclude,\n      pagination: false,\n      include\n    })\n\n    // create a wallet when a new user is registered using API\n    if (name === 'User') {\n      resource.create.send.before((req: Request, res: Response, context: { instance: { id: any }, continue: any }) => {\n        WalletModel.create({ UserId: context.instance.id }).catch((err: unknown) => {\n          console.log(err)\n        })\n        return context.continue\n      })\n    }` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/restfulXssChallenge_2.ts:46:\n `: any[]` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/restfulXssChallenge_3.ts:46:\n `: any[]` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/restfulXssChallenge_4.ts:46:\n `: any[]` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/tokenSaleChallenge_1.ts:22:\n `]` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/tokenSaleChallenge_2.ts:23:\n `]` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/tokenSaleChallenge_3_correct.ts:18:\n `]` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/weakPasswordChallenge_1_correct.ts:1:\n `User.init(\n      password: {\n        type: DataTypes.STRING,\n        set (clearTextPassword: string) {\n          validatePasswordHasAtLeastTenChar(clearTextPassword)\n          validatePasswordIsNotInTopOneMillionCommonPasswordsList(clearTextPassword)\n          this.setDataValue('password', security.hash(clearTextPassword))\n        }\n      },` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/weakPasswordChallenge_2.ts:1:\n `User.init(\n      password: {\n        type: DataTypes.STRING,\n        set (clearTextPassword: string) {\n          validatePasswordHasAtLeastOneNumber(clearTextPassword)\n          validatePasswordHasAtLeastOneSpecialChar(clearTextPassword)\n          validatePasswordHasAtLeastOneUpperCaseChar(clearTextPassword)\n          validatePasswordHasAtLeastOneLowerCaseChar(clearTextPassword)\n          validatePasswordHasAtLeastTenChar(clearTextPassword)\n          validatePasswordIsNotInTopOneMillionCommonPasswordsList(clearTextPassword)\n          this.setDataValue('password', security.hash(clearTextPassword))\n        }\n      },` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/weakPasswordChallenge_3.ts:1:\n `User.init(\n      password: {\n        type: DataTypes.STRING,\n        set (clearTextPassword: string) {\n          validatePasswordHasAtLeastOneNumber(clearTextPassword)\n          validatePasswordHasAtLeastOneSpecialChar(clearTextPassword)\n          validatePasswordHasAtLeastOneUpperCaseChar(clearTextPassword)\n          validatePasswordHasAtLeastOneLowerCaseChar(clearTextPassword)\n          validatePasswordHasAtLeastTenChar(clearTextPassword)\n          this.setDataValue('password', security.hash(clearTextPassword))\n        }\n      },` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
+                "id": "Syntax error"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/weakPasswordChallenge_4.ts:1:\n `User.init(\n      password: {\n        type: DataTypes.STRING,\n        set (clearTextPassword: string) {\n          validatePasswordIsNotInTopOneMillionCommonPasswordsList(clearTextPassword)\n          this.setDataValue('password', security.hash(clearTextPassword))\n        }\n      },` was unexpected"
+              }
+            },
+            {
+              "descriptor": {
                 "id": "Timeout"
               },
               "level": "warning",
               "message": {
-                "text": "Timeout when running casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-python on /home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py:\n "
+                "text": "Timeout when running casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization on /home/user/felipe/speckit/juice-shop-master/server.ts:\n "
               }
             }
           ]
@@ -27,17 +297,104 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py",
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/datacreator.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 139,
-                  "endLine": 3236,
+                  "endColumn": 41,
+                  "endLine": 751,
                   "snippet": {
-                    "text": "                            \"const fs=require('fs'); console.log(JSON.stringify(['/juice-shop/ctf.key','/juice-shop/encryptionkeys/jwt.pub','/juice-shop/encryptionkeys/premium.key','/juice-shop/ftp/incident-support.kdbx','/juice-shop/data/static/users.yml'].filter(p=>fs.existsSync(p))));\","
+                    "text": "      orderId: security.hash(adminEmail).slice(0, 4) + '-' + utils.randomHexString(16),"
                   },
-                  "startColumn": 132,
-                  "startLine": 3236
+                  "startColumn": 16,
+                  "startLine": 751
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/datacreator.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 41,
+                  "endLine": 760,
+                  "snippet": {
+                    "text": "      orderId: security.hash(adminEmail).slice(0, 4) + '-' + utils.randomHexString(16),"
+                  },
+                  "startColumn": 16,
+                  "startLine": 760
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/data/datacreator.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 37,
+                  "endLine": 769,
+                  "snippet": {
+                    "text": "      orderId: security.hash('demo').slice(0, 4) + '-' + utils.randomHexString(16),"
+                  },
+                  "startColumn": 16,
+                  "startLine": 769
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 70,
+                  "endLine": 20,
+                  "snippet": {
+                    "text": "export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'"
+                  },
+                  "startColumn": 63,
+                  "startLine": 20
                 }
               }
             }
@@ -56,26 +413,606 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py",
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 31,
+                  "endLine": 21,
+                  "snippet": {
+                    "text": "const privateKey = '-----BEGIN RSA PRIVATE KEY-----\\r\\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\\r\\n-----END RSA PRIVATE KEY-----'"
+                  },
+                  "startColumn": 7,
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 52,
+                  "endLine": 21,
+                  "snippet": {
+                    "text": "const privateKey = '-----BEGIN RSA PRIVATE KEY-----\\r\\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\\r\\n-----END RSA PRIVATE KEY-----'"
+                  },
+                  "startColumn": 21,
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-02: Private key, HDWallet BIP-39 mnemonic seed or trust material committed in source code (CWE-321)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-02-committed-private-key"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 90,
+                  "endLine": 41,
+                  "snippet": {
+                    "text": "export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')"
+                  },
+                  "startColumn": 1,
+                  "startLine": 41
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 90,
+                  "endLine": 41,
+                  "snippet": {
+                    "text": "export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')"
+                  },
+                  "startColumn": 1,
+                  "startLine": 41
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-05: Password persistence sink uses fast/unsalted hash or KDF parameters below NIST SP 800-63B \u00a75.1.1.2 / ASVS V2.4.1 floor"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 94,
+                  "endLine": 42,
+                  "snippet": {
+                    "text": "export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')"
+                  },
+                  "startColumn": 39,
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 92,
+                  "endLine": 42,
+                  "snippet": {
+                    "text": "export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')"
+                  },
+                  "startColumn": 46,
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 79,
+                  "endLine": 53,
+                  "snippet": {
+                    "text": "export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)"
+                  },
+                  "startColumn": 30,
+                  "startLine": 53
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-06: Non-CSPRNG randomness (Math.random / pseudoRandomBytes / time-based seed) flows to a security-relevant sink (JWT secret, password reset, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-06-insecure-randomness"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 108,
+                  "endLine": 54,
+                  "snippet": {
+                    "text": "export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })"
+                  },
+                  "startColumn": 41,
+                  "startLine": 54
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 55,
+                  "endLine": 150,
+                  "snippet": {
+                    "text": "  const hmac = crypto.createHmac('sha256', privateKey)"
+                  },
+                  "startColumn": 16,
+                  "startLine": 150
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/scripts/lintConfig.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 59,
+                  "endLine": 22,
+                  "snippet": {
+                    "text": "    configuration = yaml.load(await readFile(file, 'utf8'))"
+                  },
+                  "startColumn": 21,
+                  "startLine": 22
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/scripts/lintConfig.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 60,
+                  "endLine": 22,
+                  "snippet": {
+                    "text": "    configuration = yaml.load(await readFile(file, 'utf8'))"
+                  },
+                  "startColumn": 21,
+                  "startLine": 22
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/utils.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 48,
+                  "endLine": 82,
+                  "snippet": {
+                    "text": "  return crypto.createHmac('sha1', getCtfKey()).update(text).digest('hex')"
+                  },
+                  "startColumn": 10,
+                  "startLine": 82
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/xml.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 53,
+                  "endLine": 35,
+                  "snippet": {
+                    "text": "  const option = libxml2.ParseOption.XML_PARSE_NOENT | libxml2.ParseOption.XML_PARSE_DTDLOAD | libxml2.ParseOption.XML_PARSE_NOBLANKS | libxml2.ParseOption.XML_PARSE_NOCDATA"
+                  },
+                  "startColumn": 38,
+                  "startLine": 35
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/xml.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 93,
+                  "endLine": 35,
+                  "snippet": {
+                    "text": "  const option = libxml2.ParseOption.XML_PARSE_NOENT | libxml2.ParseOption.XML_PARSE_DTDLOAD | libxml2.ParseOption.XML_PARSE_NOBLANKS | libxml2.ParseOption.XML_PARSE_NOCDATA"
+                  },
+                  "startColumn": 76,
+                  "startLine": 35
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/lib/xml.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 65,
+                  "endLine": 38,
+                  "snippet": {
+                    "text": "  const xmlDoc = vm.runInContext('libxml2.XmlDocument.fromString(data, { option })', sandbox, { timeout: timeoutMs })"
+                  },
+                  "startColumn": 43,
+                  "startLine": 38
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/models/user.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 74,
+                  "endLine": 73,
+                  "snippet": {
+                    "text": "          this.setDataValue('password', security.hash(clearTextPassword)) // vuln-code-snippet vuln-line weakPasswordChallenge"
+                  },
+                  "startColumn": 11,
+                  "startLine": 73
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-05: Password persistence sink uses fast/unsalted hash or KDF parameters below NIST SP 800-63B \u00a75.1.1.2 / ASVS V2.4.1 floor"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-05-weak-password-kdf"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/models/user.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 73,
+                  "endLine": 73,
+                  "snippet": {
+                    "text": "          this.setDataValue('password', security.hash(clearTextPassword)) // vuln-code-snippet vuln-line weakPasswordChallenge"
+                  },
+                  "startColumn": 41,
+                  "startLine": 73
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/2fa.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 50,
+                  "endLine": 107,
+                  "snippet": {
+                    "text": "    if (user.password !== security.hash(password)) {"
+                  },
+                  "startColumn": 27,
+                  "startLine": 107
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/2fa.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 50,
+                  "endLine": 152,
+                  "snippet": {
+                    "text": "    if (user.password !== security.hash(password)) {"
+                  },
+                  "startColumn": 27,
+                  "startLine": 152
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/b2bOrder.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 53,
+                  "endLine": 21,
+                  "snippet": {
+                    "text": "        const sandbox = { safeEval, orderLinesData }"
+                  },
+                  "startColumn": 9,
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/b2bOrder.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
                   "endColumn": 80,
-                  "endLine": 8232,
+                  "endLine": 23,
                   "snippet": {
-                    "text": "        # 4. Retrieve server RSA public key if exposed (/encryptionkeys/jwt.pub) or local repo fallback for key confusion test"
+                    "text": "        vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 })"
                   },
-                  "startColumn": 73,
-                  "startLine": 8232
+                  "startColumn": 9,
+                  "startLine": 23
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+            "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution"
         },
         {
           "fingerprints": {
@@ -85,26 +1022,1128 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py",
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/b2bOrder.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 59,
+                  "endLine": 41,
+                  "snippet": {
+                    "text": "    return security.hash(`${(new Date()).toString()}_B2B`)"
+                  },
+                  "startColumn": 12,
+                  "startLine": 41
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/b2bOrder.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 59,
+                  "endLine": 41,
+                  "snippet": {
+                    "text": "    return security.hash(`${(new Date()).toString()}_B2B`)"
+                  },
+                  "startColumn": 12,
+                  "startLine": 41
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-06: Non-CSPRNG randomness (Math.random / pseudoRandomBytes / time-based seed) flows to a security-relevant sink (JWT secret, password reset, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-06-insecure-randomness"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/captcha.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 59,
+                  "endLine": 14,
+                  "snippet": {
+                    "text": "    const firstTerm = Math.floor((Math.random() * 10) + 1)"
+                  },
+                  "startColumn": 5,
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-06: Non-CSPRNG randomness (Math.random / pseudoRandomBytes / time-based seed) flows to a security-relevant sink (JWT secret, password reset, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-06-insecure-randomness"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/captcha.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 60,
+                  "endLine": 15,
+                  "snippet": {
+                    "text": "    const secondTerm = Math.floor((Math.random() * 10) + 1)"
+                  },
+                  "startColumn": 5,
+                  "startLine": 15
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-06: Non-CSPRNG randomness (Math.random / pseudoRandomBytes / time-based seed) flows to a security-relevant sink (JWT secret, password reset, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-06-insecure-randomness"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/captcha.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 59,
+                  "endLine": 16,
+                  "snippet": {
+                    "text": "    const thirdTerm = Math.floor((Math.random() * 10) + 1)"
+                  },
+                  "startColumn": 5,
+                  "startLine": 16
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-06: Non-CSPRNG randomness (Math.random / pseudoRandomBytes / time-based seed) flows to a security-relevant sink (JWT secret, password reset, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-06-insecure-randomness"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/captcha.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 69,
+                  "endLine": 18,
+                  "snippet": {
+                    "text": "    const firstOperator = operators[Math.floor((Math.random() * 3))]"
+                  },
+                  "startColumn": 5,
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-06: Non-CSPRNG randomness (Math.random / pseudoRandomBytes / time-based seed) flows to a security-relevant sink (JWT secret, password reset, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-06-insecure-randomness"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/captcha.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 70,
+                  "endLine": 19,
+                  "snippet": {
+                    "text": "    const secondOperator = operators[Math.floor((Math.random() * 3))]"
+                  },
+                  "startColumn": 5,
+                  "startLine": 19
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-06: Non-CSPRNG randomness (Math.random / pseudoRandomBytes / time-based seed) flows to a security-relevant sink (JWT secret, password reset, CAPTCHA, token, nonce, salt or IV) (CWE-338)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-06-insecure-randomness"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/changePassword.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 44,
+                  "endLine": 15,
+                  "snippet": {
+                    "text": "    const currentPassword = query.current as string\n    const newPassword = query.new as string"
+                  },
+                  "startColumn": 5,
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-13: Passwords transmitted via HTTP GET query parameters (query.current/query.new) which are written verbatim to HTTP access logs (morgan combined) (CWE-532 / CWE-598)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-13-get-password-query-logged"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/changePassword.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 58,
+                  "endLine": 39,
+                  "snippet": {
+                    "text": "    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {"
+                  },
+                  "startColumn": 28,
+                  "startLine": 39
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/changePassword.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 99,
+                  "endLine": 54,
+                  "snippet": {
+                    "text": "        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')"
+                  },
+                  "startColumn": 70,
+                  "startLine": 54
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/checkKeys.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 63,
+                  "endLine": 11,
+                  "snippet": {
+                    "text": "      const mnemonicWallet = HDNodeWallet.fromPhrase(mnemonic)"
+                  },
+                  "startColumn": 30,
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-02: Private key, HDWallet BIP-39 mnemonic seed or trust material committed in source code (CWE-321)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-02-committed-private-key"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/dataErasure.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 63,
+                  "endLine": 104,
+                  "snippet": {
+                    "text": "        const filePath: string = path.resolve(req.body.layout).toLowerCase()"
+                  },
+                  "startColumn": 34,
+                  "startLine": 104
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/dataExport.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 47,
+                  "endLine": 104,
+                  "snippet": {
+                    "text": "        const emailHash = security.hash(email).slice(0, 4)"
+                  },
+                  "startColumn": 27,
+                  "startLine": 104
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/fileServer.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 47,
+                  "endLine": 32,
+                  "snippet": {
+                    "text": "      res.sendFile(path.resolve('ftp/', file))"
+                  },
+                  "startColumn": 7,
+                  "startLine": 32
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/fileUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 72,
+                  "endLine": 31,
+                  "snippet": {
+                    "text": "    const absolutePath = path.resolve('uploads/complaints/' + fileName)"
+                  },
+                  "startColumn": 26,
+                  "startLine": 31
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/fileUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 92,
+                  "endLine": 34,
+                  "snippet": {
+                    "text": "      await pipeline(entry.stream(), fs.createWriteStream('uploads/complaints/' + fileName))"
+                  },
+                  "startColumn": 38,
+                  "startLine": 34
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/fileUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 51,
+                  "endLine": 80,
+                  "snippet": {
+                    "text": "      const xmlString = await parseXmlString(data)"
+                  },
+                  "startColumn": 31,
+                  "startLine": 80
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/fileUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 73,
+                  "endLine": 114,
+                  "snippet": {
+                    "text": "      const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })"
+                  },
+                  "startColumn": 58,
+                  "startLine": 114
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/keyServer.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 58,
+                  "endLine": 14,
+                  "snippet": {
+                    "text": "      res.sendFile(path.resolve('encryptionkeys/', file))"
+                  },
+                  "startColumn": 7,
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/logfileServer.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 48,
+                  "endLine": 14,
+                  "snippet": {
+                    "text": "      res.sendFile(path.resolve('logs/', file))"
+                  },
+                  "startColumn": 7,
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 206,
+                  "endLine": 34,
+                  "snippet": {
+                    "text": "    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge"
+                  },
+                  "startColumn": 5,
+                  "startLine": 34
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 145,
+                  "endLine": 34,
+                  "snippet": {
+                    "text": "    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge"
+                  },
+                  "startColumn": 107,
+                  "startLine": 34
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 183,
+                  "endLine": 59,
+                  "snippet": {
+                    "text": "    challengeUtils.solveIf(challenges.weakPasswordChallenge, () => { return req.body.email === 'admin@' + config.get<string>('application.domain') && req.body.password === 'admin123' })"
+                  },
+                  "startColumn": 151,
+                  "startLine": 59
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 207,
+                  "endLine": 60,
+                  "snippet": {
+                    "text": "    challengeUtils.solveIf(challenges.loginSupportChallenge, () => { return req.body.email === 'support@' + config.get<string>('application.domain') && req.body.password === 'J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P' })"
+                  },
+                  "startColumn": 153,
+                  "startLine": 60
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 193,
+                  "endLine": 61,
+                  "snippet": {
+                    "text": "    challengeUtils.solveIf(challenges.loginRapperChallenge, () => { return req.body.email === 'mc.safesearch@' + config.get<string>('application.domain') && req.body.password === 'Mr. N00dles' })"
+                  },
+                  "startColumn": 158,
+                  "startLine": 61
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 193,
+                  "endLine": 62,
+                  "snippet": {
+                    "text": "    challengeUtils.solveIf(challenges.loginAmyChallenge, () => { return req.body.email === 'amy@' + config.get<string>('application.domain') && req.body.password === 'K1f.....................' })"
+                  },
+                  "startColumn": 145,
+                  "startLine": 62
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 214,
+                  "endLine": 63,
+                  "snippet": {
+                    "text": "    challengeUtils.solveIf(challenges.dlpPasswordSprayingChallenge, () => { return req.body.email === 'J12934@' + config.get<string>('application.domain') && req.body.password === '0Y8rMnww$*9VFYE\u00a759-!Fg1L6t&6lB' })"
+                  },
+                  "startColumn": 159,
+                  "startLine": 63
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 193,
+                  "endLine": 64,
+                  "snippet": {
+                    "text": "    challengeUtils.solveIf(challenges.oauthUserPasswordChallenge, () => { return req.body.email === 'bjoern.kimminich@gmail.com' && req.body.password === 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })"
+                  },
+                  "startColumn": 133,
+                  "startLine": 64
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/login.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 200,
+                  "endLine": 65,
+                  "snippet": {
+                    "text": "    challengeUtils.solveIf(challenges.exposedCredentialsChallenge, () => { return req.body.email === 'testing@' + config.get<string>('application.domain') && req.body.password === 'IamUsedForTesting' })"
+                  },
+                  "startColumn": 159,
+                  "startLine": 65
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/order.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 47,
+                  "endLine": 40,
+                  "snippet": {
+                    "text": "          const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)"
+                  },
+                  "startColumn": 27,
+                  "startLine": 40
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/profileImageUrlUpload.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 152,
+                  "endLine": 29,
+                  "snippet": {
+                    "text": "          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })"
+                  },
+                  "startColumn": 30,
+                  "startLine": 29
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/quarantineServer.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 58,
+                  "endLine": 14,
+                  "snippet": {
+                    "text": "      res.sendFile(path.resolve('ftp/quarantine/', file))"
+                  },
+                  "startColumn": 7,
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/search.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 161,
+                  "endLine": 23,
+                  "snippet": {
+                    "text": "    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`) // vuln-code-snippet vuln-line unionSqlInjectionChallenge dbSchemaChallenge"
+                  },
+                  "startColumn": 5,
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/showProductReviews.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 67,
+                  "endLine": 36,
+                  "snippet": {
+                    "text": "    db.reviewsCollection.find({ $where: 'this.product == ' + id }).then((reviews: Review[]) => {"
+                  },
+                  "startColumn": 5,
+                  "startLine": 36
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/trackOrder.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 69,
+                  "endLine": 18,
+                  "snippet": {
+                    "text": "    db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {"
+                  },
+                  "startColumn": 5,
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-08: Tainted user input flows into unparameterized SQL or NoSQL ($where) query construction (CWE-89 / CWE-943)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-08-sql-injection"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/userProfile.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 32,
+                  "endLine": 65,
+                  "snippet": {
+                    "text": "          username = eval(code) // eslint-disable-line no-eval"
+                  },
+                  "startColumn": 22,
+                  "startLine": 65
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/userProfile.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 75,
+                  "endLine": 78,
+                  "snippet": {
+                    "text": "    template = template.replace(/_emailHash_/g, security.hash(user?.email))"
+                  },
+                  "startColumn": 49,
+                  "startLine": 78
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-04: Weak hash function (MD5 or SHA-1) used in security-relevant signature, HMAC, or auth wrapper context (CWE-328)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-04-weak-hash"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/verify.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 73,
+                  "endLine": 25,
+                  "snippet": {
+                    "text": "    return req.body && req.body.email === '' && req.body.password === ''"
+                  },
+                  "startColumn": 49,
+                  "startLine": 25
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/verify.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
                   "endColumn": 64,
-                  "endLine": 8234,
+                  "endLine": 338,
                   "snippet": {
-                    "text": "        pk_st, _, pk_body = http_probe(\"/encryptionkeys/jwt.pub\")"
+                    "text": "    { [Op.like]: '%6PPi37DBxP4lDwlriuaxP15HaDJpsUXY5TspVmie%' }"
                   },
-                  "startColumn": 57,
-                  "startLine": 8234
+                  "startColumn": 5,
+                  "startLine": 338
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+            "text": "SAST-01: Hardcoded password, API key, HMAC secret, JWT signing secret or credential in source code (CWE-798)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-01-hardcoded-secret"
         },
         {
           "fingerprints": {
@@ -114,26 +2153,26 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py",
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/vulnCodeFixes.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 49,
-                  "endLine": 8237,
+                  "endColumn": 117,
+                  "endLine": 83,
                   "snippet": {
-                    "text": "        elif (repo / \"encryptionkeys\" / \"jwt.pub\").exists():"
+                    "text": "      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))"
                   },
-                  "startColumn": 42,
-                  "startLine": 8237
+                  "startColumn": 46,
+                  "startLine": 83
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
         },
         {
           "fingerprints": {
@@ -143,26 +2182,26 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py",
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/vulnCodeSnippet.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 64,
-                  "endLine": 8238,
+                  "endColumn": 131,
+                  "endLine": 90,
                   "snippet": {
-                    "text": "            pub_key_bytes = (repo / \"encryptionkeys\" / \"jwt.pub\").read_bytes()"
+                    "text": "    const codingChallengeInfos = yaml.load(await fs.readFile('./data/static/codefixes/' + key + '.info.yml', { encoding: 'utf8' }))"
                   },
-                  "startColumn": 57,
-                  "startLine": 8238
+                  "startColumn": 34,
+                  "startLine": 90
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
         },
         {
           "fingerprints": {
@@ -172,26 +2211,26 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py",
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/vulnCodeSnippet.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 66,
-                  "endLine": 10340,
+                  "endColumn": 132,
+                  "endLine": 90,
                   "snippet": {
-                    "text": "        pk9_st, _, pk9_body = http_probe(\"/encryptionkeys/jwt.pub\")"
+                    "text": "    const codingChallengeInfos = yaml.load(await fs.readFile('./data/static/codefixes/' + key + '.info.yml', { encoding: 'utf8' }))"
                   },
-                  "startColumn": 59,
-                  "startLine": 10340
+                  "startColumn": 34,
+                  "startLine": 90
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
         },
         {
           "fingerprints": {
@@ -201,26 +2240,26 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py",
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/vulnCodeSnippet.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 49,
-                  "endLine": 10343,
+                  "endColumn": 131,
+                  "endLine": 90,
                   "snippet": {
-                    "text": "        elif (repo / \"encryptionkeys\" / \"jwt.pub\").exists():"
+                    "text": "    const codingChallengeInfos = yaml.load(await fs.readFile('./data/static/codefixes/' + key + '.info.yml', { encoding: 'utf8' }))"
                   },
-                  "startColumn": 42,
-                  "startLine": 10343
+                  "startColumn": 50,
+                  "startLine": 90
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+            "text": "SAST-11: File path constructed from unvalidated user-supplied parameter, uploaded filename or archive entry (CWE-22 / Zip Slip)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
         },
         {
           "fingerprints": {
@@ -230,41 +2269,896 @@
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/casa/casa-assessment/casa_audit/scanner.py",
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/server.ts",
                   "uriBaseId": "%SRCROOT%"
                 },
                 "region": {
-                  "endColumn": 64,
-                  "endLine": 10344,
+                  "endColumn": 7,
+                  "endLine": 535,
                   "snippet": {
-                    "text": "            oau09_pub_key = (repo / \"encryptionkeys\" / \"jwt.pub\").read_bytes()"
+                    "text": "    const resource = finale.resource({\n      model,\n      endpoints: [`/api/${name}s`, `/api/${name}s/:id`],\n      excludeAttributes: exclude,\n      pagination: false,\n      include\n    })"
                   },
-                  "startColumn": 57,
-                  "startLine": 10344
+                  "startColumn": 22,
+                  "startLine": 529
                 }
               }
             }
           ],
           "message": {
-            "text": "SAST-12: Server-side secret or key hardcoded in configuration, IaC or source instead of managed secret store (CWE-522 / ASVS V6.4.1)"
+            "text": "SAST-07: Mass assignment / unguarded request body passed directly to ORM model creation/update or Finale/Epilogue auto-binding (CWE-915, OWASP API6:2023)"
           },
           "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-12-hardcoded-config-secrets"
+          "ruleId": "casa-assessment.rules.CASA3-SAST-07-mass-assignment"
         },
         {
           "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
           "level": "error",
           "message": {
-            "text": "cloud-assessment/ada_cloud_audit/checks/azure/identity.py:132 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/casa/cloud-assessment/ada_cloud_audit/checks/azure/identity.py. (verified=true, Shannon entropy=3.83 bits/char)"
+            "text": "data/static/users.yml:88 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/data/static/users.yml. (verified=true, Shannon entropy=4.33 bits/char)"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "cloud-assessment/ada_cloud_audit/checks/azure/identity.py"
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 88
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:151 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/data/static/users.yml. (verified=true, Shannon entropy=4.35 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 151
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
+          "level": "error",
+          "message": {
+            "text": "frontend/src/app/faucet/faucet.component.ts:34 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/frontend/src/app/faucet/faucet.component.ts. (verified=true, Shannon entropy=4.24 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "frontend/src/app/faucet/faucet.component.ts"
+                },
+                "region": {
+                  "startLine": 34
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
+          "level": "error",
+          "message": {
+            "text": "routes/login.ts:64 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/routes/login.ts. (verified=true, Shannon entropy=4.33 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/login.ts"
+                },
+                "region": {
+                  "startLine": 64
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-entropy-hmac",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:42 \u2014 [LIVE CREDENTIAL / HIGH-ENTROPY HMAC SECRET] Hardcoded HMAC-SHA256 secret ('pa4qacea...twmj', len=24, Shannon entropy=4.14 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-entropy-apikey",
+          "level": "error",
+          "message": {
+            "text": "routes/verify.ts:338 \u2014 [HIGH-ENTROPY API KEY] Hardcoded API key token ('6PPi37DB...Vmie', len=40, Shannon entropy=4.58 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/verify.ts"
+                },
+                "region": {
+                  "startLine": 338
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:3 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('admin1***', len=8, Shannon entropy=3.0 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 3
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:31 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('ncc-17***', len=8, Shannon entropy=2.5 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 31
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:63 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('OhG0dP***', len=24, Shannon entropy=4.22 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 63
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:88 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('bW9jLm***', len=36, Shannon entropy=4.33 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 88
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:107 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('mDLx?9***', len=60, Shannon entropy=5.18 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 107
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:115 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('J6aVjT***', len=30, Shannon entropy=4.77 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 115
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:123 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('focusO***', len=34, Shannon entropy=3.67 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 123
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:132 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('Mr. N0***', len=11, Shannon entropy=3.28 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
                 },
                 "region": {
                   "startLine": 132
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:141 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('0Y8rMn***', len=30, Shannon entropy=4.57 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 141
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:150 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('EinBel***', len=35, Shannon entropy=4.26 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 150
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:159 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('K1f...***', len=24, Shannon entropy=0.74 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 159
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:168 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('monkey***', len=84, Shannon entropy=4.12 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 168
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:178 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('kitten***', len=42, Shannon entropy=3.91 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 178
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:188 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('uss en***', len=14, Shannon entropy=2.99 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 188
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:197 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('i am a***', len=26, Shannon entropy=3.38 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 197
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:206 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('muda-m***', len=19, Shannon entropy=3.09 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 206
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:215 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('demo***', len=4, Shannon entropy=2.0 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 215
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:239 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('y&x5Z#***', len=39, Shannon entropy=4.61 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 239
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:245 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('y&x5Z#***', len=39, Shannon entropy=4.37 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 245
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:251 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('ship c***', len=65, Shannon entropy=3.94 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 251
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:261 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('privat***', len=7, Shannon entropy=2.81 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 261
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:272 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('IamUse***', len=17, Shannon entropy=3.85 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 272
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:277 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('DVKH3g***', len=82, Shannon entropy=5.74 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 277
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "data/static/users.yml:286 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'password' hardcoded literal ('my lit***', len=24, Shannon entropy=3.61 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "data/static/users.yml"
+                },
+                "region": {
+                  "startLine": 286
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-credential-literal",
+          "level": "error",
+          "message": {
+            "text": "frontend/src/app/login/login.component.ts:69 \u2014 [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] 'Password' hardcoded literal ('IamUse***', len=17, Shannon entropy=3.85 bits/char, verified=true)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "frontend/src/app/login/login.component.ts"
+                },
+                "region": {
+                  "startLine": 69
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-keystore-file",
+          "level": "error",
+          "message": {
+            "text": "ctf.key:1 \u2014 [COMMITTED KEYSTORE / TRUST MATERIAL FILE] Cryptographic Key File (.key) shipped in repository/artifact (size=30 bytes) [Header: 'TRwzkRJnHOTckssAeyJbysWgP!Qc2T']"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "ctf.key"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-keystore-file",
+          "level": "error",
+          "message": {
+            "text": "encryptionkeys/jwt.pub:1 \u2014 [COMMITTED KEYSTORE / TRUST MATERIAL FILE] Committed Cryptographic Key Material (.pub) shipped in repository/artifact (size=248 bytes) [Header: '-----BEGIN RSA PUBLIC KEY-----']"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "encryptionkeys/jwt.pub"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-keystore-file",
+          "level": "error",
+          "message": {
+            "text": "encryptionkeys/premium.key:1 \u2014 [COMMITTED KEYSTORE / TRUST MATERIAL FILE] Cryptographic Key File (.key) shipped in repository/artifact (size=50 bytes) [Header: '1337133713371337.EA99A61D92D2955B1E9285B55']"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "encryptionkeys/premium.key"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-keystore-file",
+          "level": "error",
+          "message": {
+            "text": "ftp/incident-support.kdbx:1 \u2014 [COMMITTED KEYSTORE / TRUST MATERIAL FILE] KeePass Password / Key Database Store (.kdbx) shipped in repository/artifact (size=3246 bytes) [KeePass KDBX v4 binary signature 0x03D9A29A verified]"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "ftp/incident-support.kdbx"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/terraform/networking.tf. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-bip39-private-seed",
+          "level": "error",
+          "message": {
+            "text": "routes/checkKeys.ts:10 \u2014 [HDWALLET BIP-39 PRIVATE KEY SEED] Committed 12-word BIP-39 mnemonic ('purpose betray ... clutch') deriving Ethereum secp256k1 private key via HDNodeWallet.fromPhrase (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/checkKeys.ts"
+                },
+                "region": {
+                  "startLine": 10
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-12-trivy-private-key",
+          "level": "error",
+          "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [TRIVY private-key] Artifact: infrastructure/terraform/networking.tf (CWE-522 / SAST-12)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-12-trivy-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [TRIVY private-key] Artifact: lib/insecurity.ts (CWE-522 / SAST-12)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-12-trivy-private-key",
+          "level": "error",
+          "message": {
+            "text": "terraform/networking.tf:171 \u2014 [TRIVY private-key] Artifact: terraform/networking.tf (CWE-522 / SAST-12)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-12-baked-image-secrets",
+          "level": "error",
+          "message": {
+            "text": "Dockerfile:38 \u2014 [SECRETS BAKED INTO CONTAINER IMAGE LAYER] Image 'bkimminich/juice-shop:latest' (.Config.Env=[\"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\"SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt\"]) bakes server-side secret artifacts directly inside image via COPY instead of runtime secret mount or Secrets Manager SDK: /juice-shop/ctf.key, /juice-shop/encryptionkeys/jwt.pub, /juice-shop/encryptionkeys/premium.key, /juice-shop/ftp/incident-support.kdbx, /juice-shop/data/static/users.yml (Secrets Manager SDK Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK integrated))"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Dockerfile"
+                },
+                "region": {
+                  "startLine": 38
                 }
               }
             }

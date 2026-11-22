@@ -1,0 +1,28 @@
+id: casa3-cfg02-debug-traceback-markers
+info:
+  name: Production Framework Debug / Stacktrace Markers Disclosed
+  author: casa-3.0-al1
+  severity: high
+  tags: casa,cfg02,debug,stacktrace
+http:
+  - raw:
+      - |
+        POST /rest/user/login HTTP/1.1
+        Host: {{Hostname}}
+        Content-Type: application/json
+
+        {invalid_json_cfg02_probe
+      - |
+        GET /rest/products/search?q=' HTTP/1.1
+        Host: {{Hostname}}
+
+    matchers:
+      - type: regex
+        regex:
+          - '(?i)(<ul\s+id=["'']stacktrace["'']|node_modules[\\/].*:\d+:\d+)'
+          - '(?i)(Werkzeug\s+powered\s+traceback|The debugger caught an exception in your WSGI application)'
+          - '(?i)(You&#x27;re seeing this error because you have <code>DEBUG = True</code>|DEBUG\s*=\s*True.*Django)'
+          - '(?i)(Action Controller:\s*Exception caught|Rails\.root:)'
+          - '(?i)(Server Error in [''"]/[''"] Application|<b>Stack Trace:</b>)'
+          - '(?is)(Traceback \(most recent call last\):|\bSyntaxError:.*\bat\s+[^\s(]+\s+\([^)]+:\d+:\d+\))'
+        condition: or

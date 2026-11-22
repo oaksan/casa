@@ -1,0 +1,41 @@
+id: casa3-cfg02-framework-consoles
+info:
+  name: Framework Debug Console / Profiler Exposed
+  author: casa-3.0-al1
+  severity: high
+  tags: casa,cfg02,debug,profiler
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/__debug__/"
+      - "{{BaseURL}}/console"
+      - "{{BaseURL}}/_profiler"
+      - "{{BaseURL}}/rails/info/routes"
+      - "{{BaseURL}}/debug/pprof/"
+      - "{{BaseURL}}/elmah.axd"
+      - "{{BaseURL}}/phpinfo.php"
+      - "{{BaseURL}}/server-status"
+      - "{{BaseURL}}/graphiql"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        case-insensitive: true
+        words:
+          - "django-debug-toolbar"
+          - "djdebug"
+          - "werkzeug"
+          - "symfony profiler"
+          - "sf-toolbar"
+          - "routes match"
+          - "rails_info"
+          - "goroutine"
+          - "elmah"
+          - "php version"
+          - "apache server status"
+          - "graphiql"
+        condition: or
+      - type: word
+        words: ["<app-root"]
+        negative: true

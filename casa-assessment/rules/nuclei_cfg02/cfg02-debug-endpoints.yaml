@@ -1,0 +1,20 @@
+id: casa3-cfg02-prometheus-metrics
+info:
+  name: Prometheus Runtime Metrics Exposed
+  author: casa-3.0-al1
+  severity: medium
+  tags: casa,cfg02,debug,metrics
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/metrics"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        words: ["process_cpu_", "nodejs_version_info", "# TYPE "]
+        condition: or
+      - type: word
+        words: ["<app-root"]
+        negative: true

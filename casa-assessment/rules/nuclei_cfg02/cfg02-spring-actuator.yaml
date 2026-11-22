@@ -1,0 +1,23 @@
+id: casa3-cfg02-spring-actuator
+info:
+  name: Spring Boot Actuator Endpoints Exposed Unauthenticated
+  author: casa-3.0-al1
+  severity: high
+  tags: casa,cfg02,debug,actuator
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/actuator"
+      - "{{BaseURL}}/actuator/env"
+      - "{{BaseURL}}/actuator/health"
+      - "{{BaseURL}}/actuator/beans"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        words: ['"_links"', '"propertySources"', '"activeProfiles"', '"UP"', '"components"', '"contexts"']
+        condition: or
+      - type: word
+        words: ["<app-root"]
+        negative: true

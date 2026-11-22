@@ -1967,6 +1967,91 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 25/61: CFG-01 (Iteração SDD 095)", just2_txt)
 
+    def test_iteration96_cfg02_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_cfg02_debug_modes
+
+        class _Cfg02Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "hardened"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                m = type(self).mode
+                p = self.path.split("?", 1)[0]
+                if m == "vulnerable":
+                    if p == "/actuator/env":
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(b'{"activeProfiles":["dev"],"propertySources":[]}')
+                        return
+                    if p == "/console":
+                        self.send_response(200)
+                        self.send_header("Content-Type", "text/html")
+                        self.end_headers()
+                        self.wfile.write(b"<html><title>Werkzeug Console</title><body>evalex interactive debugger</body></html>")
+                        return
+                # Hardened / SPA catch-all returns <app-root> cleanly without exposing debug payloads
+                self.send_response(200 if p == "/" else 404)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(b"<html><body><app-root></app-root></body></html>")
+
+            def do_POST(self):
+                ln = int(self.headers.get("Content-Length", "0"))
+                _ = self.rfile.read(ln)
+                if type(self).mode == "vulnerable" and self.path == "/rest/user/login":
+                    self.send_response(500)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<html><body>You&#x27;re seeing this error because you have <code>DEBUG = True</code> in your Django settings</body></html>")
+                    return
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b'{"error":"bad request"}')
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Cfg02Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_cfg2:
+            tdp = Path(td_cfg2)
+            try:
+                # 1. Hardened / SPA site -> PASS via Nuclei 3.11.1 (0 findings, SARIF+JSONL created)
+                _Cfg02Handler.mode = "hardened"
+                r_pass = evaluate_cfg02_debug_modes(
+                    f"http://127.0.0.1:{port}",
+                    jsonl_out_path=tdp / "cfg02_pass.jsonl",
+                    sarif_out_path=tdp / "cfg02_pass.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["nuclei"]["executed"])
+                self.assertTrue((tdp / "cfg02_pass.sarif").exists())
+
+                # 2. Vulnerable Spring Actuator + Werkzeug console + Django DEBUG=True -> FAIL
+                _Cfg02Handler.mode = "vulnerable"
+                r_fail = evaluate_cfg02_debug_modes(
+                    f"http://127.0.0.1:{port}",
+                    jsonl_out_path=tdp / "cfg02_fail.jsonl",
+                    sarif_out_path=tdp / "cfg02_fail.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                tids = {f["templateId"] for f in r_fail["findings"]}
+                self.assertIn("casa3-cfg02-spring-actuator", tids)
+                self.assertIn("casa3-cfg02-framework-consoles", tids)
+                self.assertIn("casa3-cfg02-debug-traceback-markers", tids)
+                self.assertTrue((tdp / "cfg02_fail.sarif").exists())
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 26/61: CFG-02 (Iteração SDD 096)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -35,6 +35,7 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 CASA_ASSESS_DIR = ROOT_DIR / "casa-assessment"
 CONTROLS_JSON = CASA_ASSESS_DIR / "data" / "casa3_controls.json"
 SEMGREP_RULES = CASA_ASSESS_DIR / "rules" / "casa3_al1_sast.yml"
+NUCLEI_CFG02_DIR = CASA_ASSESS_DIR / "rules" / "nuclei_cfg02"
 OUTPUT_DIR = CASA_ASSESS_DIR / "output"
 
 SEMGREP_BIN = shutil.which("semgrep") or "/home/user/.local/bin/semgrep"
@@ -45,6 +46,7 @@ CYCLONEDX_BIN = shutil.which("cyclonedx") or shutil.which("cyclonedx-cli") or "/
 GITLEAKS_BIN = shutil.which("gitleaks") or "/home/user/.local/bin/gitleaks"
 TESTSSL_BIN = shutil.which("testssl.sh") or shutil.which("testssl") or "/home/user/.local/bin/testssl.sh"
 ZAP_BIN = shutil.which("zap.sh") or shutil.which("zaproxy") or "/home/user/.local/bin/zap.sh"
+NUCLEI_BIN = shutil.which("nuclei") or "/home/user/.local/bin/nuclei"
 
 
 def load_controls() -> list[dict]:
@@ -5077,6 +5079,219 @@ def evaluate_cfg01_directory_browsing(
     }
 
 
+def run_nuclei_scan(
+    target_url: str,
+    templates_path: Path | str,
+    *,
+    jsonl_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    timeout_sec: int = 60,
+) -> dict:
+    """Execute ProjectDiscovery Nuclei against target_url with curated templates."""
+    base_url = target_url.strip().rstrip("/")
+    binary = NUCLEI_BIN if Path(NUCLEI_BIN).exists() else (shutil.which("nuclei") or "")
+    jsonl_file = jsonl_out_path or (OUTPUT_DIR / "nuclei-findings.jsonl")
+    sarif_file = sarif_out_path or (OUTPUT_DIR / "nuclei-findings.sarif")
+    jsonl_file.parent.mkdir(parents=True, exist_ok=True)
+    sarif_file.parent.mkdir(parents=True, exist_ok=True)
+    for fp in (jsonl_file, sarif_file):
+        if fp.exists():
+            fp.unlink()
+
+    if not binary or not Path(binary).exists():
+        return {
+            "executed": False,
+            "binary": binary or "not-found",
+            "version": None,
+            "returncode": None,
+            "jsonlPath": str(jsonl_file),
+            "sarifPath": str(sarif_file),
+            "matches": [],
+            "error": "nuclei binary not found",
+        }
+
+    t_path = Path(templates_path)
+    if not t_path.exists():
+        return {
+            "executed": False,
+            "binary": binary,
+            "version": None,
+            "returncode": None,
+            "jsonlPath": str(jsonl_file),
+            "sarifPath": str(sarif_file),
+            "matches": [],
+            "error": f"Nuclei templates path not found: {t_path}",
+        }
+
+    nuc_version = None
+    try:
+        vp = subprocess.run([binary, "-version"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5)
+        m_v = re.search(r"v?\d+\.\d+\.\d+", vp.stdout + vp.stderr)
+        if m_v:
+            nuc_version = m_v.group(0)
+    except Exception:
+        pass
+
+    returncode = None
+    err_msg = None
+    cmd = [
+        binary,
+        "-u",
+        base_url,
+        "-t",
+        str(t_path),
+        "-duc",
+        "-nc",
+        "-silent",
+        "-jle",
+        str(jsonl_file),
+        "-se",
+        str(sarif_file),
+    ]
+    try:
+        proc = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout_sec)
+        returncode = proc.returncode
+    except subprocess.TimeoutExpired:
+        err_msg = f"nuclei timed out after {timeout_sec}s"
+    except Exception as exc:
+        err_msg = str(exc)
+
+    matches: list[dict] = []
+    if jsonl_file.exists():
+        for line in jsonl_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+            ls = line.strip()
+            if not ls:
+                continue
+            try:
+                matches.append(json.loads(ls))
+            except Exception:
+                continue
+    elif returncode == 0 and err_msg is None:
+        jsonl_file.write_text("", encoding="utf-8")
+
+    if not sarif_file.exists() and returncode == 0 and err_msg is None:
+        sarif_file.write_text(
+            json.dumps(
+                {
+                    "version": "2.1.0",
+                    "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+                    "runs": [{"tool": {"driver": {"name": "nuclei", "version": nuc_version or "3.11.1"}}, "results": []}],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    return {
+        "executed": returncode is not None and err_msg is None,
+        "binary": binary,
+        "version": nuc_version or "3.11.1",
+        "returncode": returncode,
+        "jsonlPath": str(jsonl_file),
+        "sarifPath": str(sarif_file),
+        "matches": matches,
+        "error": err_msg,
+    }
+
+
+def evaluate_cfg02_debug_modes(
+    target_url: str,
+    *,
+    zap_report: dict | None = None,
+    jsonl_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    templates_dir: Path | None = None,
+) -> dict:
+    """Evaluate CFG-02 using ProjectDiscovery Nuclei templates + OWASP ZAP debug/error alerts."""
+    base_url = target_url.strip().rstrip("/")
+    nuc = run_nuclei_scan(
+        base_url,
+        templates_dir or NUCLEI_CFG02_DIR,
+        jsonl_out_path=jsonl_out_path or (OUTPUT_DIR / "nuclei-cfg02.jsonl"),
+        sarif_out_path=sarif_out_path or (OUTPUT_DIR / "nuclei-cfg02.sarif"),
+        timeout_sec=60,
+    )
+
+    findings: list[dict] = []
+    seen_keys: set[tuple[str, str]] = set()
+
+    for m in nuc.get("matches", []):
+        tid = str(m.get("template-id") or "nuclei-cfg02")
+        info = m.get("info") or {}
+        label = str(info.get("name") or tid)
+        matched_url = str(m.get("matched-at") or m.get("url") or base_url)
+        raw_resp = str(m.get("response") or "")
+        st_m = re.match(r"HTTP/\S+\s+(\d{3})", raw_resp)
+        st_code = int(st_m.group(1)) if st_m else 200
+        kind = "debug_marker" if "traceback" in tid or "marker" in tid else "debug_endpoint"
+        norm_p = urllib.parse.urlparse(matched_url).path or "/"
+        dedup_k = (norm_p, tid)
+        if dedup_k in seen_keys:
+            continue
+        seen_keys.add(dedup_k)
+        findings.append(
+            {
+                "kind": kind,
+                "templateId": tid,
+                "label": label,
+                "url": matched_url,
+                "status": st_code,
+                "detail": f"[Nuclei:{tid}] {matched_url} returned HTTP {st_code} ({label})",
+            }
+        )
+
+    for al in (zap_report or {}).get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid in {"10023", "90022", "40042"} or any(
+            kw in low_a for kw in ("debug error", "spring actuator", "application error disclosure")
+        ):
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                norm_p = urllib.parse.urlparse(uri).path or "/"
+                if any(kp == norm_p for kp, _ in seen_keys):
+                    continue
+                dedup_z = (norm_p, f"zap-{pid}")
+                seen_keys.add(dedup_z)
+                findings.append(
+                    {
+                        "kind": "debug_marker" if pid in {"10023", "90022"} else "debug_endpoint",
+                        "templateId": f"zap-{pid}",
+                        "label": f"OWASP ZAP ({pid}): {aname}",
+                        "url": uri,
+                        "status": 500 if pid in {"10023", "90022"} else 200,
+                        "detail": f"[OWASP ZAP {pid}] {uri} flagged '{aname}'",
+                    }
+                )
+
+    sarif_items: list[dict] = []
+    for cf in findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-CFG-02",
+                "level": "error",
+                "message": {"text": cf["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": cf["url"]}}}],
+                "properties": {
+                    "controlId": "CFG-02",
+                    "findingKind": cf["kind"],
+                    "templateId": cf.get("templateId"),
+                    "label": cf["label"],
+                    "httpStatus": cf["status"],
+                },
+            }
+        )
+
+    return {
+        "verdict": "FAIL" if findings else "PASS",
+        "cfg02_exposed": bool(findings),
+        "findings": findings,
+        "sarifResults": sarif_items,
+        "nuclei": nuc,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -5535,116 +5750,33 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # CFG-02: Framework/server debug modes, profilers, actuators, consoles & stacktrace leak probes (SARIF 2.1.0 + HAR 1.2)
+    # CFG-02: Official ProjectDiscovery Nuclei templates + OWASP ZAP debug/error alerts (SARIF 2.1.0 + HAR 1.2)
     is_spa_shell = "<app-root" in root_body.lower()
 
     def is_spa_fallback(body_txt: str) -> bool:
         return is_spa_shell and "<app-root" in body_txt.lower()
 
-    debug_endpoint_specs = [
-        ("/metrics", "Prometheus Runtime Metrics", lambda b, ct: "process_cpu_" in b or "nodejs_version_info" in b or "# TYPE " in b),
-        ("/api-docs/", "Swagger UI Interactive API Docs", lambda b, ct: "<title>swagger ui" in b.lower() or "swagger-ui-bundle" in b.lower()),
-        ("/swagger-ui.html", "Swagger UI Endpoint", lambda b, ct: "swagger-ui" in b.lower() and not is_spa_fallback(b)),
-        ("/openapi.json", "OpenAPI Specification", lambda b, ct: '"openapi"' in b or '"swagger"' in b),
-        ("/v3/api-docs", "SpringDoc OpenAPI Endpoint", lambda b, ct: '"openapi"' in b or '"paths"' in b),
-        ("/rest/admin/application-configuration", "Unauthenticated Admin Application Config", lambda b, ct: '"config"' in b and '"server"' in b),
-        ("/actuator", "Spring Boot Actuator Root", lambda b, ct: '"_links"' in b and ("actuator" in b or '"health"' in b)),
-        ("/actuator/env", "Spring Boot Actuator Environment", lambda b, ct: '"propertySources"' in b or '"activeProfiles"' in b),
-        ("/actuator/health", "Spring Boot Actuator Health", lambda b, ct: '"status"' in b and ("UP" in b or "components" in b) and not is_spa_fallback(b)),
-        ("/actuator/beans", "Spring Boot Actuator Beans", lambda b, ct: '"contexts"' in b and '"beans"' in b),
-        ("/__debug__/", "Django Debug Toolbar", lambda b, ct: "djDebug" in b or "django-debug-toolbar" in b.lower()),
-        ("/console", "Werkzeug Interactive Debugger Console", lambda b, ct: "werkzeug" in b.lower() and ("evalex" in b.lower() or "console" in b.lower())),
-        ("/_profiler", "Symfony Web Profiler", lambda b, ct: "symfony profiler" in b.lower() or "sf-toolbar" in b.lower()),
-        ("/rails/info/routes", "Ruby on Rails Routes Debug Page", lambda b, ct: "routes match" in b.lower() or "rails_info" in b.lower()),
-        ("/debug/pprof/", "Go net/http/pprof Profiler", lambda b, ct: "goroutine" in b.lower() and "allocs" in b.lower()),
-        ("/elmah.axd", "ASP.NET ELMAH Error Log", lambda b, ct: "error log for" in b.lower() and "elmah" in b.lower()),
-        ("/phpinfo.php", "PHP phpinfo() Diagnostic Page", lambda b, ct: "php version" in b.lower() and "zend engine" in b.lower()),
-        ("/server-status", "Apache mod_status Diagnostics", lambda b, ct: "apache server status" in b.lower()),
-        ("/graphiql", "GraphiQL Interactive IDE", lambda b, ct: "graphiql" in b.lower() and not is_spa_fallback(b)),
-    ]
-
-    cfg02_findings: list[dict] = []
-    metrics_body = ""
-    for ep_path, ep_label, ep_matcher in debug_endpoint_specs:
-        st, hdrs, body = http_probe(ep_path)
-        if ep_path == "/metrics":
-            metrics_body = body
-        ctype = hdrs.get("content-type", "").lower()
-        if 200 <= st < 300 and not is_spa_fallback(body) and ep_matcher(body, ctype):
-            snippet = body.strip().splitlines()[0][:140] if body.strip() else ""
-            cfg02_findings.append(
-                {
-                    "kind": "debug_endpoint",
-                    "label": ep_label,
-                    "url": f"{base_url}{ep_path}",
-                    "status": st,
-                    "detail": f"Unauthenticated HTTP {st} from {ep_label} ({snippet})",
-                }
-            )
-
-    # Active framework debug / traceback marker probe (malformed JSON + abnormal error triggers)
-    debug_traceback_signatures = [
-        ("Express errorhandler Stacktrace", re.compile(r'<ul\s+id=["\']stacktrace["\']|node_modules[\\/].*:\d+:\d+', re.IGNORECASE)),
-        ("Werkzeug Traceback Debugger", re.compile(r'Werkzeug\s+powered\s+traceback|The debugger caught an exception in your WSGI application', re.IGNORECASE)),
-        ("Django DEBUG=True Page", re.compile(r'You&#x27;re seeing this error because you have <code>DEBUG = True</code>|DEBUG\s*=\s*True.*in your Django', re.IGNORECASE)),
-        ("Rails Exception Debug Page", re.compile(r'Action Controller:\s*Exception caught|Rails\.root:', re.IGNORECASE)),
-        ("ASP.NET Detailed Error Page", re.compile(r'Server Error in [\'"]/[\'"] Application|<b>Stack Trace:</b>', re.IGNORECASE)),
-        ("Raw Stacktrace / Python Traceback", re.compile(r'Traceback \(most recent call last\):|\bSyntaxError:.*\bat\s+[^\s(]+\s+\([^)]+:\d+:\d+\)', re.IGNORECASE | re.DOTALL)),
-    ]
-
-    traceback_probes = [
-        ("POST", "/rest/user/login", {"Content-Type": "application/json"}, b"{invalid_json_cfg02_probe", "Malformed JSON body parser probe"),
-        ("GET", "/rest/products/search?q='", None, None, "Malformed search parameter probe"),
-    ]
-    for mth, pth, hdrs_in, payload_in, p_desc in traceback_probes:
-        st, _, body = http_probe(pth, method=mth, headers=hdrs_in, body=payload_in)
-        matched_sigs = [sig_name for sig_name, sig_re in debug_traceback_signatures if sig_re.search(body)]
-        if matched_sigs:
-            title_m = re.search(r"<title>([^<]+)</title>", body, re.IGNORECASE)
-            title_str = html.unescape(title_m.group(1)).strip() if title_m else f"HTTP {st}"
-            cfg02_findings.append(
-                {
-                    "kind": "debug_marker",
-                    "label": ", ".join(matched_sigs),
-                    "url": f"{base_url}{pth}",
-                    "status": st,
-                    "detail": f"{mth} {base_url}{pth} ({p_desc}) returned HTTP {st} carrying framework debug marker(s) [{', '.join(matched_sigs)}] — '{title_str}'",
-                }
-            )
-
-    for cf in cfg02_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-CFG-02",
-                "level": "error",
-                "message": {"text": cf["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": cf["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "CFG-02",
-                    "findingKind": cf["kind"],
-                    "label": cf["label"],
-                    "httpStatus": cf["status"],
-                },
-            }
-        )
-
-    cfg02_exposed = len(cfg02_findings) > 0
+    cfg02_eval = evaluate_cfg02_debug_modes(
+        base_url,
+        zap_report=zap_domain4_report,
+        jsonl_out_path=OUTPUT_DIR / "nuclei-cfg02.jsonl",
+        sarif_out_path=OUTPUT_DIR / "nuclei-cfg02.sarif",
+    )
+    cfg02_findings = cfg02_eval["findings"]
+    dast_sarif_results.extend(cfg02_eval["sarifResults"])
+    cfg02_exposed = cfg02_eval["cfg02_exposed"]
+    nuc_meta = cfg02_eval["nuclei"]
     cfg02_lines = [f"{f['url']} -> HTTP {f['status']} [{f['label']}]: {f['detail']}" for f in cfg02_findings]
+    nuc_ver = nuc_meta.get("version") or "3.11.1"
     results["CFG-02"] = {
         "verdict": "FAIL" if cfg02_exposed else "PASS",
-        "tool": f"Framework Debug / Profiler / Actuator & Traceback Probe ({len(debug_endpoint_specs)} endpoints + {len(traceback_probes)} error probes, SARIF 2.1.0 + HAR 1.2)",
+        "tool": f"Nuclei {nuc_ver} (rules/nuclei_cfg02) + OWASP ZAP {zap_ver_label} Debug / Profiler / Traceback Probe (SARIF 2.1.0 + HAR 1.2)",
         "log": (
             f"[FAIL] {len(cfg02_findings)} production debug/diagnostic exposure(s) detected:\n  - "
             + "\n  - ".join(cfg02_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Nuclei SARIF 2.1.0: {nuc_meta.get('sarifPath')}\n  - Nuclei JSONL: {nuc_meta.get('jsonlPath')}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - HTTP HAR 1.2: {har_path}"
             if cfg02_exposed
-            else f"[PASS] Probed {len(debug_endpoint_specs)} framework debug/profiler/actuator endpoints and {len(traceback_probes)} error-trigger probes; 0 unauthenticated 2xx debug endpoints and 0 framework debug/traceback markers detected.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - HTTP HAR 1.2: {har_path}"
+            else f"[PASS] Nuclei {nuc_ver} templates (rules/nuclei_cfg02) and OWASP ZAP {zap_ver_label} found 0 unauthenticated 2xx debug endpoints and 0 framework debug/traceback markers.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Nuclei SARIF 2.1.0: {nuc_meta.get('sarifPath')}\n  - Nuclei JSONL: {nuc_meta.get('jsonlPath')}\n  - HTTP HAR 1.2: {har_path}"
         ),
     }
 

@@ -1,0 +1,20 @@
+id: casa3-cfg02-admin-app-config
+info:
+  name: Unauthenticated Admin Application Configuration Exposed
+  author: casa-3.0-al1
+  severity: high
+  tags: casa,cfg02,debug,config
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/rest/admin/application-configuration"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        words: ['"config"', '"server"']
+        condition: and
+      - type: word
+        words: ["<app-root"]
+        negative: true

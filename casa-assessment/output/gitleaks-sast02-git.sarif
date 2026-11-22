@@ -1347,7 +1347,7 @@
    "results": [
     {
      "message": {
-      "text": "private-key has detected secret for file legacy.pem at commit 2fbf0e4a6fa375a80ed542ffab7486f22239f074."
+      "text": "private-key has detected secret for file legacy.pem at commit c7262dd0a51b1fe84c478ce0cbeb9de0230ebabd."
      },
      "ruleId": "private-key",
      "locations": [
@@ -1362,17 +1362,17 @@
          "endLine": 16,
          "endColumn": 26,
          "snippet": {
-          "text": "-----BEGIN PRIVATE KEY-----\nMIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAMN6yVtsu1Rxq0OJ\nbog7YEvNZFX+MFERSKNV73Crzrp5M4uNkx7NEj1/SAOT/5DY/Gih8q0foj+FKsYN\ns5nwDSBHKdNadGJpid6bmXkliHmUMzrSgMK2BmKqwVqft6YflaL13e1z2H5x0T6x\nPseP3m+MYVABxUBkjM57lBoPacpbAgMBAAECgYEAkcZ6bKR8Wq/d4SKW/B8TY9QK\nlBpYG8yA19WZFvP42ZTS/KoaYajahmPp50kyF+nI6ZqD59kkXKxJRqMnIZAjqHVO\nz8D81QQlwuQ8TIC8rMuodh0b4Sxqe8DsXe3skRXhcDV0rjGEX/p8ja086CpmHJuT\nKlkss5d+fp/w1ojNOekCQQDtSKIAwq1OZ27ocKELwpuN9YOTCkC8KT4Anv9SZwhw\nEUGLlPv+GjOmo28JSXzHkc/4p4G8eJRz8W/t35y6ooM9AkEA0uYFnmoeaC1aLTig\nt+oYoEk4RNpZWRlSjZtovHLHUL9NlZwMBWj3ekuRWFuCx+5ioOlErOcnZmpx+AEB\nN5J9dwJBAMpmMDnx1R6Rv9rpZ5W+dC2NBKSCFGHr1AV3mlZRqLLfJUfI14ISG4jC\n083aL2OUDxAM4e8/83FKuqzvFqNkSAkCQCK7YQeCwHk1ptk1rzo6ok2bYVntf7Nt\nuSu7AVevq2V/694MseoeLEuGsGwVvgcBGlsXr4iuFM4ID7bhK3skc+cCQGx5pWn1\nFy8rYlpjCIDuDVtQQB8zaV03C/SminqtpnnR+oSYlVKLp1LWS4tCyoTZ3kjkyJb+\nQpT2qc8szow0p/4=\n-----END PRIVATE KEY-----"
+          "text": "-----BEGIN PRIVATE KEY-----\nMIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBANtOEbu07HJKV7P2\nSRJs4lTywDqvrZcLk00zgLMdh+ebmz54Z5gakScnja9ocImNkN9HLnb/InoFhw/j\nqwS5YMTISBGsdT3rqKBBgsOOdsmJlMp4XoZGDG3dDbzmKjWb//3PngCK51n7CPwH\ng8inC2Zbo1vwLDm3vlXqnae+h5lFAgMBAAECgYEAwu1lfb6W3A+QXPlwgdweYPtU\nOdWlKjizuU8p+gspnYgGOUS0b9JNaswRd/QQ83LNbmjKuCKW9narUkg+3ngXtavO\n7lII+zmBUy8AtCAOw1+OqInbOUqT5End4xp5bO68PfOBxRZxkxZHFcAgitHvOLQA\nJ6NdtD4azheTPpPaWAECQQD4dcHNtl1rBmH/ONJ6IcGgfOwR1lqN1Q1HQDI83Sn/\nRsgVxI7OO2CSCAIK4Rp1lkW5tzwHtncFKaCr33t+DNSBAkEA4fXP0miKvf+5ZZ9p\n5SfSG/UUc/sRzO+/qUDIsgAJBwRtMCxp4NrVJVDfPEK48May9jn7kyTq2TAoCq+p\nMDcSxQJACyk/C36ls6kVveFPkyzxBcSW1jZK2xQ3BHxdxV4qBM2pL1ElGR6Rt/2k\nGdkC10Vo3G7ew3nu3sx/6zie04rAAQJBAICRx2Bnj5owaaNDI5P6Jnk16B9eGnDL\ncfiyHf/6OSi/AgnJG62PlnwXGg5FwMlvpeCoeVbuSJqv5fi+nrwKeikCQFQjPwWM\nP9b20uSTjDRvoE9V9vdUUMkVL1Gs6XUY4Z0vnbeaG6xiIjkfS+MTihnfjHA57NNq\neOFSGqV7IOpOec8=\n-----END PRIVATE KEY-----"
          }
         }
        }
       }
      ],
      "partialFingerprints": {
-      "commitSha": "2fbf0e4a6fa375a80ed542ffab7486f22239f074",
+      "commitSha": "c7262dd0a51b1fe84c478ce0cbeb9de0230ebabd",
       "email": "ci@example.com",
       "author": "CI",
-      "date": "2026-11-22T18:40:00Z",
+      "date": "2026-11-22T19:15:04Z",
       "commitMessage": "init key"
      },
      "properties": {

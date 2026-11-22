@@ -10,29 +10,29 @@
           "name": "Trivy",
           "rules": [
             {
-              "id": "DS-0002",
+              "id": "DS-0001",
               "name": "Misconfiguration",
               "shortDescription": {
-                "text": "Image user should not be 'root'"
+                "text": "':latest' tag used"
               },
               "fullDescription": {
-                "text": "Running containers with 'root' user can lead to a container escape situation. It is a best practice to run containers as non-root users, which can be done by adding a 'USER' statement to the Dockerfile."
+                "text": "When using a 'FROM' statement you should use a specific tag to avoid uncontrolled behavior when the image is updated."
               },
               "defaultConfiguration": {
-                "level": "error"
+                "level": "warning"
               },
-              "helpUri": "https://avd.aquasec.com/misconfig/ds-0002",
+              "helpUri": "https://avd.aquasec.com/misconfig/ds-0001",
               "help": {
-                "text": "Misconfiguration DS-0002\nType: Dockerfile Security Check\nSeverity: HIGH\nCheck: Image user should not be 'root'\nMessage: Specify at least 1 USER command in Dockerfile with non-root user as argument\nLink: [DS-0002](https://avd.aquasec.com/misconfig/ds-0002)\nRunning containers with 'root' user can lead to a container escape situation. It is a best practice to run containers as non-root users, which can be done by adding a 'USER' statement to the Dockerfile.",
-                "markdown": "**Misconfiguration DS-0002**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Dockerfile Security Check|HIGH|Image user should not be 'root'|Specify at least 1 USER command in Dockerfile with non-root user as argument|[DS-0002](https://avd.aquasec.com/misconfig/ds-0002)|\n\nRunning containers with 'root' user can lead to a container escape situation. It is a best practice to run containers as non-root users, which can be done by adding a 'USER' statement to the Dockerfile."
+                "text": "Misconfiguration DS-0001\nType: Dockerfile Security Check\nSeverity: MEDIUM\nCheck: ':latest' tag used\nMessage: Specify a tag in the 'FROM' statement for image 'gcr.io/distroless/nodejs24-debian13'\nLink: [DS-0001](https://avd.aquasec.com/misconfig/ds-0001)\nWhen using a 'FROM' statement you should use a specific tag to avoid uncontrolled behavior when the image is updated.",
+                "markdown": "**Misconfiguration DS-0001**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Dockerfile Security Check|MEDIUM|':latest' tag used|Specify a tag in the 'FROM' statement for image 'gcr.io/distroless/nodejs24-debian13'|[DS-0001](https://avd.aquasec.com/misconfig/ds-0001)|\n\nWhen using a 'FROM' statement you should use a specific tag to avoid uncontrolled behavior when the image is updated."
               },
               "properties": {
                 "precision": "very-high",
-                "security-severity": "8.0",
+                "security-severity": "5.5",
                 "tags": [
                   "misconfiguration",
                   "security",
-                  "HIGH"
+                  "MEDIUM"
                 ]
               }
             },
@@ -64,21 +64,102 @@
               }
             },
             {
-              "id": "DS-0031",
+              "id": "AWS-0017",
               "name": "Misconfiguration",
               "shortDescription": {
-                "text": "Secrets passed via `build-args` or envs or copied secret files"
+                "text": "CloudWatch log groups should be encrypted using CMK"
               },
               "fullDescription": {
-                "text": "Passing secrets via `build-args` or envs or copying secret files can leak them out"
+                "text": "CloudWatch log groups are encrypted by default, however, to get the full benefit of controlling key rotation and other KMS aspects a KMS CMK should be used.\n"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://avd.aquasec.com/misconfig/aws-0017",
+              "help": {
+                "text": "Misconfiguration AWS-0017\nType: Terraform Security Check\nSeverity: LOW\nCheck: CloudWatch log groups should be encrypted using CMK\nMessage: Log group is not encrypted.\nLink: [AWS-0017](https://avd.aquasec.com/misconfig/aws-0017)\nCloudWatch log groups are encrypted by default, however, to get the full benefit of controlling key rotation and other KMS aspects a KMS CMK should be used.\n",
+                "markdown": "**Misconfiguration AWS-0017**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Terraform Security Check|LOW|CloudWatch log groups should be encrypted using CMK|Log group is not encrypted.|[AWS-0017](https://avd.aquasec.com/misconfig/aws-0017)|\n\nCloudWatch log groups are encrypted by default, however, to get the full benefit of controlling key rotation and other KMS aspects a KMS CMK should be used.\n"
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "2.0",
+                "tags": [
+                  "misconfiguration",
+                  "security",
+                  "LOW"
+                ]
+              }
+            },
+            {
+              "id": "AWS-0052",
+              "name": "Misconfiguration",
+              "shortDescription": {
+                "text": "Load balancers should drop invalid headers"
+              },
+              "fullDescription": {
+                "text": "Passing unknown or invalid headers through to the target poses a potential risk of compromise.\nBy setting drop_invalid_header_fields to true, anything that does not conform to well known, defined headers will be removed by the load balancer.\n"
               },
               "defaultConfiguration": {
                 "level": "error"
               },
-              "helpUri": "https://avd.aquasec.com/misconfig/ds-0031",
+              "helpUri": "https://avd.aquasec.com/misconfig/aws-0052",
               "help": {
-                "text": "Misconfiguration DS-0031\nType: Dockerfile Security Check\nSeverity: CRITICAL\nCheck: Secrets passed via `build-args` or envs or copied secret files\nMessage: Possible exposure of secret env \"JWT_SECRET\" in ENV\nLink: [DS-0031](https://avd.aquasec.com/misconfig/ds-0031)\nPassing secrets via `build-args` or envs or copying secret files can leak them out",
-                "markdown": "**Misconfiguration DS-0031**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Dockerfile Security Check|CRITICAL|Secrets passed via `build-args` or envs or copied secret files|Possible exposure of secret env \"JWT_SECRET\" in ENV|[DS-0031](https://avd.aquasec.com/misconfig/ds-0031)|\n\nPassing secrets via `build-args` or envs or copying secret files can leak them out"
+                "text": "Misconfiguration AWS-0052\nType: Terraform Security Check\nSeverity: HIGH\nCheck: Load balancers should drop invalid headers\nMessage: Application load balancer is not set to drop invalid headers.\nLink: [AWS-0052](https://avd.aquasec.com/misconfig/aws-0052)\nPassing unknown or invalid headers through to the target poses a potential risk of compromise.\nBy setting drop_invalid_header_fields to true, anything that does not conform to well known, defined headers will be removed by the load balancer.\n",
+                "markdown": "**Misconfiguration AWS-0052**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Terraform Security Check|HIGH|Load balancers should drop invalid headers|Application load balancer is not set to drop invalid headers.|[AWS-0052](https://avd.aquasec.com/misconfig/aws-0052)|\n\nPassing unknown or invalid headers through to the target poses a potential risk of compromise.\nBy setting drop_invalid_header_fields to true, anything that does not conform to well known, defined headers will be removed by the load balancer.\n"
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "8.0",
+                "tags": [
+                  "misconfiguration",
+                  "security",
+                  "HIGH"
+                ]
+              }
+            },
+            {
+              "id": "AWS-0053",
+              "name": "Misconfiguration",
+              "shortDescription": {
+                "text": "Load balancer is exposed to the internet."
+              },
+              "fullDescription": {
+                "text": "There are many scenarios in which you would want to expose a load balancer to the wider internet, but this check exists as a warning to prevent accidental exposure of internal assets. You should ensure that this resource should be exposed publicly.\n"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://avd.aquasec.com/misconfig/aws-0053",
+              "help": {
+                "text": "Misconfiguration AWS-0053\nType: Terraform Security Check\nSeverity: HIGH\nCheck: Load balancer is exposed to the internet.\nMessage: Load balancer is exposed publicly.\nLink: [AWS-0053](https://avd.aquasec.com/misconfig/aws-0053)\nThere are many scenarios in which you would want to expose a load balancer to the wider internet, but this check exists as a warning to prevent accidental exposure of internal assets. You should ensure that this resource should be exposed publicly.\n",
+                "markdown": "**Misconfiguration AWS-0053**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Terraform Security Check|HIGH|Load balancer is exposed to the internet.|Load balancer is exposed publicly.|[AWS-0053](https://avd.aquasec.com/misconfig/aws-0053)|\n\nThere are many scenarios in which you would want to expose a load balancer to the wider internet, but this check exists as a warning to prevent accidental exposure of internal assets. You should ensure that this resource should be exposed publicly.\n"
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "8.0",
+                "tags": [
+                  "misconfiguration",
+                  "security",
+                  "HIGH"
+                ]
+              }
+            },
+            {
+              "id": "AWS-0054",
+              "name": "Misconfiguration",
+              "shortDescription": {
+                "text": "Use of plain HTTP."
+              },
+              "fullDescription": {
+                "text": "Plain HTTP is unencrypted and human-readable. This means that if a malicious actor was to eavesdrop on your connection, they would be able to see all of your data flowing back and forth.\nYou should use HTTPS, which is HTTP over an encrypted (TLS) connection, meaning eavesdroppers cannot read your traffic.\n"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://avd.aquasec.com/misconfig/aws-0054",
+              "help": {
+                "text": "Misconfiguration AWS-0054\nType: Terraform Security Check\nSeverity: CRITICAL\nCheck: Use of plain HTTP.\nMessage: Listener for application load balancer does not use HTTPS.\nLink: [AWS-0054](https://avd.aquasec.com/misconfig/aws-0054)\nPlain HTTP is unencrypted and human-readable. This means that if a malicious actor was to eavesdrop on your connection, they would be able to see all of your data flowing back and forth.\nYou should use HTTPS, which is HTTP over an encrypted (TLS) connection, meaning eavesdroppers cannot read your traffic.\n",
+                "markdown": "**Misconfiguration AWS-0054**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Terraform Security Check|CRITICAL|Use of plain HTTP.|Listener for application load balancer does not use HTTPS.|[AWS-0054](https://avd.aquasec.com/misconfig/aws-0054)|\n\nPlain HTTP is unencrypted and human-readable. This means that if a malicious actor was to eavesdrop on your connection, they would be able to see all of your data flowing back and forth.\nYou should use HTTPS, which is HTTP over an encrypted (TLS) connection, meaning eavesdroppers cannot read your traffic.\n"
               },
               "properties": {
                 "precision": "very-high",
@@ -89,6 +170,141 @@
                   "CRITICAL"
                 ]
               }
+            },
+            {
+              "id": "AWS-0104",
+              "name": "Misconfiguration",
+              "shortDescription": {
+                "text": "A security group rule should not allow unrestricted egress to any IP address."
+              },
+              "fullDescription": {
+                "text": "Opening up ports to connect out to the public internet is generally to be avoided. You should restrict access to IP addresses or ranges that are explicitly required where possible.\n"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://avd.aquasec.com/misconfig/aws-0104",
+              "help": {
+                "text": "Misconfiguration AWS-0104\nType: Terraform Security Check\nSeverity: CRITICAL\nCheck: A security group rule should not allow unrestricted egress to any IP address.\nMessage: Security group rule allows unrestricted egress to any IP address.\nLink: [AWS-0104](https://avd.aquasec.com/misconfig/aws-0104)\nOpening up ports to connect out to the public internet is generally to be avoided. You should restrict access to IP addresses or ranges that are explicitly required where possible.\n",
+                "markdown": "**Misconfiguration AWS-0104**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Terraform Security Check|CRITICAL|A security group rule should not allow unrestricted egress to any IP address.|Security group rule allows unrestricted egress to any IP address.|[AWS-0104](https://avd.aquasec.com/misconfig/aws-0104)|\n\nOpening up ports to connect out to the public internet is generally to be avoided. You should restrict access to IP addresses or ranges that are explicitly required where possible.\n"
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "9.5",
+                "tags": [
+                  "misconfiguration",
+                  "security",
+                  "CRITICAL"
+                ]
+              }
+            },
+            {
+              "id": "AWS-0124",
+              "name": "Misconfiguration",
+              "shortDescription": {
+                "text": "Missing description for security group rule."
+              },
+              "fullDescription": {
+                "text": "Security group rules should include a description for auditing purposes.\n\nSimplifies auditing, debugging, and managing security groups.\n"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "helpUri": "https://avd.aquasec.com/misconfig/aws-0124",
+              "help": {
+                "text": "Misconfiguration AWS-0124\nType: Terraform Security Check\nSeverity: LOW\nCheck: Missing description for security group rule.\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)\nSecurity group rules should include a description for auditing purposes.\n\nSimplifies auditing, debugging, and managing security groups.\n",
+                "markdown": "**Misconfiguration AWS-0124**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Terraform Security Check|LOW|Missing description for security group rule.|Security group rule does not have a description.|[AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)|\n\nSecurity group rules should include a description for auditing purposes.\n\nSimplifies auditing, debugging, and managing security groups.\n"
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "2.0",
+                "tags": [
+                  "misconfiguration",
+                  "security",
+                  "LOW"
+                ]
+              }
+            },
+            {
+              "id": "AWS-0164",
+              "name": "Misconfiguration",
+              "shortDescription": {
+                "text": "Instances in a subnet should not receive a public IP address by default."
+              },
+              "fullDescription": {
+                "text": "You should limit the provision of public IP addresses for resources. Resources should not be exposed on the public internet, but should have access limited to consumers required for the function of your application.\n"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://avd.aquasec.com/misconfig/aws-0164",
+              "help": {
+                "text": "Misconfiguration AWS-0164\nType: Terraform Security Check\nSeverity: HIGH\nCheck: Instances in a subnet should not receive a public IP address by default.\nMessage: Subnet associates public IP address.\nLink: [AWS-0164](https://avd.aquasec.com/misconfig/aws-0164)\nYou should limit the provision of public IP addresses for resources. Resources should not be exposed on the public internet, but should have access limited to consumers required for the function of your application.\n",
+                "markdown": "**Misconfiguration AWS-0164**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Terraform Security Check|HIGH|Instances in a subnet should not receive a public IP address by default.|Subnet associates public IP address.|[AWS-0164](https://avd.aquasec.com/misconfig/aws-0164)|\n\nYou should limit the provision of public IP addresses for resources. Resources should not be exposed on the public internet, but should have access limited to consumers required for the function of your application.\n"
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "8.0",
+                "tags": [
+                  "misconfiguration",
+                  "security",
+                  "HIGH"
+                ]
+              }
+            },
+            {
+              "id": "AWS-0178",
+              "name": "Misconfiguration",
+              "shortDescription": {
+                "text": "VPC Flow Logs is a feature that enables you to capture information about the IP traffic going to and from network interfaces in your VPC. After you've created a flow log, you can view and retrieve its data in Amazon CloudWatch Logs. It is recommended that VPC Flow Logs be enabled for packet \"Rejects\" for VPCs."
+              },
+              "fullDescription": {
+                "text": "VPC Flow Logs provide visibility into network traffic that traverses the VPC and can be used to detect anomalous traffic or insight during security workflows.\n"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "helpUri": "https://avd.aquasec.com/misconfig/aws-0178",
+              "help": {
+                "text": "Misconfiguration AWS-0178\nType: Terraform Security Check\nSeverity: MEDIUM\nCheck: VPC Flow Logs is a feature that enables you to capture information about the IP traffic going to and from network interfaces in your VPC. After you've created a flow log, you can view and retrieve its data in Amazon CloudWatch Logs. It is recommended that VPC Flow Logs be enabled for packet \"Rejects\" for VPCs.\nMessage: VPC does not have VPC Flow Logs enabled.\nLink: [AWS-0178](https://avd.aquasec.com/misconfig/aws-0178)\nVPC Flow Logs provide visibility into network traffic that traverses the VPC and can be used to detect anomalous traffic or insight during security workflows.\n",
+                "markdown": "**Misconfiguration AWS-0178**\n| Type | Severity | Check | Message | Link |\n| --- | --- | --- | --- | --- |\n|Terraform Security Check|MEDIUM|VPC Flow Logs is a feature that enables you to capture information about the IP traffic going to and from network interfaces in your VPC. After you've created a flow log, you can view and retrieve its data in Amazon CloudWatch Logs. It is recommended that VPC Flow Logs be enabled for packet \"Rejects\" for VPCs.|VPC does not have VPC Flow Logs enabled.|[AWS-0178](https://avd.aquasec.com/misconfig/aws-0178)|\n\nVPC Flow Logs provide visibility into network traffic that traverses the VPC and can be used to detect anomalous traffic or insight during security workflows.\n"
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "5.5",
+                "tags": [
+                  "misconfiguration",
+                  "security",
+                  "MEDIUM"
+                ]
+              }
+            },
+            {
+              "id": "private-key",
+              "name": "Secret",
+              "shortDescription": {
+                "text": "Asymmetric Private Key"
+              },
+              "fullDescription": {
+                "text": "----BEGIN RSA PRIVATE KEY-----************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************-----END RSA PRIVATE"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://github.com/aquasecurity/trivy/blob/main/pkg/fanal/secret/builtin-rules.go",
+              "help": {
+                "text": "Secret Asymmetric Private Key\nSeverity: HIGH\nMatch: ----BEGIN RSA PRIVATE KEY-----************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************-----END RSA PRIVATE",
+                "markdown": "**Secret Asymmetric Private Key**\n| Severity | Match |\n| --- | --- |\n|HIGH|----BEGIN RSA PRIVATE KEY-----************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************-----END RSA PRIVATE|"
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "8.0",
+                "tags": [
+                  "secret",
+                  "security",
+                  "HIGH"
+                ]
+              }
             }
           ],
           "version": "0.76.2"
@@ -96,11 +312,11 @@
       },
       "results": [
         {
-          "ruleId": "DS-0002",
+          "ruleId": "DS-0001",
           "ruleIndex": 0,
-          "level": "error",
+          "level": "warning",
           "message": {
-            "text": "Artifact: Dockerfile\nType: dockerfile\nVulnerability DS-0002\nSeverity: HIGH\nMessage: Specify at least 1 USER command in Dockerfile with non-root user as argument\nLink: [DS-0002](https://avd.aquasec.com/misconfig/ds-0002)"
+            "text": "Artifact: Dockerfile\nType: dockerfile\nVulnerability DS-0001\nSeverity: MEDIUM\nMessage: Specify a tag in the 'FROM' statement for image 'gcr.io/distroless/nodejs24-debian13'\nLink: [DS-0001](https://avd.aquasec.com/misconfig/ds-0001)"
           },
           "locations": [
             {
@@ -110,9 +326,9 @@
                   "uriBaseId": "ROOTPATH"
                 },
                 "region": {
-                  "startLine": 1,
+                  "startLine": 22,
                   "startColumn": 1,
-                  "endLine": 1,
+                  "endLine": 22,
                   "endColumn": 1
                 }
               },
@@ -150,28 +366,1027 @@
           ]
         },
         {
-          "ruleId": "DS-0031",
-          "ruleIndex": 2,
-          "level": "error",
+          "ruleId": "DS-0026",
+          "ruleIndex": 1,
+          "level": "note",
           "message": {
-            "text": "Artifact: Dockerfile\nType: dockerfile\nVulnerability DS-0031\nSeverity: CRITICAL\nMessage: Possible exposure of secret env \"JWT_SECRET\" in ENV\nLink: [DS-0031](https://avd.aquasec.com/misconfig/ds-0031)"
+            "text": "Artifact: infrastructure/Dockerfile\nType: dockerfile\nVulnerability DS-0026\nSeverity: LOW\nMessage: Add HEALTHCHECK instruction in your Dockerfile\nLink: [DS-0026](https://avd.aquasec.com/misconfig/ds-0026)"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "Dockerfile",
+                  "uri": "infrastructure/Dockerfile",
                   "uriBaseId": "ROOTPATH"
                 },
                 "region": {
-                  "startLine": 2,
+                  "startLine": 1,
                   "startColumn": 1,
-                  "endLine": 2,
+                  "endLine": 1,
                   "endColumn": 1
                 }
               },
               "message": {
-                "text": "Dockerfile"
+                "text": "infrastructure/Dockerfile"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0017",
+          "ruleIndex": 2,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/main.tf\nType: terraform\nVulnerability AWS-0017\nSeverity: LOW\nMessage: Log group is not encrypted.\nLink: [AWS-0017](https://avd.aquasec.com/misconfig/aws-0017)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/main.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 126,
+                  "startColumn": 1,
+                  "endLine": 134,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/main.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0052",
+          "ruleIndex": 3,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0052\nSeverity: HIGH\nMessage: Application load balancer is not set to drop invalid headers.\nLink: [AWS-0052](https://avd.aquasec.com/misconfig/aws-0052)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 122,
+                  "startColumn": 1,
+                  "endLine": 133,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0053",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0053\nSeverity: HIGH\nMessage: Load balancer is exposed publicly.\nLink: [AWS-0053](https://avd.aquasec.com/misconfig/aws-0053)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 124,
+                  "startColumn": 1,
+                  "endLine": 124,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0054",
+          "ruleIndex": 5,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0054\nSeverity: CRITICAL\nMessage: Listener for application load balancer does not use HTTPS.\nLink: [AWS-0054](https://avd.aquasec.com/misconfig/aws-0054)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 157,
+                  "startColumn": 1,
+                  "endLine": 166,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0104",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0104\nSeverity: CRITICAL\nMessage: Security group rule allows unrestricted egress to any IP address.\nLink: [AWS-0104](https://avd.aquasec.com/misconfig/aws-0104)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 86,
+                  "startColumn": 1,
+                  "endLine": 86,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0104",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0104\nSeverity: CRITICAL\nMessage: Security group rule allows unrestricted egress to any IP address.\nLink: [AWS-0104](https://avd.aquasec.com/misconfig/aws-0104)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 112,
+                  "startColumn": 1,
+                  "endLine": 112,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0104",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0104\nSeverity: CRITICAL\nMessage: Security group rule allows unrestricted egress to any IP address.\nLink: [AWS-0104](https://avd.aquasec.com/misconfig/aws-0104)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 239,
+                  "startColumn": 1,
+                  "endLine": 239,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 82,
+                  "startColumn": 1,
+                  "endLine": 87,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 68,
+                  "startColumn": 1,
+                  "endLine": 73,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 75,
+                  "startColumn": 1,
+                  "endLine": 80,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 101,
+                  "startColumn": 1,
+                  "endLine": 106,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 108,
+                  "startColumn": 1,
+                  "endLine": 113,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 228,
+                  "startColumn": 1,
+                  "endLine": 233,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 235,
+                  "startColumn": 1,
+                  "endLine": 240,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0164",
+          "ruleIndex": 8,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0164\nSeverity: HIGH\nMessage: Subnet associates public IP address.\nLink: [AWS-0164](https://avd.aquasec.com/misconfig/aws-0164)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 1,
+                  "endLine": 23,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0164",
+          "ruleIndex": 8,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0164\nSeverity: HIGH\nMessage: Subnet associates public IP address.\nLink: [AWS-0164](https://avd.aquasec.com/misconfig/aws-0164)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 1,
+                  "endLine": 23,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0178",
+          "ruleIndex": 9,
+          "level": "warning",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0178\nSeverity: MEDIUM\nMessage: VPC does not have VPC Flow Logs enabled.\nLink: [AWS-0178](https://avd.aquasec.com/misconfig/aws-0178)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 6,
+                  "startColumn": 1,
+                  "endLine": 16,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0017",
+          "ruleIndex": 2,
+          "level": "note",
+          "message": {
+            "text": "Artifact: terraform/main.tf\nType: terraform\nVulnerability AWS-0017\nSeverity: LOW\nMessage: Log group is not encrypted.\nLink: [AWS-0017](https://avd.aquasec.com/misconfig/aws-0017)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/main.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 126,
+                  "startColumn": 1,
+                  "endLine": 134,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/main.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0052",
+          "ruleIndex": 3,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0052\nSeverity: HIGH\nMessage: Application load balancer is not set to drop invalid headers.\nLink: [AWS-0052](https://avd.aquasec.com/misconfig/aws-0052)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 122,
+                  "startColumn": 1,
+                  "endLine": 133,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0053",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0053\nSeverity: HIGH\nMessage: Load balancer is exposed publicly.\nLink: [AWS-0053](https://avd.aquasec.com/misconfig/aws-0053)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 124,
+                  "startColumn": 1,
+                  "endLine": 124,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0054",
+          "ruleIndex": 5,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0054\nSeverity: CRITICAL\nMessage: Listener for application load balancer does not use HTTPS.\nLink: [AWS-0054](https://avd.aquasec.com/misconfig/aws-0054)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 157,
+                  "startColumn": 1,
+                  "endLine": 166,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0104",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0104\nSeverity: CRITICAL\nMessage: Security group rule allows unrestricted egress to any IP address.\nLink: [AWS-0104](https://avd.aquasec.com/misconfig/aws-0104)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 86,
+                  "startColumn": 1,
+                  "endLine": 86,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0104",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0104\nSeverity: CRITICAL\nMessage: Security group rule allows unrestricted egress to any IP address.\nLink: [AWS-0104](https://avd.aquasec.com/misconfig/aws-0104)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 112,
+                  "startColumn": 1,
+                  "endLine": 112,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0104",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0104\nSeverity: CRITICAL\nMessage: Security group rule allows unrestricted egress to any IP address.\nLink: [AWS-0104](https://avd.aquasec.com/misconfig/aws-0104)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 239,
+                  "startColumn": 1,
+                  "endLine": 239,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 68,
+                  "startColumn": 1,
+                  "endLine": 73,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 82,
+                  "startColumn": 1,
+                  "endLine": 87,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 75,
+                  "startColumn": 1,
+                  "endLine": 80,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 101,
+                  "startColumn": 1,
+                  "endLine": 106,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 108,
+                  "startColumn": 1,
+                  "endLine": 113,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 228,
+                  "startColumn": 1,
+                  "endLine": 233,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 235,
+                  "startColumn": 1,
+                  "endLine": 240,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0164",
+          "ruleIndex": 8,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0164\nSeverity: HIGH\nMessage: Subnet associates public IP address.\nLink: [AWS-0164](https://avd.aquasec.com/misconfig/aws-0164)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 1,
+                  "endLine": 23,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0164",
+          "ruleIndex": 8,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0164\nSeverity: HIGH\nMessage: Subnet associates public IP address.\nLink: [AWS-0164](https://avd.aquasec.com/misconfig/aws-0164)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 1,
+                  "endLine": 23,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0178",
+          "ruleIndex": 9,
+          "level": "warning",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: terraform\nVulnerability AWS-0178\nSeverity: MEDIUM\nMessage: VPC does not have VPC Flow Logs enabled.\nLink: [AWS-0178](https://avd.aquasec.com/misconfig/aws-0178)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 6,
+                  "startColumn": 1,
+                  "endLine": 16,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "private-key",
+          "ruleIndex": 10,
+          "level": "error",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: \nSecret Asymmetric Private Key\nSeverity: HIGH\nMatch: ----BEGIN RSA PRIVATE KEY-----************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************-----END RSA PRIVATE"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 171,
+                  "startColumn": 1,
+                  "endLine": 171,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "private-key",
+          "ruleIndex": 10,
+          "level": "error",
+          "message": {
+            "text": "Artifact: lib/insecurity.ts\nType: \nSecret Asymmetric Private Key\nSeverity: HIGH\nMatch: ----BEGIN RSA PRIVATE KEY-----****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************-----END RSA PRIVATE"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 21,
+                  "startColumn": 1,
+                  "endLine": 21,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "lib/insecurity.ts"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "private-key",
+          "ruleIndex": 10,
+          "level": "error",
+          "message": {
+            "text": "Artifact: terraform/networking.tf\nType: \nSecret Asymmetric Private Key\nSeverity: HIGH\nMatch: ----BEGIN RSA PRIVATE KEY-----************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************-----END RSA PRIVATE"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 171,
+                  "startColumn": 1,
+                  "endLine": 171,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "terraform/networking.tf"
               }
             }
           ]
@@ -180,7 +1395,7 @@
       "columnKind": "utf16CodeUnits",
       "originalUriBaseIds": {
         "ROOTPATH": {
-          "uri": "file:///tmp/tmpjorc2l79/"
+          "uri": "file:///home/user/felipe/speckit/juice-shop-master/"
         }
       }
     }

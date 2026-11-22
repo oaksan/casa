@@ -1,0 +1,24 @@
+id: casa3-cfg02-swagger-apidocs
+info:
+  name: Unauthenticated Swagger / OpenAPI Docs Exposed
+  author: casa-3.0-al1
+  severity: low
+  tags: casa,cfg02,debug,openapi
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api-docs/"
+      - "{{BaseURL}}/swagger-ui.html"
+      - "{{BaseURL}}/openapi.json"
+      - "{{BaseURL}}/v3/api-docs"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status: [200]
+      - type: word
+        case-insensitive: true
+        words: ["<title>swagger ui", "swagger-ui-bundle", "swagger-ui", '"openapi"', '"swagger"', '"paths"']
+        condition: or
+      - type: word
+        words: ["<app-root"]
+        negative: true

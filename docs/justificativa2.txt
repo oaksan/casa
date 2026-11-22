@@ -1439,3 +1439,47 @@ CONTROLE 25/61: CFG-01 (Iteração SDD 095)
     `zap-report.json`, `zap-findings.sarif`, `dast-findings.sarif` e `dast-capture.har`
     -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 26/61: CFG-02 (Iteração SDD 096)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 4 - SERVER CONFIGURATION)
+--------------------------------------------------------------------------------
+- Controle: `CFG-02` — *Framework and server debug modes disabled in production* (ASVS V14.3.2 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** e **nuclei** requisitando endpoints conhecidos de debug e
+    diagnóstico + verificando marcadores de stacktrace/debug com evidência em SARIF 2.1.0 + HAR 1.2.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 096`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `CFG-02` sondava os 19 endpoints diagnósticos e marcadores de erro
+  exclusivamente via loops Python `http_probe` inline, sem executar o engine
+  oficial do `nuclei`.
+- O que foi feito e melhorado na Iteração SDD 096:
+  1) Instalação oficial do **ProjectDiscovery Nuclei `v3.11.1`** em
+     `/home/user/.local/bin/nuclei` e implementação de `NUCLEI_BIN` e
+     `run_nuclei_scan(...)` em `casa_audit/scanner.py` (com exportação nativa `-se`
+     em SARIF 2.1.0 e `-jle` JSONL).
+  2) Criação e validação (`nuclei -validate`: 6/6 templates OK) do conjunto YAML
+     em `casa-assessment/rules/nuclei_cfg02/` cobrindo Prometheus `/metrics`,
+     Swagger/OpenAPI, `/rest/admin/application-configuration`, Spring Boot
+     Actuator, consoles/profilers (Django, Werkzeug, Symfony, Rails, Go pprof,
+     ELMAH, PHPInfo, `mod_status`, GraphiQL) com negação anti-SPA (`!<app-root`),
+     além de sondas raw HTTP para stacktraces de erro e debug.
+  3) Implementação de `evaluate_cfg02_debug_modes(...)` combinando achados do
+     Nuclei com alertas `OWASP ZAP 2.17.0` (`10023`, `90022`, `40042`) sob `CASA3-CFG-02`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration96_cfg02_guide_tooling`) com Nuclei `v3.11.1`:
+  * **`PASS`** em aplicação endurecida / fallback SPA `<app-root>`.
+  * **`FAIL`** ao expor `/actuator/env`, `/console` (Werkzeug) e `DEBUG = True` Django.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * **Nuclei `v3.11.1`** detecta em ~4s as exposições reais sem falsos positivos:
+    `casa3-cfg02-prometheus-metrics` (`/metrics`), `casa3-cfg02-swagger-apidocs`
+    (`/api-docs/`), `casa3-cfg02-admin-app-config` (`/rest/admin/application-configuration`)
+    e `casa3-cfg02-debug-traceback-markers` (`POST /rest/user/login` HTTP 500
+    Express `errorhandler` `<ul id="stacktrace">`) -> Veredito **`FAIL`**.
+================================================================================

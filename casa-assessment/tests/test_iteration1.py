@@ -34,6 +34,7 @@ from casa_audit.scanner import (
     evaluate_sast07_mass_assignment_probe,
     evaluate_sast08_sql_injection,
     evaluate_sast09_deserialization,
+    evaluate_sast10_dynamic_execution,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -998,6 +999,50 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 14/61: SAST-09 (Iteração SDD 084)", just2_txt)
+
+    def test_iteration85_sast10_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sast10:
+            r10 = Path(td_sast10)
+            src = r10 / "src"
+            src.mkdir()
+            # 1. Static literal command / constant module loads (no untrusted taint flow) -> PASS
+            (src / "safe_exec.ts").write_text(
+                "import { execFile } from 'child_process';\nconst fs = require('fs');\nexport const ls = (req: any) => execFile('ls', ['-la']);\n",
+                encoding="utf-8",
+            )
+            (src / "SafeRefl.java").write_text(
+                'class SafeRefl { Class<?> load() throws Exception { return Class.forName("com.example.SafePlugin"); } }\n',
+                encoding="utf-8",
+            )
+            v_pass, f_pass, _, _ = evaluate_sast10_dynamic_execution(r10)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for static literals, got {f_pass}")
+
+            # 2. Tainted request inputs into eval, Python importlib reflection, Java Class.forName, Go exec.Command -> FAIL
+            (src / "rce_bad.ts").write_text(
+                "export const run = (req: any) => { const expr = req.body.expr; return eval(expr); };\n",
+                encoding="utf-8",
+            )
+            (src / "rce_bad.py").write_text(
+                "import importlib\ndef load_mod(request):\n    m = request.args.get('plugin')\n    return importlib.import_module(m)\n",
+                encoding="utf-8",
+            )
+            (src / "RceBad.java").write_text(
+                'class RceBad { Class<?> dyn(javax.servlet.http.HttpServletRequest req) throws Exception { String c = req.getParameter("cls"); return Class.forName(c); } }\n',
+                encoding="utf-8",
+            )
+            (src / "rce_bad.go").write_text(
+                'package p\nfunc h(r *http.Request) { cmd := r.URL.Query().Get("cmd"); exec.Command(cmd) }\n',
+                encoding="utf-8",
+            )
+            v_fail, f_fail, sarif_fail, _ = evaluate_sast10_dynamic_execution(r10)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("rce_bad.ts", "rce_bad.py", "RceBad.java", "rce_bad.go"):
+                self.assertIn(fname, joined, f"Missing SAST-10 taint hit for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(sarif_fail), 4)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 15/61: SAST-10 (Iteração SDD 085)", just2_txt)
 
 
 if __name__ == "__main__":

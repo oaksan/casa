@@ -275,6 +275,15 @@
               "message": {
                 "text": "Syntax error at line /home/user/felipe/speckit/juice-shop-master/data/static/codefixes/weakPasswordChallenge_4.ts:1:\n `User.init(\n      password: {\n        type: DataTypes.STRING,\n        set (clearTextPassword: string) {\n          validatePasswordIsNotInTopOneMillionCommonPasswordsList(clearTextPassword)\n          this.setDataValue('password', security.hash(clearTextPassword))\n        }\n      },` was unexpected"
               }
+            },
+            {
+              "descriptor": {
+                "id": "Timeout"
+              },
+              "level": "warning",
+              "message": {
+                "text": "Timeout when running casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization on /home/user/felipe/speckit/juice-shop-master/server.ts:\n "
+              }
             }
           ]
         }
@@ -971,7 +980,36 @@
             }
           ],
           "message": {
-            "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution sink (eval / safeEval / Function / vm / exec) (CWE-95)"
+            "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
+          },
+          "properties": {},
+          "ruleId": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution"
+        },
+        {
+          "fingerprints": {
+            "matchBasedId/v1": "requires login"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/b2bOrder.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 80,
+                  "endLine": 23,
+                  "snippet": {
+                    "text": "        vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 })"
+                  },
+                  "startColumn": 9,
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution"
@@ -2015,7 +2053,7 @@
             }
           ],
           "message": {
-            "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution sink (eval / safeEval / Function / vm / exec) (CWE-95)"
+            "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution"
@@ -2348,25 +2386,6 @@
           ]
         },
         {
-          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
-          "level": "error",
-          "message": {
-            "text": "terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
-                }
-              }
-            }
-          ]
-        },
-        {
           "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
           "level": "error",
           "message": {
@@ -2380,6 +2399,25 @@
                 },
                 "region": {
                   "startLine": 64
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
                 }
               }
             }
@@ -3111,7 +3149,7 @@
           "ruleId": "CASA3-SAST-07-active-mass-assignment",
           "level": "error",
           "message": {
-            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=106) | GET http://localhost:3000/api/Users/106 verified lab-account read-back with role=\"admin\" (HTTP 200)"
+            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=111) | GET http://localhost:3000/api/Users/111 verified lab-account read-back with role=\"admin\" (HTTP 200)"
           },
           "locations": [
             {
@@ -3871,11 +3909,11 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution sink (eval / safeEval / Function / vm / exec) (CWE-95)"
+                "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
               },
               "help": {
-                "markdown": "SAST-10: Untrusted input flows into dynamic code execution / command execution sink (eval / safeEval / Function / vm / exec) (CWE-95)",
-                "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution sink (eval / safeEval / Function / vm / exec) (CWE-95)"
+                "markdown": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)",
+                "text": "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution",
               "name": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution",
@@ -3892,11 +3930,53 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-10: Untrusted input flows into dynamic code/command execution sink in Python (eval / exec / os.system / subprocess shell=True) (CWE-95)"
+                "text": "SAST-10: Untrusted input flows into Go dynamic command execution sink (CWE-95)"
               },
               "help": {
-                "markdown": "SAST-10: Untrusted input flows into dynamic code/command execution sink in Python (eval / exec / os.system / subprocess shell=True) (CWE-95)",
-                "text": "SAST-10: Untrusted input flows into dynamic code/command execution sink in Python (eval / exec / os.system / subprocess shell=True) (CWE-95)"
+                "markdown": "SAST-10: Untrusted input flows into Go dynamic command execution sink (CWE-95)",
+                "text": "SAST-10: Untrusted input flows into Go dynamic command execution sink (CWE-95)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution-go",
+              "name": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution-go",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution-go"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-10: Untrusted input flows into Java reflective class loading, command execution, or ScriptEngine sink (CWE-95)"
+              },
+              "help": {
+                "markdown": "SAST-10: Untrusted input flows into Java reflective class loading, command execution, or ScriptEngine sink (CWE-95)",
+                "text": "SAST-10: Untrusted input flows into Java reflective class loading, command execution, or ScriptEngine sink (CWE-95)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution-java",
+              "name": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution-java",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution-java"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-10: Untrusted input flows into dynamic code/command/reflection execution sink in Python (CWE-95)"
+              },
+              "help": {
+                "markdown": "SAST-10: Untrusted input flows into dynamic code/command/reflection execution sink in Python (CWE-95)",
+                "text": "SAST-10: Untrusted input flows into dynamic code/command/reflection execution sink in Python (CWE-95)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution-python",
               "name": "casa-assessment.rules.CASA3-SAST-10-dynamic-code-execution-python",

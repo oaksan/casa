@@ -904,3 +904,57 @@ Domínio 2: Static Application Security Testing (SAST)
     Java `setObjectInputFilter` e PHP `allowed_classes => false`, vs. **`FAIL`** em
     `bad_deser.ts`, `bad_deser.py`, `BadDeser.java`, `bad_deser.php` e `BadDeser.cs`.
 ================================================================================
+
+================================================================================
+CONTROLE 15/61: SAST-10 (Iteração SDD 085)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-10
+- Requisito (CASA 3.0 AL1):
+  "No dynamic code execution on untrusted input (`eval`, `Function`, `exec`, reflection)."
+- Referências: OWASP ASVS V5.2.4 (L1); MITRE CWE-95.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Verificação:
+  * PASS: Zero caminhos de fluxo de dados (`taint paths`) de nível `error` a
+    partir de fonte não confiável até um sorvedouro de execução dinâmica.
+  * FAIL: >= 1 caminho `taint` de nível `error` em execução dinâmica.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 085)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 085:
+  1) As regras `CASA3-SAST-10-dynamic-code-execution*` cobriam apenas `TS/JS` e
+     `Python` sem sorvedouros exigidos pelo Test Procedure para **carregamento
+     reflexivo de classes/módulos** (`Class.forName`, `importlib.import_module`,
+     `__import__`, `require()` dinâmico) nem `vm.runInContext`, `compile()`,
+     `ScriptEngine.eval` (Java) ou `exec.Command` (Go).
+  2) Faltava avaliador dedicado `evaluate_sast10_dynamic_execution(repo)` em
+     `casa_audit/scanner.py` e filtragem estrita de severidade `ERROR` em
+     `run_sast_checks`.
+- O que foi feito e melhorado na Iteração SDD 085:
+  1) Expansão e validação (`semgrep --validate`: 0 erros, 45 regras) das regras
+     `mode: taint` `CASA3-SAST-10-dynamic-code-execution*` em `rules/casa3_al1_sast.yml`
+     cobrindo `TS/JS`, `Python`, `Java` (`Class.forName`, `Runtime.exec`,
+     `ProcessBuilder`, `ScriptEngine.eval`) e `Go` (`exec.Command`).
+  2) Adição de `evaluate_sast10_dynamic_execution(repo)` em `casa_audit/scanner.py`,
+     filtragem `sev == "ERROR"` para `SAST-10` e identificação
+     `Semgrep AST 1.180.0 (Dynamic Code/Command/Reflection Taint Tracking + CWE-95 Ruleset, SARIF 2.1.0)`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Veredito `SAST-10`: **FAIL** com **3 fluxos `taint` reais** confirmados em
+    `routes/b2bOrder.ts:21`, `routes/b2bOrder.ts:23` (`safeEval`/`vm.runInContext`)
+    e `routes/userProfile.ts:65` (`eval` por SSTI/username), com evidência emitida
+    em `output/semgrep-sast.sarif`.
+  * Validação multi-linguagem (`test_iteration85_sast10_guide_tooling`):
+    **`PASS`** em chamadas literais estáticas (`execFile('ls', ['-la'])`,
+    `require('fs')`, `Class.forName("com.example.SafePlugin")`) e **`FAIL`**
+    em entradas contaminadas em `rce_bad.ts`, `rce_bad.py`, `RceBad.java` e
+    `rce_bad.go`.
+================================================================================

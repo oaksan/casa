@@ -675,7 +675,7 @@ rules:
   - id: CASA3-SAST-10-dynamic-code-execution
     mode: taint
     languages: [typescript, javascript]
-    message: "SAST-10: Untrusted input flows into dynamic code execution / command execution sink (eval / safeEval / Function / vm / exec) (CWE-95)"
+    message: "SAST-10: Untrusted input flows into dynamic code execution / command execution / reflective module load sink (CWE-95)"
     severity: ERROR
     pattern-sources:
       - pattern: "body.$FIELD"
@@ -685,17 +685,22 @@ rules:
       - pattern: "user.username"
     pattern-sinks:
       - pattern: eval($CODE)
-      - pattern: new Function($CODE)
+      - pattern: new Function(..., $CODE)
       - pattern: safeEval($CODE)
       - pattern: "const sandbox = { safeEval, $VAR }"
+      - pattern: vm.runInContext($CODE, ...)
       - pattern: vm.runInNewContext($CODE, ...)
+      - pattern: vm.runInThisContext($CODE, ...)
       - pattern: child_process.exec($CMD, ...)
       - pattern: child_process.execSync($CMD, ...)
+      - pattern: exec($CMD, ...)
+      - pattern: execSync($CMD, ...)
+      - pattern: require($MOD)
 
   - id: CASA3-SAST-10-dynamic-code-execution-python
     mode: taint
     languages: [python]
-    message: "SAST-10: Untrusted input flows into dynamic code/command execution sink in Python (eval / exec / os.system / subprocess shell=True) (CWE-95)"
+    message: "SAST-10: Untrusted input flows into dynamic code/command/reflection execution sink in Python (CWE-95)"
     severity: ERROR
     pattern-sources:
       - pattern: request.args
@@ -705,9 +710,39 @@ rules:
     pattern-sinks:
       - pattern: eval($CODE, ...)
       - pattern: exec($CODE, ...)
+      - pattern: compile($CODE, ...)
       - pattern: os.system($CMD)
       - pattern: subprocess.run($CMD, ..., shell=True, ...)
       - pattern: subprocess.Popen($CMD, ..., shell=True, ...)
+      - pattern: importlib.import_module($MOD, ...)
+      - pattern: __import__($MOD, ...)
+
+  - id: CASA3-SAST-10-dynamic-code-execution-java
+    mode: taint
+    languages: [java]
+    message: "SAST-10: Untrusted input flows into Java reflective class loading, command execution, or ScriptEngine sink (CWE-95)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: "$REQ.getParameter(...)"
+      - pattern: "$REQ.getHeader(...)"
+    pattern-sinks:
+      - pattern: "Class.forName($CLS, ...)"
+      - pattern: "Runtime.getRuntime().exec($CMD, ...)"
+      - pattern: "new ProcessBuilder($CMD, ...)"
+      - pattern: "(ScriptEngine $SE).eval($CODE, ...)"
+
+  - id: CASA3-SAST-10-dynamic-code-execution-go
+    mode: taint
+    languages: [go]
+    message: "SAST-10: Untrusted input flows into Go dynamic command execution sink (CWE-95)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: "$R.URL.Query().Get(...)"
+      - pattern: "$R.FormValue(...)"
+      - pattern: "$CTX.Query(...)"
+      - pattern: "$CTX.Param(...)"
+    pattern-sinks:
+      - pattern: "exec.Command($CMD, ...)"
 
   - id: CASA3-SAST-11-path-traversal
     mode: taint

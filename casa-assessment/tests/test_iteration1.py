@@ -33,6 +33,7 @@ from casa_audit.scanner import (
     evaluate_sast07_framework_binding,
     evaluate_sast07_mass_assignment_probe,
     evaluate_sast08_sql_injection,
+    evaluate_sast09_deserialization,
     evaluate_sca02_dependencies,
     evaluate_sca04_sbom_completeness,
     evaluate_sca05_malicious_and_typosquat,
@@ -958,6 +959,45 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 13/61: SAST-08 (Iteração SDD 083)", just2_txt)
+
+    def test_iteration84_sast09_guide_tooling(self) -> None:
+        with tempfile.TemporaryDirectory() as td_sast9:
+            r9 = Path(td_sast9)
+            src = r9 / "src"
+            src.mkdir()
+            # 1. SafeLoader / allowlisted classes / ObjectInputFilter / HMAC-verified -> PASS
+            (src / "safe_deser.py").write_text(
+                "import yaml, hmac, pickle\n"
+                "cfg = yaml.load(raw, Loader=yaml.SafeLoader)\n"
+                "def verified(sig, exp, blob):\n    if hmac.compare_digest(sig, exp):\n        return pickle.loads(blob)\n",
+                encoding="utf-8",
+            )
+            (src / "SafeDeser.java").write_text(
+                "import java.io.*;\nclass SafeDeser { Object read(InputStream in) throws Exception { ObjectInputStream ois = new ObjectInputStream(in); ois.setObjectInputFilter(info -> ObjectInputFilter.Status.ALLOWED); return ois.readObject(); } }\n",
+                encoding="utf-8",
+            )
+            (src / "safe_deser.php").write_text(
+                '<?php $x = unserialize($raw, ["allowed_classes" => false]);\n',
+                encoding="utf-8",
+            )
+            v_pass, f_pass, _, _ = evaluate_sast09_deserialization(r9)
+            self.assertEqual(v_pass, "PASS", f"Expected PASS for guarded deserialization, got {f_pass}")
+
+            # 2. Unguarded deserialization sinks across TS, Python, Java, PHP, C# -> FAIL
+            (src / "bad_deser.ts").write_text("export const parse = (data: string) => yaml.load(data);\n", encoding="utf-8")
+            (src / "bad_deser.py").write_text("import pickle\ndef load_raw(b): return pickle.loads(b)\n", encoding="utf-8")
+            (src / "BadDeser.java").write_text("import java.io.*;\nclass BadDeser { Object read(InputStream in) throws Exception { return new ObjectInputStream(in).readObject(); } }\n", encoding="utf-8")
+            (src / "bad_deser.php").write_text("<?php $u = unserialize($_POST['data']);\n", encoding="utf-8")
+            (src / "BadDeser.cs").write_text("using System.Runtime.Serialization.Formatters.Binary;\nclass B { void F() { var bf = new BinaryFormatter(); } }\n", encoding="utf-8")
+            v_fail, f_fail, sarif_fail, _ = evaluate_sast09_deserialization(r9)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fname in ("bad_deser.ts", "bad_deser.py", "BadDeser.java", "bad_deser.php", "BadDeser.cs"):
+                self.assertIn(fname, joined, f"Missing SAST-09 hit for {fname} in:\n{joined}")
+            self.assertGreaterEqual(len(sarif_fail), 5)
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 14/61: SAST-09 (Iteração SDD 084)", just2_txt)
 
 
 if __name__ == "__main__":

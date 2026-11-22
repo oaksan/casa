@@ -681,7 +681,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -710,7 +710,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -768,7 +768,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -797,7 +797,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -826,7 +826,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -1464,7 +1464,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -1493,7 +1493,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -2124,64 +2124,6 @@
                   "snippet": {
                     "text": "      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))"
                   },
-                  "startColumn": 36,
-                  "startLine": 83
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/vulnCodeFixes.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 118,
-                  "endLine": 83,
-                  "snippet": {
-                    "text": "      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))"
-                  },
-                  "startColumn": 36,
-                  "startLine": 83
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/routes/vulnCodeFixes.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 117,
-                  "endLine": 83,
-                  "snippet": {
-                    "text": "      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))"
-                  },
                   "startColumn": 46,
                   "startLine": 83
                 }
@@ -2218,7 +2160,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -2247,7 +2189,7 @@
             }
           ],
           "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+            "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
@@ -2280,64 +2222,6 @@
           },
           "properties": {},
           "ruleId": "casa-assessment.rules.CASA3-SAST-11-path-traversal"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/server.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 75,
-                  "endLine": 140,
-                  "snippet": {
-                    "text": "const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))"
-                  },
-                  "startColumn": 25,
-                  "startLine": 140
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
-        },
-        {
-          "fingerprints": {
-            "matchBasedId/v1": "requires login"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "/home/user/felipe/speckit/juice-shop-master/server.ts",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": {
-                  "endColumn": 76,
-                  "endLine": 140,
-                  "snippet": {
-                    "text": "const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))"
-                  },
-                  "startColumn": 25,
-                  "startLine": 140
-                }
-              }
-            }
-          ],
-          "message": {
-            "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
-          },
-          "properties": {},
-          "ruleId": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization"
         },
         {
           "fingerprints": {
@@ -2429,6 +2313,25 @@
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
+            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf"
+                },
+                "region": {
+                  "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
+          "level": "error",
+          "message": {
             "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (verified=true, Shannon entropy=5.98 bits/char)"
           },
           "locations": [
@@ -2448,13 +2351,13 @@
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
+            "text": "terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf"
+                  "uri": "terraform/networking.tf"
                 },
                 "region": {
                   "startLine": 171
@@ -2477,25 +2380,6 @@
                 },
                 "region": {
                   "startLine": 64
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-01-gitleaks-private-key",
-          "level": "error",
-          "message": {
-            "text": "terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/terraform/networking.tf. (verified=true, Shannon entropy=5.98 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "terraform/networking.tf"
-                },
-                "region": {
-                  "startLine": 171
                 }
               }
             }
@@ -3094,25 +2978,6 @@
           "ruleId": "CASA3-SAST-02-gitleaks-private-key",
           "level": "error",
           "message": {
-            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "lib/insecurity.ts"
-                },
-                "region": {
-                  "startLine": 21
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
-          "level": "error",
-          "message": {
             "text": "infrastructure/terraform/networking.tf:171 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/infrastructure/terraform/networking.tf. (CWE-321)"
           },
           "locations": [
@@ -3123,6 +2988,25 @@
                 },
                 "region": {
                   "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-02-gitleaks-private-key",
+          "level": "error",
+          "message": {
+            "text": "lib/insecurity.ts:21 \u2014 [GITLEAKS private-key] private-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/lib/insecurity.ts. (CWE-321)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "lib/insecurity.ts"
+                },
+                "region": {
+                  "startLine": 21
                 }
               }
             }
@@ -3227,7 +3111,7 @@
           "ruleId": "CASA3-SAST-07-active-mass-assignment",
           "level": "error",
           "message": {
-            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=101) | GET http://localhost:3000/api/Users/101 verified lab-account read-back with role=\"admin\" (HTTP 200)"
+            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=106) | GET http://localhost:3000/api/Users/106 verified lab-account read-back with role=\"admin\" (HTTP 200)"
           },
           "locations": [
             {
@@ -3882,11 +3766,11 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+                "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
               },
               "help": {
-                "markdown": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)",
-                "text": "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+                "markdown": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)",
+                "text": "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization",
               "name": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization",
@@ -3903,11 +3787,74 @@
                 "level": "error"
               },
               "fullDescription": {
-                "text": "SAST-09: Unsafe deserialization of untrusted data in Python (pickle / yaml.load / marshal / jsonpickle) (CWE-502)"
+                "text": "SAST-09: Unsafe .NET formatter deserialization or TypeNameHandling in C# (CWE-502)"
               },
               "help": {
-                "markdown": "SAST-09: Unsafe deserialization of untrusted data in Python (pickle / yaml.load / marshal / jsonpickle) (CWE-502)",
-                "text": "SAST-09: Unsafe deserialization of untrusted data in Python (pickle / yaml.load / marshal / jsonpickle) (CWE-502)"
+                "markdown": "SAST-09: Unsafe .NET formatter deserialization or TypeNameHandling in C# (CWE-502)",
+                "text": "SAST-09: Unsafe .NET formatter deserialization or TypeNameHandling in C# (CWE-502)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-csharp",
+              "name": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-csharp",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-csharp"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-09: Unsafe Java native deserialization (ObjectInputStream / XMLDecoder / SnakeYAML) without ObjectInputFilter or SafeConstructor (CWE-502)"
+              },
+              "help": {
+                "markdown": "SAST-09: Unsafe Java native deserialization (ObjectInputStream / XMLDecoder / SnakeYAML) without ObjectInputFilter or SafeConstructor (CWE-502)",
+                "text": "SAST-09: Unsafe Java native deserialization (ObjectInputStream / XMLDecoder / SnakeYAML) without ObjectInputFilter or SafeConstructor (CWE-502)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-java",
+              "name": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-java",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-java"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-09: Unsafe PHP unserialize() without allowed_classes => false allowlist (CWE-502)"
+              },
+              "help": {
+                "markdown": "SAST-09: Unsafe PHP unserialize() without allowed_classes => false allowlist (CWE-502)",
+                "text": "SAST-09: Unsafe PHP unserialize() without allowed_classes => false allowlist (CWE-502)"
+              },
+              "id": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-php",
+              "name": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-php",
+              "properties": {
+                "precision": "very-high",
+                "tags": []
+              },
+              "shortDescription": {
+                "text": "Semgrep Finding: casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-php"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "SAST-09: Unsafe deserialization of untrusted data without SafeLoader/HMAC integrity check in Python (CWE-502)"
+              },
+              "help": {
+                "markdown": "SAST-09: Unsafe deserialization of untrusted data without SafeLoader/HMAC integrity check in Python (CWE-502)",
+                "text": "SAST-09: Unsafe deserialization of untrusted data without SafeLoader/HMAC integrity check in Python (CWE-502)"
               },
               "id": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-python",
               "name": "casa-assessment.rules.CASA3-SAST-09-unsafe-deserialization-python",

@@ -576,28 +576,101 @@ rules:
 
   - id: CASA3-SAST-09-unsafe-deserialization
     languages: [typescript, javascript]
-    message: "SAST-09: Unsafe deserialization of untrusted data without allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
+    message: "SAST-09: Unsafe deserialization of untrusted data without type allowlist or integrity verification (YAML / XML-XXE NOENT+DTDLOAD / serialize) (CWE-502)"
     severity: ERROR
     pattern-either:
-      - pattern: "yaml.load($DATA)"
+      - patterns:
+          - pattern-either:
+              - pattern: "yaml.load($DATA)"
+              - pattern: "yaml.load($DATA, $OPTS)"
+              - pattern-regex: "yaml\\.load\\([^)]+\\)"
+          - pattern-not: "yaml.load(fs.readFileSync(...), ...)"
+          - pattern-not-regex: "yaml\\.load\\(\\s*fs\\.readFileSync"
+          - pattern-not: "yaml.load($DATA, { ..., schema: yaml.JSON_SCHEMA, ... })"
+          - pattern-not: "yaml.load($DATA, { ..., schema: yaml.FAILSAFE_SCHEMA, ... })"
+          - pattern-not-regex: "schema\\s*:\\s*yaml\\.(?:JSON_SCHEMA|FAILSAFE_SCHEMA)"
+          - pattern-not-inside: |
+              ...
+              crypto.timingSafeEqual(...)
+              ...
       - pattern: "parseXmlString($DATA, ...)"
       - pattern: "libxml.parseXmlString($DATA, ...)"
-      - pattern-regex: "yaml\\.load\\([^)]+\\)"
       - pattern-regex: "XML_PARSE_NOENT|XML_PARSE_DTDLOAD|XmlDocument\\.fromString"
       - pattern: "serialize.unserialize($DATA)"
 
   - id: CASA3-SAST-09-unsafe-deserialization-python
     languages: [python]
-    message: "SAST-09: Unsafe deserialization of untrusted data in Python (pickle / yaml.load / marshal / jsonpickle) (CWE-502)"
+    message: "SAST-09: Unsafe deserialization of untrusted data without SafeLoader/HMAC integrity check in Python (CWE-502)"
     severity: ERROR
     pattern-either:
-      - pattern: "pickle.loads(...)"
-      - pattern: "pickle.load(...)"
-      - pattern: "cPickle.loads(...)"
-      - pattern: "marshal.loads(...)"
-      - pattern: "yaml.load($DATA)"
-      - pattern: "yaml.unsafe_load(...)"
-      - pattern: "jsonpickle.decode(...)"
+      - patterns:
+          - pattern-either:
+              - pattern: "pickle.loads(...)"
+              - pattern: "pickle.load(...)"
+              - pattern: "cPickle.loads(...)"
+              - pattern: "marshal.loads(...)"
+              - pattern: "yaml.unsafe_load(...)"
+              - pattern: "jsonpickle.decode(...)"
+          - pattern-not-inside: |
+              if hmac.compare_digest(...):
+                ...
+          - pattern-not-inside: |
+              ...
+              hmac.compare_digest(...)
+              ...
+      - patterns:
+          - pattern: "yaml.load($DATA, ...)"
+          - pattern-not: "yaml.load($DATA, Loader=yaml.SafeLoader)"
+          - pattern-not: "yaml.load($DATA, Loader=yaml.CSafeLoader)"
+          - pattern-not: "yaml.load($DATA, yaml.SafeLoader)"
+          - pattern-not-inside: |
+              if hmac.compare_digest(...):
+                ...
+          - pattern-not-inside: |
+              ...
+              hmac.compare_digest(...)
+              ...
+
+  - id: CASA3-SAST-09-unsafe-deserialization-java
+    languages: [java]
+    message: "SAST-09: Unsafe Java native deserialization (ObjectInputStream / XMLDecoder / SnakeYAML) without ObjectInputFilter or SafeConstructor (CWE-502)"
+    severity: ERROR
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: "(ObjectInputStream $OIS).readObject()"
+              - pattern: "new ObjectInputStream($IN).readObject()"
+          - pattern-not-inside: |
+              ...
+              $O.setObjectInputFilter(...);
+              ...
+      - pattern: "(XMLDecoder $XD).readObject()"
+      - pattern: "new XMLDecoder($IN).readObject()"
+      - patterns:
+          - pattern: "new Yaml().load(...)"
+          - pattern-not: "new Yaml(new SafeConstructor(...)).load(...)"
+
+  - id: CASA3-SAST-09-unsafe-deserialization-php
+    languages: [php]
+    message: "SAST-09: Unsafe PHP unserialize() without allowed_classes => false allowlist (CWE-502)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "unserialize($DATA)"
+      - patterns:
+          - pattern: "unserialize($DATA, $OPTS)"
+          - pattern-not: "unserialize($DATA, [\"allowed_classes\" => false])"
+
+  - id: CASA3-SAST-09-unsafe-deserialization-csharp
+    languages: [csharp]
+    message: "SAST-09: Unsafe .NET formatter deserialization or TypeNameHandling in C# (CWE-502)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "new BinaryFormatter()"
+      - pattern: "new SoapFormatter()"
+      - pattern: "new NetDataContractSerializer()"
+      - pattern: "new ObjectStateFormatter()"
+      - pattern: "new LosFormatter()"
+      - pattern-regex: "TypeNameHandling\\.(?:All|Auto|Objects|Arrays)\\b"
 
   - id: CASA3-SAST-10-dynamic-code-execution
     mode: taint

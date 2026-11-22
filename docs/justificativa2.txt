@@ -842,3 +842,65 @@ Domínio 2: Static Application Security Testing (SAST)
     consultas parametrizadas (`replacements` / `%s`) e **`FAIL`** por fluxo
     `taint` em `sqli.ts`, `sqli.py`, `Sqli.java` e `sqli.go`.
 ================================================================================
+
+================================================================================
+CONTROLE 14/61: SAST-09 (Iteração SDD 084)
+Domínio 2: Static Application Security Testing (SAST)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: SAST-09
+- Requisito (CASA 3.0 AL1):
+  "Deserialization of untrusted data is avoided or integrity-protected."
+- Referências: OWASP ASVS V5.5.3 (L1); MITRE CWE-502.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `semgrep`, `CodeQL`.
+- Formatos de Evidência Exigidos:
+  `OASIS SARIF 2.1.0` (`ruleId`, `locations[].physicalLocation`, `level`).
+- Critério Determinístico de Verificação:
+  * PASS: Zero achados de nível `error` em sorvedouro de desserialização de
+    entrada não confiável sem allowlist de tipos, `ObjectInputFilter` ou
+    verificação de integridade (HMAC) sobre o blob serializado.
+  * FAIL: >= 1 achado de nível `error` em sorvedouro de desserialização sem
+    essas proteções.
+
+2. DIAGNÓSTICO PRÉ-ITERAÇÃO E MELHORIAS IMPLEMENTADAS (SDD 084)
+--------------------------------------------------------------------------------
+- Lacuna Identificada Antes da SDD 084:
+  1) As regras anteriores `CASA3-SAST-09-unsafe-deserialization*` cobriam
+     apenas `TS/JS` e `Python` sem respeitar verificações explícitas de
+     integridade (`hmac.compare_digest` / `crypto.timingSafeEqual`) ou
+     loaders seguros (`Loader=yaml.SafeLoader`), e disparavam falso positivo sobre
+     leitura local estática em `server.ts:140` (`fs.readFileSync('./swagger.yml')`).
+  2) Faltava cobertura exigida pelo Test Procedure para fluxos nativos Java
+     (`ObjectInputStream.readObject()` sem `setObjectInputFilter`, `XMLDecoder`,
+     `SnakeYAML`), PHP (`unserialize()` sem `allowed_classes => false`) e .NET/C#
+     (`BinaryFormatter`, `SoapFormatter`, `NetDataContractSerializer`,
+     `ObjectStateFormatter`, `LosFormatter`, `TypeNameHandling.{All,Auto,Objects,Arrays}`).
+- O que foi feito e melhorado na Iteração SDD 084:
+  1) Expansão e validação (`semgrep --validate`: 0 erros, 43 regras) de
+     `CASA3-SAST-09-unsafe-deserialization*` em `rules/casa3_al1_sast.yml`
+     cobrindo `TS/JS`, `Python`, `Java`, `PHP` e `C#/.NET`, respeitando allowlists
+     (`SafeLoader`, `JSON_SCHEMA`, `ObjectInputFilter`, `allowed_classes => false`)
+     e verificação prévia por HMAC (`hmac.compare_digest` / `timingSafeEqual`),
+     além de excluir leitura estática de config local `yaml.load(fs.readFileSync(...))`
+     preservando `routes/fileUpload.ts:114` (`vm.runInContext('JSON.stringify(yaml.load(data))')`).
+  2) Adição de `evaluate_sast09_deserialization(repo)` em `casa_audit/scanner.py`
+     delegando a `_evaluate_semgrep_control_sarif(repo, "SAST-09")`, filtragem
+     `sev == "ERROR"` em `run_sast_checks` e identificação
+     `Semgrep AST 1.180.0 (Multi-Language CWE-502 Unsafe Deserialization Ruleset, SARIF 2.1.0)`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Execução contra `/home/user/felipe/speckit/juice-shop-master`:
+  * Veredito `SAST-09`: **FAIL** confirmando as vulnerabilidades reais de
+    desserialização/XXE e YAML bomb (`routes/fileUpload.ts:80` e `114`,
+    `lib/xml.ts:35` e `38`, além de `lib/scripts/lintConfig.ts:22` e
+    `routes/vulnCodeSnippet.ts:90`), eliminando o falso positivo estático de
+    `server.ts:140` (`swagger.yml`) e emitindo evidência em `output/semgrep-sast.sarif`.
+  * Validação multi-linguagem (`test_iteration84_sast09_guide_tooling`):
+    **`PASS`** para `yaml.SafeLoader`, `pickle.loads` protegido por `hmac.compare_digest`,
+    Java `setObjectInputFilter` e PHP `allowed_classes => false`, vs. **`FAIL`** em
+    `bad_deser.ts`, `bad_deser.py`, `BadDeser.java`, `bad_deser.php` e `BadDeser.cs`.
+================================================================================

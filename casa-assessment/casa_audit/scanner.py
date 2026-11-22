@@ -3919,6 +3919,144 @@ def evaluate_tls01_transport_enforcement(
     }
 
 
+def parse_testssl_protocols(scan_result: list[dict]) -> dict[str, str]:
+    """Convert official testssl.sh scanResult protocol entries into .protocols matrix."""
+    matrix = {
+        "SSLv2": "not offered",
+        "SSLv3": "not offered",
+        "TLS 1.0": "not offered",
+        "TLS 1.1": "not offered",
+        "TLS 1.2": "not offered",
+        "TLS 1.3": "not offered",
+    }
+    id_map = {
+        "SSLv2": "SSLv2",
+        "SSLv3": "SSLv3",
+        "TLS1": "TLS 1.0",
+        "TLS1_1": "TLS 1.1",
+        "TLS1_2": "TLS 1.2",
+        "TLS1_3": "TLS 1.3",
+    }
+    for entry in scan_result or []:
+        if not isinstance(entry, dict):
+            continue
+        for proto in entry.get("protocols", []) or []:
+            if not isinstance(proto, dict):
+                continue
+            key = id_map.get(str(proto.get("id") or ""))
+            if not key:
+                continue
+            finding = str(proto.get("finding") or "").lower()
+            if "offered" in finding and "not offered" not in finding:
+                matrix[key] = "offered"
+    return matrix
+
+
+def _quick_tls_capable(host: str, port: int) -> bool:
+    """Fast check (<2s) whether host:port accepts a TLS ClientHello before invoking testssl.sh."""
+    for min_v, max_v in (
+        (ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3),
+        (ssl.TLSVersion.TLSv1, ssl.TLSVersion.TLSv1_1),
+    ):
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                ctx.set_ciphers("ALL:@SECLEVEL=0")
+                ctx.minimum_version = min_v
+                ctx.maximum_version = max_v
+                with socket.create_connection((host, port), timeout=1.5) as s:
+                    with ctx.wrap_socket(s, server_hostname=host) as ss:
+                        if ss.version():
+                            return True
+        except Exception:
+            continue
+    return False
+
+
+def evaluate_tls02_protocol_enforcement(
+    target_url: str,
+    raw_json_path: Path | None = None,
+    testssl_info: dict | None = None,
+) -> dict:
+    """Evaluate TLS-02 using official testssl.sh -p protocol enumeration."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if is_https else 80)
+
+    empty_matrix = {
+        "SSLv2": "not offered",
+        "SSLv3": "not offered",
+        "TLS 1.0": "not offered",
+        "TLS 1.1": "not offered",
+        "TLS 1.2": "not offered",
+        "TLS 1.3": "not offered",
+    }
+    if not host:
+        return {
+            "verdict": "FAIL",
+            "tls02_pass": False,
+            "probedPort": port,
+            "protocols": empty_matrix,
+            "modernOffered": [],
+            "deprecatedOffered": [],
+            "source": "testssl.sh (no host declared)",
+            "testssl": testssl_info or {},
+        }
+
+    reusable = bool(
+        testssl_info
+        and testssl_info.get("executed")
+        and is_https
+        and any(isinstance(e, dict) and e.get("protocols") for e in (testssl_info.get("scanResult") or []))
+    )
+    active_testssl = testssl_info if reusable else None
+    source_label = "testssl.sh -p (reused TLS-01 report)"
+
+    if active_testssl is None:
+        if is_https or _quick_tls_capable(host, port):
+            active_testssl = run_testssl_scan(host, port, raw_json_path=raw_json_path, checks=("-p",))
+            source_label = "testssl.sh -p"
+        else:
+            active_testssl = testssl_info or {
+                "executed": False,
+                "version": None,
+                "scanResult": [],
+            }
+            source_label = f"cleartext pre-check on {host}:{port} (non-TLS HTTP endpoint)"
+
+    has_protocol_list = any(
+        isinstance(e, dict) and e.get("protocols")
+        for e in (active_testssl.get("scanResult") or [])
+    )
+    protocols_matrix = (
+        parse_testssl_protocols(active_testssl.get("scanResult") or [])
+        if has_protocol_list
+        else empty_matrix
+    )
+    deprecated_offered = [
+        p for p in ("SSLv2", "SSLv3", "TLS 1.0", "TLS 1.1") if protocols_matrix.get(p) == "offered"
+    ]
+    modern_offered = [
+        p for p in ("TLS 1.2", "TLS 1.3") if protocols_matrix.get(p) == "offered"
+    ]
+    tls02_pass = bool(modern_offered) and len(deprecated_offered) == 0
+    return {
+        "verdict": "PASS" if tls02_pass else "FAIL",
+        "tls02_pass": tls02_pass,
+        "probedPort": port,
+        "protocols": protocols_matrix,
+        "modernOffered": modern_offered,
+        "deprecatedOffered": deprecated_offered,
+        "source": source_label,
+        "testssl": active_testssl,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -4136,14 +4274,15 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         return matrix
 
     protocol_target_port = port
-    protocols_matrix = (
-        probe_protocol_matrix(host, protocol_target_port)
-        if host
-        else {"SSLv2": "not offered", "SSLv3": "not offered", "TLS 1.0": "not offered", "TLS 1.1": "not offered", "TLS 1.2": "not offered", "TLS 1.3": "not offered"}
+    tls02_eval = evaluate_tls02_protocol_enforcement(
+        base_url,
+        raw_json_path=OUTPUT_DIR / "testssl-tls02-raw.json",
+        testssl_info=testssl_info if (is_https and protocol_target_port == tls_port) else None,
     )
-    deprecated_offered = [p for p in ("SSLv2", "SSLv3", "TLS 1.0", "TLS 1.1") if protocols_matrix.get(p) == "offered"]
-    modern_offered = [p for p in ("TLS 1.2", "TLS 1.3") if protocols_matrix.get(p) == "offered"]
-    tls02_pass = bool(modern_offered) and len(deprecated_offered) == 0
+    protocols_matrix = tls02_eval["protocols"]
+    deprecated_offered = tls02_eval["deprecatedOffered"]
+    modern_offered = tls02_eval["modernOffered"]
+    tls02_pass = tls02_eval["tls02_pass"]
 
     # TLS-03: Probe cipher suites for banned algorithms (NULL, EXPORT, aNULL, RC4, 3DES, CBC-SHA1), TLS 1.2 non-FS, and strong FS AEAD
     def probe_cipher_suites(target_h: str, target_p: int) -> dict:
@@ -4534,6 +4673,8 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         },
         "tls02ProtocolEnforcement": {
             "probedPort": protocol_target_port,
+            "source": tls02_eval["source"],
+            "testsslVersion": tls02_eval["testssl"].get("version") or testssl_info.get("version"),
             "modernOffered": modern_offered,
             "deprecatedOffered": deprecated_offered,
             "verdict": "PASS" if tls02_pass else "FAIL",
@@ -4573,16 +4714,17 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
     proto_summary = ", ".join(f"{k}={v}" for k, v in protocols_matrix.items())
+    tls02_ver = tls02_eval["testssl"].get("version") or testssl_ver_label
     results["TLS-02"] = {
         "verdict": "PASS" if tls02_pass else "FAIL",
-        "tool": f"TLS Protocol Matrix Analyzer (SSLv2..TLS 1.3 on {host}:{protocol_target_port}, JSON)",
+        "tool": f"testssl.sh {tls02_ver} -p Protocol Matrix (SSLv2..TLS 1.3 on {host}:{protocol_target_port}, JSON)",
         "log": (
-            f"[PASS] On {host}:{protocol_target_port}, modern TLS offered ({', '.join(modern_offered)}) and all legacy protocols rejected ({proto_summary}).\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}"
+            f"[PASS] testssl.sh verified on {host}:{protocol_target_port} that modern TLS is offered ({', '.join(modern_offered)}) and all legacy protocols are rejected ({proto_summary}).\nEvidence Artifacts:\n  - TLS JSON: {tls_json_path}\n  - testssl.sh Raw JSON: {tls02_eval['testssl'].get('rawJsonPath') or testssl_info.get('rawJsonPath')}"
             if tls02_pass
             else (
                 f"[FAIL] TLS-02 violation on {host}:{protocol_target_port}: "
                 + (
-                    f"Deprecated protocol(s) offered: {', '.join(deprecated_offered)}"
+                    f"Deprecated protocol(s) offered via testssl.sh: {', '.join(deprecated_offered)}"
                     if deprecated_offered
                     else "Neither TLS 1.2 nor TLS 1.3 is offered (endpoint serves cleartext HTTP / refuses TLS)"
                 )

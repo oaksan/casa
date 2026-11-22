@@ -1333,6 +1333,110 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 19/61: TLS-01 (Iteração SDD 089)", just2_txt)
 
+    def test_iteration90_tls02_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        import ssl
+        import subprocess
+        import warnings
+        from casa_audit.scanner import evaluate_tls02_protocol_enforcement
+
+        with tempfile.TemporaryDirectory() as td_tls2:
+            tdp = Path(td_tls2)
+            cert, key = tdp / "cert.pem", tdp / "key.pem"
+            subprocess.run(
+                [
+                    "openssl",
+                    "req",
+                    "-x509",
+                    "-newkey",
+                    "rsa:2048",
+                    "-nodes",
+                    "-keyout",
+                    str(key),
+                    "-out",
+                    str(cert),
+                    "-days",
+                    "1",
+                    "-subj",
+                    "/CN=127.0.0.1",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+            class _OkHandler(BaseHTTPRequestHandler):
+                def log_message(self, fmt, *args):
+                    pass
+
+                def do_GET(self):
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+
+            # 1. Modern TLS 1.2/1.3 only -> PASS via official testssl.sh -p
+            srv_modern = ThreadingHTTPServer(("127.0.0.1", 0), _OkHandler)
+            ctx_modern = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx_modern.load_cert_chain(certfile=str(cert), keyfile=str(key))
+            ctx_modern.minimum_version = ssl.TLSVersion.TLSv1_2
+            srv_modern.socket = ctx_modern.wrap_socket(srv_modern.socket, server_side=True)
+            port_modern = srv_modern.server_address[1]
+            threading.Thread(target=srv_modern.serve_forever, daemon=True).start()
+
+            # 2. Legacy TLS 1.0/1.1 enabled server (SECLEVEL=0) -> FAIL via official testssl.sh -p
+            srv_legacy = ThreadingHTTPServer(("127.0.0.1", 0), _OkHandler)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                ctx_legacy = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ctx_legacy.load_cert_chain(certfile=str(cert), keyfile=str(key))
+                ctx_legacy.set_ciphers("ALL:@SECLEVEL=0")
+                ctx_legacy.minimum_version = ssl.TLSVersion.TLSv1
+            srv_legacy.socket = ctx_legacy.wrap_socket(srv_legacy.socket, server_side=True)
+            port_legacy = srv_legacy.server_address[1]
+            threading.Thread(target=srv_legacy.serve_forever, daemon=True).start()
+
+            # 3. Cleartext HTTP only -> FAIL (no TLS 1.2/1.3 offered)
+            srv_http = ThreadingHTTPServer(("127.0.0.1", 0), _OkHandler)
+            port_http = srv_http.server_address[1]
+            threading.Thread(target=srv_http.serve_forever, daemon=True).start()
+
+            try:
+                res_modern = evaluate_tls02_protocol_enforcement(
+                    f"https://127.0.0.1:{port_modern}",
+                    raw_json_path=tdp / "tls02_modern.json",
+                )
+                self.assertEqual(res_modern["verdict"], "PASS", f"Expected PASS for TLS 1.2/1.3 only, got {res_modern}")
+                self.assertEqual(res_modern["deprecatedOffered"], [])
+                self.assertIn("TLS 1.2", res_modern["modernOffered"])
+                self.assertEqual(res_modern["protocols"]["SSLv2"], "not offered")
+                self.assertEqual(res_modern["protocols"]["SSLv3"], "not offered")
+                self.assertEqual(res_modern["protocols"]["TLS 1.0"], "not offered")
+                self.assertEqual(res_modern["protocols"]["TLS 1.1"], "not offered")
+
+                res_legacy = evaluate_tls02_protocol_enforcement(
+                    f"https://127.0.0.1:{port_legacy}",
+                    raw_json_path=tdp / "tls02_legacy.json",
+                )
+                self.assertEqual(res_legacy["verdict"], "FAIL", f"Expected FAIL for TLS 1.0/1.1 offered, got {res_legacy}")
+                self.assertIn("TLS 1.0", res_legacy["deprecatedOffered"])
+                self.assertIn("TLS 1.1", res_legacy["deprecatedOffered"])
+
+                res_http = evaluate_tls02_protocol_enforcement(
+                    f"http://127.0.0.1:{port_http}",
+                    raw_json_path=tdp / "tls02_http.json",
+                )
+                self.assertEqual(res_http["verdict"], "FAIL")
+                self.assertEqual(res_http["modernOffered"], [])
+            finally:
+                srv_modern.shutdown()
+                srv_modern.server_close()
+                srv_legacy.shutdown()
+                srv_legacy.server_close()
+                srv_http.shutdown()
+                srv_http.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 20/61: TLS-02 (Iteração SDD 090)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

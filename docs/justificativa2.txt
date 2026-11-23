@@ -1867,3 +1867,44 @@ CONTROLE 36/61: AUT-01 (Iteração SDD 106)
   * 5 credenciais padrão/produto autenticam (`admin@juice-sh.op`, `jim@juice-sh.op`,
     `bender@juice-sh.op`, `mc.safesearch@juice-sh.op`, `demo`) -> Veredito **`FAIL`**.
 ================================================================================
+
+================================================================================
+CONTROLE 37/61: AUT-02 (Iteração SDD 107)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 5 - AUTH & SESSION)
+--------------------------------------------------------------------------------
+- Controle: `AUT-02` — *Session tokens possess >= 64 bits of entropy* (ASVS V3.2.2 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **Estimador NIST SP 800-90B** (ou Burp Sequencer) aplicado sobre **200**
+    tokens de sessão coletados em autenticações novas, com evidências em SARIF 2.1.0
+    e captura HAR 1.2 redigida.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 107`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `AUT-02` coletava os 200 tokens inline em `run_dynamic_and_protocol_checks`,
+  aplicando apenas estimativa pontual de MCV (`-log2(p_hat)`) sem o intervalo
+  superior de confiança a 99% (UCB) normativo do NIST SP 800-90B nem persistência
+  em relatório dedicado e HAR isolado.
+- O que foi feito e melhorado na Iteração SDD 107:
+  1) Implementação de `estimate_sp800_90b_token_min_entropy(...)` aplicando a
+     seção 6.3.1 da NIST SP 800-90B com cota superior de confiança de 99%
+     (`p_hat + 2.576 * sqrt(...)`) tanto em nível de token completo (para
+     detecção de colisões) quanto posicional por coluna variável.
+  2) Extração para `evaluate_aut02_token_entropy(...)` com gravação de
+     `output/aut02-sp800-90b.json`, `output/aut02-replayed.har` (com cabeçalhos
+     `Set-Cookie`/`Authorization` redigidos) e exportação de `loginBody` para `AUT-03..AUT-06`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration107_aut02_guide_tooling`):
+  * **`PASS`** com 200 tokens CSPRNG de 128 bits (`>= 64,0 bits` SP 800-90B) e
+    redação `[REDACTED]` confirmada no HAR.
+  * **`FAIL`** para tokens determinísticos repetidos e tokens fracos de 32 bits
+    (`< 64,0 bits` SP 800-90B).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Coletados 200 tokens em sequência, com colisões determinísticas derivadas de
+    `iat` com granularidade de 1 segundo e min-entropia SP 800-90B muito abaixo
+    de `64,0 bits` -> Veredito **`FAIL`**.
+================================================================================

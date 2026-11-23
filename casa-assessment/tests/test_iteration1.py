@@ -2525,41 +2525,52 @@ class TestCasa3Iteration1(unittest.TestCase):
                 m = type(self).mode
                 p = self.path.split("?", 1)[0]
                 if p == "/":
+                    body = (
+                        b'<html><body><a href="/rest/products/search?q=%27))">search</a></body></html>'
+                        if m == "sql_trace"
+                        else b"<html><body>Home</body></html>"
+                    )
                     self.send_response(200)
-                    self.send_header("Content-Type", "text/html")
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
-                    if m == "sql_trace":
-                        self.wfile.write(b'<html><body><a href="/rest/products/search?q=%27))">search</a></body></html>')
-                    else:
-                        self.wfile.write(b"<html><body>Home</body></html>")
+                    self.wfile.write(body)
                     return
                 if m == "generic":
+                    body = b'{"error":"Invalid request"}'
                     self.send_response(404 if "nonexistent" in p else 400)
-                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
-                    self.wfile.write(b'{"error":"Invalid request"}')
+                    self.wfile.write(body)
                     return
                 if m == "sql_trace" and "/rest/products/search" in p:
-                    self.send_response(500)
-                    self.send_header("Content-Type", "text/html")
-                    self.end_headers()
-                    self.wfile.write(
+                    body = (
                         b"<html><body>You have an error in your SQL syntax; SQLITE_ERROR\n"
                         b"Traceback (most recent call last):\n"
                         b'<ul id="stacktrace"><li>at Object.search (node_modules/sequelize/lib/model.js:12:4)</li></ul>'
                         b"</body></html>"
                     )
+                    self.send_response(500)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
                     return
                 if m == "path_leak" and "nonexistent" in p:
+                    body = b"ENOENT: no such file '/srv/app/config/secret.md'"
                     self.send_response(404)
-                    self.send_header("Content-Type", "text/plain")
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
-                    self.wfile.write(b"ENOENT: no such file '/srv/app/config/secret.md'")
+                    self.wfile.write(body)
                     return
+                body = b'{"error":"Invalid request"}'
                 self.send_response(400)
-                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
-                self.wfile.write(b'{"error":"Invalid request"}')
+                self.wfile.write(body)
 
             def do_POST(self):
                 body = self._read_body()
@@ -2885,6 +2896,95 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 36/61: AUT-01 (Iteração SDD 106)", just2_txt)
+
+    def test_iteration107_aut02_guide_tooling(self) -> None:
+        import secrets
+        import time
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_aut02_token_entropy
+
+        class _Aut02Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "csprng128"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                if length:
+                    self.rfile.read(length)
+                p = self.path.split("?", 1)[0]
+                if p == "/rest/user/login":
+                    m = type(self).mode
+                    if m == "csprng128":
+                        tok = secrets.token_hex(16)
+                    elif m == "weak32":
+                        tok = secrets.token_hex(4)
+                    else:
+                        tok = f"deterministic-iat-{int(time.time() * 2) % 4}"
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Set-Cookie", f"sid={tok}; HttpOnly")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"token": tok}).encode("utf-8"))
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Aut02Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_aut2:
+            tdp = Path(td_aut2)
+            try:
+                # 1. 200 distinct 128-bit CSPRNG tokens -> PASS (>= 64.0 bits SP 800-90B MCV) + redacted HAR
+                _Aut02Handler.mode = "csprng128"
+                har_pass = tdp / "aut02_pass.har"
+                rep_pass = tdp / "aut02_pass.json"
+                r_pass = evaluate_aut02_token_entropy(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("user@example.com", "pw"),
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertEqual(r_pass["samplesCollected"], 200)
+                self.assertEqual(r_pass["distinctTokens"], 200)
+                self.assertGreaterEqual(r_pass["minEntropyBits"], 64.0)
+                self.assertIn("[REDACTED]", har_pass.read_text(encoding="utf-8"))
+                self.assertTrue(rep_pass.exists())
+
+                # 2. Colliding deterministic tokens -> FAIL
+                _Aut02Handler.mode = "colliding"
+                r_dup = evaluate_aut02_token_entropy(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("user@example.com", "pw"),
+                    report_out_path=tdp / "aut02_dup.json",
+                    har_out_path=tdp / "aut02_dup.har",
+                )
+                self.assertEqual(r_dup["verdict"], "FAIL")
+                self.assertGreater(r_dup["duplicateTokens"], 0)
+                self.assertLess(r_dup["minEntropyBits"], 64.0)
+
+                # 3. 200 distinct 32-bit weak hex tokens -> FAIL (< 64 bits SP 800-90B)
+                _Aut02Handler.mode = "weak32"
+                r_weak = evaluate_aut02_token_entropy(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("user@example.com", "pw"),
+                    report_out_path=tdp / "aut02_weak.json",
+                    har_out_path=tdp / "aut02_weak.har",
+                )
+                self.assertEqual(r_weak["verdict"], "FAIL")
+                self.assertLess(r_weak["minEntropyBits"], 64.0)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 37/61: AUT-02 (Iteração SDD 107)", just2_txt)
 
 
 if __name__ == "__main__":

@@ -4786,12 +4786,12 @@ def run_zap_automation(
             f"        threshold: Low\n"
             f"      - id: 90022\n"
             f"        threshold: Low\n"
+            f"{req_block}"
             f"  - type: spider\n"
             f"    parameters:\n"
             f"      maxDuration: 1\n"
             f"      maxDepth: 2\n"
             f"      maxChildren: 25\n"
-            f"{req_block}"
             f"  - type: passiveScan-wait\n"
             f"    parameters:\n"
             f"      maxDuration: 1\n"
@@ -4810,7 +4810,23 @@ def run_zap_automation(
         plan_path.write_text(plan_yaml, encoding="utf-8")
         try:
             proc = subprocess.run(
-                [binary, "-cmd", "-host", "127.0.0.1", "-port", str(zap_proxy_port), "-dir", str(zap_dir), "-silent", "-autorun", str(plan_path)],
+                [
+                    binary,
+                    "-cmd",
+                    "-host",
+                    "127.0.0.1",
+                    "-port",
+                    str(zap_proxy_port),
+                    "-dir",
+                    str(zap_dir),
+                    "-silent",
+                    "-config",
+                    "start.checkAddonUpdates=false",
+                    "-config",
+                    "start.checkForUpdates=false",
+                    "-autorun",
+                    str(plan_path),
+                ],
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
@@ -7473,6 +7489,266 @@ def evaluate_aut01_default_credentials(
     }
 
 
+def estimate_sp800_90b_token_min_entropy(tokens: list[str]) -> dict:
+    """Estimate NIST SP 800-90B Section 6.3.1 Most-Common-Value (99% UCB) min-entropy across session tokens."""
+    total_sampled = len(tokens)
+    unique_tokens = len(set(tokens))
+    duplicate_tokens = total_sampled - unique_tokens
+    if total_sampled == 0:
+        return {
+            "totalSampled": 0,
+            "uniqueTokens": 0,
+            "duplicateTokens": 0,
+            "maxCollisionFrequency": 0,
+            "wholeTokenPointBits": 0.0,
+            "wholeTokenUcb99Bits": 0.0,
+            "positionalUcb99Bits": 0.0,
+            "effectiveMinEntropyBits": 0.0,
+        }
+
+    tok_counts = Counter(tokens)
+    _, top_freq = tok_counts.most_common(1)[0]
+    p_hat = top_freq / total_sampled
+    whole_point_bits = round(-math.log2(p_hat), 2)
+    u_whole = min(
+        1.0,
+        p_hat + 2.576 * math.sqrt(max(0.0, p_hat * (1.0 - p_hat)) / max(1, total_sampled - 1)),
+    )
+    whole_ucb_bits = round(-math.log2(u_whole), 2) if u_whole > 0 else 0.0
+
+    pos_ucb_bits = 0.0
+    if unique_tokens == total_sampled and total_sampled >= 2:
+        segments = [t.split(".")[-1] if "." in t else t for t in tokens]
+        min_len = min(len(s) for s in segments)
+        for pos_i in range(min_len):
+            col = [s[pos_i] for s in segments]
+            if len(set(col)) <= 1:
+                continue
+            max_c = Counter(col).most_common(1)[0][1]
+            p_c = max_c / total_sampled
+            u_c = min(
+                1.0,
+                p_c + 2.576 * math.sqrt(max(0.0, p_c * (1.0 - p_c)) / max(1, total_sampled - 1)),
+            )
+            pos_ucb_bits += -math.log2(u_c) if u_c > 0 else 0.0
+        pos_ucb_bits = round(pos_ucb_bits, 2)
+        effective_bits = pos_ucb_bits
+    else:
+        effective_bits = whole_ucb_bits
+
+    return {
+        "totalSampled": total_sampled,
+        "uniqueTokens": unique_tokens,
+        "duplicateTokens": duplicate_tokens,
+        "maxCollisionFrequency": top_freq,
+        "wholeTokenPointBits": whole_point_bits,
+        "wholeTokenUcb99Bits": whole_ucb_bits,
+        "positionalUcb99Bits": pos_ucb_bits,
+        "effectiveMinEntropyBits": effective_bits,
+    }
+
+
+def evaluate_aut02_token_entropy(
+    target_url: str,
+    *,
+    login_endpoint: str = "/rest/user/login",
+    sample_target: int = 200,
+    credentials: tuple[str, str] | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    har_entries_sink: list[dict] | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate AUT-02 using 200-sample login harness + NIST SP 800-90B 99% UCB MCV min-entropy estimator."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+    is_https = parsed.scheme.lower() == "https"
+
+    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req = urllib.request.Request(url, data=body, headers={"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        try:
+            with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, ""
+        except Exception:
+            return 0, {}, ""
+
+    probe = http_probe_fn or _default_probe
+    if credentials is not None:
+        aut02_email, aut02_pass = credentials
+    else:
+        aut02_email = f"casa3_aut02_entropy_{int(time.time())}@juice-sh.op"
+        aut02_pass = "Casa3Aut02Entropy!99"
+        reg2_st, _, _ = probe(
+            "/api/Users/",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": aut02_email, "password": aut02_pass, "passwordRepeat": aut02_pass}).encode("utf-8"),
+        )
+        if not (200 <= reg2_st < 300):
+            aut02_email, aut02_pass = ("admin@juice-sh.op", "admin123")
+
+    aut02_body = json.dumps({"email": aut02_email, "password": aut02_pass}).encode("utf-8")
+    collected_tokens: list[str] = []
+    local_har_entries: list[dict] = []
+    t_aut02_start = time.monotonic()
+    conn_cls = http.client.HTTPSConnection if is_https else http.client.HTTPConnection
+    conn_kwargs = {"context": ssl._create_unverified_context()} if is_https else {}
+    try:
+        conn = conn_cls(host, port, timeout=5, **conn_kwargs)
+        for idx in range(sample_target):
+            t_req = time.monotonic()
+            conn.request(
+                "POST",
+                login_endpoint,
+                body=aut02_body,
+                headers={"Content-Type": "application/json", "User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"},
+            )
+            resp2 = conn.getresponse()
+            raw2 = resp2.read().decode("utf-8", errors="ignore")
+            hdrs2 = {k.lower(): v for k, v in resp2.getheaders()}
+            tok_sample = ""
+            if 200 <= resp2.status < 300:
+                try:
+                    j2 = json.loads(raw2)
+                    tok_sample = (
+                        j2.get("authentication", {}).get("token", "")
+                        or j2.get("token", "")
+                        or j2.get("access_token", "")
+                    )
+                except Exception:
+                    tok_sample = ""
+                if not tok_sample and hdrs2.get("set-cookie"):
+                    tok_sample = hdrs2["set-cookie"].split(";", 1)[0].split("=", 1)[-1]
+            if tok_sample:
+                collected_tokens.append(tok_sample)
+            if idx in {0, 1, sample_target - 1} or idx % 20 == 0:
+                har_item = {
+                    "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "time": round((time.monotonic() - t_req) * 1000, 1),
+                    "request": {
+                        "method": "POST",
+                        "url": f"{base_url}{login_endpoint}",
+                        "httpVersion": "HTTP/1.1",
+                        "headers": [{"name": "Content-Type", "value": "application/json"}],
+                    },
+                    "response": {
+                        "status": resp2.status,
+                        "httpVersion": "HTTP/1.1",
+                        "headers": [
+                            {"name": k, "value": "[REDACTED]" if k in {"set-cookie", "authorization", "cookie"} else v}
+                            for k, v in hdrs2.items()
+                        ],
+                    },
+                }
+                local_har_entries.append(har_item)
+                if har_entries_sink is not None:
+                    har_entries_sink.append(har_item)
+        conn.close()
+    except Exception:
+        pass
+
+    aut02_elapsed = round(time.monotonic() - t_aut02_start, 2)
+    est = estimate_sp800_90b_token_min_entropy(collected_tokens)
+    total_sampled = est["totalSampled"]
+    unique_tokens = est["uniqueTokens"]
+    duplicate_tokens = est["duplicateTokens"]
+    top_freq = est["maxCollisionFrequency"]
+    effective_min_entropy = est["effectiveMinEntropyBits"]
+
+    aut02_pass = (
+        total_sampled >= sample_target
+        and unique_tokens == total_sampled
+        and effective_min_entropy >= 64.0
+    )
+
+    rep_file = report_out_path or (OUTPUT_DIR / "aut02-sp800-90b.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "NIST SP 800-90B (Section 6.3.1 MCV 99% UCB)",
+                "target": f"{base_url}{login_endpoint}",
+                "sampleTarget": sample_target,
+                "elapsedSec": aut02_elapsed,
+                "verdict": "PASS" if aut02_pass else "FAIL",
+                **est,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "aut02-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-aut02-entropy-harness", "version": "3.0"},
+                    "entries": local_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    aut02_reason = ""
+    sarif_items: list[dict] = []
+    if not aut02_pass:
+        aut02_reason = (
+            f"Collected {total_sampled} session tokens from fresh logins to POST {base_url}{login_endpoint} in {aut02_elapsed}s: "
+            f"only {unique_tokens}/{total_sampled} distinct ({duplicate_tokens} exact duplicate tokens, max identical collision={top_freq}/{total_sampled}; "
+            f"NIST SP 800-90B MCV min-entropy={effective_min_entropy:.2f} bits < 64.0 bits threshold)."
+            if duplicate_tokens > 0
+            else f"Collected {total_sampled} tokens in {aut02_elapsed}s ({unique_tokens} unique); NIST SP 800-90B min-entropy={effective_min_entropy:.2f} bits < 64.0 bits threshold."
+        )
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AUT-02",
+                "level": "error",
+                "message": {"text": aut02_reason},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": f"{base_url}{login_endpoint}"}}}],
+                "properties": {
+                    "controlId": "AUT-02",
+                    "samplesCollected": total_sampled,
+                    "distinctTokens": unique_tokens,
+                    "duplicateTokens": duplicate_tokens,
+                    "maxCollisionFrequency": top_freq,
+                    "minEntropyBits": effective_min_entropy,
+                },
+            }
+        )
+
+    return {
+        "verdict": "PASS" if aut02_pass else "FAIL",
+        "aut02_pass": aut02_pass,
+        "sampleTarget": sample_target,
+        "samplesCollected": total_sampled,
+        "distinctTokens": unique_tokens,
+        "duplicateTokens": duplicate_tokens,
+        "maxCollisionFrequency": top_freq,
+        "minEntropyBits": effective_min_entropy,
+        "sp80090b": est,
+        "reason": aut02_reason,
+        "elapsedSec": aut02_elapsed,
+        "loginEndpoint": login_endpoint,
+        "loginBody": aut02_body,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -8231,154 +8507,32 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-02: 200-sample fresh authentication token collection & NIST SP 800-90B min-entropy + uniqueness estimator (SARIF 2.1.0 + redacted HAR 1.2)
+    # AUT-02: 200-sample fresh authentication token collection & NIST SP 800-90B 99% UCB min-entropy estimator (SARIF 2.1.0 + redacted HAR 1.2)
     sample_target = 200
-    collected_tokens: list[str] = []
     aut02_login_ep = active_login_surfaces[0] if active_login_surfaces else "/rest/user/login"
-    aut02_email = f"casa3_aut02_entropy_{int(time.time())}@juice-sh.op"
-    aut02_pass = "Casa3Aut02Entropy!99"
-
-    # Provision dedicated ephemeral user for the 200-login sampling harness (fallback to first working credential if signup closed)
-    reg2_st, _, _ = http_probe(
-        "/api/Users/",
-        method="POST",
-        headers={"Content-Type": "application/json"},
-        body=json.dumps({"email": aut02_email, "password": aut02_pass, "passwordRepeat": aut02_pass}).encode("utf-8"),
+    aut02_eval = evaluate_aut02_token_entropy(
+        base_url,
+        login_endpoint=aut02_login_ep,
+        sample_target=sample_target,
+        har_entries_sink=har_entries,
+        http_probe_fn=http_probe,
     )
-    if not (200 <= reg2_st < 300):
-        aut02_email, aut02_pass = ("admin@juice-sh.op", "admin123")
-
-    aut02_body = json.dumps({"email": aut02_email, "password": aut02_pass}).encode("utf-8")
-    t_aut02_start = time.monotonic()
-    conn_cls = http.client.HTTPSConnection if is_https else http.client.HTTPConnection
-    conn_kwargs = {"context": ssl._create_unverified_context()} if is_https else {}
-    try:
-        conn = conn_cls(host, port, timeout=5, **conn_kwargs)
-        for idx in range(sample_target):
-            t_req = time.monotonic()
-            conn.request(
-                "POST",
-                aut02_login_ep,
-                body=aut02_body,
-                headers={"Content-Type": "application/json", "User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"},
-            )
-            resp2 = conn.getresponse()
-            raw2 = resp2.read().decode("utf-8", errors="ignore")
-            hdrs2 = {k.lower(): v for k, v in resp2.getheaders()}
-            tok_sample = ""
-            if 200 <= resp2.status < 300:
-                try:
-                    j2 = json.loads(raw2)
-                    tok_sample = (
-                        j2.get("authentication", {}).get("token", "")
-                        or j2.get("token", "")
-                        or j2.get("access_token", "")
-                    )
-                except Exception:
-                    tok_sample = ""
-                if not tok_sample and hdrs2.get("set-cookie"):
-                    tok_sample = hdrs2["set-cookie"].split(";", 1)[0].split("=", 1)[-1]
-            if tok_sample:
-                collected_tokens.append(tok_sample)
-            # Record first and last requests plus stride-20 samples in redacted HAR 1.2
-            if idx in {0, 1, sample_target - 1} or idx % 20 == 0:
-                har_entries.append(
-                    {
-                        "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                        "time": round((time.monotonic() - t_req) * 1000, 1),
-                        "request": {
-                            "method": "POST",
-                            "url": f"{base_url}{aut02_login_ep}",
-                            "httpVersion": "HTTP/1.1",
-                            "headers": [{"name": "Content-Type", "value": "application/json"}],
-                        },
-                        "response": {
-                            "status": resp2.status,
-                            "httpVersion": "HTTP/1.1",
-                            "headers": [
-                                {"name": k, "value": "[REDACTED]" if k in {"set-cookie", "authorization", "cookie"} else v}
-                                for k, v in hdrs2.items()
-                            ],
-                        },
-                    }
-                )
-        conn.close()
-    except Exception:
-        pass
-
-    aut02_elapsed = round(time.monotonic() - t_aut02_start, 2)
-    total_sampled = len(collected_tokens)
-    unique_tokens = len(set(collected_tokens))
-    duplicate_tokens = total_sampled - unique_tokens
-
-    # Estimate NIST SP 800-90B Most-Common-Value (MCV) min-entropy across the 200 fresh session tokens
-    if total_sampled > 0:
-        tok_counts = Counter(collected_tokens)
-        top_token, top_freq = tok_counts.most_common(1)[0]
-        # Empirical whole-token collision min-entropy: -log2(max_freq / total_sampled)
-        sample_mcv_bits = -math.log2(top_freq / total_sampled)
-        if unique_tokens == total_sampled:
-            # All tokens distinct: estimate positional NIST SP 800-90B MCV min-entropy across varying offsets
-            segments = [t.split(".")[-1] if "." in t else t for t in collected_tokens]
-            min_len = min(len(s) for s in segments)
-            pos_bits = 0.0
-            for pos_i in range(min_len):
-                col = [s[pos_i] for s in segments]
-                if len(set(col)) <= 1:
-                    continue
-                max_c = Counter(col).most_common(1)[0][1]
-                pos_bits += -math.log2(max_c / total_sampled)
-            effective_min_entropy = round(pos_bits, 2)
-        else:
-            effective_min_entropy = round(sample_mcv_bits, 2)
-    else:
-        top_freq = 0
-        effective_min_entropy = 0.0
-
-    aut02_pass = (
-        total_sampled >= sample_target
-        and unique_tokens == total_sampled
-        and effective_min_entropy >= 64.0
-    )
-
-    if not aut02_pass:
-        aut02_reason = (
-            f"Collected {total_sampled} session tokens from fresh logins to POST {base_url}{aut02_login_ep} in {aut02_elapsed}s: "
-            f"only {unique_tokens}/{total_sampled} distinct ({duplicate_tokens} exact duplicate tokens, max identical collision={top_freq}/{total_sampled}; "
-            f"NIST SP 800-90B MCV min-entropy={effective_min_entropy:.2f} bits < 64.0 bits threshold — deterministic 1-second 'iat' RS256 JWT without random 'jti' nonce)."
-            if duplicate_tokens > 0
-            else f"Collected {total_sampled} tokens in {aut02_elapsed}s ({unique_tokens} unique); estimated min-entropy={effective_min_entropy:.2f} bits < 64.0 bits threshold."
-        )
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AUT-02",
-                "level": "error",
-                "message": {"text": aut02_reason},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": f"{base_url}{aut02_login_ep}"},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AUT-02",
-                    "samplesCollected": total_sampled,
-                    "distinctTokens": unique_tokens,
-                    "duplicateTokens": duplicate_tokens,
-                    "maxCollisionFrequency": top_freq,
-                    "minEntropyBits": effective_min_entropy,
-                },
-            }
-        )
+    aut02_body = aut02_eval["loginBody"]
+    dast_sarif_results.extend(aut02_eval["sarifResults"])
+    total_sampled = aut02_eval["samplesCollected"]
+    unique_tokens = aut02_eval["distinctTokens"]
+    effective_min_entropy = aut02_eval["minEntropyBits"]
+    aut02_elapsed = aut02_eval["elapsedSec"]
+    aut02_pass = aut02_eval["aut02_pass"]
+    aut02_reason = aut02_eval["reason"]
 
     results["AUT-02"] = {
         "verdict": "PASS" if aut02_pass else "FAIL",
-        "tool": f"200-Sample NIST SP 800-90B Min-Entropy Estimator ({total_sampled} fresh logins in {aut02_elapsed}s, SARIF 2.1.0 + redacted HAR 1.2)",
+        "tool": f"200-Sample NIST SP 800-90B MCV Min-Entropy Estimator ({total_sampled} fresh logins in {aut02_elapsed}s, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[PASS] Collected {total_sampled}/{sample_target} fresh session tokens in {aut02_elapsed}s: 100% distinct ({unique_tokens}/{total_sampled}) with NIST SP 800-90B MCV min-entropy={effective_min_entropy:.2f} bits >= 64.0 bits.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            f"[PASS] Collected {total_sampled}/{sample_target} fresh session tokens in {aut02_elapsed}s: 100% distinct ({unique_tokens}/{total_sampled}) with NIST SP 800-90B 99% UCB min-entropy={effective_min_entropy:.2f} bits >= 64.0 bits.\nEvidence Artifacts:\n  - NIST SP 800-90B Report: {aut02_eval['reportPath']}\n  - AUT-02 Redacted HAR 1.2: {aut02_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if aut02_pass
-            else f"[FAIL] {aut02_reason}\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[FAIL] {aut02_reason}\nEvidence Artifacts:\n  - NIST SP 800-90B Report: {aut02_eval['reportPath']}\n  - AUT-02 Redacted HAR 1.2: {aut02_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

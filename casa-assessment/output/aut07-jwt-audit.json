@@ -1,0 +1,30 @@
+{
+  "standard": "RFC 8725 / ASVS V3.5.3 (PyJWT)",
+  "pyjwtVersion": "2.10.1",
+  "target": "http://localhost:3000/rest/wallet/balance",
+  "verdict": "FAIL",
+  "alg": "RS256",
+  "iat": 1795477481,
+  "exp": null,
+  "lifetimeSec": null,
+  "hmacKeyBits": null,
+  "postLogoutAccepted": true,
+  "vectorsTested": 5,
+  "findings": [
+    {
+      "vector": "non_expiring_stateless_token",
+      "status": 200,
+      "detail": "Token accepted after AUT-05 logout replay omits 'exp' claim altogether (non-expiring stateless JWT; ASVS V3.5.3 requires exp lifetime <= 86400s)."
+    },
+    {
+      "vector": "unsigned_alg_none",
+      "status": 200,
+      "detail": "GET http://localhost:3000/rest/wallet/balance ACCEPTED crafted token 'unsigned_alg_none' (HTTP 200) — RFC 8725 / CWE-347 signature bypass."
+    },
+    {
+      "vector": "algorithm_confusion_hs256_pubkey",
+      "status": 200,
+      "detail": "GET http://localhost:3000/rest/wallet/balance ACCEPTED crafted token 'algorithm_confusion_hs256_pubkey' (HTTP 200) — RFC 8725 / CWE-347 signature bypass."
+    }
+  ]
+}

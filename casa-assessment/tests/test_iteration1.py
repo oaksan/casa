@@ -3551,6 +3551,146 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 41/61: AUT-06 (Iteração SDD 111)", just2_txt)
 
+    def test_iteration112_aut07_guide_tooling(self) -> None:
+        import base64
+        import hashlib
+        import hmac
+        import time
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_aut07_jwt_security
+
+        def _b64u(raw: bytes) -> str:
+            return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+        def _make_hs256(secret_bytes: bytes, iat_ts: int | None, exp_ts: int | None, alg: str = "HS256") -> str:
+            hdr = _b64u(json.dumps({"alg": alg, "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+            pay_d: dict = {"sub": "user@example.com"}
+            if iat_ts is not None:
+                pay_d["iat"] = iat_ts
+            if exp_ts is not None:
+                pay_d["exp"] = exp_ts
+            pay = _b64u(json.dumps(pay_d, separators=(",", ":")).encode("utf-8"))
+            sig = _b64u(hmac.new(secret_bytes, f"{hdr}.{pay}".encode("utf-8"), hashlib.sha256).digest())
+            return f"{hdr}.{pay}.{sig}"
+
+        strong_secret = b"SuperStrong256BitPlusSecretKeyForCasa3Testing_2026!!"
+        weak_secret = b"shortkey"
+        fake_pubkey = b"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest\n-----END PUBLIC KEY-----\n"
+
+        class _Aut07Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "strict"
+            valid_tok = ""
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                if p == "/encryptionkeys/jwt.pub":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain")
+                    self.send_header("Content-Length", str(len(fake_pubkey)))
+                    self.end_headers()
+                    self.wfile.write(fake_pubkey)
+                    return
+                if p == "/rest/wallet/balance":
+                    auth = self.headers.get("Authorization", "")
+                    tok = auth.split(" ", 1)[1].strip() if auth.startswith("Bearer ") else ""
+                    accepted = False
+                    if tok and tok.count(".") == 2:
+                        h_s, p_s, s_s = tok.split(".")
+                        try:
+                            hdr = json.loads(base64.urlsafe_b64decode(h_s + "=" * (-len(h_s) % 4)))
+                        except Exception:
+                            hdr = {}
+                        if m == "strict":
+                            accepted = tok == type(self).valid_tok
+                        elif m == "vulns":
+                            if hdr.get("alg", "").lower() == "none":
+                                accepted = True
+                            elif hdr.get("alg") == "HS256":
+                                expected_s = _b64u(hmac.new(fake_pubkey, f"{h_s}.{p_s}".encode("utf-8"), hashlib.sha256).digest())
+                                if hmac.compare_digest(s_s, expected_s):
+                                    accepted = True
+                    body = b'{"data":{"balance":42}}' if accepted else b'{"error":"Invalid token"}'
+                    self.send_response(200 if accepted else 401)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Aut07Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        now = int(time.time())
+        with tempfile.TemporaryDirectory() as td_aut7:
+            tdp = Path(td_aut7)
+            try:
+                # 1. Strict HS256 with 3600s exp denying all 5 crafted vectors + redacted HAR + key length Not_Covered when no source -> PASS
+                _Aut07Handler.mode = "strict"
+                strict_tok = _make_hs256(strong_secret, now, now + 3600)
+                _Aut07Handler.valid_tok = strict_tok
+                har_pass = tdp / "aut07_pass.har"
+                rep_pass = tdp / "aut07_pass.json"
+                r_pass = evaluate_aut07_jwt_security(
+                    f"http://127.0.0.1:{port}",
+                    token=strict_tok,
+                    post_logout_accepted=True,
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertEqual(r_pass["hmacKeyBits"], "Not_Covered")
+                self.assertGreaterEqual(r_pass["vectorsTested"], 5)
+                har_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn(strict_tok, har_txt)
+                self.assertTrue(rep_pass.exists())
+
+                # 2. Accepts alg:none & HS256 public-key confusion -> FAIL
+                _Aut07Handler.mode = "vulns"
+                r_vuln = evaluate_aut07_jwt_security(
+                    f"http://127.0.0.1:{port}",
+                    token=strict_tok,
+                    post_logout_accepted=False,
+                    report_out_path=tdp / "aut07_vuln.json",
+                    har_out_path=tdp / "aut07_vuln.har",
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                vecs = {f["vector"] for f in r_vuln["findings"]}
+                self.assertTrue({"unsigned_alg_none", "algorithm_confusion_hs256_pubkey"}.issubset(vecs))
+
+                # 3. Non-revocable token with exp > 86400s + weak HS256 key (< 256 bits) from source -> FAIL
+                _Aut07Handler.mode = "strict"
+                long_tok = _make_hs256(weak_secret, now, now + 172800)
+                _Aut07Handler.valid_tok = long_tok
+                r_exp = evaluate_aut07_jwt_security(
+                    f"http://127.0.0.1:{port}",
+                    token=long_tok,
+                    post_logout_accepted=True,
+                    source_text='const jwtSecret = "shortkey";',
+                    report_out_path=tdp / "aut07_exp.json",
+                    har_out_path=tdp / "aut07_exp.har",
+                )
+                self.assertEqual(r_exp["verdict"], "FAIL")
+                vecs_exp = {f["vector"] for f in r_exp["findings"]}
+                self.assertIn("excessive_token_lifetime", vecs_exp)
+                self.assertIn("weak_hs256_key", vecs_exp)
+                self.assertTrue(any(s["ruleId"] == "CASA3-AUT-07" for s in r_exp["sarifResults"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 42/61: AUT-07 (Iteração SDD 112)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

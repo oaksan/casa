@@ -2097,3 +2097,52 @@ CONTROLE 41/61: AUT-06 (Iteração SDD 111)
     grava o cookie `token` via JS sem `HttpOnly`, `Secure` ou `SameSite` ->
     Veredito **`FAIL`**.
 ================================================================================
+
+
+================================================================================
+CONTROLE 42/61: AUT-07 (Iteração SDD 112)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 5 - AUTH & SESSION)
+--------------------------------------------------------------------------------
+- Controle: `AUT-07` — *Stateless tokens are signed with a strong algorithm;
+  `alg:none`, algorithm confusion and key substitution rejected; non-revocable
+  tokens expire <= 24 hours* (ASVS V3.5.3 L2; RFC 8725; CWE-347).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **Harness de ataque JWT equivalente ao `jwt_tool`** utilizando **PyJWT (`2.10.1`)**
+    para decodificar cabeçalho/claims (`alg`, `iat`, `exp`), auditar tamanho da
+    chave `HS256` em código-fonte (`>= 256` bits ou `Not_Covered`), submeter
+    tokens forjados (`alg: none`, confusão `HS256`, `kid` estrangeiro, `jku`
+    injetada e payload adulterado) e validar expiração `<= 86400s` para tokens
+    não revogáveis no `AUT-05`, com evidências em SARIF 2.1.0 (`CASA3-AUT-07`) e
+    HAR 1.2 redigido (`output/aut07-replayed.har` + `output/aut07-jwt-audit.json`).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 112`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação de `AUT-07` rodava inline em `run_dynamic_and_protocol_checks`,
+  sem utilizar `PyJWT`, sem registrar explicitamente `Not_Covered` quando a chave
+  HMAC não está disponível no código-fonte, sem fallback via JWKS e sem persistir
+  relatório JSON estruturado nem HAR 1.2 redigido próprio.
+- O que foi feito e melhorado na Iteração SDD 112:
+  1) Extração de `evaluate_aut07_jwt_security(...)` utilizando `PyJWT` (`2.10.1`),
+     autodescoberta de chave pública (`/encryptionkeys/jwt.pub` e fallback
+     JWKS), medição de tempo de vida a partir de `iat` (ou timestamp de captura),
+     auditoria de chave `HS256` (`>= 256` bits ou `Not_Covered`) e bateria de
+     5 vetores forjados via `Authorization` e `Cookie`.
+  2) Gravação dos artefatos dedicados `output/aut07-jwt-audit.json` e
+     `output/aut07-replayed.har` (tokens redigidos como `[REDACTED]`) além de
+     achados SARIF `CASA3-AUT-07`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration112_aut07_guide_tooling`):
+  * **`PASS`** com `HS256` (`exp = iat + 3600s`), rejeição de todos os vetores
+    forjados, `hmacKeyBits = "Not_Covered"` sem código-fonte e token redigido no HAR.
+  * **`FAIL`** para aceitação de `alg:none` / confusão `HS256` com chave pública
+    e para vida útil `> 86400s` com chave HMAC fraca (`< 256` bits).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Token `RS256` sem claim `exp`, aceitação (`HTTP 200`) de `alg: none` e de
+    confusão `HS256` assinada com `/encryptionkeys/jwt.pub` em `/rest/wallet/balance`
+    -> Veredito **`FAIL`** (3 violações `CASA3-AUT-07`).
+================================================================================

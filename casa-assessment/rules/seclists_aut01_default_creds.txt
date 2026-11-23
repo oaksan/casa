@@ -1,0 +1,13 @@
+# Curated SecLists Default Credentials Corpus (Passwords/Default-Credentials + common vendor pairs)
+admin:admin
+admin@example.com:admin
+administrator:administrator
+root:root
+test:test
+guest:guest
+user:password
+demo:demo
+admin:password
+admin:123456
+manager:manager
+tomcat:s3cret

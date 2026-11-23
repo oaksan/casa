@@ -1827,3 +1827,43 @@ CONTROLE 35/61: CFG-11 (Iteração SDD 105)
   * Host `localhost` resolvido via `dnsx` (`127.0.0.1`, `::1`), sem cadeia CNAME
     externa e 0 ocorrências de takeover no `nuclei` -> Veredito **`PASS`**.
 ================================================================================
+
+================================================================================
+CONTROLE 36/61: AUT-01 (Iteração SDD 106)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 5 - AUTH & SESSION)
+--------------------------------------------------------------------------------
+- Controle: `AUT-01` — *No default, shared or vendor-supplied credentials accepted* (ASVS V2.5.4 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **`SecLists`** (`casa-assessment/rules/seclists_aut01_default_creds.txt`) +
+    ***scripted replay harness*** combinando corpus genérico e credenciais padrão
+    de fornecedor derivadas dos produtos detectados em `CFG-03`, com evidências em
+    SARIF 2.1.0 e captura HAR 1.2 redigida.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 106`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `AUT-01` mantinha a lista genérica em código inline dentro de
+  `run_dynamic_and_protocol_checks`, sem arquivo dedicado SecLists e sem derivação
+  dinâmica de fornecedores a partir dos achados de `CFG-03`.
+- O que foi feito e melhorado na Iteração SDD 106:
+  1) Criação da lista **SecLists** `rules/seclists_aut01_default_creds.txt` e
+     de `_load_seclists_default_credentials()`.
+  2) Extração para `evaluate_aut01_default_credentials(...)` com derivação
+     dinâmica de credenciais padrão de fornecedor a partir de `cfg03_findings`,
+     geração autônoma de HAR 1.2 redigido (`output/aut01-replayed.har` com
+     mascaramento de `password` e cabeçalhos `Set-Cookie`/`Authorization`) e
+     exportação do contexto JWT para `AUT-02..AUT-08`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration106_aut01_guide_tooling`):
+  * **`PASS`** com todas as tentativas rejeitadas (`401`) + geração do HAR redigido.
+  * **`FAIL`** para conta genérica SecLists `demo:demo` (confirmando redação de
+    `Set-Cookie` no HAR) e para conta padrão `tomcat:tomcat` acionada
+    dinamicamente via detecção `CFG-03` (`Apache-Coyote/1.1`).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * 5 credenciais padrão/produto autenticam (`admin@juice-sh.op`, `jim@juice-sh.op`,
+    `bender@juice-sh.op`, `mc.safesearch@juice-sh.op`, `demo`) -> Veredito **`FAIL`**.
+================================================================================

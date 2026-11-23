@@ -72,6 +72,46 @@
 				},
 				{
 					"kind": "open",
+					"level": "error",
+					"locations": [
+						{
+							"message": {
+								"text": "localhost"
+							},
+							"physicalLocation": {
+								"artifactLocation": {
+									"description": {
+										"text": "localhost"
+									},
+									"uri": ".",
+									"uriBaseId": "%SRCROOT%"
+								},
+								"contextRegion": {
+									"endLine": 3,
+									"snippet": {
+										"text": "localhost"
+									},
+									"startLine": 1
+								},
+								"region": {
+									"snippet": {
+										"text": "localhost"
+									},
+									"startLine": 1
+								}
+							}
+						}
+					],
+					"message": {
+						"text": "Unauthenticated Admin Application Configuration Exposed (casa3-cfg02-admin-app-config) found on localhost"
+					},
+					"partialFingerprints": {
+						"primaryLocationLineHash": "974ba754e041826e1a633bb3021044f0"
+					},
+					"ruleId": "casa3-cfg02-admin-app-config"
+				},
+				{
+					"kind": "open",
 					"level": "note",
 					"locations": [
 						{
@@ -108,7 +148,8 @@
 					"partialFingerprints": {
 						"primaryLocationLineHash": "d87885e2c64bbb612f95dbb32f59dc7c"
 					},
-					"ruleId": "casa3-cfg02-swagger-apidocs"
+					"ruleId": "casa3-cfg02-swagger-apidocs",
+					"ruleIndex": 1
 				},
 				{
 					"kind": "open",
@@ -149,47 +190,6 @@
 						"primaryLocationLineHash": "88d0457d7c8d400e388375a9d48bf69a"
 					},
 					"ruleId": "casa3-cfg02-prometheus-metrics",
-					"ruleIndex": 1
-				},
-				{
-					"kind": "open",
-					"level": "error",
-					"locations": [
-						{
-							"message": {
-								"text": "localhost"
-							},
-							"physicalLocation": {
-								"artifactLocation": {
-									"description": {
-										"text": "localhost"
-									},
-									"uri": ".",
-									"uriBaseId": "%SRCROOT%"
-								},
-								"contextRegion": {
-									"endLine": 3,
-									"snippet": {
-										"text": "localhost"
-									},
-									"startLine": 1
-								},
-								"region": {
-									"snippet": {
-										"text": "localhost"
-									},
-									"startLine": 1
-								}
-							}
-						}
-					],
-					"message": {
-						"text": "Unauthenticated Admin Application Configuration Exposed (casa3-cfg02-admin-app-config) found on localhost"
-					},
-					"partialFingerprints": {
-						"primaryLocationLineHash": "974ba754e041826e1a633bb3021044f0"
-					},
-					"ruleId": "casa3-cfg02-admin-app-config",
 					"ruleIndex": 2
 				}
 			],
@@ -232,6 +232,26 @@
 								"text": "More details at"
 							},
 							"helpUri": "https://github.com/projectdiscovery/sarif",
+							"id": "casa3-cfg02-admin-app-config",
+							"name": "Unauthenticated Admin Application Configuration Exposed",
+							"properties": {
+								"security-severity": "8",
+								"tags": [
+									"security"
+								]
+							},
+							"shortDescription": {
+								"text": "Unauthenticated Admin Application Configuration Exposed"
+							}
+						},
+						{
+							"fullDescription": {
+								"text": "\nMore details at\n\n"
+							},
+							"help": {
+								"text": "More details at"
+							},
+							"helpUri": "https://github.com/projectdiscovery/sarif",
 							"id": "casa3-cfg02-swagger-apidocs",
 							"name": "Unauthenticated Swagger / OpenAPI Docs Exposed",
 							"properties": {
@@ -262,26 +282,6 @@
 							},
 							"shortDescription": {
 								"text": "Prometheus Runtime Metrics Exposed"
-							}
-						},
-						{
-							"fullDescription": {
-								"text": "\nMore details at\n\n"
-							},
-							"help": {
-								"text": "More details at"
-							},
-							"helpUri": "https://github.com/projectdiscovery/sarif",
-							"id": "casa3-cfg02-admin-app-config",
-							"name": "Unauthenticated Admin Application Configuration Exposed",
-							"properties": {
-								"security-severity": "8",
-								"tags": [
-									"security"
-								]
-							},
-							"shortDescription": {
-								"text": "Unauthenticated Admin Application Configuration Exposed"
 							}
 						}
 					],

@@ -2792,6 +2792,100 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 35/61: CFG-11 (Iteração SDD 105)", just2_txt)
 
+    def test_iteration106_aut01_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_aut01_default_credentials
+
+        class _Aut01Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "reject"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(b"<html><body>Login Portal</body></html>")
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+                data = json.loads(raw) if raw else {}
+                p = self.path.split("?", 1)[0]
+                if p == "/rest/user/login":
+                    u = data.get("email") or data.get("username") or ""
+                    pw = data.get("password") or ""
+                    m = type(self).mode
+                    if m == "generic_demo" and u == "demo" and pw == "demo":
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Set-Cookie", "sid=supersecret-cookie")
+                        self.end_headers()
+                        self.wfile.write(b'{"authentication":{"token":"eyJ-generic-demo"}}')
+                        return
+                    if m == "vendor_tomcat" and u == "tomcat" and pw == "tomcat":
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(b'{"token":"eyJ-vendor-tomcat"}')
+                        return
+                    self.send_response(401)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"Invalid email or password."}')
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Aut01Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_aut1:
+            tdp = Path(td_aut1)
+            try:
+                # 1. All SecLists credentials rejected -> PASS + redacted HAR written
+                _Aut01Handler.mode = "reject"
+                r_pass = evaluate_aut01_default_credentials(
+                    f"http://127.0.0.1:{port}",
+                    har_out_path=tdp / "aut01_pass.har",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertGreaterEqual(r_pass["corpusCount"], 10)
+                self.assertTrue((tdp / "aut01_pass.har").exists())
+
+                # 2. SecLists generic default demo:demo accepted -> FAIL + redacted Set-Cookie/password in HAR
+                _Aut01Handler.mode = "generic_demo"
+                har_demo = tdp / "aut01_demo.har"
+                r_demo = evaluate_aut01_default_credentials(
+                    f"http://127.0.0.1:{port}",
+                    har_out_path=har_demo,
+                )
+                self.assertEqual(r_demo["verdict"], "FAIL")
+                self.assertTrue(any(f["account"] == "demo" and f["kind"] == "generic_default_credential" for f in r_demo["findings"]))
+                har_txt = har_demo.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("supersecret-cookie", har_txt)
+
+                # 3. Vendor default tomcat:tomcat triggered dynamically from CFG-03 version disclosure -> FAIL
+                _Aut01Handler.mode = "vendor_tomcat"
+                r_tom = evaluate_aut01_default_credentials(
+                    f"http://127.0.0.1:{port}",
+                    cfg03_findings=[{"token": "Apache-Coyote/1.1", "detail": "Tomcat header disclosure"}],
+                    har_out_path=tdp / "aut01_tomcat.har",
+                )
+                self.assertEqual(r_tom["verdict"], "FAIL")
+                self.assertTrue(any(f["account"] == "tomcat" and f["kind"] == "product_vendor_default" for f in r_tom["findings"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 36/61: AUT-01 (Iteração SDD 106)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

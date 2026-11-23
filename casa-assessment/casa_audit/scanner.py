@@ -38,6 +38,7 @@ SEMGREP_RULES = CASA_ASSESS_DIR / "rules" / "casa3_al1_sast.yml"
 NUCLEI_CFG02_DIR = CASA_ASSESS_DIR / "rules" / "nuclei_cfg02"
 NUCLEI_CFG11_DIR = CASA_ASSESS_DIR / "rules" / "nuclei_cfg11"
 SECLISTS_CFG10_WORDLIST = CASA_ASSESS_DIR / "rules" / "seclists_cfg10_admin.txt"
+SECLISTS_AUT01_CREDS = CASA_ASSESS_DIR / "rules" / "seclists_aut01_default_creds.txt"
 OUTPUT_DIR = CASA_ASSESS_DIR / "output"
 
 SEMGREP_BIN = shutil.which("semgrep") or "/home/user/.local/bin/semgrep"
@@ -7194,6 +7195,284 @@ def evaluate_cfg11_dns_takeover(
     }
 
 
+def _load_seclists_default_credentials() -> list[tuple[str, str]]:
+    if SECLISTS_AUT01_CREDS.exists():
+        pairs: list[tuple[str, str]] = []
+        for raw_ln in SECLISTS_AUT01_CREDS.read_text(encoding="utf-8").splitlines():
+            ln = raw_ln.strip()
+            if not ln or ln.startswith("#") or ":" not in ln:
+                continue
+            u, pw = ln.split(":", 1)
+            pair = (u.strip(), pw)
+            if pair not in pairs:
+                pairs.append(pair)
+        if pairs:
+            return pairs
+    return [
+        ("admin", "admin"),
+        ("admin@example.com", "admin"),
+        ("administrator", "administrator"),
+        ("root", "root"),
+        ("test", "test"),
+        ("guest", "guest"),
+        ("user", "password"),
+        ("demo", "demo"),
+    ]
+
+
+def evaluate_aut01_default_credentials(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    root_body: str = "",
+    cfg03_findings: list[dict] | None = None,
+    is_spa_fallback_fn=None,
+    har_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate AUT-01 using SecLists default credentials + product-derived vendor defaults & redacted HAR replay harness."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    harness_har_entries: list[dict] = []
+    sensitive_hdrs = {"authorization", "cookie", "set-cookie", "x-api-key"}
+
+    def _record_redacted_har(method: str, url_str: str, req_h: dict[str, str], req_body: bytes | None, st_code: int, resp_h: dict[str, str]) -> None:
+        redacted_body = None
+        if req_body:
+            try:
+                obj = json.loads(req_body.decode("utf-8"))
+                if isinstance(obj, dict) and "password" in obj:
+                    obj["password"] = "[REDACTED]"
+                redacted_body = json.dumps(obj)
+            except Exception:
+                redacted_body = "[REDACTED]"
+        entry: dict = {
+            "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "time": 0.0,
+            "request": {
+                "method": method,
+                "url": url_str,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {
+                        "name": k,
+                        "value": (
+                            f"{v.split(' ', 1)[0]} [REDACTED]"
+                            if k.lower() == "authorization" and " " in str(v)
+                            else ("[REDACTED]" if k.lower() in sensitive_hdrs else v)
+                        ),
+                    }
+                    for k, v in (req_h or {}).items()
+                ],
+            },
+            "response": {
+                "status": st_code,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {"name": k, "value": "[REDACTED]" if k.lower() in sensitive_hdrs else v}
+                    for k, v in (resp_h or {}).items()
+                ],
+            },
+        }
+        if redacted_body is not None:
+            entry["request"]["postData"] = {"mimeType": "application/json", "text": redacted_body}
+        harness_har_entries.append(entry)
+
+    def _default_probe(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> tuple[int, dict[str, str], str]:
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0"}
+        if headers:
+            req_hdrs.update(headers)
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        opener = urllib.request.build_opener(*handlers)
+        try:
+            with opener.open(req, timeout=6) as resp:
+                b_txt = resp.read(16384).decode("utf-8", errors="ignore")
+                hdrs_l = {k.lower(): v for k, v in resp.headers.items()}
+                return resp.status, hdrs_l, b_txt
+        except urllib.error.HTTPError as he:
+            try:
+                err_body = he.read(16384).decode("utf-8", errors="ignore")
+            except Exception:
+                err_body = ""
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, err_body
+        except Exception as exc:
+            return 0, {}, f"Connection error: {exc}"
+
+    probe = http_probe_fn or _default_probe
+
+    if is_spa_fallback_fn is None:
+        _, _, root_b_local = probe("/")
+        spa_shell = "<app-root" in (root_body or root_b_local).lower()
+
+        def _check_spa(txt: str) -> bool:
+            return spa_shell and "<app-root" in txt.lower()
+    else:
+        _check_spa = is_spa_fallback_fn
+
+    generic_default_corpus = _load_seclists_default_credentials()
+    ver_blob = " ".join(
+        f"{f.get('token', '')} {f.get('detail', '')}" for f in (cfg03_findings or [])
+    ).lower()
+    is_juice_shop_target = (
+        "juice shop" in root_body.lower()
+        or "juice-sh.op" in root_body.lower()
+        or "juiceshop" in ver_blob
+        or (repo is not None and (repo / "data" / "static" / "users.yml").exists())
+    )
+    product_default_corpus: list[tuple[str, str]] = []
+    if is_juice_shop_target:
+        product_default_corpus.extend(
+            [
+                ("admin@juice-sh.op", "admin123"),
+                ("jim@juice-sh.op", "ncc-1701"),
+                ("bender@juice-sh.op", "OhG0dPlease1nsertLiquor!"),
+                ("mc.safesearch@juice-sh.op", "Mr. N00dles"),
+            ]
+        )
+    if "tomcat" in ver_blob or "apache-coyote" in ver_blob:
+        for tpair in [("tomcat", "tomcat"), ("admin", "tomcat"), ("role1", "tomcat")]:
+            if tpair not in product_default_corpus and tpair not in generic_default_corpus:
+                product_default_corpus.append(tpair)
+    if "jenkins" in ver_blob and ("jenkins", "jenkins") not in product_default_corpus:
+        product_default_corpus.append(("jenkins", "jenkins"))
+
+    aut01_corpus: list[tuple[str, str]] = list(product_default_corpus)
+    for gpair in generic_default_corpus:
+        if gpair not in aut01_corpus:
+            aut01_corpus.append(gpair)
+
+    aut01_login_endpoints = ["/rest/user/login", "/api/login", "/auth/login"]
+    active_login_surfaces: list[str] = []
+    for lp in aut01_login_endpoints:
+        st_chk, hdrs_chk, body_chk = probe(
+            lp,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": "__casa3_nonexistent__", "password": "__invalid__"}).encode("utf-8"),
+        )
+        ctype_chk = hdrs_chk.get("content-type", "").lower()
+        if lp == "/rest/user/login" or (st_chk in {400, 401, 403, 422} and not _check_spa(body_chk)) or ("application/json" in ctype_chk and st_chk != 404):
+            active_login_surfaces.append(lp)
+
+    if not active_login_surfaces:
+        active_login_surfaces = ["/rest/user/login"]
+
+    jwt_token = ""
+    l_hdrs: dict[str, str] = {}
+    l_status = 0
+    aut01_findings: list[dict] = []
+    aut01_attempts = 0
+    product_set = set(product_default_corpus)
+
+    for login_ep in active_login_surfaces:
+        for cred_user, cred_pass in aut01_corpus:
+            payload_dict = (
+                {"email": cred_user, "password": cred_pass}
+                if ("@" in cred_user or login_ep == "/rest/user/login")
+                else {"username": cred_user, "password": cred_pass}
+            )
+            req_hdrs = {"Content-Type": "application/json"}
+            req_bytes = json.dumps(payload_dict).encode("utf-8")
+            st1, h1, b1 = probe(login_ep, method="POST", headers=req_hdrs, body=req_bytes)
+            _record_redacted_har("POST", f"{base_url}{login_ep}", req_hdrs, req_bytes, st1, h1)
+            aut01_attempts += 1
+            if login_ep == "/rest/user/login" and cred_user == "admin@juice-sh.op":
+                l_status = st1
+                l_hdrs = h1
+
+            issuance_token = ""
+            if 200 <= st1 < 300 and not _check_spa(b1):
+                try:
+                    parsed_b1 = json.loads(b1)
+                    issuance_token = (
+                        parsed_b1.get("authentication", {}).get("token", "")
+                        or parsed_b1.get("token", "")
+                        or parsed_b1.get("access_token", "")
+                    )
+                except Exception:
+                    issuance_token = ""
+                has_set_cookie = bool(h1.get("set-cookie"))
+                if issuance_token or has_set_cookie:
+                    if not jwt_token and issuance_token:
+                        jwt_token = issuance_token
+                        l_hdrs = h1
+                        l_status = st1
+                    masked_pw = f"{cred_pass[:2]}***({len(cred_pass)}ch)"
+                    kind_lbl = "product_vendor_default" if (cred_user, cred_pass) in product_set else "generic_default_credential"
+                    aut01_findings.append(
+                        {
+                            "url": f"{base_url}{login_ep}",
+                            "endpoint": login_ep,
+                            "account": cred_user,
+                            "maskedPassword": masked_pw,
+                            "kind": kind_lbl,
+                            "status": st1,
+                            "detail": (
+                                f"POST {base_url}{login_ep} authenticated {kind_lbl} account "
+                                f"'{cred_user}' / '{masked_pw}' -> HTTP {st1} (issued session token len={len(issuance_token)})"
+                            ),
+                        }
+                    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "aut01-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-aut01-harness", "version": "3.0"},
+                    "entries": harness_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af1 in aut01_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AUT-01",
+                "level": "error",
+                "message": {"text": af1["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af1["url"]}}}],
+                "properties": {
+                    "controlId": "AUT-01",
+                    "account": af1["account"],
+                    "credentialCategory": af1["kind"],
+                    "httpStatus": af1["status"],
+                },
+            }
+        )
+
+    aut01_fail = len(aut01_findings) > 0
+    return {
+        "verdict": "FAIL" if aut01_fail else "PASS",
+        "aut01_fail": aut01_fail,
+        "attempts": aut01_attempts,
+        "corpusCount": len(aut01_corpus),
+        "activeLoginSurfaces": active_login_surfaces,
+        "corpusPath": str(SECLISTS_AUT01_CREDS),
+        "harPath": str(har_file),
+        "jwtToken": jwt_token,
+        "loginHeaders": l_hdrs,
+        "loginStatus": l_status,
+        "findings": aut01_findings,
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -7922,138 +8201,33 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 5: Authentication & Session Management (AUT-01 .. AUT-08) ----
-    # AUT-01: Default, shared & product-derived vendor credential replay harness (SARIF 2.1.0 + redacted HAR 1.2)
-    generic_default_corpus = [
-        ("admin", "admin"),
-        ("admin@example.com", "admin"),
-        ("administrator", "administrator"),
-        ("root", "root"),
-        ("test", "test"),
-        ("guest", "guest"),
-        ("user", "password"),
-        ("demo", "demo"),
-    ]
-    is_juice_shop_target = "juice shop" in root_body.lower() or "juice-sh.op" in root_body.lower() or (repo / "data" / "static" / "users.yml").exists()
-    product_default_corpus = (
-        [
-            ("admin@juice-sh.op", "admin123"),
-            ("jim@juice-sh.op", "ncc-1701"),
-            ("bender@juice-sh.op", "OhG0dPlease1nsertLiquor!"),
-            ("mc.safesearch@juice-sh.op", "Mr. N00dles"),
-        ]
-        if is_juice_shop_target
-        else []
+    # AUT-01: SecLists Default Credentials & Product-Derived Vendor Replay Harness (SARIF 2.1.0 + redacted HAR 1.2)
+    aut01_eval = evaluate_aut01_default_credentials(
+        base_url,
+        repo=repo,
+        root_body=root_body,
+        cfg03_findings=cfg03_findings,
+        is_spa_fallback_fn=is_spa_fallback,
+        http_probe_fn=http_probe,
     )
-    aut01_corpus = product_default_corpus + generic_default_corpus
-
-    # Identify active login surfaces (avoiding SPA HTML catch-all false positives)
-    aut01_login_endpoints = ["/rest/user/login", "/api/login", "/auth/login"]
-    active_login_surfaces: list[str] = []
-    for lp in aut01_login_endpoints:
-        st_chk, hdrs_chk, body_chk = http_probe(
-            lp,
-            method="POST",
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"email": "__casa3_nonexistent__", "password": "__invalid__"}).encode("utf-8"),
-        )
-        ctype_chk = hdrs_chk.get("content-type", "").lower()
-        if lp == "/rest/user/login" or (st_chk in {400, 401, 403, 422} and not is_spa_fallback(body_chk)) or ("application/json" in ctype_chk and st_chk != 404):
-            active_login_surfaces.append(lp)
-
-    if not active_login_surfaces:
-        active_login_surfaces = ["/rest/user/login"]
-
-    jwt_token = ""
-    l_hdrs: dict[str, str] = {}
-    l_status = 0
-    aut01_findings: list[dict] = []
-    aut01_attempts = 0
-
-    for login_ep in active_login_surfaces:
-        for cred_user, cred_pass in aut01_corpus:
-            payload_dict = (
-                {"email": cred_user, "password": cred_pass}
-                if ("@" in cred_user or login_ep == "/rest/user/login")
-                else {"username": cred_user, "password": cred_pass}
-            )
-            st1, h1, b1 = http_probe(
-                login_ep,
-                method="POST",
-                headers={"Content-Type": "application/json"},
-                body=json.dumps(payload_dict).encode("utf-8"),
-            )
-            aut01_attempts += 1
-            if login_ep == "/rest/user/login" and cred_user == "admin@juice-sh.op":
-                l_status = st1
-                l_hdrs = h1
-
-            issuance_token = ""
-            if 200 <= st1 < 300 and not is_spa_fallback(b1):
-                try:
-                    parsed_b1 = json.loads(b1)
-                    issuance_token = (
-                        parsed_b1.get("authentication", {}).get("token", "")
-                        or parsed_b1.get("token", "")
-                        or parsed_b1.get("access_token", "")
-                    )
-                except Exception:
-                    issuance_token = ""
-                has_set_cookie = bool(h1.get("set-cookie"))
-                if issuance_token or has_set_cookie:
-                    if not jwt_token and issuance_token:
-                        jwt_token = issuance_token
-                        l_hdrs = h1
-                        l_status = st1
-                    masked_pw = f"{cred_pass[:2]}***({len(cred_pass)}ch)"
-                    kind_lbl = "product_vendor_default" if (cred_user, cred_pass) in product_default_corpus else "generic_default_credential"
-                    aut01_findings.append(
-                        {
-                            "url": f"{base_url}{login_ep}",
-                            "endpoint": login_ep,
-                            "account": cred_user,
-                            "maskedPassword": masked_pw,
-                            "kind": kind_lbl,
-                            "status": st1,
-                            "detail": (
-                                f"POST {base_url}{login_ep} authenticated {kind_lbl} account "
-                                f"'{cred_user}' / '{masked_pw}' -> HTTP {st1} (issued session token len={len(issuance_token)})"
-                            ),
-                        }
-                    )
-
-    for af1 in aut01_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AUT-01",
-                "level": "error",
-                "message": {"text": af1["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af1["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AUT-01",
-                    "account": af1["account"],
-                    "credentialCategory": af1["kind"],
-                    "httpStatus": af1["status"],
-                },
-            }
-        )
-
-    aut01_fail = len(aut01_findings) > 0
+    jwt_token = aut01_eval["jwtToken"]
+    l_hdrs = aut01_eval["loginHeaders"]
+    l_status = aut01_eval["loginStatus"]
+    active_login_surfaces = aut01_eval["activeLoginSurfaces"]
+    aut01_findings = aut01_eval["findings"]
+    aut01_attempts = aut01_eval["attempts"]
+    dast_sarif_results.extend(aut01_eval["sarifResults"])
+    aut01_fail = aut01_eval["aut01_fail"]
     aut01_lines = [af1["detail"] for af1 in aut01_findings]
     results["AUT-01"] = {
         "verdict": "FAIL" if aut01_fail else "PASS",
-        "tool": f"Default & Vendor Credential Replay Harness ({aut01_attempts} attempts across {len(active_login_surfaces)} login surface(s), SARIF 2.1.0 + redacted HAR 1.2)",
+        "tool": f"SecLists Default Credentials & Vendor Replay Harness ({aut01_attempts} attempts across {len(active_login_surfaces)} login surface(s), SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] {len(aut01_findings)}/{len(aut01_corpus)} default/vendor credential pair(s) authenticated across {active_login_surfaces}:\n  - "
+            f"[FAIL] {len(aut01_findings)}/{aut01_eval['corpusCount']} default/vendor credential pair(s) authenticated across {active_login_surfaces}:\n  - "
             + "\n  - ".join(aut01_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - SecLists Corpus: {aut01_eval['corpusPath']}\n  - AUT-01 Redacted HAR 1.2: {aut01_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if aut01_fail
-            else f"[PASS] Replayed {aut01_attempts} default/vendor credential probes across {active_login_surfaces}; 0 credential pairs authenticated.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] SecLists & vendor replay harness replayed {aut01_attempts} probes across {active_login_surfaces}; 0 credential pairs authenticated.\nEvidence Artifacts:\n  - SecLists Corpus: {aut01_eval['corpusPath']}\n  - AUT-01 Redacted HAR 1.2: {aut01_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

@@ -2003,3 +2003,49 @@ CONTROLE 39/61: AUT-04 (Iteração SDD 109)
     `GET /rest/user/change-password` e de `#access_token=` em
     `frontend/src/app/app.routing.ts` e `oauth.component.ts` -> Veredito **`FAIL`**.
 ================================================================================
+
+
+================================================================================
+CONTROLE 40/61: AUT-05 (Iteração SDD 110)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 5 - AUTH & SESSION)
+--------------------------------------------------------------------------------
+- Controle: `AUT-05` — *Logout invalidates the session server-side, including
+  refresh tokens* (ASVS V3.3.1 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **Harness automatizado** (*scripted harness*) que realiza logout e reproduz
+    tanto o cookie/token de sessão quanto o refresh token contra rotas protegidas
+    e endpoints de renovação, com evidências em SARIF 2.1.0 (`CASA3-AUT-05`) e
+    captura HAR 1.2 redigida (`output/aut05-replayed.har`).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 110`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  O harness de `AUT-05` estava inline em `run_dynamic_and_protocol_checks`, não
+  extraía cookies de sessão ou refresh tokens via `Set-Cookie`, não enviava o
+  `refresh_token` no payload dos endpoints POST `/logout` para validar revogação
+  simultânea e não persistia um HAR 1.2 próprio redigido nem permitia testes
+  unitários diretos por cenário.
+- O que foi feito e melhorado na Iteração SDD 110:
+  1) Extração de `evaluate_aut05_logout_invalidation(...)` reutilizando
+     `_extract_session_cookies` para capturar sessão e refresh tokens (JSON e
+     `Set-Cookie`), disparar sondas de logout com filtro anti-SPA e reproduzir
+     sessão + refresh token pós-logout em rotas protegidas e `/refresh`.
+  2) Geração do HAR 1.2 dedicado `output/aut05-replayed.har` com cabeçalhos e
+     campos JSON sensíveis (`password`, `token`, `refresh_token`) redigidos com
+     `[REDACTED]`, além de preservação de `aut05_token`, `aut05_replayed_token`
+     e `aut05_post_logout_accepted` para os controles `AUT-06..AUT-08` e `AZI/OAU`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration110_aut05_guide_tooling`):
+  * **`PASS`** apenas quando o logout revoga simultaneamente sessão e refresh
+    token (`401`), com `[REDACTED]` validado no HAR.
+  * **`FAIL`** quando o cookie/token de sessão continua aceito pós-logout e
+    também quando apenas a sessão é revogada mas o `refresh_token` segue válido.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Ausência de rota real `/logout` no servidor (SPA catch-all / `500`) e aceitação
+    integral (`HTTP 200`) nos 3 replays pós-logout (`/rest/wallet/balance`,
+    `/rest/basket/{bid}`, `/rest/user/whoami`) -> Veredito **`FAIL`**.
+================================================================================

@@ -3269,6 +3269,162 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 39/61: AUT-04 (Iteração SDD 109)", just2_txt)
 
+    def test_iteration110_aut05_guide_tooling(self) -> None:
+        import secrets
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_aut05_logout_invalidation
+
+        class _Aut05Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "revokes_both"
+            active_sessions: set[str] = set()
+            active_refresh: set[str] = set()
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def _read_body(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                return self.rfile.read(length) if length else b""
+
+            def _extract_presented_tokens(self):
+                tokens = set()
+                cookie_hdr = self.headers.get("Cookie", "")
+                for part in cookie_hdr.split(";"):
+                    if "=" in part:
+                        tokens.add(part.split("=", 1)[1].strip())
+                auth_hdr = self.headers.get("Authorization", "")
+                if auth_hdr.startswith("Bearer "):
+                    tokens.add(auth_hdr.split(" ", 1)[1].strip())
+                return tokens
+
+            def do_GET(self):
+                p = self.path.split("?", 1)[0]
+                if p == "/rest/wallet/balance":
+                    ok = bool(self._extract_presented_tokens() & type(self).active_sessions)
+                    body = b'{"status":"success","data":{"balance":100}}' if ok else b'{"error":"Unauthorized"}'
+                    self.send_response(200 if ok else 401)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p == "/rest/user/whoami":
+                    ok = bool(self._extract_presented_tokens() & type(self).active_sessions)
+                    body = b'{"user":{"email":"u@example.com"}}' if ok else b'{"user":{}}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p in {"/rest/user/logout", "/logout", "/rest/saveLoginIp"}:
+                    self.send_response(405)
+                    self.end_headers()
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+            def do_POST(self):
+                raw = self._read_body()
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                if p == "/rest/user/login":
+                    sess = "sess_" + secrets.token_hex(12)
+                    ref = "ref_" + secrets.token_hex(12)
+                    type(self).active_sessions = {sess}
+                    type(self).active_refresh = {ref}
+                    body = json.dumps({"token": sess, "refresh_token": ref}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Set-Cookie", f"sid={sess}; Path=/; HttpOnly")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p == "/api/logout":
+                    if m == "revokes_both":
+                        type(self).active_sessions.clear()
+                        type(self).active_refresh.clear()
+                    elif m == "refresh_survives":
+                        type(self).active_sessions.clear()
+                    # session_survives leaves both active
+                    body = b'{"loggedOut":true}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p == "/rest/user/refresh":
+                    try:
+                        req_j = json.loads(raw.decode("utf-8", errors="ignore") or "{}")
+                    except Exception:
+                        req_j = {}
+                    presented_ref = req_j.get("refresh_token", "")
+                    if presented_ref and presented_ref in type(self).active_refresh:
+                        body = json.dumps({"token": "new_" + secrets.token_hex(12)}).encode("utf-8")
+                        self.send_response(200)
+                    else:
+                        body = b'{"error":"Refresh token revoked"}'
+                        self.send_response(401)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Aut05Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_aut5:
+            tdp = Path(td_aut5)
+            try:
+                # 1. Server revokes BOTH session & refresh token on logout -> PASS + redacted HAR
+                _Aut05Handler.mode = "revokes_both"
+                har_pass = tdp / "aut05_pass.har"
+                r_pass = evaluate_aut05_logout_invalidation(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("u@example.com", "LogoutSecret!1"),
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["serverLogoutFound"])
+                har_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("LogoutSecret!1", har_txt)
+
+                # 2. Session token/cookie still accepted after logout -> FAIL
+                _Aut05Handler.mode = "session_survives"
+                r_sess = evaluate_aut05_logout_invalidation(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("u@example.com", "LogoutSecret!1"),
+                    har_out_path=tdp / "aut05_sess.har",
+                )
+                self.assertEqual(r_sess["verdict"], "FAIL")
+                self.assertTrue(any(f["channel"] == "post_logout_session_replay" for f in r_sess["findings"]))
+
+                # 3. Session token revoked, yet refresh token STILL accepted after logout -> FAIL
+                _Aut05Handler.mode = "refresh_survives"
+                r_ref = evaluate_aut05_logout_invalidation(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("u@example.com", "LogoutSecret!1"),
+                    har_out_path=tdp / "aut05_ref.har",
+                )
+                self.assertEqual(r_ref["verdict"], "FAIL")
+                self.assertTrue(any(f["channel"] == "post_logout_refresh_replay" for f in r_ref["findings"]))
+                self.assertTrue(any(s["ruleId"] == "CASA3-AUT-05" for s in r_ref["sarifResults"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 40/61: AUT-05 (Iteração SDD 110)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

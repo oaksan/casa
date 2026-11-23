@@ -8329,6 +8329,287 @@ def evaluate_aut04_url_token_leak(
     }
 
 
+def evaluate_aut05_logout_invalidation(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    login_endpoint: str = "/rest/user/login",
+    login_body: bytes | None = None,
+    credentials: tuple[str, str] | None = None,
+    fallback_token: str = "",
+    protected_endpoints: list[str] | None = None,
+    refresh_endpoints: list[str] | None = None,
+    logout_endpoints: list[tuple[str, str]] | None = None,
+    is_spa_fallback_fn=None,
+    har_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate AUT-05 (ASVS V3.3.1) via active logout + post-logout session & refresh token replay harness."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    local_har_entries: list[dict] = []
+
+    def _redact_body_str(raw_b: bytes | None) -> str:
+        if not raw_b:
+            return ""
+        txt = raw_b.decode("utf-8", errors="ignore")
+        return re.sub(
+            r'("(?:password|passwd|secret|token|refresh_token|refreshToken|access_token)"\s*:\s*)"[^"]*"',
+            r'\1"[REDACTED]"',
+            txt,
+            flags=re.IGNORECASE,
+        )
+
+    def _record_har(method: str, url: str, req_hdrs: dict[str, str], req_body: bytes | None, st: int, resp_hdrs: dict[str, str], elapsed_ms: float) -> None:
+        sens = {"authorization", "cookie", "set-cookie", "x-api-key"}
+        entry: dict = {
+            "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "time": elapsed_ms,
+            "request": {
+                "method": method,
+                "url": url,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {
+                        "name": k,
+                        "value": (
+                            f"{v.split(' ', 1)[0]} [REDACTED]"
+                            if k.lower() == "authorization" and " " in str(v)
+                            else ("[REDACTED]" if k.lower() in sens else v)
+                        ),
+                    }
+                    for k, v in req_hdrs.items()
+                ],
+            },
+            "response": {
+                "status": st,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {"name": k, "value": "[REDACTED]" if k.lower() in sens else v}
+                    for k, v in resp_hdrs.items()
+                ],
+            },
+        }
+        if req_body:
+            entry["request"]["postData"] = {"mimeType": "application/json", "text": _redact_body_str(req_body)}
+        local_har_entries.append(entry)
+
+    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        try:
+            with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
+                hdrs = {k.lower(): v for k, v in resp.headers.items()}
+                all_sc = resp.headers.get_all("Set-Cookie") or []
+                if all_sc:
+                    hdrs["set-cookie"] = ", ".join(all_sc)
+                return resp.status, hdrs, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            hdrs = {k.lower(): v for k, v in he.headers.items()}
+            all_sc = he.headers.get_all("Set-Cookie") or []
+            if all_sc:
+                hdrs["set-cookie"] = ", ".join(all_sc)
+            return he.code, hdrs, he.read(16384).decode("utf-8", errors="ignore")
+        except Exception:
+            return 0, {}, ""
+
+    raw_probe = http_probe_fn or _default_probe
+
+    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        t0 = time.monotonic()
+        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        _record_har(method, url, headers or {}, body, st, hdrs, round((time.monotonic() - t0) * 1000, 1))
+        return st, hdrs, rbody
+
+    spa_check = is_spa_fallback_fn or (lambda txt: "<app-root" in txt.lower())
+    insec_file = (repo / "lib" / "insecurity.ts") if repo is not None else None
+    insec_txt = insec_file.read_text(encoding="utf-8", errors="ignore") if (insec_file and insec_file.exists()) else ""
+
+    if login_body is not None:
+        auth_body = login_body
+    elif credentials is not None:
+        auth_body = json.dumps({"email": credentials[0], "password": credentials[1]}).encode("utf-8")
+    else:
+        auth_body = json.dumps({"email": "admin@juice-sh.op", "password": "admin123"}).encode("utf-8")
+
+    aut05_token = fallback_token
+    aut05_refresh_token = ""
+    session_cookies: list[tuple[str, str]] = []
+    try:
+        r5_st, r5_hdrs, r5_body = _probe_logged(
+            login_endpoint,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=auth_body,
+        )
+        if 200 <= r5_st < 300:
+            try:
+                j5 = json.loads(r5_body)
+            except Exception:
+                j5 = {}
+            if isinstance(j5, dict):
+                fresh5 = j5.get("authentication", {}).get("token", "") or j5.get("token", "") or j5.get("access_token", "")
+                if fresh5:
+                    aut05_token = fresh5
+                aut05_refresh_token = (
+                    j5.get("refresh_token", "")
+                    or j5.get("refreshToken", "")
+                    or j5.get("authentication", {}).get("refreshToken", "")
+                    or j5.get("authentication", {}).get("refresh_token", "")
+                )
+            for ck_n, ck_v in _extract_session_cookies(r5_hdrs.get("set-cookie", ""), include_all=False):
+                low_ck = ck_n.lower()
+                if "refresh" in low_ck:
+                    if not aut05_refresh_token:
+                        aut05_refresh_token = ck_v
+                else:
+                    session_cookies.append((ck_n, ck_v))
+                    if not aut05_token:
+                        aut05_token = ck_v
+    except Exception:
+        pass
+
+    logout_eps = logout_endpoints or [
+        ("POST", "/rest/user/logout"),
+        ("GET", "/rest/user/logout"),
+        ("POST", "/api/logout"),
+        ("POST", "/auth/logout"),
+        ("GET", "/logout"),
+        ("GET", "/rest/saveLoginIp"),
+    ]
+    prot_eps = protected_endpoints or ["/rest/wallet/balance", "/rest/user/whoami"]
+    ref_eps = refresh_endpoints or ["/rest/user/refresh", "/api/token/refresh", "/oauth/token"]
+
+    logout_endpoints_tried: list[str] = []
+    server_logout_found = False
+    aut05_replay_hits: list[dict] = []
+
+    if aut05_token or session_cookies:
+        cookie_pairs = list(session_cookies)
+        if aut05_token and all(v != aut05_token for _, v in cookie_pairs):
+            cookie_pairs.append(("token", aut05_token))
+        if aut05_refresh_token:
+            cookie_pairs.append(("refresh_token", aut05_refresh_token))
+        cookie_hdr = "; ".join(f"{k}={v}" for k, v in cookie_pairs)
+        aut05_hdrs: dict[str, str] = {"Cookie": cookie_hdr}
+        if aut05_token:
+            aut05_hdrs["Authorization"] = f"Bearer {aut05_token}"
+
+        for lmth, lep in logout_eps:
+            l_req_hdrs = dict(aut05_hdrs)
+            l_req_body = None
+            if lmth == "POST" and aut05_refresh_token:
+                l_req_hdrs["Content-Type"] = "application/json"
+                l_req_body = json.dumps({"refresh_token": aut05_refresh_token, "refreshToken": aut05_refresh_token}).encode("utf-8")
+            lst, _, lbody = _probe_logged(lep, method=lmth, headers=l_req_hdrs, body=l_req_body)
+            spa_hit = spa_check(lbody)
+            is_real_api = (200 <= lst < 400) and not spa_hit
+            logout_endpoints_tried.append(f"{lmth} {lep} -> HTTP {lst}{' (SPA catch-all)' if spa_hit else ''}")
+            if is_real_api and "logout" in lep:
+                server_logout_found = True
+
+        # Replay session token/cookie after logout against protected routes
+        for p_ep in prot_eps:
+            pst, _, pbody = _probe_logged(p_ep, headers=aut05_hdrs)
+            accepted = (200 <= pst < 300) and not spa_check(pbody) and (
+                p_ep != "/rest/user/whoami" or '"email"' in pbody.lower()
+            )
+            if accepted:
+                aut05_replay_hits.append(
+                    {
+                        "url": f"{base_url}{p_ep}",
+                        "status": pst,
+                        "channel": "post_logout_session_replay",
+                        "detail": (
+                            f"GET {base_url}{p_ep} returned HTTP {pst} when replaying Bearer/Cookie session token after logout "
+                            f"({'no server-side /logout route (client-only token removal)' if not server_logout_found else 'server failed to revoke token'})"
+                        ),
+                    }
+                )
+
+        # Replay refresh token after logout against refresh endpoints
+        if aut05_refresh_token:
+            for ref_ep in ref_eps:
+                rst, r_hdrs, rbody = _probe_logged(
+                    ref_ep,
+                    method="POST",
+                    headers={"Content-Type": "application/json", "Cookie": cookie_hdr},
+                    body=json.dumps({"refresh_token": aut05_refresh_token, "refreshToken": aut05_refresh_token}).encode("utf-8"),
+                )
+                has_new_tok = ("token" in rbody.lower()) or bool(_extract_session_cookies(r_hdrs.get("set-cookie", "")))
+                if 200 <= rst < 300 and not spa_check(rbody) and has_new_tok:
+                    aut05_replay_hits.append(
+                        {
+                            "url": f"{base_url}{ref_ep}",
+                            "status": rst,
+                            "channel": "post_logout_refresh_replay",
+                            "detail": f"POST {base_url}{ref_ep} accepted refresh token after logout (HTTP {rst}).",
+                        }
+                    )
+
+    stateless_no_revoke = bool(insec_txt) and "jwt.sign(" in insec_txt and "blacklist" not in insec_txt.lower() and "revoke" not in insec_txt.lower()
+    if not aut05_replay_hits and stateless_no_revoke:
+        aut05_replay_hits.append(
+            {
+                "url": f"{base_url}{login_endpoint}",
+                "status": 200,
+                "channel": "stateless_jwt_no_revocation",
+                "detail": "lib/insecurity.ts signs stateless JWTs without a server-side revocation list or blacklist.",
+            }
+        )
+
+    har_file = har_out_path or (OUTPUT_DIR / "aut05-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-aut05-logout-harness", "version": "3.0"},
+                    "entries": local_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for ah5 in aut05_replay_hits:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AUT-05",
+                "level": "error",
+                "message": {"text": ah5["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": ah5["url"]}}}],
+                "properties": {
+                    "controlId": "AUT-05",
+                    "httpStatus": ah5["status"],
+                    "channel": ah5.get("channel", "post_logout_replay"),
+                    "serverLogoutRouteFound": server_logout_found,
+                },
+            }
+        )
+
+    aut05_post_logout_accepted = len(aut05_replay_hits) > 0
+    return {
+        "verdict": "FAIL" if aut05_post_logout_accepted else "PASS",
+        "aut05_fail": aut05_post_logout_accepted,
+        "token": aut05_token,
+        "refreshToken": aut05_refresh_token,
+        "serverLogoutFound": server_logout_found,
+        "logoutProbes": logout_endpoints_tried,
+        "findings": aut05_replay_hits,
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -9184,120 +9465,32 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     # AUT-05: Logout invalidates session & refresh token server-side (Active Logout Replay Harness, SARIF 2.1.0 + redacted HAR 1.2)
     insec_file = repo / "lib" / "insecurity.ts"
     insec_txt = insec_file.read_text(encoding="utf-8", errors="ignore") if insec_file.exists() else ""
-    aut05_token = auth_token or post_token3 or jwt_token
-    aut05_refresh_token = ""
-    try:
-        r5_st, _, r5_body = http_probe(
-            aut02_login_ep,
-            method="POST",
-            headers={"Content-Type": "application/json"},
-            body=aut02_body,
-        )
-        if 200 <= r5_st < 300:
-            j5 = json.loads(r5_body)
-            fresh5 = j5.get("authentication", {}).get("token", "") or j5.get("token", "") or j5.get("access_token", "")
-            if fresh5:
-                aut05_token = fresh5
-            aut05_refresh_token = j5.get("refresh_token", "") or j5.get("authentication", {}).get("refreshToken", "")
-    except Exception:
-        pass
-
-    logout_endpoints_tried: list[str] = []
-    server_logout_found = False
-    aut05_replay_hits: list[dict] = []
-    if aut05_token:
-        aut05_hdrs = {"Authorization": f"Bearer {aut05_token}", "Cookie": f"token={aut05_token}"}
-        # Invoke common backend logout endpoints + Juice Shop client-logout call (/rest/saveLoginIp)
-        for lmth, lep in [
-            ("POST", "/rest/user/logout"),
-            ("GET", "/rest/user/logout"),
-            ("POST", "/api/logout"),
-            ("POST", "/auth/logout"),
-            ("GET", "/logout"),
-            ("GET", "/rest/saveLoginIp"),
-        ]:
-            lst, _, lbody = http_probe(lep, method=lmth, headers=aut05_hdrs)
-            is_real_api = (200 <= lst < 400) and not is_spa_fallback(lbody)
-            logout_endpoints_tried.append(f"{lmth} {lep} -> HTTP {lst}{' (SPA catch-all)' if is_spa_fallback(lbody) else ''}")
-            if is_real_api and "logout" in lep:
-                server_logout_found = True
-
-        # Replay captured session token/cookie after logout against protected routes
-        for p_ep in ["/rest/wallet/balance", f"/rest/basket/{auth_bid}", "/rest/user/whoami"]:
-            pst, _, pbody = http_probe(p_ep, headers=aut05_hdrs)
-            accepted = (200 <= pst < 300) and (p_ep != "/rest/user/whoami" or '"email"' in pbody.lower())
-            if accepted:
-                aut05_replay_hits.append(
-                    {
-                        "url": f"{base_url}{p_ep}",
-                        "status": pst,
-                        "detail": (
-                            f"GET {base_url}{p_ep} returned HTTP {pst} when replaying Bearer/Cookie session token after logout "
-                            f"({'no server-side /logout route (client-only token removal)' if not server_logout_found else 'server failed to revoke token'})"
-                        ),
-                    }
-                )
-
-        if aut05_refresh_token:
-            for ref_ep in ["/rest/user/refresh", "/api/token/refresh", "/oauth/token"]:
-                rst, _, rbody = http_probe(
-                    ref_ep,
-                    method="POST",
-                    headers={"Content-Type": "application/json"},
-                    body=json.dumps({"refresh_token": aut05_refresh_token}).encode("utf-8"),
-                )
-                if 200 <= rst < 300 and not is_spa_fallback(rbody) and "token" in rbody.lower():
-                    aut05_replay_hits.append(
-                        {
-                            "url": f"{base_url}{ref_ep}",
-                            "status": rst,
-                            "detail": f"POST {base_url}{ref_ep} accepted refresh token after logout (HTTP {rst}).",
-                        }
-                    )
-
-    stateless_no_revoke = "jwt.sign(" in insec_txt and "blacklist" not in insec_txt.lower() and "revoke" not in insec_txt.lower()
-    if not aut05_replay_hits and stateless_no_revoke:
-        aut05_replay_hits.append(
-            {
-                "url": f"{base_url}/rest/user/login",
-                "status": 200,
-                "detail": "lib/insecurity.ts signs stateless JWTs without a server-side revocation list or blacklist.",
-            }
-        )
-
-    for ah5 in aut05_replay_hits:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AUT-05",
-                "level": "error",
-                "message": {"text": ah5["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": ah5["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AUT-05",
-                    "httpStatus": ah5["status"],
-                    "serverLogoutRouteFound": server_logout_found,
-                },
-            }
-        )
-
-    aut05_post_logout_accepted = len(aut05_replay_hits) > 0
+    aut05_eval = evaluate_aut05_logout_invalidation(
+        base_url,
+        repo=repo,
+        login_endpoint=aut02_login_ep,
+        login_body=aut02_body,
+        fallback_token=auth_token or post_token3 or jwt_token,
+        protected_endpoints=["/rest/wallet/balance", f"/rest/basket/{auth_bid}", "/rest/user/whoami"],
+        is_spa_fallback_fn=is_spa_fallback,
+        http_probe_fn=http_probe,
+    )
+    aut05_token = aut05_eval["token"]
     aut05_replayed_token = aut05_token
+    aut05_replay_hits = aut05_eval["findings"]
+    logout_endpoints_tried = aut05_eval["logoutProbes"]
+    dast_sarif_results.extend(aut05_eval["sarifResults"])
+    aut05_post_logout_accepted = aut05_eval["aut05_fail"]
     aut05_lines = [ah5["detail"] for ah5 in aut05_replay_hits]
     results["AUT-05"] = {
-        "verdict": "FAIL" if aut05_post_logout_accepted else "PASS",
+        "verdict": aut05_eval["verdict"],
         "tool": f"Active Post-Logout Session & Refresh Replay Harness ({len(logout_endpoints_tried)} logout probes, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
             f"[FAIL] {len(aut05_replay_hits)} post-logout session replay violation(s) confirmed (logout probes: {'; '.join(logout_endpoints_tried)}):\n  - "
             + "\n  - ".join(aut05_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AUT-05 Redacted HAR 1.2: {aut05_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if aut05_post_logout_accepted
-            else f"[PASS] Invoked logout ({'; '.join(logout_endpoints_tried)}) and replayed session/refresh tokens against protected routes; all replays denied.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] Invoked logout ({'; '.join(logout_endpoints_tried)}) and replayed session/refresh tokens against protected routes; all replays denied.\nEvidence Artifacts:\n  - AUT-05 Redacted HAR 1.2: {aut05_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

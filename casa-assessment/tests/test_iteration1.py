@@ -3425,6 +3425,132 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 40/61: AUT-05 (Iteração SDD 110)", just2_txt)
 
+    def test_iteration111_aut06_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_aut06_session_cookie_flags
+
+        class _Aut06Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "strict"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                if p == "/" or p == "/rest/user/whoami":
+                    body = b'<html><body><a href="/rest/user/whoami">whoami</a></body></html>' if p == "/" else b'{"user":{"email":"u@example.com"}}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8" if p == "/" else "application/json; charset=utf-8")
+                    if m == "strict":
+                        self.send_header("Set-Cookie", "sid=strict_tok_123456; Path=/; Secure; HttpOnly; SameSite=Strict")
+                        self.send_header("Set-Cookie", "prefs=dark; Path=/")
+                    elif m == "insecure_cookie":
+                        self.send_header("Set-Cookie", "sessionid=weak_tok_123456; Path=/")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                body = b'{"error":"Not found"}'
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                if length:
+                    self.rfile.read(length)
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                if p == "/rest/user/login":
+                    if m == "strict":
+                        body = b'{"status":"ok"}'
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Set-Cookie", "sid=strict_tok_123456; Path=/; Secure; HttpOnly; SameSite=Strict")
+                        self.send_header("Set-Cookie", "prefs=dark; Path=/")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                        return
+                    if m == "insecure_cookie":
+                        body = b'{"status":"ok"}'
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Set-Cookie", "sessionid=weak_tok_123456; Path=/")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                        return
+                    body = b'{"authentication":{"token":"json_only_no_cookie_123456"}}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Aut06Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_aut6:
+            tdp = Path(td_aut6)
+            try:
+                # 1. Strict Secure + HttpOnly + SameSite=Strict on session cookie (benign prefs cookie ignored) -> PASS + real OWASP ZAP
+                _Aut06Handler.mode = "strict"
+                har_pass = tdp / "aut06_pass.har"
+                r_pass = evaluate_aut06_session_cookie_flags(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("u@example.com", "CookieSecret!1"),
+                    json_out_path=tdp / "zap_a6_pass.json",
+                    sarif_out_path=tdp / "zap_a6_pass.sarif",
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["zap"]["executed"])
+                har_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("CookieSecret!1", har_txt)
+
+                # 2. Session cookie without Secure / HttpOnly / SameSite -> FAIL via real OWASP ZAP (10010/10054) + parser
+                _Aut06Handler.mode = "insecure_cookie"
+                r_weak = evaluate_aut06_session_cookie_flags(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("u@example.com", "CookieSecret!1"),
+                    json_out_path=tdp / "zap_a6_weak.json",
+                    sarif_out_path=tdp / "zap_a6_weak.sarif",
+                    har_out_path=tdp / "aut06_weak.har",
+                )
+                self.assertEqual(r_weak["verdict"], "FAIL")
+                self.assertTrue(
+                    bool({"10010", "10011", "10054"} & set(r_weak["zapPluginsMatched"])),
+                    f"Expected ZAP 10010/10011/10054 in {r_weak}",
+                )
+
+                # 3. JSON token with zero server Set-Cookie headers -> FAIL
+                _Aut06Handler.mode = "json_only"
+                r_json = evaluate_aut06_session_cookie_flags(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("u@example.com", "CookieSecret!1"),
+                    zap_report=r_pass["zap"],
+                    har_out_path=tdp / "aut06_json.har",
+                )
+                self.assertEqual(r_json["verdict"], "FAIL")
+                self.assertTrue(any(s["ruleId"] == "CASA3-AUT-06" for s in r_json["sarifResults"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 41/61: AUT-06 (Iteração SDD 111)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

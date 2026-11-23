@@ -2049,3 +2049,51 @@ CONTROLE 40/61: AUT-05 (Iteração SDD 110)
     integral (`HTTP 200`) nos 3 replays pós-logout (`/rest/wallet/balance`,
     `/rest/basket/{bid}`, `/rest/user/whoami`) -> Veredito **`FAIL`**.
 ================================================================================
+
+
+================================================================================
+CONTROLE 41/61: AUT-06 (Iteração SDD 111)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 5 - AUTH & SESSION)
+--------------------------------------------------------------------------------
+- Controle: `AUT-06` — *Session cookies set `Secure`, `HttpOnly` and `SameSite`
+  (`Lax` or `Strict`)* (ASVS V3.4.1, V3.4.2, V3.4.3 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (ou Burp Suite) identificando os cookies de sessão no crawl
+    autenticado e inspecionando todo cabeçalho `Set-Cookie` quanto aos atributos
+    `Secure`, `HttpOnly` e `SameSite=Lax|Strict`, com evidências em SARIF 2.1.0
+    (`CASA3-AUT-06`) e HAR 1.2 redigido (`output/aut06-replayed.har`).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 111`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação de `AUT-06` executava inline em `run_dynamic_and_protocol_checks`,
+  não habilitava as regras passivas de cookies do ZAP (`10010` Cookie No HttpOnly
+  Flag, `10011` Cookie Without Secure Flag e `10054` Cookie without SameSite
+  Attribute), `http_probe` sobrescrevia múltiplos `Set-Cookie` mantendo apenas o
+  último cabeçalho na resposta e não havia geração de HAR 1.2 isolado.
+- O que foi feito e melhorado na Iteração SDD 111:
+  1) Habilitação das regras passivas `10010`, `10011` e `10054` em
+     `run_zap_automation` e preservação de múltiplos cabeçalhos `Set-Cookie` via
+     `headers.get_all("Set-Cookie")` em `http_probe`.
+  2) Extração de `evaluate_aut06_session_cookie_flags(...)` integrando alertas do
+     OWASP ZAP filtrados para cookies de sessão, parser de atributos (`Secure`,
+     `HttpOnly`, `SameSite=Lax|Strict`), verificação de dependência comportamental
+     do cookie no backend, auditoria client-side JS e persistência do HAR 1.2
+     redigido `output/aut06-replayed.har`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration111_aut06_guide_tooling`):
+  * **`PASS`** com `Set-Cookie` de sessão portando `Secure; HttpOnly; SameSite=Strict`
+    (mesmo acompanhado de cookie não-sessão `prefs=dark`), com execução real do
+    OWASP ZAP e `[REDACTED]` confirmado no HAR.
+  * **`FAIL`** tanto para cookie de sessão sem `Secure`/`HttpOnly`/`SameSite`
+    (detectado pelas regras `10010`/`10054` do ZAP real + parser) quanto para
+    autenticação sem `Set-Cookie` servidor-side (`CASA3-AUT-06`).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Login retorna JWT sem `Set-Cookie` servidor-side enquanto o frontend Angular
+    grava o cookie `token` via JS sem `HttpOnly`, `Secure` ou `SameSite` ->
+    Veredito **`FAIL`**.
+================================================================================

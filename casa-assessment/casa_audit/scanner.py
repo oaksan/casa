@@ -4784,11 +4784,17 @@ def run_zap_automation(
             f"    rules:\n"
             f"      - id: 3\n"
             f"        threshold: Low\n"
+            f"      - id: 10010\n"
+            f"        threshold: Low\n"
+            f"      - id: 10011\n"
+            f"        threshold: Low\n"
             f"      - id: 10015\n"
             f"        threshold: Low\n"
             f"      - id: 10024\n"
             f"        threshold: Low\n"
             f"      - id: 10025\n"
+            f"        threshold: Low\n"
+            f"      - id: 10054\n"
             f"        threshold: Low\n"
             f"      - id: 10098\n"
             f"        threshold: Low\n"
@@ -8610,6 +8616,333 @@ def evaluate_aut05_logout_invalidation(
     }
 
 
+def _split_set_cookie_headers(raw_hdr: str) -> list[str]:
+    """Split folded HTTP Set-Cookie headers while preserving commas inside Expires attributes."""
+    if not raw_hdr.strip():
+        return []
+    return [c.strip() for c in re.split(r",\s*(?=[A-Za-z0-9_!#$%&'*+.^`|~-]+=)", raw_hdr.strip()) if "=" in c]
+
+
+def _inspect_cookie_flags(cookie_str: str) -> dict:
+    """Inspect a single Set-Cookie directive for Secure, HttpOnly, and SameSite=Lax|Strict."""
+    parts = [p.strip() for p in cookie_str.split(";") if p.strip()]
+    name_val = parts[0] if parts else ""
+    cname = name_val.split("=", 1)[0].strip()
+    attr_map: dict[str, str] = {}
+    for attr in parts[1:]:
+        if "=" in attr:
+            ak, av = attr.split("=", 1)
+            attr_map[ak.strip().lower()] = av.strip().lower()
+        else:
+            attr_map[attr.strip().lower()] = "true"
+    has_secure = "secure" in attr_map
+    has_httponly = "httponly" in attr_map
+    ss_val = attr_map.get("samesite", "")
+    samesite_ok = ss_val in {"lax", "strict"}
+    missing: list[str] = []
+    if not has_secure:
+        missing.append("Secure")
+    if not has_httponly:
+        missing.append("HttpOnly")
+    if not samesite_ok:
+        missing.append(f"SameSite=Lax|Strict (got '{ss_val or '<missing>'}')")
+    return {"name": cname, "missing": missing, "samesite": ss_val or "<missing>"}
+
+
+def _is_session_cookie_name(cookie_name: str) -> bool:
+    """Return True when cookie_name matches common session/token/auth identifier patterns."""
+    ck_low = cookie_name.strip().lower()
+    if not ck_low:
+        return False
+    session_cookie_names = {
+        "token",
+        "session",
+        "sessionid",
+        "sid",
+        "jsessionid",
+        "phpsessid",
+        "connect.sid",
+        "auth_session",
+        "refresh_token",
+    }
+    return ck_low in session_cookie_names or any(
+        k in ck_low for k in ("sess", "token", "auth", "sid", "jwt")
+    )
+
+
+def evaluate_aut06_session_cookie_flags(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    login_endpoint: str = "/rest/user/login",
+    login_body: bytes | None = None,
+    credentials: tuple[str, str] | None = None,
+    fallback_token: str = "",
+    crawled_exchanges: list[dict] | None = None,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate AUT-06 (ASVS V3.4.1–V3.4.3) using OWASP ZAP (Rules 10010/10011/10054) + Set-Cookie & client-side cookie audit."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    local_exchanges: list[dict] = list(crawled_exchanges) if crawled_exchanges is not None else []
+    local_har_entries: list[dict] = []
+
+    def _redact_body_str(raw_b: bytes | None) -> str:
+        if not raw_b:
+            return ""
+        txt = raw_b.decode("utf-8", errors="ignore")
+        return re.sub(
+            r'("(?:password|passwd|secret|token)"\s*:\s*)"[^"]*"',
+            r'\1"[REDACTED]"',
+            txt,
+            flags=re.IGNORECASE,
+        )
+
+    def _record_har(method: str, url: str, req_hdrs: dict[str, str], req_body: bytes | None, st: int, resp_hdrs: dict[str, str], elapsed_ms: float) -> None:
+        sens = {"authorization", "cookie", "set-cookie", "x-api-key"}
+        entry: dict = {
+            "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "time": elapsed_ms,
+            "request": {
+                "method": method,
+                "url": url,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {
+                        "name": k,
+                        "value": (
+                            f"{v.split(' ', 1)[0]} [REDACTED]"
+                            if k.lower() == "authorization" and " " in str(v)
+                            else ("[REDACTED]" if k.lower() in sens else v)
+                        ),
+                    }
+                    for k, v in req_hdrs.items()
+                ],
+            },
+            "response": {
+                "status": st,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {"name": k, "value": "[REDACTED]" if k.lower() in sens else v}
+                    for k, v in resp_hdrs.items()
+                ],
+            },
+        }
+        if req_body:
+            entry["request"]["postData"] = {"mimeType": "application/json", "text": _redact_body_str(req_body)}
+        local_har_entries.append(entry)
+
+    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        try:
+            with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
+                hdrs = {k.lower(): v for k, v in resp.headers.items()}
+                all_sc = resp.headers.get_all("Set-Cookie") or []
+                if all_sc:
+                    hdrs["set-cookie"] = ", ".join(all_sc)
+                return resp.status, hdrs, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            hdrs = {k.lower(): v for k, v in he.headers.items()}
+            all_sc = he.headers.get_all("Set-Cookie") or []
+            if all_sc:
+                hdrs["set-cookie"] = ", ".join(all_sc)
+            return he.code, hdrs, he.read(16384).decode("utf-8", errors="ignore")
+        except Exception:
+            return 0, {}, ""
+
+    raw_probe = http_probe_fn or _default_probe
+
+    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        t0 = time.monotonic()
+        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        _record_har(method, url, headers or {}, body, st, hdrs, round((time.monotonic() - t0) * 1000, 1))
+        local_exchanges.append({"method": method, "url": url, "status": st, "headers": hdrs, "body": rbody})
+        return st, hdrs, rbody
+
+    if crawled_exchanges is None:
+        if login_body is not None:
+            auth_b = login_body
+        elif credentials is not None:
+            auth_b = json.dumps({"email": credentials[0], "password": credentials[1]}).encode("utf-8")
+        else:
+            auth_b = json.dumps({"email": "admin@juice-sh.op", "password": "admin123"}).encode("utf-8")
+        _probe_logged("/")
+        _probe_logged(login_endpoint, method="POST", headers={"Content-Type": "application/json"}, body=auth_b)
+        _probe_logged("/rest/user/whoami")
+
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[base_url, f"{base_url}/rest/user/whoami"],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    set_cookie_count = 0
+    session_cookies_observed: list[dict] = []
+    cfg06_aut06_findings: list[dict] = []
+    seen_aut06_keys: set[tuple[str, str]] = set()
+    findings_by_key: dict[tuple[str, str], dict] = {}
+
+    for ex6 in local_exchanges:
+        _record_har(ex6.get("method", "GET"), ex6.get("url", base_url), {}, None, ex6.get("status", 0), ex6.get("headers") or {}, 0.0)
+        raw_sc = (ex6.get("headers") or {}).get("set-cookie", "").strip()
+        if not raw_sc:
+            continue
+        for single_sc in _split_set_cookie_headers(raw_sc):
+            set_cookie_count += 1
+            parsed_ck = _inspect_cookie_flags(single_sc)
+            if _is_session_cookie_name(parsed_ck["name"]):
+                session_cookies_observed.append({"url": ex6["url"], **parsed_ck})
+                if parsed_ck["missing"]:
+                    dk = (urllib.parse.urlparse(ex6["url"]).path or "/", parsed_ck["name"].lower())
+                    if dk not in seen_aut06_keys:
+                        seen_aut06_keys.add(dk)
+                        item = {
+                            "url": ex6["url"],
+                            "cookieName": parsed_ck["name"],
+                            "missing": parsed_ck["missing"],
+                            "source": "SetCookieInspector",
+                            "detail": (
+                                f"{ex6.get('method', 'GET')} {ex6['url']} Set-Cookie '{parsed_ck['name']}' misses required attribute(s): "
+                                f"{', '.join(parsed_ck['missing'])} (ASVS V3.4.1–V3.4.3)."
+                            ),
+                        }
+                        cfg06_aut06_findings.append(item)
+                        findings_by_key[dk] = item
+
+    # Inspect OWASP ZAP passive cookie rules (10010 HttpOnly, 10011 Secure, 10054 SameSite) for session cookies
+    zap_matched_plugins: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid in {"10010", "10011", "10054"} or any(
+            kw in low_a for kw in ("cookie no httponly", "cookie without secure", "cookie without samesite")
+        ):
+            for inst in al.get("instances", []) or []:
+                ck_param = str(inst.get("param") or "").strip()
+                if ck_param and not _is_session_cookie_name(ck_param):
+                    continue
+                if not ck_param and not session_cookies_observed:
+                    continue
+                zap_matched_plugins.add(pid or aname)
+                uri = str(inst.get("uri") or base_url)
+                inst_path = urllib.parse.urlparse(uri).path or "/"
+                dk = (inst_path, (ck_param or "session").lower())
+                if dk in findings_by_key:
+                    findings_by_key[dk]["source"] = f"OWASP ZAP:{pid}+SetCookieInspector"
+                elif dk not in seen_aut06_keys:
+                    seen_aut06_keys.add(dk)
+                    miss_label = (
+                        "HttpOnly" if pid == "10010" else ("Secure" if pid == "10011" else "SameSite=Lax|Strict")
+                    )
+                    item = {
+                        "url": uri,
+                        "cookieName": ck_param or "session",
+                        "missing": [miss_label],
+                        "source": f"OWASP ZAP:{pid}",
+                        "detail": f"[OWASP ZAP {pid}] {aname} on session cookie '{ck_param or 'session'}' at {uri}.",
+                    }
+                    cfg06_aut06_findings.append(item)
+                    findings_by_key[dk] = item
+
+    client_cookie_hits: list[str] = []
+    if repo is not None:
+        for rel_ck_path in ("frontend/src/app/login/login.component.ts", "frontend/src/app/oauth/oauth.component.ts"):
+            f_ck = repo / rel_ck_path
+            if f_ck.exists():
+                txt_ck = f_ck.read_text(encoding="utf-8", errors="ignore")
+                m_ck = re.search(r"cookieService\.put\(\s*['\"]token['\"][^\n]*\)", txt_ck)
+                if m_ck:
+                    lno_ck = txt_ck[: m_ck.start()].count("\n") + 1
+                    client_cookie_hits.append(f"{rel_ck_path}:{lno_ck} -> {m_ck.group(0).strip()}")
+
+    cookie_auth_probe_st = 0
+    if fallback_token:
+        ca_st_with, _, _ = _probe_logged("/rest/user/whoami", headers={"Cookie": f"token={fallback_token}"})
+        _probe_logged("/rest/user/whoami")
+        cookie_auth_probe_st = ca_st_with
+
+    if not session_cookies_observed:
+        detail_msg = (
+            f"POST {base_url}{login_endpoint} issues authentication session token in JSON body without any server-side "
+            f"Set-Cookie header (observed Set-Cookie headers across crawl={set_cookie_count}), while client-side JavaScript "
+            f"writes session cookie 'token' without HttpOnly, Secure, or SameSite=Lax|Strict "
+            f"({'; '.join(client_cookie_hits) if client_cookie_hits else 'client-side / JSON token without HttpOnly cookie'})."
+        )
+        cfg06_aut06_findings.append(
+            {
+                "url": f"{base_url}{login_endpoint}",
+                "cookieName": "token",
+                "missing": ["HttpOnly", "Secure", "SameSite=Lax|Strict", "Server-Issued Set-Cookie"],
+                "source": "SetCookieInspector",
+                "detail": detail_msg,
+            }
+        )
+
+    har_file = har_out_path or (OUTPUT_DIR / "aut06-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-aut06-cookie-inspector", "version": "3.0"},
+                    "entries": local_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af6 in cfg06_aut06_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AUT-06",
+                "level": "error",
+                "message": {"text": af6["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af6["url"]}}}],
+                "properties": {
+                    "controlId": "AUT-06",
+                    "cookieName": af6["cookieName"],
+                    "missingAttributes": af6["missing"],
+                    "cookieAuthProbeStatus": cookie_auth_probe_st,
+                },
+            }
+        )
+
+    cookie_bad = len(cfg06_aut06_findings) > 0
+    return {
+        "verdict": "FAIL" if cookie_bad else "PASS",
+        "aut06_fail": cookie_bad,
+        "setCookieCount": set_cookie_count,
+        "sessionCookiesObserved": session_cookies_observed,
+        "responsesChecked": len(local_exchanges),
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+        "findings": cfg06_aut06_findings,
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -8661,10 +8994,16 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             with opener.open(req, timeout=6) as resp:
                 status = resp.status
                 resp_headers = {k.lower(): v for k, v in resp.headers.items()}
+                all_sc = resp.headers.get_all("Set-Cookie") or []
+                if len(all_sc) > 1:
+                    resp_headers["set-cookie"] = ", ".join(all_sc)
                 resp_body = resp.read(max_bytes).decode("utf-8", errors="ignore")
         except urllib.error.HTTPError as he:
             status = he.code
             resp_headers = {k.lower(): v for k, v in he.headers.items()}
+            all_sc = he.headers.get_all("Set-Cookie") or []
+            if len(all_sc) > 1:
+                resp_headers["set-cookie"] = ", ".join(all_sc)
             try:
                 resp_body = he.read(max_bytes).decode("utf-8", errors="ignore")
             except Exception:
@@ -9494,137 +9833,32 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-06: Session cookie attributes (Secure, HttpOnly, SameSite=Lax|Strict) across crawl + client-side cookie audit (SARIF 2.1.0 + redacted HAR 1.2)
-    def split_set_cookie_headers(raw_hdr: str) -> list[str]:
-        if not raw_hdr.strip():
-            return []
-        # Split on comma only when followed by cookie name=value (avoid breaking Expires=Wed, 18 Nov...)
-        return [c.strip() for c in re.split(r",\s*(?=[A-Za-z0-9_.-]+=)", raw_hdr.strip()) if "=" in c]
-
-    def inspect_cookie_flags(cookie_str: str) -> dict:
-        parts = [p.strip() for p in cookie_str.split(";") if p.strip()]
-        name_val = parts[0] if parts else ""
-        cname = name_val.split("=", 1)[0].strip()
-        attr_map: dict[str, str] = {}
-        for attr in parts[1:]:
-            if "=" in attr:
-                ak, av = attr.split("=", 1)
-                attr_map[ak.strip().lower()] = av.strip().lower()
-            else:
-                attr_map[attr.strip().lower()] = "true"
-        has_secure = "secure" in attr_map
-        has_httponly = "httponly" in attr_map
-        ss_val = attr_map.get("samesite", "")
-        samesite_ok = ss_val in {"lax", "strict"}
-        missing: list[str] = []
-        if not has_secure:
-            missing.append("Secure")
-        if not has_httponly:
-            missing.append("HttpOnly")
-        if not samesite_ok:
-            missing.append(f"SameSite=Lax|Strict (got '{ss_val or '<missing>'}')")
-        return {"name": cname, "missing": missing, "samesite": ss_val or "<missing>"}
-
-    session_cookie_names = {"token", "session", "sessionid", "sid", "jsessionid", "phpsessid", "connect.sid", "auth_session", "refresh_token"}
-    set_cookie_count = 0
-    session_cookies_observed: list[dict] = []
-    cfg06_aut06_findings: list[dict] = []
-    seen_aut06_keys: set[tuple[str, str]] = set()
-
-    for ex6 in crawled_exchanges:
-        raw_sc = ex6["headers"].get("set-cookie", "").strip()
-        if not raw_sc:
-            continue
-        for single_sc in split_set_cookie_headers(raw_sc):
-            set_cookie_count += 1
-            parsed_ck = inspect_cookie_flags(single_sc)
-            ck_low = parsed_ck["name"].lower()
-            if ck_low in session_cookie_names or "sess" in ck_low or "token" in ck_low or "auth" in ck_low:
-                session_cookies_observed.append({"url": ex6["url"], **parsed_ck})
-                if parsed_ck["missing"]:
-                    dk = (ex6["url"], parsed_ck["name"])
-                    if dk not in seen_aut06_keys:
-                        seen_aut06_keys.add(dk)
-                        cfg06_aut06_findings.append(
-                            {
-                                "url": ex6["url"],
-                                "cookieName": parsed_ck["name"],
-                                "missing": parsed_ck["missing"],
-                                "detail": (
-                                    f"{ex6['method']} {ex6['url']} Set-Cookie '{parsed_ck['name']}' misses required attribute(s): "
-                                    f"{', '.join(parsed_ck['missing'])} (ASVS V3.4.1–V3.4.3)."
-                                ),
-                            }
-                        )
-
-    # Probe active session-cookie usage on backend & detect client-side JS session cookie setting (cannot set HttpOnly)
-    client_cookie_hits: list[str] = []
-    for rel_ck_path in ("frontend/src/app/login/login.component.ts", "frontend/src/app/oauth/oauth.component.ts"):
-        f_ck = repo / rel_ck_path
-        if f_ck.exists():
-            txt_ck = f_ck.read_text(encoding="utf-8", errors="ignore")
-            m_ck = re.search(r"cookieService\.put\(\s*['\"]token['\"][^\n]*\)", txt_ck)
-            if m_ck:
-                lno_ck = txt_ck[: m_ck.start()].count("\n") + 1
-                client_cookie_hits.append(f"{rel_ck_path}:{lno_ck} -> {m_ck.group(0).strip()}")
-
-    cookie_auth_probe_st = 0
-    if aut05_token:
-        # Test whether removing/supplying Cookie: token controls backend session recognition (req.cookies.token)
-        ca_st_with, _, _ = http_probe("/rest/user/whoami", headers={"Cookie": f"token={aut05_token}"})
-        ca_st_without, _, ca_body_without = http_probe("/rest/user/whoami")
-        cookie_auth_probe_st = ca_st_with
-
-    if not session_cookies_observed:
-        # Login issues token in JSON body without server Set-Cookie, and frontend persists session 'token' cookie via JS
-        detail_msg = (
-            f"POST {base_url}{aut02_login_ep} issues authentication session token in JSON body without any server-side "
-            f"Set-Cookie header (observed Set-Cookie headers across crawl={set_cookie_count}), while client-side JavaScript "
-            f"writes session cookie 'token' without HttpOnly, Secure, or SameSite=Lax|Strict "
-            f"({'; '.join(client_cookie_hits) if client_cookie_hits else 'client-side document.cookie'})."
-        )
-        cfg06_aut06_findings.append(
-            {
-                "url": f"{base_url}{aut02_login_ep}",
-                "cookieName": "token",
-                "missing": ["HttpOnly", "Secure", "SameSite=Lax|Strict", "Server-Issued Set-Cookie"],
-                "detail": detail_msg,
-            }
-        )
-
-    for af6 in cfg06_aut06_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AUT-06",
-                "level": "error",
-                "message": {"text": af6["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af6["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AUT-06",
-                    "cookieName": af6["cookieName"],
-                    "missingAttributes": af6["missing"],
-                    "cookieAuthProbeStatus": cookie_auth_probe_st,
-                },
-            }
-        )
-
-    cookie_bad = len(cfg06_aut06_findings) > 0
+    # AUT-06: OWASP ZAP (Rules 10010/10011/10054) + Set-Cookie & Session Cookie Attribute Inspector (SARIF 2.1.0 + redacted HAR 1.2)
+    aut06_eval = evaluate_aut06_session_cookie_flags(
+        base_url,
+        repo=repo,
+        login_endpoint=aut02_login_ep,
+        login_body=aut02_body,
+        fallback_token=aut05_token,
+        crawled_exchanges=crawled_exchanges,
+        zap_report=zap_domain4_report,
+        http_probe_fn=http_probe,
+    )
+    cfg06_aut06_findings = aut06_eval["findings"]
+    set_cookie_count = aut06_eval["setCookieCount"]
+    session_cookies_observed = aut06_eval["sessionCookiesObserved"]
+    dast_sarif_results.extend(aut06_eval["sarifResults"])
+    cookie_bad = aut06_eval["aut06_fail"]
     aut06_lines = [af6["detail"] for af6 in cfg06_aut06_findings]
     results["AUT-06"] = {
-        "verdict": "FAIL" if cookie_bad else "PASS",
-        "tool": f"Crawl Set-Cookie & Session Cookie Attribute Inspector ({len(crawled_exchanges)} HTTP responses, {set_cookie_count} Set-Cookie header(s), SARIF 2.1.0 + redacted HAR 1.2)",
+        "verdict": aut06_eval["verdict"],
+        "tool": f"OWASP ZAP {zap_ver_label} (Rules 10010/10011/10054) & Crawl Set-Cookie Attribute Inspector ({aut06_eval['responsesChecked']} HTTP responses, {set_cookie_count} Set-Cookie header(s), SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] {len(cfg06_aut06_findings)} session cookie attribute violation(s) (ASVS V3.4.1–V3.4.3):\n  - "
+            f"[FAIL] {len(cfg06_aut06_findings)} session cookie attribute violation(s) (ASVS V3.4.1–V3.4.3, ZAP plugins={aut06_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(aut06_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AUT-06 Redacted HAR 1.2: {aut06_eval['harPath']}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if cookie_bad
-            else f"[PASS] Inspected {len(session_cookies_observed)} session Set-Cookie header(s) across {len(crawled_exchanges)} HTTP responses; 100% carry Secure, HttpOnly, and SameSite=Lax|Strict.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] OWASP ZAP {zap_ver_label} and crawl inspection of {len(session_cookies_observed)} session Set-Cookie header(s) across {aut06_eval['responsesChecked']} HTTP responses confirmed 100% carry Secure, HttpOnly, and SameSite=Lax|Strict.\nEvidence Artifacts:\n  - AUT-06 Redacted HAR 1.2: {aut06_eval['harPath']}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

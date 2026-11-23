@@ -1038,7 +1038,7 @@
           "ruleId": "CASA3-SCA-03",
           "level": "error",
           "message": {
-            "text": "SCA-03 OS package vulnerability: libssl3t64@3.5.7-1~deb13u3 (OS package) [BLOCKING HIGH/CRITICAL]: CVE-2026-124709 (CVSS 7.5 HIGH, status=affected, fix=unfixed)"
+            "text": "SCA-03 OS package vulnerability: libssl3t64@3.5.7-1~deb13u3 (OS package) [BLOCKING HIGH/CRITICAL]: CVE-2026-107494 (CVSS 7.5 HIGH, status=affected, fix=unfixed), CVE-2026-124709 (CVSS 7.5 HIGH, status=affected, fix=unfixed)"
           },
           "locations": [
             {

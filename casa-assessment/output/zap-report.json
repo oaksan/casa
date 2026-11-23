@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Sun, 22 Nov 2026 22:13:42",
-	"created": "2026-11-23T01:13:42.636003353Z",
+	"@generated": "Mon, 23 Nov 2026 18:45:02",
+	"created": "2026-11-23T21:45:02.188615978Z",
 	"insights":[
 		{
 			"level": "Low",
@@ -42,7 +42,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.endpoint.ctype.application/javascript",
 			"description": "Percentage of endpoints with content type application/javascript",
-			"statistic": "12"
+			"statistic": "11"
 		},
 		{
 			"level": "Info",
@@ -58,7 +58,15 @@
 			"site": "http://localhost:3000",
 			"key": "insight.endpoint.ctype.application/octet-stream",
 			"description": "Percentage of endpoints with content type application/octet-stream",
-			"statistic": "3"
+			"statistic": "6"
+		},
+		{
+			"level": "Info",
+			"reason": "Informational",
+			"site": "http://localhost:3000",
+			"key": "insight.endpoint.ctype.application/x-mspublisher",
+			"description": "Percentage of endpoints with content type application/x-mspublisher",
+			"statistic": "1"
 		},
 		{
 			"level": "Info",
@@ -90,7 +98,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.endpoint.ctype.text/html",
 			"description": "Percentage of endpoints with content type text/html",
-			"statistic": "70"
+			"statistic": "66"
 		},
 		{
 			"level": "Info",
@@ -114,7 +122,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.endpoint.total",
 			"description": "Count of total endpoints",
-			"statistic": "57"
+			"statistic": "60"
 		},
 		{
 			"level": "Info",
@@ -122,7 +130,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.response.slow",
 			"description": "Percentage of slow responses",
-			"statistic": "26"
+			"statistic": "37"
 		}
 	],
 	"site":[ 
@@ -143,7 +151,7 @@
 					"desc": "<p>The Content Security Policy fails to define one of the directives that has no fallback. Missing/excluding them is the same as allowing anything.</p>",
 					"instances":[ 
 						{
-							"id": "12",
+							"id": "10",
 							"uri": "http://localhost:3000/assets",
 							"nodeName": "http:\/\/localhost:3000\/assets",
 							"method": "GET",
@@ -204,8 +212,8 @@
 						},
 						{
 							"id": "8",
-							"uri": "http://localhost:3000/public",
-							"nodeName": "http:\/\/localhost:3000\/public",
+							"uri": "http://localhost:3000/logs",
+							"nodeName": "http:\/\/localhost:3000\/logs",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -274,8 +282,8 @@
 						},
 						{
 							"id": "9",
-							"uri": "http://localhost:3000/public",
-							"nodeName": "http:\/\/localhost:3000\/public",
+							"uri": "http://localhost:3000/logs",
+							"nodeName": "http:\/\/localhost:3000\/logs",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -350,7 +358,7 @@
 					"reference": "",
 					"cweid": "615",
 					"wascid": "13",
-					"sourceid": "72"
+					"sourceid": "68"
 				},
 				{
 					"pluginid": "10109",
@@ -363,7 +371,7 @@
 					"desc": "<p>The application appears to be a modern web application. If you need to explore it automatically then the Ajax Spider may well be more effective than the standard one.</p>",
 					"instances":[ 
 						{
-							"id": "21",
+							"id": "30",
 							"uri": "http://localhost:3000/backup",
 							"nodeName": "http:\/\/localhost:3000\/backup",
 							"method": "GET",
@@ -373,7 +381,17 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "24",
+							"id": "28",
+							"uri": "http://localhost:3000/files",
+							"nodeName": "http:\/\/localhost:3000\/files",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
+							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
+						},
+						{
+							"id": "20",
 							"uri": "http://localhost:3000/logs",
 							"nodeName": "http:\/\/localhost:3000\/logs",
 							"method": "GET",
@@ -383,17 +401,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "20",
-							"uri": "http://localhost:3000/public",
-							"nodeName": "http:\/\/localhost:3000\/public",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
-							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
-						},
-						{
-							"id": "23",
+							"id": "24",
 							"uri": "http://localhost:3000/static",
 							"nodeName": "http:\/\/localhost:3000\/static",
 							"method": "GET",
@@ -403,7 +411,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "32",
+							"id": "25",
 							"uri": "http://localhost:3000/uploads",
 							"nodeName": "http:\/\/localhost:3000\/uploads",
 							"method": "GET",

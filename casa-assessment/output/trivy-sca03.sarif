@@ -10,6 +10,33 @@
           "name": "Trivy",
           "rules": [
             {
+              "id": "CVE-2026-107494",
+              "name": "OsPackageVulnerability",
+              "shortDescription": {
+                "text": "openssl: OpenSSL: Denial of Service via unbounded QUIC frame queueing"
+              },
+              "fullDescription": {
+                "text": "Issue summary: The QUIC stack queues a RETIRE_CONNECTION_ID frame also for\nretransmitted NEW_CONNECTION_ID frames. This allows a remote malicious\nQUIC stack to queue an unlimited number of RETIRE_CONNECTION_ID frames.\n\nImpact summary: A malicious remote QUIC peer can trigger an out-of-memory\ncondition causing a Denial of Service.\n\nCWE: CWE-770: Allocation of Resources Without Limits or Throttling\n\nDescription: The earlier fix for CVE-2026-84784 was not complete. It\nfailed to ignore retransmissions of the NEW_CONNECTION_ID frame. The QUIC\nimplementation created and inserted a RETIRE_CONNECTION_ID frame for every\nretransmitted NEW_CONNECTION_ID frame it received and there was no limit\non how many RETIRE_CONNECTION_ID frames were queued.\nThis allows a malicious remote QUIC stack to trigger an out-of-memory (OOM)\ncondition.\n\nFIPS impact: no\nThe FIPS module is not affected as the QUIC implementation is outside the\nOpenSSL FIPS module boundary."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "helpUri": "https://avd.aquasec.com/nvd/cve-2026-107494",
+              "help": {
+                "text": "Vulnerability CVE-2026-107494\nSeverity: HIGH\nPackage: libssl3t64\nFixed Version: \nLink: [CVE-2026-107494](https://avd.aquasec.com/nvd/cve-2026-107494)\nIssue summary: The QUIC stack queues a RETIRE_CONNECTION_ID frame also for\nretransmitted NEW_CONNECTION_ID frames. This allows a remote malicious\nQUIC stack to queue an unlimited number of RETIRE_CONNECTION_ID frames.\n\nImpact summary: A malicious remote QUIC peer can trigger an out-of-memory\ncondition causing a Denial of Service.\n\nCWE: CWE-770: Allocation of Resources Without Limits or Throttling\n\nDescription: The earlier fix for CVE-2026-84784 was not complete. It\nfailed to ignore retransmissions of the NEW_CONNECTION_ID frame. The QUIC\nimplementation created and inserted a RETIRE_CONNECTION_ID frame for every\nretransmitted NEW_CONNECTION_ID frame it received and there was no limit\non how many RETIRE_CONNECTION_ID frames were queued.\nThis allows a malicious remote QUIC stack to trigger an out-of-memory (OOM)\ncondition.\n\nFIPS impact: no\nThe FIPS module is not affected as the QUIC implementation is outside the\nOpenSSL FIPS module boundary.",
+                "markdown": "**Vulnerability CVE-2026-107494**\n| Severity | Package | Fixed Version | Link |\n| --- | --- | --- | --- |\n|HIGH|libssl3t64||[CVE-2026-107494](https://avd.aquasec.com/nvd/cve-2026-107494)|\n\nIssue summary: The QUIC stack queues a RETIRE_CONNECTION_ID frame also for\nretransmitted NEW_CONNECTION_ID frames. This allows a remote malicious\nQUIC stack to queue an unlimited number of RETIRE_CONNECTION_ID frames.\n\nImpact summary: A malicious remote QUIC peer can trigger an out-of-memory\ncondition causing a Denial of Service.\n\nCWE: CWE-770: Allocation of Resources Without Limits or Throttling\n\nDescription: The earlier fix for CVE-2026-84784 was not complete. It\nfailed to ignore retransmissions of the NEW_CONNECTION_ID frame. The QUIC\nimplementation created and inserted a RETIRE_CONNECTION_ID frame for every\nretransmitted NEW_CONNECTION_ID frame it received and there was no limit\non how many RETIRE_CONNECTION_ID frames were queued.\nThis allows a malicious remote QUIC stack to trigger an out-of-memory (OOM)\ncondition.\n\nFIPS impact: no\nThe FIPS module is not affected as the QUIC implementation is outside the\nOpenSSL FIPS module boundary."
+              },
+              "properties": {
+                "precision": "very-high",
+                "security-severity": "8.0",
+                "tags": [
+                  "vulnerability",
+                  "security",
+                  "HIGH"
+                ]
+              }
+            },
+            {
               "id": "CVE-2026-124709",
               "name": "OsPackageVulnerability",
               "shortDescription": {
@@ -69,8 +96,35 @@
       },
       "results": [
         {
-          "ruleId": "CVE-2026-124709",
+          "ruleId": "CVE-2026-107494",
           "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Package: libssl3t64\nInstalled Version: 3.5.7-1~deb13u3\nVulnerability CVE-2026-107494\nSeverity: HIGH\nFixed Version: \nLink: [CVE-2026-107494](https://avd.aquasec.com/nvd/cve-2026-107494)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "bkimminich/juice-shop",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "bkimminich/juice-shop: libssl3t64@3.5.7-1~deb13u3"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2026-124709",
+          "ruleIndex": 1,
           "level": "error",
           "message": {
             "text": "Package: libssl3t64\nInstalled Version: 3.5.7-1~deb13u3\nVulnerability CVE-2026-124709\nSeverity: HIGH\nFixed Version: \nLink: [CVE-2026-124709](https://avd.aquasec.com/nvd/cve-2026-124709)"
@@ -97,7 +151,7 @@
         },
         {
           "ruleId": "CVE-2026-85091",
-          "ruleIndex": 1,
+          "ruleIndex": 2,
           "level": "error",
           "message": {
             "text": "Package: zlib1g\nInstalled Version: 1:1.3.dfsg+really1.3.1-1+b1\nVulnerability CVE-2026-85091\nSeverity: HIGH\nFixed Version: 1:1.3.dfsg+really1.3.1-1+deb13u1\nLink: [CVE-2026-85091](https://avd.aquasec.com/nvd/cve-2026-85091)"

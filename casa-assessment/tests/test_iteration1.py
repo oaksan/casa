@@ -2433,8 +2433,10 @@ class TestCasa3Iteration1(unittest.TestCase):
             def _reply(self, status: int = 200):
                 m = type(self).mode
                 origin = self.headers.get("Origin", "")
+                body = b'{"status":"ok"}' if status == 200 else b""
                 self.send_response(status)
-                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
                 if m == "strict":
                     if origin == "https://trusted.example.com":
                         self.send_header("Access-Control-Allow-Origin", origin)
@@ -2448,8 +2450,8 @@ class TestCasa3Iteration1(unittest.TestCase):
                     self.send_header("Access-Control-Allow-Origin", "*")
                     self.send_header("Access-Control-Allow-Credentials", "true")
                 self.end_headers()
-                if status == 200:
-                    self.wfile.write(b'{"status":"ok"}')
+                if body:
+                    self.wfile.write(body)
 
             def do_GET(self):
                 self._reply(200)
@@ -2985,6 +2987,150 @@ class TestCasa3Iteration1(unittest.TestCase):
 
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 37/61: AUT-02 (Iteração SDD 107)", just2_txt)
+
+    def test_iteration108_aut03_guide_tooling(self) -> None:
+        import secrets
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_aut03_session_fixation
+
+        class _Aut03Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "rotated"
+            valid_sessions: set[str] = set()
+            pre_session = "preauth_sid_0001"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                if p == "/" or p == "/rest/user/whoami":
+                    body = b"<html><body>Anonymous</body></html>"
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Set-Cookie", f"sid={type(self).pre_session}; Path=/; HttpOnly")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p == "/rest/wallet/balance":
+                    cookie_hdr = self.headers.get("Cookie", "")
+                    auth_hdr = self.headers.get("Authorization", "")
+                    presented = set()
+                    for part in cookie_hdr.split(";"):
+                        if "=" in part:
+                            presented.add(part.split("=", 1)[1].strip())
+                    if auth_hdr.startswith("Bearer "):
+                        presented.add(auth_hdr.split(" ", 1)[1].strip())
+                    ok = bool(presented & type(self).valid_sessions)
+                    if ok:
+                        body = b'{"status":"success","data":{"balance":100}}'
+                        self.send_response(200)
+                    else:
+                        body = b'{"error":"Unauthorized"}'
+                        self.send_response(401)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                if length:
+                    self.rfile.read(length)
+                p = self.path.split("?", 1)[0]
+                if p == "/rest/user/login":
+                    m = type(self).mode
+                    if m == "rotated":
+                        new_tok = "rot_" + secrets.token_hex(16)
+                        type(self).valid_sessions = {new_tok}
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Set-Cookie", f"sid={new_tok}; Path=/; HttpOnly")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"token": new_tok}).encode("utf-8"))
+                        return
+                    if m == "fixated":
+                        # Vulnerable: keeps pre-auth / injected sid valid without rotating
+                        type(self).valid_sessions = {type(self).pre_session, "casa3_preauth_fixation_probe_deadbeef"}
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Set-Cookie", f"sid={type(self).pre_session}; Path=/; HttpOnly")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"token": type(self).pre_session}).encode("utf-8"))
+                        return
+                    if m == "pre_still_valid":
+                        # Vulnerable: issues a new token on login, but leaves pre_session authenticated server-side
+                        new_tok = "rot_" + secrets.token_hex(16)
+                        type(self).valid_sessions = {type(self).pre_session, new_tok}
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Set-Cookie", f"sid={new_tok}; Path=/; HttpOnly")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"token": new_tok}).encode("utf-8"))
+                        return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Aut03Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_aut3:
+            tdp = Path(td_aut3)
+            try:
+                # 1. Rotated token + pre-auth session rejected -> PASS + redacted HAR
+                _Aut03Handler.mode = "rotated"
+                _Aut03Handler.valid_sessions = set()
+                har_pass = tdp / "aut03_pass.har"
+                r_pass = evaluate_aut03_session_fixation(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("user@example.com", "SuperSecret!1"),
+                    protected_endpoints=["/rest/wallet/balance"],
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["postToken"].startswith("rot_"))
+                self.assertGreaterEqual(len(r_pass["preSessionCookies"]), 1)
+                self.assertGreaterEqual(r_pass["replayedChecks"], 2)
+                har_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("SuperSecret!1", har_txt)
+
+                # 2. Session fixation (same identifier kept on login) -> FAIL
+                _Aut03Handler.mode = "fixated"
+                _Aut03Handler.valid_sessions = set()
+                r_fix = evaluate_aut03_session_fixation(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("user@example.com", "SuperSecret!1"),
+                    protected_endpoints=["/rest/wallet/balance"],
+                    har_out_path=tdp / "aut03_fix.har",
+                )
+                self.assertEqual(r_fix["verdict"], "FAIL")
+                self.assertTrue(any(s["ruleId"] == "CASA3-AUT-03" for s in r_fix["sarifResults"]))
+
+                # 3. New token issued, but pre-auth identifier still accepted after login -> FAIL
+                _Aut03Handler.mode = "pre_still_valid"
+                _Aut03Handler.valid_sessions = set()
+                r_stale = evaluate_aut03_session_fixation(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("user@example.com", "SuperSecret!1"),
+                    protected_endpoints=["/rest/wallet/balance"],
+                    har_out_path=tdp / "aut03_stale.har",
+                )
+                self.assertEqual(r_stale["verdict"], "FAIL")
+                self.assertTrue(any("CWE-384" in f for f in r_stale["findings"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 38/61: AUT-03 (Iteração SDD 108)", just2_txt)
 
 
 if __name__ == "__main__":

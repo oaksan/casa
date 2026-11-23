@@ -1908,3 +1908,51 @@ CONTROLE 37/61: AUT-02 (Iteração SDD 107)
     `iat` com granularidade de 1 segundo e min-entropia SP 800-90B muito abaixo
     de `64,0 bits` -> Veredito **`FAIL`**.
 ================================================================================
+
+
+================================================================================
+CONTROLE 38/61: AUT-03 (Iteração SDD 108)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 5 - AUTH & SESSION)
+--------------------------------------------------------------------------------
+- Controle: `AUT-03` — *A new session token is issued upon authentication
+  (session fixation prevented)* (ASVS V3.2.1 L1; CWE-384).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **Harness automatizado** (*scripted harness*) que captura identificadores de
+    sessão pré-autenticação, autentica apresentando-os, verifica emissão de novo
+    token e **reproduz os identificadores pré-autenticação contra rotas protegidas**
+    após o login, com evidências em SARIF 2.1.0 (`CASA3-AUT-03`) e HAR 1.2 redigido.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 108`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A lógica de `AUT-03` residia inline dentro de `run_dynamic_and_protocol_checks`,
+  fazia split ingênuo de `Set-Cookie` por vírgula (suscetível a vírgulas em
+  datas `Expires=Wed, ...`), não gerava arquivo HAR 1.2 isolado com corpo/cabeçalhos
+  redigidos para as requisições de fixação e não podia ser testada isoladamente
+  como unidade independente contra servidores vulneráveis e conformes.
+- O que foi feito e melhorado na Iteração SDD 108:
+  1) Implementação de `_extract_session_cookies(...)` com parsing seguro para
+     múltiplos cabeçalhos `Set-Cookie` sem quebra em datas `Expires=...` e detecção
+     abrangente de identificadores de sessão em JSON (`token`, `access_token`,
+     `sessionId`, `sid`) e cookies.
+  2) Extração do harness `evaluate_aut03_session_fixation(...)` gerando o
+     artefato dedicado `output/aut03-replayed.har` (com credenciais e tokens
+     mascarados como `[REDACTED]`), achados SARIF `CASA3-AUT-03` e retorno de
+     `postToken` para encadeamento em `AUT-04`, `AUT-05` e `AUT-08`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration108_aut03_guide_tooling`):
+  * **`PASS`** com rotação de cookie/token no login, rejeição pós-login do
+    identificador pré-autenticação (`401`) e confirmação de `[REDACTED]` no HAR.
+  * **`FAIL`** tanto quando o servidor mantém o identificador pré-autenticação no
+    login quanto quando emite novo token mas preserva o ID pré-auth válido após
+    o login (CWE-384).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Ausência de cookies pré-auth anônimos em `/` e `/rest/user/whoami`, emissão
+    de novo JWT assinado no login ignorando cookies fixados (`token`, `connect.sid`,
+    `JSESSIONID`) e rejeição dos replays em `/rest/wallet/balance` e
+    `/rest/basket/{bid}` -> Veredito **`PASS`**.
+================================================================================

@@ -4784,6 +4784,8 @@ def run_zap_automation(
             f"    rules:\n"
             f"      - id: 10015\n"
             f"        threshold: Low\n"
+            f"      - id: 10098\n"
+            f"        threshold: Low\n"
             f"      - id: 90022\n"
             f"        threshold: Low\n"
             f"{req_block}"
@@ -4794,7 +4796,7 @@ def run_zap_automation(
             f"      maxChildren: 25\n"
             f"  - type: passiveScan-wait\n"
             f"    parameters:\n"
-            f"      maxDuration: 1\n"
+            f"      maxDuration: 2\n"
             f"  - type: report\n"
             f"    parameters:\n"
             f"      template: traditional-json\n"
@@ -7749,6 +7751,272 @@ def evaluate_aut02_token_entropy(
     }
 
 
+_SESSION_COOKIE_NAMES = {
+    "token",
+    "session",
+    "sessionid",
+    "sess",
+    "sid",
+    "jsessionid",
+    "phpsessid",
+    "connect.sid",
+    "auth_token",
+    "access_token",
+    "__host-session",
+    "__secure-session",
+}
+
+
+def _extract_session_cookies(raw_set_cookie: str, *, include_all: bool = False) -> list[tuple[str, str]]:
+    """Parse one or more Set-Cookie headers safely without splitting on Expires dates."""
+    if not raw_set_cookie:
+        return []
+    segments = re.split(r",\s*(?=[A-Za-z0-9_!#$%&'*+.^`|~-]+=)", raw_set_cookie.strip())
+    found: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for seg in segments:
+        kv = seg.strip().split(";", 1)[0]
+        if "=" not in kv:
+            continue
+        ck_name, ck_val = kv.split("=", 1)
+        ck_name = ck_name.strip()
+        ck_val = ck_val.strip().strip('"')
+        low_n = ck_name.lower()
+        if not ck_val or ck_val.lower() in {"deleted", "null", "none", "expired"}:
+            continue
+        if include_all or low_n in _SESSION_COOKIE_NAMES or any(
+            k in low_n for k in ("sess", "sid", "auth", "token", "jwt")
+        ):
+            pair = (ck_name, ck_val)
+            if pair not in seen:
+                seen.add(pair)
+                found.append(pair)
+    return found
+
+
+def evaluate_aut03_session_fixation(
+    target_url: str,
+    *,
+    login_endpoint: str = "/rest/user/login",
+    login_body: bytes | None = None,
+    credentials: tuple[str, str] | None = None,
+    pre_auth_endpoints: list[str] | None = None,
+    protected_endpoints: list[str] | None = None,
+    har_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate AUT-03 (ASVS V3.2.1 / CWE-384) via pre-auth capture, fixation login, and post-auth replay harness."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    local_har_entries: list[dict] = []
+
+    def _redact_req_body(raw_b: bytes | None) -> str:
+        if not raw_b:
+            return ""
+        txt = raw_b.decode("utf-8", errors="ignore")
+        return re.sub(
+            r'("(?:password|passwd|secret|token|current|new)"\s*:\s*)"[^"]*"',
+            r'\1"[REDACTED]"',
+            txt,
+            flags=re.IGNORECASE,
+        )
+
+    def _record_har(method: str, url: str, req_hdrs: dict[str, str], req_body: bytes | None, st: int, resp_hdrs: dict[str, str], elapsed_ms: float) -> None:
+        sens = {"authorization", "cookie", "set-cookie", "x-api-key"}
+        entry: dict = {
+            "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "time": elapsed_ms,
+            "request": {
+                "method": method,
+                "url": url,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {
+                        "name": k,
+                        "value": (
+                            f"{v.split(' ', 1)[0]} [REDACTED]"
+                            if k.lower() == "authorization" and " " in str(v)
+                            else ("[REDACTED]" if k.lower() in sens else v)
+                        ),
+                    }
+                    for k, v in req_hdrs.items()
+                ],
+            },
+            "response": {
+                "status": st,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {"name": k, "value": "[REDACTED]" if k.lower() in sens else v}
+                    for k, v in resp_hdrs.items()
+                ],
+            },
+        }
+        if req_body:
+            entry["request"]["postData"] = {"mimeType": "application/json", "text": _redact_req_body(req_body)}
+        local_har_entries.append(entry)
+
+    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        try:
+            with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
+                hdrs = {k.lower(): v for k, v in resp.headers.items()}
+                all_sc = resp.headers.get_all("Set-Cookie") or []
+                if all_sc:
+                    hdrs["set-cookie"] = ", ".join(all_sc)
+                return resp.status, hdrs, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            hdrs = {k.lower(): v for k, v in he.headers.items()}
+            all_sc = he.headers.get_all("Set-Cookie") or []
+            if all_sc:
+                hdrs["set-cookie"] = ", ".join(all_sc)
+            return he.code, hdrs, he.read(16384).decode("utf-8", errors="ignore")
+        except Exception:
+            return 0, {}, ""
+
+    raw_probe = http_probe_fn or _default_probe
+
+    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = dict(headers or {})
+        t0 = time.monotonic()
+        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        _record_har(method, url, req_hdrs, body, st, hdrs, round((time.monotonic() - t0) * 1000, 1))
+        return st, hdrs, rbody
+
+    # 1. Inspect pre-authentication endpoints for any anonymous Set-Cookie session identifier
+    pre_eps = pre_auth_endpoints if pre_auth_endpoints is not None else ["/", "/rest/user/whoami"]
+    pre_session_cookies: list[tuple[str, str]] = []
+    seen_pre: set[tuple[str, str]] = set()
+    for pre_ep in pre_eps:
+        _, pre_hdrs, _ = _probe_logged(pre_ep)
+        for pair in _extract_session_cookies(pre_hdrs.get("set-cookie", ""), include_all=False):
+            if pair not in seen_pre:
+                seen_pre.add(pair)
+                pre_session_cookies.append(pair)
+
+    # 2. Construct fixation Cookie header combining captured pre-auth cookies and explicit fixation probes
+    fixed_probe_sid = "casa3_preauth_fixation_probe_deadbeef"
+    fixation_cookie_pairs = list(pre_session_cookies) + [
+        ("token", fixed_probe_sid),
+        ("connect.sid", fixed_probe_sid),
+        ("JSESSIONID", fixed_probe_sid),
+    ]
+    fixation_cookie_hdr = "; ".join(f"{k}={v}" for k, v in fixation_cookie_pairs)
+
+    if login_body is not None:
+        auth_body = login_body
+    elif credentials is not None:
+        auth_body = json.dumps({"email": credentials[0], "password": credentials[1]}).encode("utf-8")
+    else:
+        auth_body = json.dumps({"email": "admin@juice-sh.op", "password": "admin123"}).encode("utf-8")
+
+    # 3. Authenticate while presenting pre-authentication / fixed session identifiers
+    post_st3, post_hdrs3, post_body3 = _probe_logged(
+        login_endpoint,
+        method="POST",
+        headers={"Content-Type": "application/json", "Cookie": fixation_cookie_hdr},
+        body=auth_body,
+    )
+    post_token3 = ""
+    post_tokens_all: list[str] = []
+    if 200 <= post_st3 < 300:
+        try:
+            j3 = json.loads(post_body3)
+            json_tok = (
+                j3.get("authentication", {}).get("token", "")
+                or j3.get("token", "")
+                or j3.get("access_token", "")
+                or j3.get("sessionId", "")
+                or j3.get("sid", "")
+            )
+            if isinstance(json_tok, str) and json_tok:
+                post_tokens_all.append(json_tok)
+        except Exception:
+            pass
+        for _, ck_v in _extract_session_cookies(post_hdrs3.get("set-cookie", ""), include_all=False):
+            if ck_v not in post_tokens_all:
+                post_tokens_all.append(ck_v)
+        if post_tokens_all:
+            post_token3 = post_tokens_all[0]
+
+    # 4. Compare identifiers & replay every pre-authentication / fixed identifier against protected routes
+    pre_identifiers_to_replay: list[tuple[str, str]] = list(pre_session_cookies) + [
+        ("injected_fixation_sid", fixed_probe_sid)
+    ]
+    pre_vals = {v for _, v in pre_identifiers_to_replay}
+    findings: list[str] = []
+
+    if not post_tokens_all:
+        findings.append(
+            f"Authentication on POST {base_url}{login_endpoint} did not return a valid session identifier (HTTP {post_st3})."
+        )
+    elif any(pt in pre_vals for pt in post_tokens_all):
+        findings.append(
+            "Session identifier remained unchanged across authentication (server adopted pre-authentication token)."
+        )
+
+    prot_eps = protected_endpoints if protected_endpoints is not None else ["/rest/wallet/balance"]
+    replayed_checks = 0
+    for id_label, id_val in pre_identifiers_to_replay:
+        for prot_ep in prot_eps:
+            rep_st, _, _ = _probe_logged(
+                prot_ep,
+                headers={"Authorization": f"Bearer {id_val}", "Cookie": f"token={id_val}; {id_label}={id_val}"},
+            )
+            replayed_checks += 1
+            if 200 <= rep_st < 300:
+                findings.append(
+                    f"Pre-authentication identifier '{id_label}' was accepted (HTTP {rep_st}) on authenticated route {prot_ep} after login (CWE-384)."
+                )
+
+    har_file = har_out_path or (OUTPUT_DIR / "aut03-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-aut03-session-fixation-harness", "version": "3.0"},
+                    "entries": local_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af3_msg in findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AUT-03",
+                "level": "error",
+                "message": {"text": af3_msg},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": f"{base_url}{login_endpoint}"}}}],
+                "properties": {"controlId": "AUT-03"},
+            }
+        )
+
+    aut03_pass = bool(post_token3) and len(findings) == 0
+    return {
+        "verdict": "PASS" if aut03_pass else "FAIL",
+        "aut03_pass": aut03_pass,
+        "postToken": post_token3,
+        "postTokens": post_tokens_all,
+        "preSessionCookies": pre_session_cookies,
+        "replayedChecks": replayed_checks,
+        "protectedEndpoints": prot_eps,
+        "findings": findings,
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -8537,99 +8805,29 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # AUT-03: Session Fixation & Pre-Authentication Identifier Replay Harness (SARIF 2.1.0 + redacted HAR 1.2)
-    # 1. Inspect pre-authentication endpoints for any anonymous Set-Cookie session identifier
-    pre_session_cookies: list[tuple[str, str]] = []
-    for pre_ep in ["/", "/rest/user/whoami"]:
-        _, pre_hdrs, _ = http_probe(pre_ep)
-        raw_sc = pre_hdrs.get("set-cookie", "")
-        if raw_sc:
-            for part in raw_sc.split(","):
-                kv = part.strip().split(";", 1)[0]
-                if "=" in kv:
-                    ck_name, ck_val = kv.split("=", 1)
-                    if ck_name.strip().lower() in {"token", "session", "sessionid", "sid", "jsessionid", "phpsessid", "connect.sid"}:
-                        pre_session_cookies.append((ck_name.strip(), ck_val.strip()))
-
-    # 2. Construct fixation cookie header (captured pre-auth cookies + injected fixation token)
-    fixed_probe_sid = "casa3_preauth_fixation_probe_deadbeef"
-    fixation_cookie_pairs = list(pre_session_cookies) + [
-        ("token", fixed_probe_sid),
-        ("connect.sid", fixed_probe_sid),
-        ("JSESSIONID", fixed_probe_sid),
-    ]
-    fixation_cookie_hdr = "; ".join(f"{k}={v}" for k, v in fixation_cookie_pairs)
-
-    # 3. Authenticate while presenting the pre-authentication / fixed session identifiers
-    post_st3, post_hdrs3, post_body3 = http_probe(
-        aut02_login_ep,
-        method="POST",
-        headers={"Content-Type": "application/json", "Cookie": fixation_cookie_hdr},
-        body=aut02_body,
+    aut03_eval = evaluate_aut03_session_fixation(
+        base_url,
+        login_endpoint=aut02_login_ep,
+        login_body=aut02_body,
+        pre_auth_endpoints=["/", "/rest/user/whoami"],
+        protected_endpoints=["/rest/wallet/balance", f"/rest/basket/{auth_bid}"],
+        http_probe_fn=http_probe,
     )
-    post_token3 = ""
-    if 200 <= post_st3 < 300:
-        try:
-            j3 = json.loads(post_body3)
-            post_token3 = (
-                j3.get("authentication", {}).get("token", "")
-                or j3.get("token", "")
-                or j3.get("access_token", "")
-            )
-        except Exception:
-            post_token3 = ""
-        if not post_token3 and post_hdrs3.get("set-cookie"):
-            post_token3 = post_hdrs3["set-cookie"].split(";", 1)[0].split("=", 1)[-1].strip()
-
-    # 4. Replay every pre-authentication / fixed identifier against protected routes afterwards
-    pre_identifiers_to_replay: list[tuple[str, str]] = list(pre_session_cookies) + [("injected_fixation_sid", fixed_probe_sid)]
-    cfg_aut03_findings: list[str] = []
-    pre_vals = {v for _, v in pre_identifiers_to_replay}
-
-    if not post_token3:
-        cfg_aut03_findings.append(f"Authentication on POST {base_url}{aut02_login_ep} did not return a valid session identifier (HTTP {post_st3}).")
-    elif post_token3 in pre_vals:
-        cfg_aut03_findings.append(f"Session identifier remained unchanged across authentication (server adopted pre-authentication token).")
-
-    replayed_checks = 0
-    for id_label, id_val in pre_identifiers_to_replay:
-        for prot_ep in ["/rest/wallet/balance", f"/rest/basket/{auth_bid}"]:
-            rep_st, _, _ = http_probe(
-                prot_ep,
-                headers={"Authorization": f"Bearer {id_val}", "Cookie": f"token={id_val}; {id_label}={id_val}"},
-            )
-            replayed_checks += 1
-            if 200 <= rep_st < 300:
-                cfg_aut03_findings.append(
-                    f"Pre-authentication identifier '{id_label}' was accepted (HTTP {rep_st}) on authenticated route {prot_ep} after login (CWE-384)."
-                )
-
-    for af3_msg in cfg_aut03_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AUT-03",
-                "level": "error",
-                "message": {"text": af3_msg},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": f"{base_url}{aut02_login_ep}"},
-                        }
-                    }
-                ],
-                "properties": {"controlId": "AUT-03"},
-            }
-        )
-
-    aut03_pass = bool(post_token3) and len(cfg_aut03_findings) == 0
+    post_token3 = aut03_eval["postToken"]
+    pre_session_cookies = aut03_eval["preSessionCookies"]
+    cfg_aut03_findings = aut03_eval["findings"]
+    replayed_checks = aut03_eval["replayedChecks"]
+    dast_sarif_results.extend(aut03_eval["sarifResults"])
+    aut03_pass = aut03_eval["aut03_pass"]
     results["AUT-03"] = {
-        "verdict": "PASS" if aut03_pass else "FAIL",
+        "verdict": aut03_eval["verdict"],
         "tool": f"Session Fixation & Post-Auth Pre-ID Replay Harness ({replayed_checks} post-login replays, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[PASS] Post-authentication session identifier issued on POST {base_url}{aut02_login_ep} (len={len(post_token3)}) differs from all pre-authentication/injected cookies (pre-auth Set-Cookie count={len(pre_session_cookies)}), and all {replayed_checks} replays of pre-authentication identifiers against protected routes (/rest/wallet/balance, /rest/basket/{auth_bid}) were rejected.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            f"[PASS] Post-authentication session identifier issued on POST {base_url}{aut02_login_ep} (len={len(post_token3)}) differs from all pre-authentication/injected cookies (pre-auth Set-Cookie count={len(pre_session_cookies)}), and all {replayed_checks} replays of pre-authentication identifiers against protected routes (/rest/wallet/balance, /rest/basket/{auth_bid}) were rejected.\nEvidence Artifacts:\n  - AUT-03 Redacted HAR 1.2: {aut03_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if aut03_pass
             else f"[FAIL] {len(cfg_aut03_findings)} Session Fixation / rotation violation(s):\n  - "
             + "\n  - ".join(cfg_aut03_findings)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AUT-03 Redacted HAR 1.2: {aut03_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

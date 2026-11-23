@@ -1,15 +1,15 @@
 {
-  "scanner": "testssl.sh 3.2.2 6121b3f + HTTP Cleartext Redirect Probe",
-  "scannedAt": "2026-11-23T21:44:03.446497+00:00",
+  "scanner": "testssl.sh 3.2.2 2fae94d + HTTP Cleartext Redirect Probe",
+  "scannedAt": "2026-11-23T22:02:03.971117+00:00",
   "targetHost": "localhost",
   "declaredUrl": "http://localhost:3000",
   "HSTS_time": 0,
   "testssl": {
     "binary": "/home/user/.local/bin/testssl.sh",
-    "version": "3.2.2 6121b3f",
+    "version": "3.2.2 2fae94d",
     "openssl": "OpenSSL 1.0.2-bad from Fri Mar 28 16:54:51 2025",
     "returncode": 0,
-    "scanTime": 10,
+    "scanTime": 9,
     "rawJsonPath": "/home/user/felipe/speckit/casa/casa-assessment/output/testssl-raw.json",
     "handshakeOk": true,
     "protocolsOffered": [
@@ -181,7 +181,7 @@
   "tls02ProtocolEnforcement": {
     "probedPort": 3000,
     "source": "cleartext pre-check on localhost:3000 (non-TLS HTTP endpoint)",
-    "testsslVersion": "3.2.2 6121b3f",
+    "testsslVersion": "3.2.2 2fae94d",
     "modernOffered": [],
     "deprecatedOffered": [],
     "verdict": "FAIL"

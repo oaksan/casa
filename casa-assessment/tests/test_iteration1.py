@@ -3132,6 +3132,143 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 38/61: AUT-03 (Iteração SDD 108)", just2_txt)
 
+    def test_iteration109_aut04_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_aut04_url_token_leak
+
+        class _Aut04Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "clean"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                if p == "/":
+                    body = b"<html><body>Home</body></html>"
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p == "/rest/user/change-password" and m == "get_creds":
+                    body = b'{"user":{"id":1,"email":"probe@example.com"}}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                body = b'{"error":"Method not allowed"}'
+                self.send_response(405 if p == "/rest/user/change-password" else 404)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                if length:
+                    self.rfile.read(length)
+                p = self.path.split("?", 1)[0]
+                if p == "/api/Users/":
+                    body = b'{"status":"success","data":{"id":99}}'
+                    self.send_response(201)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p == "/rest/user/login":
+                    body = json.dumps({"authentication": {"token": "hdr_only_session_token_987654321"}}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Aut04Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_aut4:
+            tdp = Path(td_aut4)
+            try:
+                # 1. Clean crawl + POST-only change-password + real OWASP ZAP -> PASS
+                _Aut04Handler.mode = "clean"
+                har_clean = tdp / "aut04_clean.har"
+                r_pass = evaluate_aut04_url_token_leak(
+                    f"http://127.0.0.1:{port}",
+                    observed_tokens={"hdr_only_session_token_987654321"},
+                    crawled_exchanges=[
+                        {
+                            "method": "GET",
+                            "url": f"http://127.0.0.1:{port}/rest/products/search?q=apple",
+                            "status": 200,
+                            "headers": {"content-type": "application/json"},
+                            "request_headers": {"referer": f"http://127.0.0.1:{port}/"},
+                            "body": "{}",
+                        }
+                    ],
+                    json_out_path=tdp / "zap_a4.json",
+                    sarif_out_path=tdp / "zap_a4.sarif",
+                    har_out_path=har_clean,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["zap"]["executed"])
+                self.assertTrue(har_clean.exists())
+
+                # 2. Active token in outbound request Referer & redirect Location -> FAIL
+                r_ref = evaluate_aut04_url_token_leak(
+                    f"http://127.0.0.1:{port}",
+                    observed_tokens={"active_bearer_token_1234567890"},
+                    crawled_exchanges=[
+                        {
+                            "method": "GET",
+                            "url": f"http://127.0.0.1:{port}/external/analytics",
+                            "status": 302,
+                            "headers": {"location": f"https://thirdparty.example/cb?token=active_bearer_token_1234567890"},
+                            "request_headers": {"referer": f"http://127.0.0.1:{port}/auth?code=1&token=active_bearer_token_1234567890"},
+                            "body": "",
+                        }
+                    ],
+                    zap_report=r_pass["zap"],
+                    har_out_path=tdp / "aut04_ref.har",
+                )
+                self.assertEqual(r_ref["verdict"], "FAIL")
+                channels_ref = {f["channel"] for f in r_ref["findings"]}
+                self.assertIn("Referer_Header_Leak", channels_ref)
+                self.assertIn("Redirect_Location_Token_Leak", channels_ref)
+                self.assertIn("[REDACTED]", (tdp / "aut04_ref.har").read_text(encoding="utf-8"))
+
+                # 3. CWE-598 GET query string credential acceptance + URL query redaction -> FAIL
+                _Aut04Handler.mode = "get_creds"
+                har_get = tdp / "aut04_get.har"
+                r_get = evaluate_aut04_url_token_leak(
+                    f"http://127.0.0.1:{port}",
+                    zap_report=r_pass["zap"],
+                    har_out_path=har_get,
+                )
+                self.assertEqual(r_get["verdict"], "FAIL")
+                self.assertTrue(any(f["channel"] == "CWE-598_GET_Credential_Query" for f in r_get["findings"]))
+                self.assertTrue(any(s["ruleId"] == "CASA3-AUT-04" for s in r_get["sarifResults"]))
+                har_get_txt = har_get.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_get_txt)
+                self.assertNotIn("Casa3Aut04Old!99", har_get_txt)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 39/61: AUT-04 (Iteração SDD 109)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

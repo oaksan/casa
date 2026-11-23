@@ -1956,3 +1956,50 @@ CONTROLE 38/61: AUT-03 (Iteração SDD 108)
     `JSESSIONID`) e rejeição dos replays em `/rest/wallet/balance` e
     `/rest/basket/{bid}` -> Veredito **`PASS`**.
 ================================================================================
+
+
+================================================================================
+CONTROLE 39/61: AUT-04 (Iteração SDD 109)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 5 - AUTH & SESSION)
+--------------------------------------------------------------------------------
+- Controle: `AUT-04` — *Session tokens and credentials never appear in URLs,
+  query strings or `Referer`* (ASVS V3.1.1 L1; CWE-598).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (ou Burp Suite) inspecionando o log proxy do crawl
+    autenticado e cabeçalhos `Referer` de saída em busca de tokens de sessão e
+    credenciais, com evidências em SARIF 2.1.0 (`CASA3-AUT-04`) e captura HAR 1.2
+    redigida (`output/aut04-replayed.har`).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 109`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação de `AUT-04` rodava inline em `run_dynamic_and_protocol_checks`,
+  não habilitava explicitamente as regras passivas do ZAP (`3` Session ID in
+  URL Rewrite, `10024` Sensitive Information in URL e `10025` Sensitive Information
+  in HTTP Referrer Header), lia `ex4["headers"].get("referer")` (cabeçalhos de
+  *resposta*, em vez dos cabeçalhos *request_headers* enviados pelo cliente) e não
+  inspecionava redirecionamentos `Location`/`Refresh` nem gravava HAR 1.2 isolado.
+- O que foi feito e melhorado na Iteração SDD 109:
+  1) Habilitação das regras passivas `3`, `10024` e `10025` em `run_zap_automation`
+     e captura de `request_headers` em `crawled_exchanges` dentro de `http_probe`.
+  2) Extração de `evaluate_aut04_url_token_leak(...)` integrando alertas do OWASP
+     ZAP, varredura de URL/query/fragmento/`request_headers.referer`/`Location`,
+     sonda CWE-598 (`GET /rest/user/change-password`), auditoria de `#access_token=`
+     no frontend e gravação de `output/aut04-replayed.har` com parâmetros e
+     cabeçalhos sensíveis mascarados como `[REDACTED]`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration109_aut04_guide_tooling`):
+  * **`PASS`** com execução real do OWASP ZAP, crawl limpo e rota de troca de
+    senha restrita (`405`).
+  * **`FAIL`** para vazamento de token ativo em `Referer` de saída / `Location`
+    e para aceitação de credenciais via `GET /rest/user/change-password`
+    (com redação `[REDACTED]` confirmada em `aut04-replayed.har`).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Detecção confirmada de `CWE-598_GET_Credential_Query` em
+    `GET /rest/user/change-password` e de `#access_token=` em
+    `frontend/src/app/app.routing.ts` e `oauth.component.ts` -> Veredito **`FAIL`**.
+================================================================================

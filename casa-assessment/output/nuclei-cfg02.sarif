@@ -63,12 +63,12 @@
 						}
 					],
 					"message": {
-						"text": "Prometheus Runtime Metrics Exposed (casa3-cfg02-prometheus-metrics) found on localhost"
+						"text": "Unauthenticated Swagger / OpenAPI Docs Exposed (casa3-cfg02-swagger-apidocs) found on localhost"
 					},
 					"partialFingerprints": {
-						"primaryLocationLineHash": "88d0457d7c8d400e388375a9d48bf69a"
+						"primaryLocationLineHash": "d87885e2c64bbb612f95dbb32f59dc7c"
 					},
-					"ruleId": "casa3-cfg02-prometheus-metrics"
+					"ruleId": "casa3-cfg02-swagger-apidocs"
 				},
 				{
 					"kind": "open",
@@ -143,12 +143,12 @@
 						}
 					],
 					"message": {
-						"text": "Unauthenticated Swagger / OpenAPI Docs Exposed (casa3-cfg02-swagger-apidocs) found on localhost"
+						"text": "Prometheus Runtime Metrics Exposed (casa3-cfg02-prometheus-metrics) found on localhost"
 					},
 					"partialFingerprints": {
-						"primaryLocationLineHash": "d87885e2c64bbb612f95dbb32f59dc7c"
+						"primaryLocationLineHash": "88d0457d7c8d400e388375a9d48bf69a"
 					},
-					"ruleId": "casa3-cfg02-swagger-apidocs",
+					"ruleId": "casa3-cfg02-prometheus-metrics",
 					"ruleIndex": 1
 				},
 				{
@@ -212,16 +212,16 @@
 								"text": "More details at"
 							},
 							"helpUri": "https://github.com/projectdiscovery/sarif",
-							"id": "casa3-cfg02-prometheus-metrics",
-							"name": "Prometheus Runtime Metrics Exposed",
+							"id": "casa3-cfg02-swagger-apidocs",
+							"name": "Unauthenticated Swagger / OpenAPI Docs Exposed",
 							"properties": {
-								"security-severity": "5",
+								"security-severity": "2",
 								"tags": [
 									"security"
 								]
 							},
 							"shortDescription": {
-								"text": "Prometheus Runtime Metrics Exposed"
+								"text": "Unauthenticated Swagger / OpenAPI Docs Exposed"
 							}
 						},
 						{
@@ -252,16 +252,16 @@
 								"text": "More details at"
 							},
 							"helpUri": "https://github.com/projectdiscovery/sarif",
-							"id": "casa3-cfg02-swagger-apidocs",
-							"name": "Unauthenticated Swagger / OpenAPI Docs Exposed",
+							"id": "casa3-cfg02-prometheus-metrics",
+							"name": "Prometheus Runtime Metrics Exposed",
 							"properties": {
-								"security-severity": "2",
+								"security-severity": "5",
 								"tags": [
 									"security"
 								]
 							},
 							"shortDescription": {
-								"text": "Unauthenticated Swagger / OpenAPI Docs Exposed"
+								"text": "Prometheus Runtime Metrics Exposed"
 							}
 						},
 						{

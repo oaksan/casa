@@ -4782,7 +4782,13 @@ def run_zap_automation(
             f"      enableTags: false\n"
             f"      maxAlertsPerRule: 20\n"
             f"    rules:\n"
+            f"      - id: 3\n"
+            f"        threshold: Low\n"
             f"      - id: 10015\n"
+            f"        threshold: Low\n"
+            f"      - id: 10024\n"
+            f"        threshold: Low\n"
+            f"      - id: 10025\n"
             f"        threshold: Low\n"
             f"      - id: 10098\n"
             f"        threshold: Low\n"
@@ -8017,6 +8023,312 @@ def evaluate_aut03_session_fixation(
     }
 
 
+def evaluate_aut04_url_token_leak(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    login_endpoint: str = "/rest/user/login",
+    observed_tokens: set[str] | list[str] | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    zap_report: dict | None = None,
+    json_out_path: Path | None = None,
+    sarif_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate AUT-04 (ASVS V3.1.1 / CWE-598) using OWASP ZAP (Rules 3/10024/10025) + HAR URL/Query/Fragment/Referer & CWE-598 GET-Credential probes."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    tok_set = {t for t in (observed_tokens or set()) if isinstance(t, str) and len(t) >= 16}
+    local_exchanges: list[dict] = list(crawled_exchanges) if crawled_exchanges is not None else []
+    local_har_entries: list[dict] = []
+
+    def _redact_url_str(u: str) -> str:
+        return re.sub(
+            r"([?&#](?:current|new|repeat|password|passwd|token|access_token|refresh_token|id_token|jwt|sessionid|jsessionid|phpsessid|sid)=)[^&#\s]+",
+            r"\1[REDACTED]",
+            u,
+            flags=re.IGNORECASE,
+        )
+
+    def _redact_body_str(raw_b: bytes | None) -> str:
+        if not raw_b:
+            return ""
+        txt = raw_b.decode("utf-8", errors="ignore")
+        return re.sub(
+            r'("(?:password|passwd|passwordRepeat|secret|token|current|new)"\s*:\s*)"[^"]*"',
+            r'\1"[REDACTED]"',
+            txt,
+            flags=re.IGNORECASE,
+        )
+
+    def _record_har(method: str, url: str, req_hdrs: dict[str, str], req_body: bytes | None, st: int, resp_hdrs: dict[str, str], elapsed_ms: float) -> None:
+        sens = {"authorization", "cookie", "set-cookie", "x-api-key"}
+        entry: dict = {
+            "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "time": elapsed_ms,
+            "request": {
+                "method": method,
+                "url": _redact_url_str(url),
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {
+                        "name": k,
+                        "value": (
+                            f"{v.split(' ', 1)[0]} [REDACTED]"
+                            if k.lower() == "authorization" and " " in str(v)
+                            else (_redact_url_str(str(v)) if k.lower() == "referer" else ("[REDACTED]" if k.lower() in sens else v))
+                        ),
+                    }
+                    for k, v in req_hdrs.items()
+                ],
+            },
+            "response": {
+                "status": st,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {
+                        "name": k,
+                        "value": (
+                            _redact_url_str(str(v))
+                            if k.lower() in {"location", "refresh", "referer"}
+                            else ("[REDACTED]" if k.lower() in sens else v)
+                        ),
+                    }
+                    for k, v in resp_hdrs.items()
+                ],
+            },
+        }
+        if req_body:
+            entry["request"]["postData"] = {"mimeType": "application/json", "text": _redact_body_str(req_body)}
+        local_har_entries.append(entry)
+
+    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        try:
+            with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
+                hdrs = {k.lower(): v for k, v in resp.headers.items()}
+                return resp.status, hdrs, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            hdrs = {k.lower(): v for k, v in he.headers.items()}
+            return he.code, hdrs, he.read(16384).decode("utf-8", errors="ignore")
+        except Exception:
+            return 0, {}, ""
+
+    raw_probe = http_probe_fn or _default_probe
+
+    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {k.lower(): v for k, v in (headers or {}).items()}
+        t0 = time.monotonic()
+        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        _record_har(method, url, headers or {}, body, st, hdrs, round((time.monotonic() - t0) * 1000, 1))
+        if crawled_exchanges is None:
+            local_exchanges.append(
+                {
+                    "method": method,
+                    "url": url,
+                    "status": st,
+                    "headers": hdrs,
+                    "request_headers": req_hdrs,
+                    "body": rbody,
+                }
+            )
+        return st, hdrs, rbody
+
+    active_zap = (
+        zap_report
+        if (zap_report is not None and zap_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=[base_url, f"{base_url}/rest/user/whoami"],
+            json_out_path=json_out_path or (OUTPUT_DIR / "zap-report.json"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "zap-findings.sarif"),
+            timeout_sec=120,
+        )
+    )
+
+    jwt_url_re = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
+    sens_param_re = re.compile(
+        r"(?:[?&#])(token|access_token|refresh_token|id_token|jwt|sessionid|jsessionid|phpsessid|sid|password|passwd|current|new)=([^&#\s]+)",
+        re.IGNORECASE,
+    )
+    aut04_findings: list[dict] = []
+    seen_finding_keys: set[tuple[str, str]] = set()
+
+    def _add_finding(url: str, channel: str, detail: str) -> None:
+        key = (channel, url.split("?", 1)[0])
+        if key not in seen_finding_keys:
+            seen_finding_keys.add(key)
+            aut04_findings.append({"url": url.split("?", 1)[0], "channel": channel, "detail": detail})
+
+    # Record crawled exchanges (redacted) into dedicated aut04-replayed.har as well
+    for ex_init in list(crawled_exchanges or []):
+        _record_har(
+            ex_init.get("method", "GET"),
+            ex_init.get("url", base_url),
+            ex_init.get("request_headers") or {},
+            None,
+            ex_init.get("status", 0),
+            ex_init.get("headers") or {},
+            0.0,
+        )
+
+    # 1. Inspect OWASP ZAP passive scan rules 3 (Session ID in URL Rewrite), 10024 (Sensitive Info in URL), 10025 (Sensitive Info in Referrer Header)
+    zap_matched_plugins: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid in {"3", "10024", "10025"} or any(
+            kw in low_a for kw in ("sensitive information in url", "http referrer header", "session id in url rewrite")
+        ):
+            zap_matched_plugins.add(pid or aname)
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                _add_finding(
+                    uri,
+                    f"OWASP_ZAP_{pid or 'URL_REF'}",
+                    f"[OWASP ZAP {pid}] {aname} detected at {uri.split('?', 1)[0]} (evidence redacted).",
+                )
+
+    # 2. Scan recorded crawl exchanges (URLs, query strings, fragments, outbound request Referer, and Location redirect headers)
+    for ex4 in local_exchanges:
+        u4 = ex4.get("url", "")
+        if any(tok in u4 for tok in tok_set) or jwt_url_re.search(u4):
+            _add_finding(
+                u4,
+                "HAR_URL_Token_Leak",
+                f"Crawl request URL {ex4.get('method', 'GET')} {u4.split('?', 1)[0]} transmitted an active session/JWT token in the URL.",
+            )
+        m_qp = sens_param_re.search(u4)
+        if m_qp and "[REDACTED]" not in m_qp.group(2):
+            _add_finding(
+                u4,
+                "HAR_Query_Credential",
+                f"Crawl request URL {ex4.get('method', 'GET')} {u4.split('?', 1)[0]} carried sensitive parameter '{m_qp.group(1)}' in query/fragment.",
+            )
+        req_hdrs4 = ex4.get("request_headers") or {}
+        resp_hdrs4 = ex4.get("headers") or {}
+        for hdr_src, ref_val in (
+            ("outbound request", req_hdrs4.get("referer", "")),
+            ("response", resp_hdrs4.get("referer", "")),
+        ):
+            if ref_val and (any(tok in ref_val for tok in tok_set) or jwt_url_re.search(ref_val) or sens_param_re.search(ref_val)):
+                _add_finding(
+                    u4,
+                    "Referer_Header_Leak",
+                    f"{hdr_src.capitalize()} Referer header at {u4.split('?', 1)[0]} leaked session token or credential material.",
+                )
+        loc_val = resp_hdrs4.get("location", "") or resp_hdrs4.get("refresh", "")
+        if loc_val and (any(tok in loc_val for tok in tok_set) or jwt_url_re.search(loc_val) or sens_param_re.search(loc_val)):
+            _add_finding(
+                u4,
+                "Redirect_Location_Token_Leak",
+                f"Redirect Location/Refresh header at {u4.split('?', 1)[0]} exposed token or sensitive query/fragment parameter.",
+            )
+
+    # 3. Active CWE-598 GET Credential Query-String Acceptance Probe (GET /rest/user/change-password?current=...&new=...&repeat=...)
+    em4 = f"casa3_aut04_probe_{int(time.time())}@juice-sh.op"
+    pw4_old = "Casa3Aut04Old!99"
+    pw4_new = "Casa3Aut04New!99"
+    reg4_st, _, _ = _probe_logged(
+        "/api/Users/",
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        body=json.dumps({"email": em4, "password": pw4_old, "passwordRepeat": pw4_old}).encode("utf-8"),
+    )
+    tok4 = ""
+    if 200 <= reg4_st < 300:
+        l4_st, _, l4_body = _probe_logged(
+            login_endpoint,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": em4, "password": pw4_old}).encode("utf-8"),
+        )
+        if 200 <= l4_st < 300:
+            try:
+                tok4 = json.loads(l4_body).get("authentication", {}).get("token", "")
+            except Exception:
+                tok4 = ""
+
+    if tok4:
+        cp_path = (
+            f"/rest/user/change-password?current={urllib.parse.quote(pw4_old)}"
+            f"&new={urllib.parse.quote(pw4_new)}&repeat={urllib.parse.quote(pw4_new)}"
+        )
+        cp_st, _, cp_body = _probe_logged(cp_path, method="GET", headers={"Authorization": f"Bearer {tok4}"})
+        if 200 <= cp_st < 300 and '"user"' in cp_body.lower():
+            _add_finding(
+                f"{base_url}/rest/user/change-password",
+                "CWE-598_GET_Credential_Query",
+                (
+                    f"GET {base_url}/rest/user/change-password accepted current & new passwords in URL query parameters "
+                    f"(HTTP {cp_st}, persisting plaintext credentials in web access logs and browser history — CWE-598 / ASVS V3.1.1)."
+                ),
+            )
+
+    # 4. Inspect client routing / OAuth handler for Implicit Flow #access_token= fragment transmission
+    if repo is not None:
+        app_routing_file = repo / "frontend" / "src" / "app" / "app.routing.ts"
+        oauth_comp_file = repo / "frontend" / "src" / "app" / "oauth" / "oauth.component.ts"
+        for f4 in (app_routing_file, oauth_comp_file):
+            if f4.exists():
+                txt4 = f4.read_text(encoding="utf-8", errors="ignore")
+                if "#access_token=" in txt4 or "parseRedirectUrlParams().access_token" in txt4:
+                    rel4 = str(f4.relative_to(repo))
+                    _add_finding(
+                        f"{base_url}/oauth#{rel4}",
+                        "URL_Fragment_Access_Token",
+                        f"{rel4} handles OAuth Implicit Flow access token in URL fragment ('#access_token=') instead of Authorization Code + PKCE (ASVS V3.1.1).",
+                    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "aut04-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-aut04-url-referer-harness", "version": "3.0"},
+                    "entries": local_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af4 in aut04_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AUT-04",
+                "level": "error",
+                "message": {"text": af4["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af4["url"]}}}],
+                "properties": {"controlId": "AUT-04", "channel": af4["channel"]},
+            }
+        )
+
+    aut04_fail = len(aut04_findings) > 0
+    return {
+        "verdict": "FAIL" if aut04_fail else "PASS",
+        "aut04_fail": aut04_fail,
+        "requestsChecked": len(local_exchanges),
+        "findings": aut04_findings,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -8101,7 +8413,16 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
                             "value": (
                                 f"{v.split(' ', 1)[0]} [REDACTED]"
                                 if k.lower() == "authorization" and " " in str(v)
-                                else ("[REDACTED]" if k.lower() in sensitive_hdrs else v)
+                                else (
+                                    re.sub(
+                                        r"([?&#](?:current|new|repeat|password|token|access_token|refresh_token)=)[^&#\s]+",
+                                        r"\1[REDACTED]",
+                                        str(v),
+                                        flags=re.IGNORECASE,
+                                    )
+                                    if k.lower() == "referer"
+                                    else ("[REDACTED]" if k.lower() in sensitive_hdrs else v)
+                                )
                             ),
                         }
                         for k, v in req_headers.items()
@@ -8123,6 +8444,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
                 "url": url,
                 "status": status,
                 "headers": resp_headers,
+                "request_headers": {k.lower(): v for k, v in req_headers.items()},
                 "body": resp_body,
             }
         )
@@ -8831,132 +9153,31 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AUT-04: Session tokens & credentials in URLs, query strings, fragments, Referer headers & GET credential endpoints (SARIF 2.1.0 + redacted HAR 1.2)
+    # AUT-04: OWASP ZAP (Rules 3/10024/10025) + HAR 1.2 URL/Query/Fragment/Referer & CWE-598 GET Credential Inspector (SARIF 2.1.0 + redacted HAR 1.2)
     observed_tokens_4 = {t for t in [jwt_token, auth_token, post_token3] if t and len(t) >= 16}
-    jwt_url_re = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
-    sens_param_re = re.compile(
-        r"(?:[?&#])(token|access_token|refresh_token|id_token|jwt|sessionid|jsessionid|phpsessid|password|current|new)=([^&#\s]+)",
-        re.IGNORECASE,
+    aut04_eval = evaluate_aut04_url_token_leak(
+        base_url,
+        repo=repo,
+        login_endpoint=aut02_login_ep,
+        observed_tokens=observed_tokens_4,
+        crawled_exchanges=crawled_exchanges,
+        zap_report=zap_domain4_report,
+        http_probe_fn=http_probe,
     )
-    aut04_findings: list[dict] = []
-
-    # 1. Scan all recorded crawl exchanges (URLs, query strings, fragments, outbound Referer headers)
-    crawl_urls_checked = len(crawled_exchanges)
-    for ex4 in crawled_exchanges:
-        u4 = ex4["url"]
-        if any(tok in u4 for tok in observed_tokens_4) or jwt_url_re.search(u4):
-            aut04_findings.append(
-                {
-                    "url": u4.split("?", 1)[0],
-                    "channel": "HAR_URL_Token_Leak",
-                    "detail": f"Crawl request URL {ex4['method']} {u4.split('?', 1)[0]} transmitted an active session/JWT token in the URL.",
-                }
-            )
-        m_qp = sens_param_re.search(u4)
-        if m_qp and "[REDACTED]" not in m_qp.group(2):
-            aut04_findings.append(
-                {
-                    "url": u4.split("?", 1)[0],
-                    "channel": "HAR_Query_Credential",
-                    "detail": f"Crawl request URL {ex4['method']} {u4.split('?', 1)[0]} carried sensitive parameter '{m_qp.group(1)}' in query/fragment.",
-                }
-            )
-        ref_hdr = ex4["headers"].get("referer", "")
-        if ref_hdr and (any(tok in ref_hdr for tok in observed_tokens_4) or jwt_url_re.search(ref_hdr) or sens_param_re.search(ref_hdr)):
-            aut04_findings.append(
-                {
-                    "url": u4.split("?", 1)[0],
-                    "channel": "Referer_Header_Leak",
-                    "detail": f"Response/outbound Referer header at {u4.split('?', 1)[0]} leaked session token or credential material.",
-                }
-            )
-
-    # 2. Active CWE-598 GET Credential Query-String Acceptance Probe (GET /rest/user/change-password?current=...&new=...&repeat=...)
-    em4 = f"casa3_aut04_probe_{int(time.time())}@juice-sh.op"
-    pw4_old = "Casa3Aut04Old!99"
-    pw4_new = "Casa3Aut04New!99"
-    reg4_st, _, _ = http_probe(
-        "/api/Users/",
-        method="POST",
-        headers={"Content-Type": "application/json"},
-        body=json.dumps({"email": em4, "password": pw4_old, "passwordRepeat": pw4_old}).encode("utf-8"),
-    )
-    tok4 = ""
-    if 200 <= reg4_st < 300:
-        l4_st, _, l4_body = http_probe(
-            aut02_login_ep,
-            method="POST",
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"email": em4, "password": pw4_old}).encode("utf-8"),
-        )
-        if 200 <= l4_st < 300:
-            try:
-                tok4 = json.loads(l4_body).get("authentication", {}).get("token", "")
-            except Exception:
-                tok4 = ""
-
-    if tok4:
-        cp_path = (
-            f"/rest/user/change-password?current={urllib.parse.quote(pw4_old)}"
-            f"&new={urllib.parse.quote(pw4_new)}&repeat={urllib.parse.quote(pw4_new)}"
-        )
-        cp_st, _, cp_body = http_probe(cp_path, method="GET", headers={"Authorization": f"Bearer {tok4}"})
-        if 200 <= cp_st < 300 and '"user"' in cp_body.lower():
-            aut04_findings.append(
-                {
-                    "url": f"{base_url}/rest/user/change-password",
-                    "channel": "CWE-598_GET_Credential_Query",
-                    "detail": (
-                        f"GET {base_url}/rest/user/change-password accepted current & new passwords in URL query parameters "
-                        f"(HTTP {cp_st}, persisting plaintext credentials in web access logs and browser history — CWE-598 / ASVS V3.1.1)."
-                    ),
-                }
-            )
-
-    # 3. Inspect client routing / OAuth handler for Implicit Flow #access_token= fragment transmission
-    app_routing_file = repo / "frontend" / "src" / "app" / "app.routing.ts"
-    oauth_comp_file = repo / "frontend" / "src" / "app" / "oauth" / "oauth.component.ts"
-    for f4 in (app_routing_file, oauth_comp_file):
-        if f4.exists():
-            txt4 = f4.read_text(encoding="utf-8", errors="ignore")
-            if "#access_token=" in txt4 or "parseRedirectUrlParams().access_token" in txt4:
-                rel4 = str(f4.relative_to(repo))
-                aut04_findings.append(
-                    {
-                        "url": f"{base_url}/oauth",
-                        "channel": "URL_Fragment_Access_Token",
-                        "detail": f"{rel4} handles OAuth Implicit Flow access token in URL fragment ('#access_token=') instead of Authorization Code + PKCE (ASVS V3.1.1).",
-                    }
-                )
-
-    for af4 in aut04_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AUT-04",
-                "level": "error",
-                "message": {"text": af4["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af4["url"]},
-                        }
-                    }
-                ],
-                "properties": {"controlId": "AUT-04", "channel": af4["channel"]},
-            }
-        )
-
-    aut04_fail = len(aut04_findings) > 0
+    aut04_findings = aut04_eval["findings"]
+    crawl_urls_checked = aut04_eval["requestsChecked"]
+    dast_sarif_results.extend(aut04_eval["sarifResults"])
+    aut04_fail = aut04_eval["aut04_fail"]
     aut04_lines = [f"[{af4['channel']}] {af4['detail']}" for af4 in aut04_findings]
     results["AUT-04"] = {
-        "verdict": "FAIL" if aut04_fail else "PASS",
-        "tool": f"HAR 1.2 URL/Query/Fragment/Referer & CWE-598 GET-Credential Probe ({crawl_urls_checked} requests scanned, SARIF 2.1.0 + redacted HAR 1.2)",
+        "verdict": aut04_eval["verdict"],
+        "tool": f"OWASP ZAP {zap_ver_label} (Rules 3/10024/10025) & HAR 1.2 URL/Query/Fragment/Referer & CWE-598 Probe ({crawl_urls_checked} requests scanned, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] {len(aut04_findings)} URL/fragment credential or token exposure(s) detected:\n  - "
+            f"[FAIL] {len(aut04_findings)} URL/fragment/Referer credential or token exposure(s) detected (ZAP plugins={aut04_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(aut04_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AUT-04 Redacted HAR 1.2: {aut04_eval['harPath']}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if aut04_fail
-            else f"[PASS] Inspected {crawl_urls_checked} HTTP requests (URLs, query strings, fragments, Referer headers) + active GET credential probe; 0 session tokens or credentials transmitted in URLs/fragments.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] OWASP ZAP {zap_ver_label} and crawl inspection across {crawl_urls_checked} HTTP requests (URLs, query strings, fragments, outbound Referer, redirects) + active GET credential probe found 0 token or credential exposures.\nEvidence Artifacts:\n  - AUT-04 Redacted HAR 1.2: {aut04_eval['harPath']}\n  - ZAP SARIF 2.1.0: {zap_domain4_report.get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

@@ -3833,6 +3833,162 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 43/61: AUT-08 (Iteração SDD 113)", just2_txt)
 
+    def test_iteration114_azi01_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_azi01_anti_csrf
+
+        class _Azi01Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "session_bound"
+            username = "initial_user"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def _read_body(self) -> str:
+                length = int(self.headers.get("Content-Length", "0"))
+                return self.rfile.read(length).decode("utf-8", errors="ignore") if length else ""
+
+            def _get_session_user(self) -> str:
+                ck = self.headers.get("Cookie", "")
+                for part in ck.split(";"):
+                    if part.strip().startswith("token="):
+                        val = part.split("=", 1)[1].strip()
+                        if val == "tok_session_a":
+                            return "sessA"
+                        if val == "tok_session_b":
+                            return "sessB"
+                return ""
+
+            def do_GET(self):
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                sess = self._get_session_user() or "anon"
+                if p == "/profile":
+                    csrf_tok = f"csrf_for_{sess}"
+                    html_doc = (
+                        f'<html><body>User:{type(self).username}'
+                        f'<form method="POST"><input type="hidden" name="_csrf" value="{csrf_tok}"></form>'
+                        f"</body></html>"
+                    ).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("X-CSRF-Token", csrf_tok)
+                    if m == "global_csrf_samesite_none":
+                        self.send_header("Set-Cookie", "token=tok_session_a; Path=/; SameSite=None; Secure")
+                    else:
+                        self.send_header("Set-Cookie", "token=tok_session_a; Path=/; HttpOnly; SameSite=Strict")
+                    self.send_header("Content-Length", str(len(html_doc)))
+                    self.end_headers()
+                    self.wfile.write(html_doc)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+            def do_POST(self):
+                raw = self._read_body()
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                if p == "/rest/user/login":
+                    try:
+                        cred = json.loads(raw or "{}")
+                    except Exception:
+                        cred = {}
+                    tok = "tok_session_b" if "admin" in cred.get("email", "") else "tok_session_a"
+                    body = json.dumps({"authentication": {"token": tok}}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if p == "/profile":
+                    sess = self._get_session_user()
+                    parsed_form = urllib.parse.parse_qs(raw)
+                    presented_csrf = self.headers.get("X-CSRF-Token", "") or (parsed_form.get("_csrf", [""])[0])
+                    if not sess:
+                        self.send_response(401)
+                        self.end_headers()
+                        return
+                    allowed = False
+                    if m == "session_bound":
+                        allowed = presented_csrf == f"csrf_for_{sess}"
+                    elif m == "no_csrf":
+                        allowed = True
+                    elif m == "global_csrf_samesite_none":
+                        allowed = presented_csrf.startswith("csrf_for_")
+                    if allowed and "username" in parsed_form:
+                        type(self).username = parsed_form["username"][0]
+                        body = b'{"status":"updated"}'
+                        self.send_response(200)
+                    else:
+                        body = b'{"error":"Invalid CSRF token"}'
+                        self.send_response(403)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Azi01Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_azi1:
+            tdp = Path(td_azi1)
+            try:
+                # 1. Session-bound anti-CSRF rejecting removed, replaced, and Session B CSRF token -> PASS + redacted HAR
+                _Azi01Handler.mode = "session_bound"
+                _Azi01Handler.username = "initial_user"
+                har_pass = tdp / "azi01_pass.har"
+                r_pass = evaluate_azi01_anti_csrf(
+                    f"http://127.0.0.1:{port}",
+                    session_a_token="tok_session_a",
+                    session_b_token="tok_session_b",
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertEqual(r_pass["replaysExecuted"], 3)
+                self.assertEqual(r_pass["sessionBCsrfToken"], "csrf_for_sessB")
+                har_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("tok_session_a", har_txt)
+
+                # 2. Unprotected endpoint mutating state across all 3 replay modes -> FAIL
+                _Azi01Handler.mode = "no_csrf"
+                r_nocsrf = evaluate_azi01_anti_csrf(
+                    f"http://127.0.0.1:{port}",
+                    session_a_token="tok_session_a",
+                    session_b_token="tok_session_b",
+                    har_out_path=tdp / "azi01_nocsrf.har",
+                )
+                self.assertEqual(r_nocsrf["verdict"], "FAIL")
+                modes_hit = {f["mode"] for f in r_nocsrf["findings"]}
+                self.assertTrue({"csrf_token_removed", "csrf_token_replaced", "csrf_token_second_session"}.issubset(modes_hit))
+
+                # 3. Non-session-bound CSRF accepting Session B CSRF token + SameSite=None cookie -> FAIL (CASA3-AZI-01)
+                _Azi01Handler.mode = "global_csrf_samesite_none"
+                r_glob = evaluate_azi01_anti_csrf(
+                    f"http://127.0.0.1:{port}",
+                    session_a_token="tok_session_a",
+                    session_b_token="tok_session_b",
+                    har_out_path=tdp / "azi01_glob.har",
+                )
+                self.assertEqual(r_glob["verdict"], "FAIL")
+                glob_modes = {f["mode"] for f in r_glob["findings"]}
+                self.assertIn("csrf_token_second_session", glob_modes)
+                self.assertIn("samesite_none_cookie", glob_modes)
+                self.assertTrue(any(s["ruleId"] == "CASA3-AZI-01" for s in r_glob["sarifResults"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 44/61: AZI-01 (Iteração SDD 114)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

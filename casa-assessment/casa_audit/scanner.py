@@ -4781,6 +4781,7 @@ def run_zap_automation(
             f"    parameters:\n"
             f"      enableTags: false\n"
             f"      maxAlertsPerRule: 20\n"
+            f"      scanOnlyInScope: false\n"
             f"    rules:\n"
             f"      - id: 3\n"
             f"        threshold: Low\n"
@@ -4807,8 +4808,6 @@ def run_zap_automation(
             f"      maxDepth: 2\n"
             f"      maxChildren: 25\n"
             f"  - type: passiveScan-wait\n"
-            f"    parameters:\n"
-            f"      maxDuration: 2\n"
             f"  - type: report\n"
             f"    parameters:\n"
             f"      template: traditional-json\n"
@@ -9660,6 +9659,312 @@ def evaluate_aut08_client_storage(
     }
 
 
+def _extract_csrf_token(headers: dict[str, str], body: str) -> str:
+    """Extract an anti-CSRF token from HTML hidden inputs, meta tags, response headers, or XSRF cookies."""
+    for hkey in ("x-csrf-token", "x-xsrf-token", "csrf-token"):
+        hv = (headers.get(hkey) or "").strip()
+        if hv:
+            return hv
+    raw_sc = headers.get("set-cookie") or ""
+    if raw_sc:
+        for sc_part in _split_set_cookie_headers(raw_sc):
+            kv = sc_part.split(";", 1)[0]
+            if "=" in kv:
+                ck_n, ck_v = kv.split("=", 1)
+                if ck_n.strip().lower() in {"xsrf-token", "csrf-token", "csrftoken", "_csrf"} and ck_v.strip():
+                    return ck_v.strip()
+    if body:
+        m_inp = re.search(
+            r'<input[^>]+name=["\'](?:_csrf|csrf_token|csrfToken|csrftoken)["\'][^>]+value=["\']([^"\']+)["\']',
+            body,
+            re.IGNORECASE,
+        )
+        if m_inp:
+            return m_inp.group(1).strip()
+        m_inp_rev = re.search(
+            r'<input[^>]+value=["\']([^"\']+)["\'][^>]+name=["\'](?:_csrf|csrf_token|csrfToken|csrftoken)["\']',
+            body,
+            re.IGNORECASE,
+        )
+        if m_inp_rev:
+            return m_inp_rev.group(1).strip()
+        m_meta = re.search(
+            r'<meta[^>]+name=["\'](?:csrf-token|xsrf-token)["\'][^>]+content=["\']([^"\']+)["\']',
+            body,
+            re.IGNORECASE,
+        )
+        if m_meta:
+            return m_meta.group(1).strip()
+    return ""
+
+
+def evaluate_azi01_anti_csrf(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    login_endpoint: str = "/rest/user/login",
+    session_a_token: str = "",
+    session_b_token: str = "",
+    credentials_a: tuple[str, str] | None = None,
+    credentials_b: tuple[str, str] | None = None,
+    state_endpoint: str = "/profile",
+    reread_endpoint: str | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    har_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate AZI-01 (ASVS V4.2.2 / CWE-352) via 3-mode anti-CSRF replay + re-read verification."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    reread_ep = reread_endpoint or state_endpoint
+    local_exchanges: list[dict] = list(crawled_exchanges) if crawled_exchanges is not None else []
+    local_har_entries: list[dict] = []
+
+    def _redact_body_str(raw_b: bytes | None) -> str:
+        if not raw_b:
+            return ""
+        txt = raw_b.decode("utf-8", errors="ignore")
+        txt = re.sub(
+            r'("(?:password|passwd|secret|token|_csrf)"\s*:\s*)"[^"]*"',
+            r'\1"[REDACTED]"',
+            txt,
+            flags=re.IGNORECASE,
+        )
+        return re.sub(r"([&?](?:_csrf|csrf_token)=|^_csrf=)[^&\s]+", r"\1[REDACTED]", txt, flags=re.IGNORECASE)
+
+    def _record_har(method: str, url: str, req_hdrs: dict[str, str], req_body: bytes | None, st: int, resp_hdrs: dict[str, str], elapsed_ms: float) -> None:
+        sens = {"authorization", "cookie", "set-cookie", "x-api-key", "x-csrf-token", "x-xsrf-token"}
+        entry: dict = {
+            "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "time": elapsed_ms,
+            "request": {
+                "method": method,
+                "url": url,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {
+                        "name": k,
+                        "value": (
+                            f"{v.split(' ', 1)[0]} [REDACTED]"
+                            if k.lower() == "authorization" and " " in str(v)
+                            else ("[REDACTED]" if k.lower() in sens else v)
+                        ),
+                    }
+                    for k, v in req_hdrs.items()
+                ],
+            },
+            "response": {
+                "status": st,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {"name": k, "value": "[REDACTED]" if k.lower() in sens else v}
+                    for k, v in resp_hdrs.items()
+                ],
+            },
+        }
+        if req_body:
+            entry["request"]["postData"] = {"mimeType": "application/x-www-form-urlencoded", "text": _redact_body_str(req_body)}
+        local_har_entries.append(entry)
+
+    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        try:
+            with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
+                hdrs = {k.lower(): v for k, v in resp.headers.items()}
+                all_sc = resp.headers.get_all("Set-Cookie") or []
+                if len(all_sc) > 1:
+                    hdrs["set-cookie"] = ", ".join(all_sc)
+                return resp.status, hdrs, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            hdrs = {k.lower(): v for k, v in he.headers.items()}
+            all_sc = he.headers.get_all("Set-Cookie") or []
+            if len(all_sc) > 1:
+                hdrs["set-cookie"] = ", ".join(all_sc)
+            return he.code, hdrs, he.read(16384).decode("utf-8", errors="ignore")
+        except Exception:
+            return 0, {}, ""
+
+    raw_probe = http_probe_fn or _default_probe
+
+    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        t0 = time.monotonic()
+        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        _record_har(method, url, headers or {}, body, st, hdrs, round((time.monotonic() - t0) * 1000, 1))
+        local_exchanges.append({"method": method, "url": url, "status": st, "headers": hdrs, "body": rbody})
+        return st, hdrs, rbody
+
+    insec_file = (repo / "lib" / "insecurity.ts") if repo is not None else None
+    server_file = (repo / "server.ts") if repo is not None else None
+    insec_txt_l = insec_file.read_text(encoding="utf-8", errors="ignore") if (insec_file and insec_file.exists()) else ""
+    server_txt_l = server_file.read_text(encoding="utf-8", errors="ignore").lower() if (server_file and server_file.exists()) else ""
+    csrf_missing = bool(repo) and ("csurf" not in insec_txt_l and "csrf" not in server_txt_l)
+
+    tok_a = session_a_token
+    if not tok_a and credentials_a is not None:
+        a_st, _, a_body = _probe_logged(
+            login_endpoint,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": credentials_a[0], "password": credentials_a[1]}).encode("utf-8"),
+        )
+        if 200 <= a_st < 300:
+            try:
+                tok_a = json.loads(a_body).get("authentication", {}).get("token", "") or json.loads(a_body).get("token", "")
+            except Exception:
+                tok_a = ""
+
+    tok_b = session_b_token
+    if not tok_b and login_endpoint:
+        cred_b = credentials_b or ("admin@juice-sh.op", "admin123")
+        b_st, _, b_body = _probe_logged(
+            login_endpoint,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"email": cred_b[0], "password": cred_b[1]}).encode("utf-8"),
+        )
+        if 200 <= b_st < 300:
+            try:
+                tok_b = json.loads(b_body).get("authentication", {}).get("token", "") or json.loads(b_body).get("token", "")
+            except Exception:
+                tok_b = ""
+
+    form_csrf_found = False
+    session_a_csrf = ""
+    session_b_csrf = ""
+    if tok_a:
+        p_get_st, p_get_hdrs, p_get_body = _probe_logged(state_endpoint, headers={"Cookie": f"token={tok_a}"})
+        if 200 <= p_get_st < 300:
+            session_a_csrf = _extract_csrf_token(p_get_hdrs, p_get_body)
+            form_csrf_found = bool(session_a_csrf) or bool(
+                re.search(r'name=["\'](?:_csrf|csrf_token|csrfToken|csrftoken)["\']', p_get_body, re.IGNORECASE)
+            )
+    if tok_b:
+        pb_st, pb_hdrs, pb_body = _probe_logged(state_endpoint, headers={"Cookie": f"token={tok_b}"})
+        if 200 <= pb_st < 300:
+            session_b_csrf = _extract_csrf_token(pb_hdrs, pb_body)
+
+    second_sess_csrf_val = session_b_csrf or tok_b or "second_session_csrf_token_abc"
+    azi01_findings: list[dict] = []
+    azi01_replays_executed = 0
+
+    if tok_a:
+        ts_csrf = int(time.time())
+        replay_modes = [
+            ("csrf_token_removed", {}, f"username=casa3_csrf_removed_{ts_csrf}"),
+            (
+                "csrf_token_replaced",
+                {"X-CSRF-Token": "invalid_forged_csrf_token_xyz"},
+                f"username=casa3_csrf_replaced_{ts_csrf}&_csrf=invalid_forged_csrf_token_xyz",
+            ),
+            (
+                "csrf_token_second_session",
+                {"X-CSRF-Token": second_sess_csrf_val},
+                f"username=casa3_csrf_sess2_{ts_csrf}&_csrf={urllib.parse.quote(second_sess_csrf_val)}",
+            ),
+        ]
+        for mode_name, extra_hdrs, form_body in replay_modes:
+            expected_marker = form_body.split("=", 1)[1].split("&", 1)[0]
+            csrf_hdrs = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Cookie": f"token={tok_a}",
+                "Origin": "https://evil.example.com",
+                **extra_hdrs,
+            }
+            mut_st, _, _ = _probe_logged(state_endpoint, method="POST", headers=csrf_hdrs, body=form_body.encode("utf-8"))
+            reread_st, _, reread_body = _probe_logged(reread_ep, headers={"Cookie": f"token={tok_a}"})
+            azi01_replays_executed += 1
+            state_mutated = (200 <= mut_st < 400) and (reread_st == 200) and (expected_marker in reread_body)
+            if state_mutated:
+                azi01_findings.append(
+                    {
+                        "url": f"{base_url}{state_endpoint}",
+                        "mode": mode_name,
+                        "status": mut_st,
+                        "detail": (
+                            f"POST {base_url}{state_endpoint} ({mode_name}, Origin: https://evil.example.com, Cookie-only auth, "
+                            f"form_csrf_field={form_csrf_found}) succeeded (HTTP {mut_st}) and state mutation '{expected_marker}' was confirmed on re-reading GET {reread_ep}."
+                        ),
+                    }
+                )
+
+    seen_ss_urls: set[str] = set()
+    for ex_c in local_exchanges:
+        sc_c = (ex_c.get("headers") or {}).get("set-cookie", "")
+        u_c = str(ex_c.get("url") or base_url)
+        if sc_c and "samesite=none" in sc_c.lower() and u_c not in seen_ss_urls:
+            seen_ss_urls.add(u_c)
+            azi01_findings.append(
+                {
+                    "url": u_c,
+                    "mode": "samesite_none_cookie",
+                    "status": ex_c.get("status", 0),
+                    "detail": f"Session cookie at {u_c} uses SameSite=None.",
+                }
+            )
+
+    if not azi01_findings and csrf_missing and (insec_txt_l or server_txt_l):
+        azi01_findings.append(
+            {
+                "url": f"{base_url}{state_endpoint}",
+                "mode": "missing_csrf_middleware",
+                "status": 0,
+                "detail": "Application backend lacks anti-CSRF middleware (csurf/CSRF token validation).",
+            }
+        )
+
+    har_file = har_out_path or (OUTPUT_DIR / "azi01-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-azi01-csrf-harness", "version": "3.0"},
+                    "entries": local_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for afz1 in azi01_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AZI-01",
+                "level": "error",
+                "message": {"text": afz1["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": afz1["url"]}}}],
+                "properties": {
+                    "controlId": "AZI-01",
+                    "replayMode": afz1["mode"],
+                    "httpStatus": afz1["status"],
+                },
+            }
+        )
+
+    azi01_fail = len(azi01_findings) > 0
+    return {
+        "verdict": "FAIL" if azi01_fail else "PASS",
+        "azi01_fail": azi01_fail,
+        "sessionAToken": tok_a,
+        "sessionBToken": tok_b,
+        "sessionACsrfToken": session_a_csrf,
+        "sessionBCsrfToken": session_b_csrf,
+        "replaysExecuted": azi01_replays_executed,
+        "findings": azi01_findings,
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -10651,130 +10956,30 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
 
     # ---- Domain 6: Authorization & Injection (AZI-01 .. AZI-06) ----
     # AZI-01: Strong anti-CSRF mechanism on state-changing authenticated endpoints (3-mode replay + re-read state verification, SARIF 2.1.0 + redacted HAR 1.2)
-    csrf_missing = (
-        "csurf" not in insec_txt
-        and "csrf" not in ((repo / "server.ts").read_text(encoding="utf-8", errors="ignore").lower() if (repo / "server.ts").exists() else "")
-    )
     session_a_tok = aut05_replayed_token or auth_token or jwt_token
-    session_b_tok = ""
-    if aut02_login_ep:
-        b_st, _, b_body = http_probe(
-            aut02_login_ep,
-            method="POST",
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"email": "admin@juice-sh.op", "password": "admin123"}).encode("utf-8"),
-        )
-        if 200 <= b_st < 300:
-            try:
-                session_b_tok = json.loads(b_body).get("authentication", {}).get("token", "")
-            except Exception:
-                session_b_tok = ""
-
-    # Inspect GET /profile form for hidden anti-CSRF tokens
-    form_csrf_found = False
-    if session_a_tok:
-        p_get_st, _, p_get_body = http_probe("/profile", headers={"Cookie": f"token={session_a_tok}"})
-        if p_get_st == 200 and re.search(r'name=["\'](?:_csrf|csrf_token|csrfToken|csrftoken)["\']', p_get_body, re.IGNORECASE):
-            form_csrf_found = True
-
-    azi01_findings: list[dict] = []
-    azi01_replays_executed = 0
-
-    if session_a_tok:
-        ts_csrf = int(time.time())
-        replay_modes = [
-            ("csrf_token_removed", {}, f"username=casa3_csrf_removed_{ts_csrf}"),
-            (
-                "csrf_token_replaced",
-                {"X-CSRF-Token": "invalid_forged_csrf_token_xyz"},
-                f"username=casa3_csrf_replaced_{ts_csrf}&_csrf=invalid_forged_csrf_token_xyz",
-            ),
-            (
-                "csrf_token_second_session",
-                {"X-CSRF-Token": session_b_tok or "second_session_csrf_token_abc"},
-                f"username=casa3_csrf_sess2_{ts_csrf}&_csrf={urllib.parse.quote(session_b_tok or 'second_session_csrf_token_abc')}",
-            ),
-        ]
-        for mode_name, extra_hdrs, form_body in replay_modes:
-            expected_marker = form_body.split("=", 1)[1].split("&", 1)[0]
-            csrf_hdrs = {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Cookie": f"token={session_a_tok}",
-                "Origin": "https://evil.example.com",
-                **extra_hdrs,
-            }
-            mut_st, _, _ = http_probe("/profile", method="POST", headers=csrf_hdrs, body=form_body.encode("utf-8"))
-            reread_st, _, reread_body = http_probe("/profile", headers={"Cookie": f"token={session_a_tok}"})
-            azi01_replays_executed += 1
-            state_mutated = (200 <= mut_st < 400) and (reread_st == 200) and (expected_marker in reread_body)
-            if state_mutated:
-                azi01_findings.append(
-                    {
-                        "url": f"{base_url}/profile",
-                        "mode": mode_name,
-                        "status": mut_st,
-                        "detail": (
-                            f"POST {base_url}/profile ({mode_name}, Origin: https://evil.example.com, Cookie-only auth, "
-                            f"form_csrf_field={form_csrf_found}) succeeded (HTTP {mut_st}) and state mutation '{expected_marker}' was confirmed on re-reading GET /profile."
-                        ),
-                    }
-                )
-
-    # Also fail if any observed Set-Cookie uses SameSite=None
-    for ex_c in crawled_exchanges:
-        sc_c = ex_c["headers"].get("set-cookie", "")
-        if sc_c and "samesite=none" in sc_c.lower():
-            azi01_findings.append(
-                {
-                    "url": ex_c["url"],
-                    "mode": "samesite_none_cookie",
-                    "status": ex_c["status"],
-                    "detail": f"Session cookie at {ex_c['url']} uses SameSite=None.",
-                }
-            )
-
-    if not azi01_findings and csrf_missing:
-        azi01_findings.append(
-            {
-                "url": f"{base_url}/profile",
-                "mode": "missing_csrf_middleware",
-                "status": 0,
-                "detail": "Application backend lacks anti-CSRF middleware (csurf/CSRF token validation).",
-            }
-        )
-
-    for afz1 in azi01_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AZI-01",
-                "level": "error",
-                "message": {"text": afz1["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": afz1["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AZI-01",
-                    "replayMode": afz1["mode"],
-                    "httpStatus": afz1["status"],
-                },
-            }
-        )
-
-    azi01_fail = len(azi01_findings) > 0
+    azi01_eval = evaluate_azi01_anti_csrf(
+        base_url,
+        repo=repo,
+        login_endpoint=aut02_login_ep,
+        session_a_token=session_a_tok or "",
+        crawled_exchanges=crawled_exchanges,
+        http_probe_fn=http_probe,
+    )
+    session_b_tok = azi01_eval["sessionBToken"]
+    azi01_findings = azi01_eval["findings"]
+    azi01_replays_executed = azi01_eval["replaysExecuted"]
+    dast_sarif_results.extend(azi01_eval["sarifResults"])
+    azi01_fail = azi01_eval["azi01_fail"]
     azi01_lines = [f"[{az['mode']}] {az['detail']}" for az in azi01_findings]
     results["AZI-01"] = {
-        "verdict": "FAIL" if azi01_fail else "PASS",
+        "verdict": azi01_eval["verdict"],
         "tool": f"Active Cross-Origin CSRF Replay & Re-Read Verification Harness ({azi01_replays_executed} replay modes: removed, replaced, cross-session, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
             f"[FAIL] {len(azi01_findings)} anti-CSRF violation(s) confirmed via cross-origin Cookie replay + re-read state check:\n  - "
             + "\n  - ".join(azi01_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AZI-01 Redacted HAR 1.2: {azi01_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if azi01_fail
-            else f"[PASS] Executed {azi01_replays_executed} anti-CSRF replays (removed, replaced, cross-session) with Origin: https://evil.example.com; all denied with 0 state mutations and no SameSite=None cookies.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] Executed {azi01_replays_executed} anti-CSRF replays (removed, replaced, cross-session) with Origin: https://evil.example.com; all denied with 0 state mutations and no SameSite=None cookies.\nEvidence Artifacts:\n  - AZI-01 Redacted HAR 1.2: {azi01_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

@@ -2,7 +2,7 @@
   "standard": "NIST SP 800-90B (Section 6.3.1 MCV 99% UCB)",
   "target": "http://localhost:3000/rest/user/login",
   "sampleTarget": 200,
-  "elapsedSec": 4.43,
+  "elapsedSec": 4.34,
   "verdict": "FAIL",
   "totalSampled": 200,
   "uniqueTokens": 5,

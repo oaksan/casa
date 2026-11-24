@@ -2198,3 +2198,50 @@ CONTROLE 43/61: AUT-08 (Iteração SDD 113)
     `sessionStorage['bid']` e `nonHttpOnlyCookies['token']` antes do logout, com
     `0` sobreviventes pós-logout -> Veredito **`FAIL`**.
 ================================================================================
+
+
+================================================================================
+CONTROLE 44/61: AZI-01 (Iteração SDD 114)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 6 - AUTHZ & INJECTION)
+--------------------------------------------------------------------------------
+- Controle: `AZI-01` — *Strong anti-CSRF mechanism on all state-changing
+  authenticated functionality* (ASVS V4.2.2 L1; CWE-352).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **Harness automatizado** (*scripted harness*, equivalente ao Burp Suite) que
+    reproduz requisições autenticadas de alteração de estado nos **3 modos**
+    (token anti-CSRF removido, substituído por valor inválido e extraído de uma
+    segunda sessão), confirma persistência real por releitura e audita cookies de
+    sessão quanto a `SameSite=None`, com evidências em SARIF 2.1.0
+    (`CASA3-AZI-01`) e HAR 1.2 redigido (`output/azi01-replayed.har`).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 114`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  O harness de `AZI-01` estava inline em `run_dynamic_and_protocol_checks` e no
+  terceiro modo (`csrf_token_second_session`) enviava o próprio JWT da Sessão B
+  em `X-CSRF-Token`/`_csrf` em vez de extrair o token CSRF genuíno emitido para
+  a Sessão B, além de não gerar captura HAR 1.2 dedicada.
+- O que foi feito e melhorado na Iteração SDD 114:
+  1) Implementação de `_extract_csrf_token(...)` (campos ocultos `_csrf`/
+     `csrf_token`, `<meta name="csrf-token">`, cabeçalho `X-CSRF-Token` e cookies
+     `XSRF-TOKEN`) aplicada tanto à Sessão A quanto à Sessão B antes do replay.
+  2) Extração de `evaluate_azi01_anti_csrf(...)` com replay cross-origin nos 3
+     modos, verificação de mutação via releitura de `GET /profile`, auditoria
+     `SameSite=None`, geração de `output/azi01-replayed.har` redigido (cookies,
+     `Authorization` e `_csrf` mascarados) e emissão SARIF `CASA3-AZI-01`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration114_azi01_guide_tooling`):
+  * **`PASS`** com token CSRF vinculado à sessão (`403` nos 3 modos e
+    `sessionBCsrfToken='csrf_for_sessB'`, com `[REDACTED]` confirmado no HAR).
+  * **`FAIL`** tanto para endpoint sem proteção (`csrf_token_removed/replaced/second_session`)
+    quanto para aplicação vulnerável que aceita o token CSRF real da Sessão B
+    na Sessão A + cookie `SameSite=None`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * `POST /profile` com `Origin: https://evil.example.com` e apenas `Cookie: token=`
+    obteve `HTTP 200` com mutação persistida na releitura de `GET /profile` nos
+    3 modos -> Veredito **`FAIL`** (3 violações `CASA3-AZI-01`).
+================================================================================

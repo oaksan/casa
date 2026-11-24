@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Mon, 23 Nov 2026 21:40:28",
-	"created": "2026-11-24T00:40:28.294911552Z",
+	"@generated": "Mon, 23 Nov 2026 22:18:28",
+	"created": "2026-11-24T01:18:28.897106358Z",
 	"insights":[
 		{
 			"level": "Low",
@@ -122,7 +122,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.response.slow",
 			"description": "Percentage of slow responses",
-			"statistic": "31"
+			"statistic": "29"
 		}
 	],
 	"site":[ 
@@ -143,7 +143,7 @@
 					"desc": "<p>The Content Security Policy fails to define one of the directives that has no fallback. Missing/excluding them is the same as allowing anything.</p>",
 					"instances":[ 
 						{
-							"id": "19",
+							"id": "10",
 							"uri": "http://localhost:3000/assets",
 							"nodeName": "http:\/\/localhost:3000\/assets",
 							"method": "GET",
@@ -303,6 +303,36 @@
 					"sourceid": "7"
 				},
 				{
+					"pluginid": "10096",
+					"alertRef": "10096",
+					"alert": "Timestamp Disclosure - Unix",
+					"name": "Timestamp Disclosure - Unix",
+					"riskcode": "1",
+					"confidence": "1",
+					"riskdesc": "Low (Low)",
+					"desc": "<p>A timestamp was disclosed by the application/web server. - Unix</p>",
+					"instances":[ 
+						{
+							"id": "72",
+							"uri": "http://localhost:3000/support/logs/access.log.2026-11-23",
+							"nodeName": "http:\/\/localhost:3000\/support\/logs\/access.log.2026-11-23",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "2008052906",
+							"otherinfo": "2008052906, which evaluates to: 2033-08-19 05:28:26."
+						}
+					],
+					"count": "1",
+					"systemic": true,
+					"solution": "<p>Manually confirm that the timestamp data is not sensitive, and that the data cannot be aggregated to disclose exploitable patterns.</p>",
+					"otherinfo": "<p>2008052906, which evaluates to: 2033-08-19 05:28:26.</p>",
+					"reference": "<p>https://cwe.mitre.org/data/definitions/200.html</p>",
+					"cweid": "497",
+					"wascid": "13",
+					"sourceid": "116"
+				},
+				{
 					"pluginid": "10027",
 					"alertRef": "10027",
 					"alert": "Information Disclosure - Suspicious Comments",
@@ -313,7 +343,7 @@
 					"desc": "<p>The response appears to contain suspicious comments which may help an attacker.</p>",
 					"instances":[ 
 						{
-							"id": "72",
+							"id": "70",
 							"uri": "http://localhost:3000/chunk-AkObRTpM.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-AkObRTpM.js",
 							"method": "GET",
@@ -323,7 +353,7 @@
 							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"//`)).test(e)){let[,t]=e.split(/\\/\\/[^\\/]+/);return t}return e}function yv(e){return Oe(e)[le.LocaleId]}function vv(e,n,t){let r\", see evidence field for the suspicious comment/snippet."
 						},
 						{
-							"id": "71",
+							"id": "69",
 							"uri": "http://localhost:3000/chunk-B2J0VXxm.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-B2J0VXxm.js",
 							"method": "GET",
@@ -333,7 +363,7 @@
 							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"//`)}catch(t){return!0}}function On(n){return n.segments.map(t=>ms(t)).join(`/`)}function at(n,t){if(!n.hasChildren())return On(\", see evidence field for the suspicious comment/snippet."
 						},
 						{
-							"id": "73",
+							"id": "71",
 							"uri": "http://localhost:3000/main.js",
 							"nodeName": "http:\/\/localhost:3000\/main.js",
 							"method": "GET",
@@ -364,6 +394,26 @@
 					"instances":[ 
 						{
 							"id": "31",
+							"uri": "http://localhost:3000",
+							"nodeName": "http:\/\/localhost:3000",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
+							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
+						},
+						{
+							"id": "29",
+							"uri": "http://localhost:3000/backup",
+							"nodeName": "http:\/\/localhost:3000\/backup",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
+							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
+						},
+						{
+							"id": "32",
 							"uri": "http://localhost:3000/files",
 							"nodeName": "http:\/\/localhost:3000\/files",
 							"method": "GET",
@@ -373,7 +423,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "30",
+							"id": "23",
 							"uri": "http://localhost:3000/logs",
 							"nodeName": "http:\/\/localhost:3000\/logs",
 							"method": "GET",
@@ -383,27 +433,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "28",
-							"uri": "http://localhost:3000/public",
-							"nodeName": "http:\/\/localhost:3000\/public",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
-							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
-						},
-						{
 							"id": "24",
-							"uri": "http://localhost:3000/static",
-							"nodeName": "http:\/\/localhost:3000\/static",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
-							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
-						},
-						{
-							"id": "26",
 							"uri": "http://localhost:3000/uploads",
 							"nodeName": "http:\/\/localhost:3000\/uploads",
 							"method": "GET",
@@ -420,7 +450,7 @@
 					"reference": "",
 					"cweid": "-1",
 					"wascid": "-1",
-					"sourceid": "12"
+					"sourceid": "15"
 				}
 			]
 		}

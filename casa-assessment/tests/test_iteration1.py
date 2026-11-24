@@ -4716,6 +4716,151 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 50/61: OAU-01 (Iteração SDD 120)", just2_txt)
 
+    def test_iteration121_oau02_guide_tooling(self) -> None:
+        import base64
+        import hashlib
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_oau02_pkce
+
+        verifier_ok = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk_secret_verifier_99"
+        challenge_ok = base64.urlsafe_b64encode(hashlib.sha256(verifier_ok.encode("ascii")).digest()).decode("ascii").rstrip("=")
+
+        class _PkceMockServer(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "strict"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", "https://app.example.com/callback?code=pkce_code_01&state=s1")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def do_POST(self):
+                cl = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(cl).decode("utf-8", errors="ignore") if cl > 0 else ""
+                fp = urllib.parse.parse_qs(raw)
+                cv = (fp.get("code_verifier") or [""])[0]
+                if type(self).mode == "strict" and cv != verifier_ok:
+                    b = json.dumps({"error": "invalid_grant", "error_description": "PKCE verifier mismatch"}).encode("utf-8")
+                    self.send_response(400)
+                else:
+                    b = json.dumps({"access_token": "tok_pkce_ok", "token_type": "Bearer"}).encode("utf-8")
+                    self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _PkceMockServer)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_oau2:
+            tdp = Path(td_oau2)
+            safe_repo = tdp / "safe_repo"
+            (safe_repo / "src").mkdir(parents=True)
+            (safe_repo / "src" / "pkce_ok.ts").write_text(
+                'export const AUTH_URI = `https://idp.example.com/authorize?client_id=c1&redirect_uri=https://app.example.com/cb&response_type=code&code_challenge=${cc}&code_challenge_method=S256`;\n'
+                'export const TOKEN_REQ = { grant_type: "authorization_code", code_verifier: verifier };\n',
+                encoding="utf-8",
+            )
+            weak_repo = tdp / "weak_repo"
+            (weak_repo / "src").mkdir(parents=True)
+            (weak_repo / "src" / "pkce_weak.ts").write_text(
+                'export const WEAK_AUTH = "https://idp.example.com/authorize?client_id=c1&redirect_uri=https://app.example.com/cb&response_type=code&code_challenge=abc&code_challenge_method=plain";\n',
+                encoding="utf-8",
+            )
+            try:
+                # 1. Valid S256 code_challenge (>= 43 chars) + matching code_verifier + negative probe rejected -> PASS
+                _PkceMockServer.mode = "strict"
+                rep_pass = tdp / "oau02_pass.json"
+                har_pass = tdp / "oau02_pass.har"
+                sg_pass = tdp / "oau02_pass_sg.sarif"
+                r_pass = evaluate_oau02_pkce(
+                    f"http://127.0.0.1:{port}",
+                    repo=safe_repo,
+                    oauth_flow_requests=[
+                        {
+                            "url": f"http://127.0.0.1:{port}/oauth/authorize?response_type=code&client_id=c1&code_challenge={challenge_ok}&code_challenge_method=S256",
+                            "method": "GET",
+                        },
+                        {
+                            "url": f"http://127.0.0.1:{port}/oauth/token",
+                            "method": "POST",
+                            "headers": {"Content-Type": "application/x-www-form-urlencoded", "Authorization": "Bearer secret_pkce_auth_1"},
+                            "body": f"grant_type=authorization_code&code=pkce_code_01&code_verifier={verifier_ok}",
+                        },
+                    ],
+                    negative_token_probe={
+                        "url": f"http://127.0.0.1:{port}/oauth/token",
+                        "method": "POST",
+                        "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                        "body": "grant_type=authorization_code&code=pkce_code_01",
+                    },
+                    semgrep_out_path=sg_pass,
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertEqual(len(r_pass["proxiedRequests"]), 3)
+                self.assertTrue(r_pass["semgrepExecuted"])
+                self.assertEqual(r_pass["semgrepHits"], 0)
+                har_pass_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_pass_txt)
+                self.assertNotIn(verifier_ok, har_pass_txt)
+                self.assertNotIn("secret_pkce_auth_1", har_pass_txt)
+
+                # 2. plain method + short challenge + mismatched verifier + verifier bypass + Semgrep hit -> FAIL
+                _PkceMockServer.mode = "weak"
+                rep_vuln = tdp / "oau02_vuln.json"
+                har_vuln = tdp / "oau02_vuln.har"
+                sg_vuln = tdp / "oau02_vuln_sg.sarif"
+                r_vuln = evaluate_oau02_pkce(
+                    f"http://127.0.0.1:{port}",
+                    repo=weak_repo,
+                    oauth_flow_requests=[
+                        {
+                            "url": f"http://127.0.0.1:{port}/oauth/authorize?response_type=code&client_id=c1&code_challenge=short123&code_challenge_method=plain",
+                            "method": "GET",
+                        },
+                        {
+                            "url": f"http://127.0.0.1:{port}/oauth/token",
+                            "method": "POST",
+                            "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                            "body": "grant_type=authorization_code&code=pkce_code_01&code_verifier=wrong_verifier_value",
+                        },
+                    ],
+                    negative_token_probe={
+                        "url": f"http://127.0.0.1:{port}/oauth/token",
+                        "method": "POST",
+                        "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                        "body": "grant_type=authorization_code&code=pkce_code_01",
+                    },
+                    semgrep_out_path=sg_vuln,
+                    report_out_path=rep_vuln,
+                    har_out_path=har_vuln,
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                self.assertGreaterEqual(r_vuln["semgrepHits"], 1, f"Expected Semgrep OAU-02 hit, got {r_vuln}")
+                cby = {f["confirmedBy"] for f in r_vuln["findings"]}
+                self.assertIn("intercepting_proxy", cby)
+                self.assertIn("intercepting_proxy_pkce_crypto", cby)
+                self.assertIn("pkce_verifier_bypass", cby)
+                self.assertIn("semgrep", cby)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-02" for s in r_vuln["sarifResults"]))
+                har_vuln_txt = har_vuln.read_text(encoding="utf-8")
+                self.assertNotIn("wrong_verifier_value", har_vuln_txt)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 51/61: OAU-02 (Iteração SDD 121)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

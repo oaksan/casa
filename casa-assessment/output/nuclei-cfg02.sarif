@@ -32,7 +32,7 @@
 			"results": [
 				{
 					"kind": "open",
-					"level": "error",
+					"level": "note",
 					"locations": [
 						{
 							"message": {
@@ -63,12 +63,12 @@
 						}
 					],
 					"message": {
-						"text": "Production Framework Debug / Stacktrace Markers Disclosed (casa3-cfg02-debug-traceback-markers) found on localhost"
+						"text": "Unauthenticated Swagger / OpenAPI Docs Exposed (casa3-cfg02-swagger-apidocs) found on localhost"
 					},
 					"partialFingerprints": {
-						"primaryLocationLineHash": "6d902829cc16ccf144079f33eb0bad98"
+						"primaryLocationLineHash": "d87885e2c64bbb612f95dbb32f59dc7c"
 					},
-					"ruleId": "casa3-cfg02-debug-traceback-markers"
+					"ruleId": "casa3-cfg02-swagger-apidocs"
 				},
 				{
 					"kind": "open",
@@ -112,7 +112,7 @@
 				},
 				{
 					"kind": "open",
-					"level": "note",
+					"level": "error",
 					"locations": [
 						{
 							"message": {
@@ -143,12 +143,12 @@
 						}
 					],
 					"message": {
-						"text": "Unauthenticated Swagger / OpenAPI Docs Exposed (casa3-cfg02-swagger-apidocs) found on localhost"
+						"text": "Production Framework Debug / Stacktrace Markers Disclosed (casa3-cfg02-debug-traceback-markers) found on localhost"
 					},
 					"partialFingerprints": {
-						"primaryLocationLineHash": "d87885e2c64bbb612f95dbb32f59dc7c"
+						"primaryLocationLineHash": "6d902829cc16ccf144079f33eb0bad98"
 					},
-					"ruleId": "casa3-cfg02-swagger-apidocs",
+					"ruleId": "casa3-cfg02-debug-traceback-markers",
 					"ruleIndex": 1
 				},
 				{
@@ -212,16 +212,16 @@
 								"text": "More details at"
 							},
 							"helpUri": "https://github.com/projectdiscovery/sarif",
-							"id": "casa3-cfg02-debug-traceback-markers",
-							"name": "Production Framework Debug / Stacktrace Markers Disclosed",
+							"id": "casa3-cfg02-swagger-apidocs",
+							"name": "Unauthenticated Swagger / OpenAPI Docs Exposed",
 							"properties": {
-								"security-severity": "8",
+								"security-severity": "2",
 								"tags": [
 									"security"
 								]
 							},
 							"shortDescription": {
-								"text": "Production Framework Debug / Stacktrace Markers Disclosed"
+								"text": "Unauthenticated Swagger / OpenAPI Docs Exposed"
 							}
 						},
 						{
@@ -252,16 +252,16 @@
 								"text": "More details at"
 							},
 							"helpUri": "https://github.com/projectdiscovery/sarif",
-							"id": "casa3-cfg02-swagger-apidocs",
-							"name": "Unauthenticated Swagger / OpenAPI Docs Exposed",
+							"id": "casa3-cfg02-debug-traceback-markers",
+							"name": "Production Framework Debug / Stacktrace Markers Disclosed",
 							"properties": {
-								"security-severity": "2",
+								"security-severity": "8",
 								"tags": [
 									"security"
 								]
 							},
 							"shortDescription": {
-								"text": "Unauthenticated Swagger / OpenAPI Docs Exposed"
+								"text": "Production Framework Debug / Stacktrace Markers Disclosed"
 							}
 						},
 						{

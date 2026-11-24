@@ -1038,7 +1038,7 @@
           "ruleId": "CASA3-SCA-03",
           "level": "error",
           "message": {
-            "text": "SCA-03 OS package vulnerability: gcc-14@14.2.0-19 (OS binary: gcc-14-base, libgcc-s1, libgomp1, libstdc++6) [BLOCKING HIGH/CRITICAL]: DEBIAN-CVE-2026-102010 (CVE-2026-102010, CVSS 7.0 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-95619 (CVE-2026-95619, CVSS 7.7 HIGH, urgency=not yet assigned)"
+            "text": "SCA-03 OS package vulnerability: libssl3t64@3.5.7-1~deb13u3 (OS package) [BLOCKING HIGH/CRITICAL]: CVE-2026-107494 (CVSS 7.5 HIGH, status=affected, fix=unfixed), CVE-2026-124709 (CVSS 7.5 HIGH, status=affected, fix=unfixed)"
           },
           "locations": [
             {
@@ -1054,23 +1054,7 @@
           "ruleId": "CASA3-SCA-03",
           "level": "error",
           "message": {
-            "text": "SCA-03 OS package vulnerability: glibc@2.41-12+deb13u4 (OS binary: libc6) [BLOCKING HIGH/CRITICAL]: DEBIAN-CVE-2026-19499 (CVE-2026-19499, CVSS 7.7 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-5435 (CVE-2026-5435, CVSS 7.3 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-84243 (CVE-2026-84243, CVSS 7.0 HIGH, urgency=not yet assigned)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "Dockerfile"
-                }
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "CASA3-SCA-03",
-          "level": "error",
-          "message": {
-            "text": "SCA-03 OS package vulnerability: openssl@3.5.7-1~deb13u3 (OS binary: libssl3t64) [BLOCKING HIGH/CRITICAL]: DEBIAN-CVE-2026-107493 (CVE-2026-107493, CVSS 7.7 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-107494 (CVE-2026-107494, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-107496 (CVE-2026-107496, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-121482 (CVE-2026-121482, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-124709 (CVE-2026-124709, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-84786 (CVE-2026-84786, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-88823 (CVE-2026-88823, CVSS 7.5 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-95691 (CVE-2026-95691, CVSS 8.1 HIGH, urgency=not yet assigned), DEBIAN-CVE-2026-95692 (CVE-2026-95692, CVSS 7.5 HIGH, urgency=not yet assigned)"
+            "text": "SCA-03 OS package vulnerability: zlib1g@1:1.3.dfsg+really1.3.1-1+b1 (OS package) [BLOCKING HIGH/CRITICAL]: CVE-2026-85091 (CVSS 8.1 HIGH, status=fixed, fix=1:1.3.dfsg+really1.3.1-1+deb13u1)"
           },
           "locations": [
             {

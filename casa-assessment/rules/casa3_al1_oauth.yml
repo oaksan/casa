@@ -13,3 +13,14 @@ rules:
     pattern-either:
       - pattern-regex: 'response_type=(?:token|id_token|code(?:%20|\s|\+)token|code(?:%20|\s|\+)id_token|id_token(?:%20|\s|\+)token)\b'
       - pattern-regex: 'parseRedirectUrlParams\(\)\.access_token|googleapis\.com/oauth2/v1/userinfo\?alt=json&access_token='
+
+  - id: CASA3-OAU-02-weak-or-plain-pkce
+    languages: [typescript, javascript, python]
+    message: "OAU-02: OAuth 2.0 authorization request omits RFC 7636 PKCE S256 parameters or uses prohibited plain method"
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern-regex: 'code_challenge_method\s*=\s*plain\b'
+          - patterns:
+              - pattern-regex: '[^\n]*\?client_id=[^\n]*redirect_uri=[^\n]*'
+              - pattern-not-regex: 'code_challenge_method\s*=\s*S256\b'

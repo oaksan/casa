@@ -2377,25 +2377,6 @@
           ]
         },
         {
-          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
-          "level": "error",
-          "message": {
-            "text": "routes/login.ts:64 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/routes/login.ts. (verified=true, Shannon entropy=4.33 bits/char)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "routes/login.ts"
-                },
-                "region": {
-                  "startLine": 64
-                }
-              }
-            }
-          ]
-        },
-        {
           "ruleId": "CASA3-SAST-01-gitleaks-private-key",
           "level": "error",
           "message": {
@@ -2409,6 +2390,25 @@
                 },
                 "region": {
                   "startLine": 171
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CASA3-SAST-01-gitleaks-generic-api-key",
+          "level": "error",
+          "message": {
+            "text": "routes/login.ts:64 \u2014 [GITLEAKS generic-api-key] generic-api-key has detected secret for file /home/user/felipe/speckit/juice-shop-master/routes/login.ts. (verified=true, Shannon entropy=4.33 bits/char)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "routes/login.ts"
+                },
+                "region": {
+                  "startLine": 64
                 }
               }
             }
@@ -3159,7 +3159,7 @@
           "ruleId": "CASA3-SAST-07-active-mass-assignment",
           "level": "error",
           "message": {
-            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=29) | GET http://localhost:3000/api/Users/29 verified lab-account read-back with role=\"admin\" (HTTP 200)"
+            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=34) | GET http://localhost:3000/api/Users/34 verified lab-account read-back with role=\"admin\" (HTTP 200)"
           },
           "locations": [
             {
@@ -3178,7 +3178,7 @@
           "ruleId": "CASA3-SAST-13-canary-log-leak",
           "level": "error",
           "message": {
-            "text": "logs/access.log.2026-11-24:68065 \u2014 [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary value written to log sink: ::ffff:127.0.0.1 - - [24/Nov/2026:22:07:19 +0000] \"GET /rest/user/change-password?current=CASA3_CANARY_CURPWD_1795558039&new=CASA3_CANARY_NEWPWD_1795558039&repeat=CASA3_CANARY_NEWPWD_1795558039 HTTP/1.1\" 500 - \"-\" \"ADA-CASA-3.0-Lab-Scanner/3.0\""
+            "text": "logs/access.log.2026-11-24:75041 \u2014 [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary value written to log sink: ::ffff:127.0.0.1 - - [24/Nov/2026:22:45:52 +0000] \"GET /rest/user/change-password?current=CASA3_CANARY_CURPWD_1795560352&new=CASA3_CANARY_NEWPWD_1795560352&repeat=CASA3_CANARY_NEWPWD_1795560352 HTTP/1.1\" 500 - \"-\" \"ADA-CASA-3.0-Lab-Scanner/3.0\""
           },
           "locations": [
             {
@@ -3187,7 +3187,7 @@
                   "uri": "logs/access.log.2026-11-24"
                 },
                 "region": {
-                  "startLine": 68065
+                  "startLine": 75041
                 }
               }
             }

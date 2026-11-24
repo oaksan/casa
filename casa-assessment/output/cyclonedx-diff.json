@@ -50324,13 +50324,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/base-files@13.8\u002Bdeb13u7?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/base-files@13.8%2Bdeb13u7?arch=amd64\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "base-files",
           "version": "13.8\u002Bdeb13u7",
-          "purl": "pkg:deb/debian/base-files@13.8\u002Bdeb13u7?upstream=base-files"
+          "purl": "pkg:deb/debian/base-files@13.8%2Bdeb13u7?arch=amd64\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50340,13 +50340,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/ca-certificates@20250419?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/ca-certificates@20250419?arch=all\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "ca-certificates",
           "version": "20250419",
-          "purl": "pkg:deb/debian/ca-certificates@20250419?upstream=ca-certificates"
+          "purl": "pkg:deb/debian/ca-certificates@20250419?arch=all\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50356,13 +50356,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/gcc-14-base@14.2.0-19?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/gcc-14-base@14.2.0-19?arch=amd64\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "gcc-14-base",
-          "version": "14.2.0-19",
-          "purl": "pkg:deb/debian/gcc-14-base@14.2.0-19?upstream=gcc-14"
+          "version": "14.2.0",
+          "purl": "pkg:deb/debian/gcc-14-base@14.2.0-19?arch=amd64\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50372,13 +50372,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/libc6@2.41-12\u002Bdeb13u4?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/libc6@2.41-12%2Bdeb13u4?arch=amd64\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "libc6",
-          "version": "2.41-12\u002Bdeb13u4",
-          "purl": "pkg:deb/debian/libc6@2.41-12\u002Bdeb13u4?upstream=glibc"
+          "version": "2.41",
+          "purl": "pkg:deb/debian/libc6@2.41-12%2Bdeb13u4?arch=amd64\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50388,13 +50388,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/libgcc-s1@14.2.0-19?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/libgcc-s1@14.2.0-19?arch=amd64\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "libgcc-s1",
-          "version": "14.2.0-19",
-          "purl": "pkg:deb/debian/libgcc-s1@14.2.0-19?upstream=gcc-14"
+          "version": "14.2.0",
+          "purl": "pkg:deb/debian/libgcc-s1@14.2.0-19?arch=amd64\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50404,13 +50404,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/libgomp1@14.2.0-19?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/libgomp1@14.2.0-19?arch=amd64\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "libgomp1",
-          "version": "14.2.0-19",
-          "purl": "pkg:deb/debian/libgomp1@14.2.0-19?upstream=gcc-14"
+          "version": "14.2.0",
+          "purl": "pkg:deb/debian/libgomp1@14.2.0-19?arch=amd64\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50420,13 +50420,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3?arch=amd64\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "libssl3t64",
-          "version": "3.5.7-1~deb13u3",
-          "purl": "pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3?upstream=openssl"
+          "version": "3.5.7",
+          "purl": "pkg:deb/debian/libssl3t64@3.5.7-1~deb13u3?arch=amd64\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50436,13 +50436,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/libstdc\u002B\u002B6@14.2.0-19?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/libstdc%2B%2B6@14.2.0-19?arch=amd64\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "libstdc\u002B\u002B6",
-          "version": "14.2.0-19",
-          "purl": "pkg:deb/debian/libstdc\u002B\u002B6@14.2.0-19?upstream=gcc-14"
+          "version": "14.2.0",
+          "purl": "pkg:deb/debian/libstdc%2B%2B6@14.2.0-19?arch=amd64\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50452,13 +50452,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/libzstd1@1.5.7\u002Bdfsg-1?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/libzstd1@1.5.7%2Bdfsg-1?arch=amd64\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "libzstd1",
-          "version": "1.5.7\u002Bdfsg-1",
-          "purl": "pkg:deb/debian/libzstd1@1.5.7\u002Bdfsg-1?upstream=libzstd"
+          "version": "1.5.7\u002Bdfsg",
+          "purl": "pkg:deb/debian/libzstd1@1.5.7%2Bdfsg-1?arch=amd64\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50468,13 +50468,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/media-types@13.0.0?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/media-types@13.0.0?arch=all\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "media-types",
           "version": "13.0.0",
-          "purl": "pkg:deb/debian/media-types@13.0.0?upstream=media-types"
+          "purl": "pkg:deb/debian/media-types@13.0.0?arch=all\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50484,13 +50484,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/netbase@6.5?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/netbase@6.5?arch=all\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "netbase",
           "version": "6.5",
-          "purl": "pkg:deb/debian/netbase@6.5?upstream=netbase"
+          "purl": "pkg:deb/debian/netbase@6.5?arch=all\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50500,13 +50500,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/tzdata@2026c-0\u002Bdeb13u1?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/tzdata@2026c-0%2Bdeb13u1?arch=all\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "tzdata",
-          "version": "2026c-0\u002Bdeb13u1",
-          "purl": "pkg:deb/debian/tzdata@2026c-0\u002Bdeb13u1?upstream=tzdata"
+          "version": "2026c",
+          "purl": "pkg:deb/debian/tzdata@2026c-0%2Bdeb13u1?arch=all\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50516,13 +50516,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/tzdata-legacy@2026c-0\u002Bdeb13u1?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/tzdata-legacy@2026c-0%2Bdeb13u1?arch=all\u0026distro=debian-13.7",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "tzdata-legacy",
-          "version": "2026c-0\u002Bdeb13u1",
-          "purl": "pkg:deb/debian/tzdata-legacy@2026c-0\u002Bdeb13u1?upstream=tzdata"
+          "version": "2026c",
+          "purl": "pkg:deb/debian/tzdata-legacy@2026c-0%2Bdeb13u1?arch=all\u0026distro=debian-13.7"
         }
       ],
       "removed": [],
@@ -50532,13 +50532,13 @@
       "added": [
         {
           "type": "library",
-          "bom-ref": "pkg:deb/debian/zlib1g@1:1.3.dfsg\u002Breally1.3.1-1\u002Bb1?arch=amd64\u0026distro=debian:13",
+          "bom-ref": "pkg:deb/debian/zlib1g@1.3.dfsg%2Breally1.3.1-1%2Bb1?arch=amd64\u0026distro=debian-13.7\u0026epoch=1",
           "supplier": {
             "name": "Debian Project"
           },
           "name": "zlib1g",
-          "version": "1:1.3.dfsg\u002Breally1.3.1-1\u002Bb1",
-          "purl": "pkg:deb/debian/zlib1g@1:1.3.dfsg\u002Breally1.3.1-1\u002Bb1?upstream=zlib"
+          "version": "1.3.dfsg\u002Breally1.3.1",
+          "purl": "pkg:deb/debian/zlib1g@1.3.dfsg%2Breally1.3.1-1%2Bb1?arch=amd64\u0026distro=debian-13.7\u0026epoch=1"
         }
       ],
       "removed": [],

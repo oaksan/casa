@@ -11,7 +11,7 @@
   "records": [
     {
       "host": "localhost",
-      "ttl": 43524,
+      "ttl": 86400,
       "resolver": [
         "1.0.0.1:53",
         "8.8.8.8:53",
@@ -23,15 +23,15 @@
         "::1"
       ],
       "all": [
-        "localhost.\t43524\tIN\tAAAA\t::1"
+        "localhost.\t86400\tIN\tAAAA\t::1"
       ],
       "has_internal_ips": true,
       "internal_ips": [
         "::1"
       ],
       "status_code": "NOERROR",
-      "timestamp": "2026-11-24T18:53:45.756040771-03:00",
-      "query-time": "410ms"
+      "timestamp": "2026-11-24T19:33:44.036866379-03:00",
+      "query-time": "318ms"
     }
   ],
   "jsonPath": "/home/user/felipe/speckit/casa/casa-assessment/output/dnsx-cfg11.json",

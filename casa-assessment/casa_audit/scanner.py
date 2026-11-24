@@ -11869,43 +11869,29 @@ def evaluate_azi06_open_redirect_hpp(
     }
 
 
-def evaluate_oau01_grant_type(
-    target_url: str,
+def _run_oauth_intercepting_proxy(
+    base_url: str,
     *,
-    repo: Path | None = None,
-    oauth_sources: list[tuple[str, str]] | None = None,
     oauth_flow_requests: list[dict] | None = None,
     crawled_exchanges: list[dict] | None = None,
-    semgrep_out_path: Path | None = None,
-    report_out_path: Path | None = None,
+    creator_name: str = "casa-audit-oauth-intercepting-proxy",
     har_out_path: Path | None = None,
-    run_semgrep: bool = True,
-) -> dict:
-    """Evaluate OAU-01 (RFC 9700 §2.1.2, §2.4) via intercepting proxy flow capture, Semgrep & bundle scan."""
-    base_url = target_url.strip().rstrip("/")
+) -> tuple[list[dict], list[dict]]:
+    """Run an ephemeral HTTP intercepting proxy capturing OAuth 2.0/PKCE flow requests into a redacted HAR 1.2."""
     parsed_base = urllib.parse.urlparse(base_url)
     base_is_https = parsed_base.scheme.lower() == "https"
-    oau01_findings: list[dict] = []
-    seen_oau01_keys: set[tuple[str, str]] = set()
-    sources_list = list(oauth_sources or [])
-
-    def _add_finding(location: str, grant_violation: str, detail: str, *, confirmed_by: str) -> None:
-        k1 = (location, grant_violation)
-        if k1 in seen_oau01_keys:
-            return
-        seen_oau01_keys.add(k1)
-        oau01_findings.append(
-            {
-                "location": location,
-                "grantViolation": grant_violation,
-                "confirmedBy": confirmed_by,
-                "detail": detail,
-            }
-        )
-
-    # 1. Ephemeral HTTP Intercepting Proxy capturing authorization & token grant parameters into Redacted HAR 1.2
     sens_hdrs = {"authorization", "cookie", "set-cookie", "x-api-key"}
-    sens_qparams = {"password", "passwd", "secret", "client_secret", "code", "access_token", "refresh_token", "id_token"}
+    sens_qparams = {
+        "password",
+        "passwd",
+        "secret",
+        "client_secret",
+        "code",
+        "code_verifier",
+        "access_token",
+        "refresh_token",
+        "id_token",
+    }
     proxy_har_entries: list[dict] = []
     captured_flows: list[dict] = []
     proxy_lock = threading.Lock()
@@ -11924,7 +11910,7 @@ def evaluate_oau01_grant_type(
         txt = raw_body.decode("utf-8", errors="ignore")[:2048]
         if "json" in content_type.lower() or txt.lstrip().startswith("{"):
             return re.sub(
-                r'("(?:password|passwd|secret|client_secret|code|access_token|refresh_token|id_token)"\s*:\s*)"[^"]*"',
+                r'("(?:password|passwd|secret|client_secret|code|code_verifier|access_token|refresh_token|id_token)"\s*:\s*)"[^"]*"',
                 r'\1"[REDACTED]"',
                 txt,
                 flags=re.IGNORECASE,
@@ -11935,33 +11921,40 @@ def evaluate_oau01_grant_type(
                 return urllib.parse.urlencode([(k, "[REDACTED]" if k.lower() in sens_qparams else v) for k, v in pairs])
         return txt
 
-    def _extract_grant_params(req_url: str, raw_body: bytes, content_type: str) -> tuple[str | None, str | None]:
-        rt_val: str | None = None
-        gt_val: str | None = None
+    oauth_param_names = (
+        "response_type",
+        "grant_type",
+        "code_challenge",
+        "code_challenge_method",
+        "code_verifier",
+        "redirect_uri",
+        "state",
+        "nonce",
+    )
+
+    def _extract_oauth_params(req_url: str, raw_body: bytes, content_type: str) -> dict[str, str | None]:
+        out: dict[str, str | None] = {k: None for k in oauth_param_names}
         qs = urllib.parse.parse_qs(urllib.parse.urlparse(req_url).query, keep_blank_values=True)
-        if "response_type" in qs and qs["response_type"]:
-            rt_val = qs["response_type"][0].strip()
-        if "grant_type" in qs and qs["grant_type"]:
-            gt_val = qs["grant_type"][0].strip()
+        for k in oauth_param_names:
+            if qs.get(k):
+                out[k] = qs[k][0].strip()
         if raw_body:
             btxt = raw_body.decode("utf-8", errors="ignore")
             if "json" in content_type.lower() or btxt.lstrip().startswith("{"):
                 try:
                     jobj = json.loads(btxt)
                     if isinstance(jobj, dict):
-                        if jobj.get("response_type") is not None:
-                            rt_val = str(jobj["response_type"]).strip()
-                        if jobj.get("grant_type") is not None:
-                            gt_val = str(jobj["grant_type"]).strip()
+                        for k in oauth_param_names:
+                            if jobj.get(k) is not None:
+                                out[k] = str(jobj[k]).strip()
                 except Exception:
                     pass
             elif "=" in btxt:
                 fp = urllib.parse.parse_qs(btxt, keep_blank_values=True)
-                if fp.get("response_type"):
-                    rt_val = fp["response_type"][0].strip()
-                if fp.get("grant_type"):
-                    gt_val = fp["grant_type"][0].strip()
-        return rt_val, gt_val
+                for k in oauth_param_names:
+                    if fp.get(k):
+                        out[k] = fp[k][0].strip()
+        return out
 
     class _NoRedir(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, hdrs, newurl):
@@ -12001,7 +11994,7 @@ def evaluate_oau01_grant_type(
             except Exception as exc:
                 resp_bytes = str(exc).encode("utf-8", errors="ignore")
 
-            rt_cap, gt_cap = _extract_grant_params(tgt_url, req_body, ct_val)
+            op = _extract_oauth_params(tgt_url, req_body, ct_val)
             masked_req_hdrs = [
                 {
                     "name": k,
@@ -12042,8 +12035,7 @@ def evaluate_oau01_grant_type(
                         "method": method,
                         "url": _mask_url_query(tgt_url.split("?", 1)[0]),
                         "status": st,
-                        "response_type": rt_cap,
-                        "grant_type": gt_cap,
+                        **op,
                     }
                 )
 
@@ -12097,6 +12089,131 @@ def evaluate_oau01_grant_type(
         proxy_srv.shutdown()
         proxy_srv.server_close()
 
+    if har_out_path is not None:
+        har_out_path.parent.mkdir(parents=True, exist_ok=True)
+        har_out_path.write_text(
+            json.dumps(
+                {
+                    "log": {
+                        "version": "1.2",
+                        "creator": {"name": creator_name, "version": "3.0"},
+                        "entries": proxy_har_entries,
+                    }
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+    return captured_flows, proxy_har_entries
+
+
+def _run_oauth_semgrep_sarif(
+    repo: Path | None,
+    control_id: str,
+    semgrep_sarif_file: Path,
+) -> tuple[bool, list[dict]]:
+    """Run Semgrep using casa3_al1_oauth.yml across repo + frontend/src and return findings matching control_id."""
+    semgrep_sarif_file.parent.mkdir(parents=True, exist_ok=True)
+    if repo is None or not repo.exists() or not Path(SEMGREP_BIN).exists() or not SEMGREP_OAUTH_RULES.exists():
+        return False, []
+    scan_targets = []
+    fe_src = repo / "frontend" / "src"
+    if fe_src.exists():
+        scan_targets.append(str(fe_src))
+    for st_p in _resolve_semgrep_scan_targets(repo):
+        if st_p not in scan_targets:
+            scan_targets.append(st_p)
+    if not scan_targets:
+        return False, []
+    hits: list[dict] = []
+    try:
+        cp_sg = subprocess.run(
+            [
+                SEMGREP_BIN,
+                "scan",
+                "--no-git-ignore",
+                *_SEMGREP_EXCLUDES,
+                "--exclude",
+                "*.spec.ts",
+                "--exclude",
+                "codefixes",
+                "--config",
+                str(SEMGREP_OAUTH_RULES),
+                "--sarif",
+                "--quiet",
+                *scan_targets,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if not cp_sg.stdout.strip():
+            return False, []
+        semgrep_sarif_file.write_text(cp_sg.stdout, encoding="utf-8")
+        sg_data = json.loads(cp_sg.stdout)
+        for sg_run in sg_data.get("runs", []) or []:
+            for sg_res in sg_run.get("results", []) or []:
+                rule_id = str(sg_res.get("ruleId") or "")
+                if control_id not in rule_id:
+                    continue
+                msg = str(((sg_res.get("message") or {}).get("text")) or f"{control_id} Semgrep finding")
+                locs = sg_res.get("locations") or []
+                phys = (locs[0].get("physicalLocation") if locs else {}) or {}
+                uri_s = str(((phys.get("artifactLocation") or {}).get("uri")) or str(repo))
+                try:
+                    uri_rel = str(Path(uri_s).resolve().relative_to(repo.resolve()))
+                except Exception:
+                    uri_rel = uri_s
+                sline = int(((phys.get("region") or {}).get("startLine")) or 1)
+                hits.append({"ruleId": rule_id, "location": f"{uri_rel}:{sline}", "message": msg})
+        return True, hits
+    except Exception:
+        return False, []
+
+
+def evaluate_oau01_grant_type(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    oauth_sources: list[tuple[str, str]] | None = None,
+    oauth_flow_requests: list[dict] | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    semgrep_out_path: Path | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate OAU-01 (RFC 9700 §2.1.2, §2.4) via intercepting proxy flow capture, Semgrep & bundle scan."""
+    base_url = target_url.strip().rstrip("/")
+    oau01_findings: list[dict] = []
+    seen_oau01_keys: set[tuple[str, str]] = set()
+    sources_list = list(oauth_sources or [])
+
+    def _add_finding(location: str, grant_violation: str, detail: str, *, confirmed_by: str) -> None:
+        k1 = (location, grant_violation)
+        if k1 in seen_oau01_keys:
+            return
+        seen_oau01_keys.add(k1)
+        oau01_findings.append(
+            {
+                "location": location,
+                "grantViolation": grant_violation,
+                "confirmedBy": confirmed_by,
+                "detail": detail,
+            }
+        )
+
+    har_file = har_out_path or (OUTPUT_DIR / "oau01-replayed.har")
+    captured_flows, _ = _run_oauth_intercepting_proxy(
+        base_url,
+        oauth_flow_requests=oauth_flow_requests,
+        crawled_exchanges=crawled_exchanges,
+        creator_name="casa-audit-oau01-intercepting-proxy",
+        har_out_path=har_file,
+    )
+
     for cf in captured_flows:
         rt_v = cf.get("response_type")
         gt_v = cf.get("grant_type")
@@ -12116,68 +12233,21 @@ def evaluate_oau01_grant_type(
                 confirmed_by="intercepting_proxy",
             )
 
-    # 2. Real Semgrep OAuth Grant Scan (casa3_al1_oauth.yml -> SARIF 2.1.0)
     semgrep_sarif_file = semgrep_out_path or (OUTPUT_DIR / "oau01-semgrep.sarif")
-    semgrep_sarif_file.parent.mkdir(parents=True, exist_ok=True)
-    semgrep_ran = False
-    semgrep_hits = 0
-    if run_semgrep and repo is not None and repo.exists() and Path(SEMGREP_BIN).exists() and SEMGREP_OAUTH_RULES.exists():
-        scan_targets = []
-        fe_src = repo / "frontend" / "src"
-        if fe_src.exists():
-            scan_targets.append(str(fe_src))
-        for st_p in _resolve_semgrep_scan_targets(repo):
-            if st_p not in scan_targets:
-                scan_targets.append(st_p)
-        try:
-            cp_sg = subprocess.run(
-                [
-                    SEMGREP_BIN,
-                    "scan",
-                    "--no-git-ignore",
-                    *_SEMGREP_EXCLUDES,
-                    "--exclude",
-                    "*.spec.ts",
-                    "--exclude",
-                    "codefixes",
-                    "--config",
-                    str(SEMGREP_OAUTH_RULES),
-                    "--sarif",
-                    "--quiet",
-                    *scan_targets,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if cp_sg.stdout.strip():
-                semgrep_sarif_file.write_text(cp_sg.stdout, encoding="utf-8")
-                sg_data = json.loads(cp_sg.stdout)
-                semgrep_ran = True
-                for sg_run in sg_data.get("runs", []) or []:
-                    for sg_res in sg_run.get("results", []) or []:
-                        semgrep_hits += 1
-                        rule_id = str(sg_res.get("ruleId") or "CASA3-OAU-01")
-                        msg = str(((sg_res.get("message") or {}).get("text")) or "OAuth grant policy violation")
-                        locs = sg_res.get("locations") or []
-                        phys = (locs[0].get("physicalLocation") if locs else {}) or {}
-                        uri_s = str(((phys.get("artifactLocation") or {}).get("uri")) or str(repo))
-                        try:
-                            uri_rel = str(Path(uri_s).resolve().relative_to(repo.resolve()))
-                        except Exception:
-                            uri_rel = uri_s
-                        sline = int(((phys.get("region") or {}).get("startLine")) or 1)
-                        gv = "grant_type=password" if "ropc" in rule_id.lower() else "semgrep_oauth_grant"
-                        _add_finding(
-                            f"{uri_rel}:{sline}",
-                            gv,
-                            f"[Semgrep {rule_id}] {uri_rel}:{sline}: {msg}",
-                            confirmed_by="semgrep",
-                        )
-        except Exception:
-            pass
+    semgrep_ran, sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "OAU-01", semgrep_sarif_file)
+        if run_semgrep
+        else (False, [])
+    )
+    for sh in sg_hits:
+        gv = "grant_type=password" if "ropc" in sh["ruleId"].lower() else "semgrep_oauth_grant"
+        _add_finding(
+            sh["location"],
+            gv,
+            f"[Semgrep {sh['ruleId']}] {sh['location']}: {sh['message']}",
+            confirmed_by="semgrep",
+        )
 
-    # 3. Hybrid Live Bundle & Source Inspection (matches minified runtime bundles + TS client flows)
     for src_name, src_body in sources_list:
         for m_rt in re.finditer(r"response_type\s*=\s*([A-Za-z0-9_%+\s]+?)(?:[&\"'`\s]|$)", src_body):
             rt_val = urllib.parse.unquote(m_rt.group(1)).strip()
@@ -12214,27 +12284,10 @@ def evaluate_oau01_grant_type(
                 "verdict": "FAIL" if oau01_findings else "PASS",
                 "proxiedRequests": captured_flows,
                 "semgrepExecuted": semgrep_ran,
-                "semgrepHits": semgrep_hits,
+                "semgrepHits": len(sg_hits),
                 "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
                 "artifactsInspected": len(sources_list),
                 "findings": oau01_findings,
-            },
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
-
-    har_file = har_out_path or (OUTPUT_DIR / "oau01-replayed.har")
-    har_file.parent.mkdir(parents=True, exist_ok=True)
-    har_file.write_text(
-        json.dumps(
-            {
-                "log": {
-                    "version": "1.2",
-                    "creator": {"name": "casa-audit-oau01-intercepting-proxy", "version": "3.0"},
-                    "entries": proxy_har_entries,
-                }
             },
             indent=2,
             ensure_ascii=False,
@@ -12264,9 +12317,219 @@ def evaluate_oau01_grant_type(
         "oau01_fail": uses_implicit,
         "proxiedRequests": captured_flows,
         "semgrepExecuted": semgrep_ran,
-        "semgrepHits": semgrep_hits,
+        "semgrepHits": len(sg_hits),
         "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
         "findings": oau01_findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
+def evaluate_oau02_pkce(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    oauth_sources: list[tuple[str, str]] | None = None,
+    oauth_flow_requests: list[dict] | None = None,
+    negative_token_probe: dict | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    semgrep_out_path: Path | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate OAU-02 (RFC 7636 / RFC 9700 §2.1.1) via intercepting proxy PKCE S256 check & Semgrep."""
+    base_url = target_url.strip().rstrip("/")
+    oau02_findings: list[dict] = []
+    seen_oau02: set[tuple[str, str]] = set()
+    sources_list = list(oauth_sources or [])
+
+    def _add_pkce_finding(location: str, missing: list[str], detail: str, *, confirmed_by: str) -> None:
+        key2 = (location, "|".join(missing))
+        if key2 in seen_oau02:
+            return
+        seen_oau02.add(key2)
+        oau02_findings.append(
+            {
+                "location": location,
+                "missing": missing,
+                "confirmedBy": confirmed_by,
+                "detail": detail,
+            }
+        )
+
+    all_flow_reqs = list(oauth_flow_requests or [])
+    if negative_token_probe is not None:
+        all_flow_reqs.append({**negative_token_probe, "_is_negative_probe": True})
+
+    har_file = har_out_path or (OUTPUT_DIR / "oau02-replayed.har")
+    captured_flows, _ = _run_oauth_intercepting_proxy(
+        base_url,
+        oauth_flow_requests=[{k: v for k, v in req.items() if k != "_is_negative_probe"} for req in all_flow_reqs],
+        crawled_exchanges=crawled_exchanges,
+        creator_name="casa-audit-oau02-pkce-proxy",
+        har_out_path=har_file,
+    )
+
+    observed_challenges: list[str] = []
+    neg_count = 1 if negative_token_probe is not None else 0
+    primary_flows = captured_flows[:-1] if neg_count and len(captured_flows) >= 1 else captured_flows
+    negative_flows = captured_flows[-1:] if neg_count and len(captured_flows) >= 1 else []
+
+    for cf in primary_flows:
+        loc_u = cf.get("url") or base_url
+        cc = cf.get("code_challenge")
+        ccm = cf.get("code_challenge_method")
+        cv = cf.get("code_verifier")
+        rt_v = cf.get("response_type")
+        gt_v = cf.get("grant_type")
+
+        is_auth_req = rt_v is not None or cc is not None or ccm is not None or "/authorize" in str(loc_u)
+        if is_auth_req:
+            missing_p: list[str] = []
+            if not cc:
+                missing_p.append("code_challenge absent")
+            elif len(cc) < 43:
+                missing_p.append(f"code_challenge length {len(cc)} < 43")
+            if not ccm:
+                missing_p.append("code_challenge_method=S256 absent")
+            elif ccm != "S256":
+                missing_p.append(f"prohibited code_challenge_method={ccm} (must be S256)")
+            if cc:
+                observed_challenges.append(cc)
+            if missing_p:
+                _add_pkce_finding(
+                    loc_u,
+                    missing_p,
+                    f"Intercepting proxy captured OAuth authorization request at {loc_u} failing RFC 7636 PKCE: {', '.join(missing_p)}.",
+                    confirmed_by="intercepting_proxy",
+                )
+
+        is_token_req = gt_v == "authorization_code" or cv is not None or "/token" in str(loc_u)
+        if is_token_req:
+            if not cv:
+                _add_pkce_finding(
+                    loc_u,
+                    ["code_verifier absent in token exchange"],
+                    f"Intercepting proxy captured token exchange at {loc_u} without required 'code_verifier' (RFC 7636 §4.5).",
+                    confirmed_by="intercepting_proxy",
+                )
+            elif observed_challenges:
+                derived_s256 = base64.urlsafe_b64encode(hashlib.sha256(cv.encode("ascii", errors="ignore")).digest()).decode("ascii").rstrip("=")
+                if derived_s256 not in observed_challenges:
+                    _add_pkce_finding(
+                        loc_u,
+                        ["code_verifier S256 mismatch against code_challenge"],
+                        f"Intercepting proxy token exchange 'code_verifier' at {loc_u} does not match SHA-256 code_challenge (RFC 7636 §4.6).",
+                        confirmed_by="intercepting_proxy_pkce_crypto",
+                    )
+
+    for nf in negative_flows:
+        if 200 <= int(nf.get("status") or 0) < 300:
+            loc_n = nf.get("url") or base_url
+            _add_pkce_finding(
+                loc_n,
+                ["token exchange succeeded without valid code_verifier"],
+                f"Token endpoint at {loc_n} returned HTTP {nf.get('status')} when probed without a matching PKCE 'code_verifier' (RFC 7636).",
+                confirmed_by="pkce_verifier_bypass",
+            )
+
+    semgrep_sarif_file = semgrep_out_path or (OUTPUT_DIR / "oau02-semgrep.sarif")
+    semgrep_ran, sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "OAU-02", semgrep_sarif_file)
+        if run_semgrep
+        else (False, [])
+    )
+    for sh in sg_hits:
+        _add_pkce_finding(
+            sh["location"],
+            ["semgrep_pkce_s256_violation"],
+            f"[Semgrep {sh['ruleId']}] {sh['location']}: {sh['message']}",
+            confirmed_by="semgrep",
+        )
+
+    auth_uri_re = re.compile(r"([`'\"][^`'\"\n]*\?client_id=[^`'\"\n]*redirect_uri=[^`'\"\n]*[`'\"])")
+    for src_name, src_body in sources_list:
+        matches_uri = auth_uri_re.findall(src_body)
+        if not matches_uri and "response_type=" not in src_body:
+            continue
+        snippets_to_check = matches_uri or ["response_type="]
+        for snippet in snippets_to_check:
+            has_cc = "code_challenge=" in src_body or "code_challenge" in snippet
+            has_ccm_s256 = bool(re.search(r"code_challenge_method\s*=\s*S256\b", src_body))
+            has_ccm_plain = bool(re.search(r"code_challenge_method\s*=\s*plain\b", src_body, re.IGNORECASE))
+            has_verifier = "code_verifier" in src_body
+            m_lit_cc = re.search(r"code_challenge=([A-Za-z0-9_-]+)(?:[&\"'`]|$)", src_body)
+            short_lit = m_lit_cc is not None and "$" not in m_lit_cc.group(1) and len(m_lit_cc.group(1)) < 43
+
+            missing_parts: list[str] = []
+            if not has_cc:
+                missing_parts.append("code_challenge absent")
+            if has_ccm_plain:
+                missing_parts.append("prohibited code_challenge_method=plain (must be S256)")
+            elif not has_ccm_s256:
+                missing_parts.append("code_challenge_method=S256 absent")
+            if short_lit:
+                missing_parts.append(f"static code_challenge length {len(m_lit_cc.group(1))} < 43")
+            if not has_verifier:
+                missing_parts.append("code_verifier absent")
+
+            if missing_parts:
+                preview_uri = snippet.strip("`'\"")[:140]
+                _add_pkce_finding(
+                    src_name,
+                    missing_parts,
+                    f"{src_name} OAuth 2.0 authorization URL ({preview_uri}) fails RFC 7636 PKCE requirements: {', '.join(missing_parts)}.",
+                    confirmed_by="bundle_or_source",
+                )
+
+    rep_file = report_out_path or (OUTPUT_DIR / "oau02-pkce-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "RFC 7636 / RFC 9700 §2.1.1 (Intercepting Proxy + S256 Proof + Semgrep + Bundle/Source)",
+                "target": base_url,
+                "verdict": "FAIL" if oau02_findings else "PASS",
+                "proxiedRequests": captured_flows,
+                "semgrepExecuted": semgrep_ran,
+                "semgrepHits": len(sg_hits),
+                "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+                "artifactsInspected": len(sources_list),
+                "findings": oau02_findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af_o2 in oau02_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-OAU-02",
+                "level": "error",
+                "message": {"text": af_o2["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af_o2["location"]}}}],
+                "properties": {
+                    "controlId": "OAU-02",
+                    "missingPkceElements": af_o2["missing"],
+                    "confirmedBy": af_o2["confirmedBy"],
+                },
+            }
+        )
+
+    oau02_fail = len(oau02_findings) > 0
+    return {
+        "verdict": "FAIL" if oau02_fail else "PASS",
+        "oau02_fail": oau02_fail,
+        "proxiedRequests": captured_flows,
+        "semgrepExecuted": semgrep_ran,
+        "semgrepHits": len(sg_hits),
+        "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+        "findings": oau02_findings,
         "reportPath": str(rep_file),
         "harPath": str(har_file),
         "sarifResults": sarif_items,
@@ -13482,81 +13745,29 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             else f"[PASS] Inspected {len(combined_oauth_sources)} OAuth client/bundle artifacts, {len(oau01_eval['proxiedRequests'])} proxied flow(s), and Semgrep OAuth rules; only 'response_type=code' permitted and 0 ROPC grant_type=password usages found.\nEvidence Artifacts:\n  - OAU-01 Audit JSON: {oau01_eval['reportPath']}\n  - OAU-01 Proxied Redacted HAR 1.2: {oau01_eval['harPath']}\n  - OAU-01 Semgrep SARIF 2.1.0: {oau01_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
-    # OAU-02: PKCE with S256 enforced across all OAuth authorization requests & live JS bundles (SARIF 2.1.0 + redacted HAR 1.2)
-    oau02_findings: list[dict] = []
-    seen_oau02: set[str] = set()
-    auth_uri_re = re.compile(r"([`'\"][^`'\"\n]*\?client_id=[^`'\"\n]*redirect_uri=[^`'\"\n]*[`'\"])")
-
-    for src_name, src_body in combined_oauth_sources:
-        matches_uri = auth_uri_re.findall(src_body)
-        if not matches_uri and "response_type=" not in src_body:
-            continue
-        snippets_to_check = matches_uri or ["response_type="]
-        for snippet in snippets_to_check:
-            has_cc = "code_challenge=" in src_body or "code_challenge" in snippet
-            has_ccm_s256 = bool(re.search(r"code_challenge_method\s*=\s*S256\b", src_body))
-            has_ccm_plain = bool(re.search(r"code_challenge_method\s*=\s*plain\b", src_body, re.IGNORECASE))
-            has_verifier = "code_verifier" in src_body
-            m_lit_cc = re.search(r"code_challenge=([A-Za-z0-9_-]+)(?:[&\"'`]|$)", src_body)
-            short_lit = m_lit_cc is not None and "$" not in m_lit_cc.group(1) and len(m_lit_cc.group(1)) < 43
-
-            missing_parts: list[str] = []
-            if not has_cc:
-                missing_parts.append("code_challenge absent")
-            if has_ccm_plain:
-                missing_parts.append("prohibited code_challenge_method=plain (must be S256)")
-            elif not has_ccm_s256:
-                missing_parts.append("code_challenge_method=S256 absent")
-            if short_lit:
-                missing_parts.append(f"static code_challenge length {len(m_lit_cc.group(1))} < 43")
-            if not has_verifier:
-                missing_parts.append("code_verifier absent")
-
-            if missing_parts and src_name not in seen_oau02:
-                seen_oau02.add(src_name)
-                preview_uri = snippet.strip("`'\"")[:140]
-                oau02_findings.append(
-                    {
-                        "location": src_name,
-                        "missing": missing_parts,
-                        "detail": (
-                            f"{src_name} OAuth 2.0 authorization URL ({preview_uri}) fails RFC 7636 PKCE requirements: "
-                            f"{', '.join(missing_parts)}."
-                        ),
-                    }
-                )
-
-    for af_o2 in oau02_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-OAU-02",
-                "level": "error",
-                "message": {"text": af_o2["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af_o2["location"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "OAU-02",
-                    "missingPkceElements": af_o2["missing"],
-                },
-            }
-        )
-
-    oau02_fail = len(oau02_findings) > 0
+    # OAU-02: Intercepting Proxy PKCE S256 & Verifier + Semgrep OAuth PKCE Rules + Bundle/Source Analyzer (SARIF 2.1.0 + redacted HAR 1.2)
+    oau02_eval = evaluate_oau02_pkce(
+        base_url,
+        repo=repo,
+        oauth_sources=combined_oauth_sources,
+        crawled_exchanges=crawled_exchanges,
+    )
+    oau02_findings = oau02_eval["findings"]
+    dast_sarif_results.extend(oau02_eval["sarifResults"])
+    oau02_fail = oau02_eval["oau02_fail"]
     oau02_lines = [o2["detail"] for o2 in oau02_findings]
     results["OAU-02"] = {
-        "verdict": "FAIL" if oau02_fail else "PASS",
-        "tool": f"OAuth 2.0 PKCE S256 & Verifier Analyzer ({len(combined_oauth_sources)} bundle/source artifacts, SARIF 2.1.0 + redacted HAR 1.2)",
+        "verdict": oau02_eval["verdict"],
+        "tool": (
+            f"OAuth 2.0 PKCE S256 Intercepting Proxy (proxied={len(oau02_eval['proxiedRequests'])}), Semgrep "
+            f"(hits={oau02_eval['semgrepHits']}) & Bundle/Source Analyzer ({len(combined_oauth_sources)} bundle/source artifacts, SARIF 2.1.0 + redacted HAR 1.2)"
+        ),
         "log": (
             f"[FAIL] {len(oau02_findings)} PKCE (RFC 7636 / RFC 9700 §2.1.1) violation(s) detected:\n  - "
             + "\n  - ".join(oau02_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - OAU-02 Audit JSON: {oau02_eval['reportPath']}\n  - OAU-02 Proxied Redacted HAR 1.2: {oau02_eval['harPath']}\n  - OAU-02 Semgrep SARIF 2.1.0: {oau02_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if oau02_fail
-            else f"[PASS] Verified PKCE with code_challenge_method=S256, code_challenge >= 43 chars, and code_verifier across all {len(combined_oauth_sources)} OAuth artifacts.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] Verified PKCE with code_challenge_method=S256, code_challenge >= 43 chars, matching code_verifier, and Semgrep OAuth rules across all {len(combined_oauth_sources)} OAuth artifacts.\nEvidence Artifacts:\n  - OAU-02 Audit JSON: {oau02_eval['reportPath']}\n  - OAU-02 Proxied Redacted HAR 1.2: {oau02_eval['harPath']}\n  - OAU-02 Semgrep SARIF 2.1.0: {oau02_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
     # OAU-03: Exact non-wildcard redirect URIs & callback open-redirect / forwarding chain fuzzing (SARIF 2.1.0 + redacted HAR 1.2)

@@ -51,6 +51,7 @@ TESTSSL_BIN = shutil.which("testssl.sh") or shutil.which("testssl") or "/home/us
 ZAP_BIN = shutil.which("zap.sh") or shutil.which("zaproxy") or "/home/user/.local/bin/zap.sh"
 NUCLEI_BIN = shutil.which("nuclei") or "/home/user/.local/bin/nuclei"
 DNSX_BIN = shutil.which("dnsx") or "/home/user/.local/bin/dnsx"
+SQLMAP_BIN = shutil.which("sqlmap") or "/home/user/.local/bin/sqlmap"
 NODE_BIN = shutil.which("node") or "/usr/bin/node"
 CSP_EVALUATOR_PKG = Path("/home/user/.local/share/csp_evaluator/node_modules/csp_evaluator")
 
@@ -10336,6 +10337,630 @@ def evaluate_azi02_xss(
     }
 
 
+def _make_redacted_har_probe(base_url: str, http_probe_fn=None):
+    """Build a logged HTTP probe and HAR 1.2 writer that redacts auth headers and secrets."""
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    har_entries: list[dict] = []
+    sens_hdrs = {"authorization", "cookie", "set-cookie", "x-api-key"}
+    secret_body_re = re.compile(r'("(?:password|passwd|secret|token)"\s*:\s*)"[^"]*"', re.IGNORECASE)
+
+    def _mask_header(name: str, val: str) -> str:
+        low = name.lower()
+        if low == "authorization" and " " in str(val):
+            return f"{str(val).split(' ', 1)[0]} [REDACTED]"
+        if low in sens_hdrs:
+            return "[REDACTED]"
+        return str(val)
+
+    def _mask_body(raw_body: bytes | None) -> str:
+        if not raw_body:
+            return ""
+        txt = raw_body.decode("utf-8", errors="ignore")[:1024]
+        return secret_body_re.sub(r'\1"[REDACTED]"', txt)
+
+    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        try:
+            with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, he.read(16384).decode("utf-8", errors="ignore")
+        except Exception:
+            return 0, {}, ""
+
+    raw_probe = http_probe_fn or _default_probe
+
+    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        t0 = time.monotonic()
+        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        req_entry: dict = {
+            "method": method,
+            "url": url,
+            "httpVersion": "HTTP/1.1",
+            "headers": [{"name": k, "value": _mask_header(k, v)} for k, v in (headers or {}).items()],
+        }
+        masked_post = _mask_body(body)
+        if masked_post:
+            ct = next((v for k, v in (headers or {}).items() if k.lower() == "content-type"), "application/json")
+            req_entry["postData"] = {"mimeType": ct, "text": masked_post}
+        har_entries.append(
+            {
+                "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "time": round((time.monotonic() - t0) * 1000, 1),
+                "request": req_entry,
+                "response": {
+                    "status": st,
+                    "httpVersion": "HTTP/1.1",
+                    "headers": [{"name": k, "value": _mask_header(k, v)} for k, v in (hdrs or {}).items()],
+                },
+            }
+        )
+        return st, hdrs, rbody
+
+    def _write_har(har_file: Path, creator_name: str) -> None:
+        har_file.parent.mkdir(parents=True, exist_ok=True)
+        har_file.write_text(
+            json.dumps(
+                {
+                    "log": {
+                        "version": "1.2",
+                        "creator": {"name": creator_name, "version": "3.0"},
+                        "entries": har_entries,
+                    }
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+    return _probe_logged, _write_har, har_entries
+
+
+def run_sqlmap_scan(
+    targets: list[dict | str],
+    *,
+    auth_headers: dict[str, str] | None = None,
+    json_out_path: Path | None = None,
+    timeout_sec: int = 90,
+) -> dict:
+    """Execute sqlmap in isolated temporary output directories and parse injectable parameters."""
+    import tempfile
+
+    binary = SQLMAP_BIN if Path(SQLMAP_BIN).exists() else (shutil.which("sqlmap") or "")
+    json_file = json_out_path or (OUTPUT_DIR / "azi03-sqlmap-report.json")
+    json_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if not binary or not Path(binary).exists():
+        res = {
+            "executed": False,
+            "binary": binary or "not-found",
+            "version": None,
+            "targetsTested": [],
+            "injectableParameters": [],
+            "errors": ["sqlmap binary not found"],
+            "reportPath": str(json_file),
+        }
+        json_file.write_text(json.dumps(res, indent=2), encoding="utf-8")
+        return res
+
+    ver_str = None
+    try:
+        cp_v = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=5)
+        if cp_v.returncode == 0 and cp_v.stdout.strip():
+            ver_str = cp_v.stdout.strip().splitlines()[0].strip()
+    except Exception:
+        pass
+
+    norm_targets: list[dict] = []
+    seen_t: set[tuple[str, str, str]] = set()
+    for raw_t in targets:
+        if isinstance(raw_t, str):
+            t_obj = {"url": raw_t.strip(), "method": "GET", "data": ""}
+        elif isinstance(raw_t, dict) and raw_t.get("url"):
+            t_obj = {
+                "url": str(raw_t["url"]).strip(),
+                "method": str(raw_t.get("method", "POST" if raw_t.get("data") else "GET")).upper(),
+                "data": str(raw_t.get("data") or ""),
+                "headers": dict(raw_t.get("headers") or {}),
+            }
+        else:
+            continue
+        k_t = (t_obj["method"], t_obj["url"], t_obj["data"][:120])
+        if t_obj["url"] and k_t not in seen_t:
+            seen_t.add(k_t)
+            norm_targets.append(t_obj)
+        if len(norm_targets) >= 4:
+            break
+
+    injectable: list[dict] = []
+    seen_inj: set[tuple[str, str, str]] = set()
+    tested_meta: list[dict] = []
+    errors: list[str] = []
+
+    merged_auth = dict(auth_headers or {})
+    cookie_val = next((v for k, v in merged_auth.items() if k.lower() == "cookie"), "")
+    extra_hdr_lines = [
+        f"{k}: {v}"
+        for k, v in merged_auth.items()
+        if k.lower() != "cookie" and v
+    ]
+
+    for t_obj in norm_targets:
+        t_url = t_obj["url"]
+        t_data = t_obj["data"]
+        t_hdrs = list(extra_hdr_lines)
+        for hk, hv in (t_obj.get("headers") or {}).items():
+            if hk.lower() != "cookie" and hv:
+                t_hdrs.append(f"{hk}: {hv}")
+        with tempfile.TemporaryDirectory(prefix="casa_sqlmap_") as td_sm:
+            cmd = [
+                binary,
+                "-u",
+                t_url,
+                "--batch",
+                "--flush-session",
+                "--level=1",
+                "--risk=1",
+                "--technique=BEU",
+                "--threads=4",
+                "--timeout=5",
+                "--retries=1",
+                "--disable-coloring",
+                "--answers=follow=N,crack=N,dict=N,continue=Y",
+                "--output-dir",
+                td_sm,
+            ]
+            if t_data:
+                cmd.extend(["--data", t_data])
+            if cookie_val:
+                cmd.extend(["--cookie", cookie_val])
+            for h_line in t_hdrs:
+                cmd.extend(["-H", h_line])
+
+            rc = None
+            out_txt = ""
+            try:
+                cp = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+                rc = cp.returncode
+                out_txt = cp.stdout or ""
+            except subprocess.TimeoutExpired:
+                errors.append(f"sqlmap timed out after {timeout_sec}s for {t_url}")
+            except Exception as exc:
+                errors.append(f"sqlmap failed for {t_url}: {exc}")
+
+            log_texts: list[str] = []
+            for log_p in Path(td_sm).rglob("log"):
+                try:
+                    txt = log_p.read_text(encoding="utf-8", errors="ignore").strip()
+                    if txt:
+                        log_texts.append(txt)
+                except Exception:
+                    pass
+
+            parsed_for_target = 0
+            for ltxt in log_texts:
+                cur_param = ""
+                cur_place = ""
+                cur_type = ""
+                cur_title = ""
+                cur_payload = ""
+
+                def _flush_block() -> None:
+                    nonlocal parsed_for_target
+                    if not cur_param:
+                        return
+                    parsed_for_target += 1
+                    dedup_k = (t_url.split("?", 1)[0], cur_param, cur_title or cur_type)
+                    if dedup_k not in seen_inj:
+                        seen_inj.add(dedup_k)
+                        injectable.append(
+                            {
+                                "url": t_url.split("?", 1)[0],
+                                "method": t_obj["method"],
+                                "parameter": cur_param,
+                                "place": cur_place or "GET",
+                                "technique": cur_type,
+                                "title": cur_title,
+                                "payload": cur_payload[:200],
+                            }
+                        )
+
+                for line in ltxt.splitlines():
+                    s_line = line.strip()
+                    m_p = re.match(r"^Parameter:\s*(.+?)\s+\(([^)]+)\)\s*$", s_line)
+                    if m_p:
+                        _flush_block()
+                        cur_param, cur_place = m_p.group(1).strip(), m_p.group(2).strip()
+                        cur_type = cur_title = cur_payload = ""
+                    elif s_line.startswith("Type:") and cur_param:
+                        if cur_type:
+                            _flush_block()
+                        cur_type = s_line.split(":", 1)[1].strip()
+                        cur_title = cur_payload = ""
+                    elif s_line.startswith("Title:") and cur_param:
+                        cur_title = s_line.split(":", 1)[1].strip()
+                    elif s_line.startswith("Payload:") and cur_param:
+                        cur_payload = s_line.split(":", 1)[1].strip()
+                _flush_block()
+
+            if parsed_for_target == 0 and out_txt:
+                m_out = re.search(r"(GET|POST)\s+parameter\s+'([^']+)'\s+(?:is|appears to be)\s+'([^']+)'\s+injectable", out_txt, re.IGNORECASE)
+                if m_out:
+                    dedup_k = (t_url.split("?", 1)[0], m_out.group(2), m_out.group(3))
+                    if dedup_k not in seen_inj:
+                        seen_inj.add(dedup_k)
+                        injectable.append(
+                            {
+                                "url": t_url.split("?", 1)[0],
+                                "method": t_obj["method"],
+                                "parameter": m_out.group(2),
+                                "place": m_out.group(1),
+                                "technique": m_out.group(3),
+                                "title": m_out.group(3),
+                                "payload": "",
+                            }
+                        )
+
+            tested_meta.append(
+                {
+                    "url": t_url.split("?", 1)[0],
+                    "method": t_obj["method"],
+                    "returncode": rc,
+                    "injectableCount": len([x for x in injectable if x["url"] == t_url.split("?", 1)[0]]),
+                }
+            )
+
+    summary = {
+        "executed": len(tested_meta) > 0,
+        "binary": binary,
+        "version": ver_str,
+        "targetsTested": tested_meta,
+        "injectableParameters": injectable,
+        "errors": errors,
+        "reportPath": str(json_file),
+    }
+    json_file.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    return summary
+
+
+def _count_json_records(status_code: int, body_text: str) -> int:
+    """Count matching item rows in a JSON API response body for differential injection checks."""
+    if status_code != 200 or not body_text:
+        return -1
+    try:
+        parsed = json.loads(body_text)
+        if isinstance(parsed, dict):
+            if isinstance(parsed.get("data"), list):
+                return len(parsed["data"])
+            if isinstance(parsed.get("items"), list):
+                return len(parsed["items"])
+        elif isinstance(parsed, list):
+            return len(parsed)
+    except Exception:
+        pass
+    return len(re.findall(r'"id"\s*:\s*\d+', body_text))
+
+
+def evaluate_azi03_sqli_nosql(
+    target_url: str,
+    *,
+    auth_headers: dict[str, str] | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    http_probe_fn=None,
+    sqlmap_targets: list[dict | str] | None = None,
+    nosql_query_targets: list[dict] | None = None,
+    zap_sqli_report: dict | None = None,
+    zap_seed_urls: list[str] | None = None,
+    zap_json_out_path: Path | None = None,
+    zap_sarif_out_path: Path | None = None,
+    sqlmap_out_path: Path | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    run_sqlmap: bool = True,
+    run_zap: bool = True,
+) -> dict:
+    """Evaluate AZI-03 (ASVS V5.3.4 / CWE-89, CWE-943) via sqlmap + OWASP ZAP SQLi + NoSQL probes."""
+    base_url = target_url.strip().rstrip("/")
+    auth_hdrs = dict(auth_headers or {})
+    _probe_logged, _write_har, _ = _make_redacted_har_probe(base_url, http_probe_fn=http_probe_fn)
+
+    azi03_findings: list[dict] = []
+    seen_finding_keys: set[tuple[str, str, str]] = set()
+    azi03_probes = 0
+
+    def _add_finding(url: str, vuln_type: str, cwe: str, status: int, detail: str, *, param: str = "", confirmed_by: str = "") -> None:
+        key = (url.split("?", 1)[0], vuln_type, param or vuln_type)
+        if key in seen_finding_keys:
+            return
+        seen_finding_keys.add(key)
+        entry = {
+            "url": url.split("?", 1)[0],
+            "vulnType": vuln_type,
+            "cwe": cwe,
+            "status": status,
+            "detail": detail,
+        }
+        if param:
+            entry["parameter"] = param
+        if confirmed_by:
+            entry["confirmedBy"] = confirmed_by
+        azi03_findings.append(entry)
+
+    # 1. Run real sqlmap against query & form/JSON targets (with discovered crawl URLs)
+    if sqlmap_targets is not None:
+        sm_targets = list(sqlmap_targets)
+    else:
+        sm_targets = [
+            {"url": f"{base_url}/rest/products/search?q=apple", "method": "GET"},
+            {
+                "url": f"{base_url}/rest/user/login",
+                "method": "POST",
+                "data": json.dumps({"email": "test@example.com", "password": "x"}),
+                "headers": {"Content-Type": "application/json"},
+            },
+        ]
+        for ex in crawled_exchanges or []:
+            ex_url = str(ex.get("url") or "")
+            if ex.get("method", "GET") == "GET" and "?" in ex_url and ex_url.startswith(base_url):
+                sm_targets.append({"url": ex_url, "method": "GET"})
+
+    sqlmap_res = (
+        run_sqlmap_scan(
+            sm_targets,
+            auth_headers=auth_hdrs,
+            json_out_path=sqlmap_out_path or (OUTPUT_DIR / "azi03-sqlmap-report.json"),
+            timeout_sec=90,
+        )
+        if run_sqlmap
+        else {"executed": False, "version": None, "targetsTested": [], "injectableParameters": [], "errors": []}
+    )
+    for inj in sqlmap_res.get("injectableParameters", []) or []:
+        p_name = str(inj.get("parameter") or "param")
+        p_place = str(inj.get("place") or inj.get("method") or "GET")
+        t_tech = str(inj.get("title") or inj.get("technique") or "SQLi")
+        _add_finding(
+            str(inj.get("url") or base_url),
+            "sqlmap_SQLi",
+            "CWE-89",
+            200,
+            f"[sqlmap] {p_place} parameter '{p_name}' confirmed SQL-injectable ({t_tech}) at {inj.get('url')}.",
+            param=p_name,
+            confirmed_by="sqlmap",
+        )
+
+    # 2. Run focused OWASP ZAP Active SQLi Scan (Rules 40018 SQL Injection + 40024 SQLite)
+    seeds_sql = zap_seed_urls or [t["url"] if isinstance(t, dict) else str(t) for t in sm_targets[:4]]
+    if zap_sqli_report is not None and zap_sqli_report.get("executed"):
+        active_zap = zap_sqli_report
+    elif run_zap:
+        active_zap = run_zap_automation(
+            base_url,
+            seed_urls=seeds_sql,
+            active_scan_rules=[40018, 40024],
+            json_out_path=zap_json_out_path or (OUTPUT_DIR / "zap-sqli-report.json"),
+            sarif_out_path=zap_sarif_out_path or (OUTPUT_DIR / "zap-sqli-findings.sarif"),
+            timeout_sec=180,
+        )
+    else:
+        active_zap = {"executed": False, "alerts": [], "sarifPath": str(zap_sarif_out_path or (OUTPUT_DIR / "zap-sqli-findings.sarif"))}
+
+    zap_matched_plugins: set[str] = set()
+    sqli_zap_pids = {"40018", "40019", "40020", "40021", "40022", "40024", "40027", "90018"}
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        if pid in sqli_zap_pids or "sql injection" in aname.lower():
+            zap_matched_plugins.add(pid or "40018")
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                p_nm = str(inst.get("param") or "")
+                _add_finding(
+                    uri,
+                    f"OWASP_ZAP_{pid or 'SQLi'}",
+                    "CWE-89",
+                    200,
+                    f"[OWASP ZAP {pid}] {aname} detected at {uri.split('?', 1)[0]} (param='{p_nm}', attack='{str(inst.get('attack', ''))[:60]}').",
+                    param=p_nm,
+                    confirmed_by=f"owasp_zap_{pid or 'sqli'}",
+                )
+
+    # 3. SQL Injection Authentication Bypass (POST /rest/user/login)
+    sqli_payload = json.dumps({"email": "' OR 1=1--", "password": "anything"}).encode("utf-8")
+    sqli_status, _, sqli_body = _probe_logged(
+        "/rest/user/login",
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        body=sqli_payload,
+    )
+    azi03_probes += 1
+    if sqli_status == 200 and '"token"' in sqli_body:
+        try:
+            sqli_email = json.loads(sqli_body).get("authentication", {}).get("umail", "<admin>")
+        except Exception:
+            sqli_email = "<admin>"
+        _add_finding(
+            f"{base_url}/rest/user/login",
+            "SQLi_Auth_Bypass",
+            "CWE-89",
+            sqli_status,
+            f"POST {base_url}/rest/user/login with payload {{\"email\": \"' OR 1=1--\"}} bypassed authentication (HTTP {sqli_status}, authenticated as '{sqli_email}').",
+            param="email",
+            confirmed_by="active_auth_bypass",
+        )
+
+    # 4. Differential Boolean SQLi + Error-based SQLi on GET /rest/products/search?q=
+    sb_st, _, sb_body = _probe_logged("/rest/products/search?q=casa3_nomatch_zz99", headers=auth_hdrs)
+    st_bool, _, body_bool = _probe_logged(
+        f"/rest/products/search?q={urllib.parse.quote('casa3_nomatch_zz99\')) OR 1=1--')}",
+        headers=auth_hdrs,
+    )
+    st_err, _, body_err = _probe_logged("/rest/products/search?q=%27))", headers=auth_hdrs)
+    azi03_probes += 3
+
+    base_cnt = _count_json_records(sb_st, sb_body)
+    bool_cnt = _count_json_records(st_bool, body_bool)
+    if base_cnt >= 0 and bool_cnt > base_cnt:
+        _add_finding(
+            f"{base_url}/rest/products/search",
+            "SQLi_Boolean_Result_Altered",
+            "CWE-89",
+            st_bool,
+            f"GET {base_url}/rest/products/search?q=... boolean SQLi payload \"')) OR 1=1--\" altered result set from {base_cnt} to {bool_cnt} record(s) (HTTP {st_bool}).",
+            param="q",
+            confirmed_by="differential_boolean",
+        )
+    err_low = body_err.lower()
+    if st_err >= 500 and any(tok in err_low for tok in ("sqlite_error", "syntax error", "sqlstate", "unterminated quoted string", "ora-", "mysql")):
+        _add_finding(
+            f"{base_url}/rest/products/search",
+            "SQLi_Error_Based",
+            "CWE-89",
+            st_err,
+            f"GET {base_url}/rest/products/search?q=')) triggered uncaught SQL syntax error (HTTP {st_err}).",
+            param="q",
+            confirmed_by="error_based",
+        )
+
+    # 5. Non-destructive NoSQL $where / JavaScript injection on GET /rest/track-order/{id}
+    nb_st, _, nb_body = _probe_logged("/rest/track-order/casa3_nonexistent_order_99", headers=auth_hdrs)
+    nosql_q = urllib.parse.quote("casa3_nonexistent_order_99' || true || '")
+    ns_st, _, ns_body = _probe_logged(f"/rest/track-order/{nosql_q}", headers=auth_hdrs)
+    azi03_probes += 2
+    nbase_cnt = _count_json_records(nb_st, nb_body)
+    nsqli_cnt = _count_json_records(ns_st, ns_body)
+    if nbase_cnt >= 0 and nsqli_cnt > nbase_cnt:
+        _add_finding(
+            f"{base_url}/rest/track-order",
+            "NoSQL_Where_Result_Altered",
+            "CWE-943",
+            ns_st,
+            f"GET {base_url}/rest/track-order/ NoSQL $where payload \"' || true || '\" altered result set from {nbase_cnt} to {nsqli_cnt} record(s) (HTTP {ns_st}).",
+            param="id",
+            confirmed_by="nosql_where_differential",
+        )
+
+    # 6. NoSQL JSON Operator Injection probes ($ne / $regex / $gt) on login & JSON query endpoints
+    for op_name, op_payload in [
+        ("$ne_operator", {"email": {"$ne": "__none__"}, "password": {"$ne": "__none__"}}),
+        ("$regex_operator", {"email": {"$regex": ".*"}, "password": {"$ne": ""}}),
+        ("$gt_operator", {"email": {"$gt": ""}, "password": {"$gt": ""}}),
+    ]:
+        op_st, _, op_body = _probe_logged(
+            "/rest/user/login",
+            method="POST",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(op_payload).encode("utf-8"),
+        )
+        azi03_probes += 1
+        if op_st == 200 and '"token"' in op_body:
+            _add_finding(
+                f"{base_url}/rest/user/login",
+                f"NoSQL_Operator_{op_name}",
+                "CWE-943",
+                op_st,
+                f"POST {base_url}/rest/user/login accepted NoSQL operator injection {op_name} (HTTP {op_st}).",
+                param="email/password",
+                confirmed_by="nosql_operator_auth_bypass",
+            )
+
+    for nqt in nosql_query_targets or []:
+        nq_path = str(nqt.get("path") or "").strip()
+        nq_param = str(nqt.get("param") or "q")
+        if not nq_path:
+            continue
+        qb_st, _, qb_body = _probe_logged(
+            nq_path,
+            method="POST",
+            headers={"Content-Type": "application/json", **auth_hdrs},
+            body=json.dumps({nq_param: "casa3_nomatch_zz99"}).encode("utf-8"),
+        )
+        azi03_probes += 1
+        qb_cnt = _count_json_records(qb_st, qb_body)
+        for op_lbl, op_val in [("$ne", {"$ne": "__none__"}), ("$regex", {"$regex": ".*"}), ("$gt", {"$gt": ""})]:
+            qo_st, _, qo_body = _probe_logged(
+                nq_path,
+                method="POST",
+                headers={"Content-Type": "application/json", **auth_hdrs},
+                body=json.dumps({nq_param: op_val}).encode("utf-8"),
+            )
+            azi03_probes += 1
+            qo_cnt = _count_json_records(qo_st, qo_body)
+            if qb_cnt >= 0 and qo_cnt > qb_cnt:
+                _add_finding(
+                    f"{base_url}{nq_path}" if nq_path.startswith("/") else nq_path,
+                    f"NoSQL_Operator_Result_Altered_{op_lbl}",
+                    "CWE-943",
+                    qo_st,
+                    f"POST {nq_path} JSON parameter '{nq_param}' with NoSQL operator {op_lbl} altered result set from {qb_cnt} to {qo_cnt} record(s) (HTTP {qo_st}).",
+                    param=nq_param,
+                    confirmed_by="nosql_operator_differential",
+                )
+
+    rep_file = report_out_path or (OUTPUT_DIR / "azi03-sqli-nosql-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "OWASP ASVS V5.3.4 / CWE-89, CWE-943 (sqlmap + OWASP ZAP SQLi + NoSQL Operator/Where)",
+                "target": base_url,
+                "verdict": "FAIL" if azi03_findings else "PASS",
+                "probesRun": azi03_probes,
+                "sqlmap": {
+                    "executed": sqlmap_res.get("executed", False),
+                    "version": sqlmap_res.get("version"),
+                    "injectableCount": len(sqlmap_res.get("injectableParameters", []) or []),
+                    "reportPath": sqlmap_res.get("reportPath"),
+                },
+                "zapPluginsMatched": sorted(zap_matched_plugins),
+                "findings": azi03_findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "azi03-replayed.har")
+    _write_har(har_file, "casa-audit-azi03-sqli-nosql-harness")
+
+    sarif_items: list[dict] = []
+    for afz3 in azi03_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AZI-03",
+                "level": "error",
+                "message": {"text": afz3["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": afz3["url"]}}}],
+                "properties": {
+                    "controlId": "AZI-03",
+                    "vulnType": afz3["vulnType"],
+                    "cwe": afz3["cwe"],
+                    "httpStatus": afz3["status"],
+                },
+            }
+        )
+
+    azi03_fail = len(azi03_findings) > 0
+    return {
+        "verdict": "FAIL" if azi03_fail else "PASS",
+        "azi03_fail": azi03_fail,
+        "probesRun": azi03_probes,
+        "sqlmap": sqlmap_res,
+        "zap": active_zap,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "findings": azi03_findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -11381,164 +12006,29 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-03: Authenticated SQL & NoSQL / Operator Injection Differential & Error-Based Scanner (SARIF 2.1.0 + redacted HAR 1.2)
-    azi03_findings: list[dict] = []
-    azi03_probes = 0
-
-    # 1. SQL Injection Authentication Bypass (POST /rest/user/login)
-    sqli_payload = json.dumps({"email": "' OR 1=1--", "password": "anything"}).encode("utf-8")
-    sqli_status, _, sqli_body = http_probe(
-        "/rest/user/login",
-        method="POST",
-        headers={"Content-Type": "application/json"},
-        body=sqli_payload,
+    # AZI-03: sqlmap + OWASP ZAP Active SQLi (40018/40024) + Authenticated NoSQL $where / JSON Operator Differential Scanner (SARIF 2.1.0 + redacted HAR 1.2)
+    azi03_eval = evaluate_azi03_sqli_nosql(
+        base_url,
+        auth_headers=auth_req_headers,
+        crawled_exchanges=crawled_exchanges,
+        http_probe_fn=http_probe,
     )
-    azi03_probes += 1
-    if sqli_status == 200 and '"token"' in sqli_body:
-        try:
-            sqli_email = json.loads(sqli_body).get("authentication", {}).get("umail", "<admin>")
-        except Exception:
-            sqli_email = "<admin>"
-        azi03_findings.append(
-            {
-                "url": f"{base_url}/rest/user/login",
-                "vulnType": "SQLi_Auth_Bypass",
-                "cwe": "CWE-89",
-                "status": sqli_status,
-                "detail": (
-                    f"POST {base_url}/rest/user/login with payload {{\"email\": \"' OR 1=1--\"}} "
-                    f"bypassed authentication (HTTP {sqli_status}, authenticated as '{sqli_email}')."
-                ),
-            }
-        )
-
-    # 2. Differential Boolean SQLi + Error-based SQLi on GET /rest/products/search?q=
-    sb_st, _, sb_body = http_probe("/rest/products/search?q=casa3_nomatch_zz99", headers=auth_req_headers)
-    st_bool, _, body_bool = http_probe(
-        f"/rest/products/search?q={urllib.parse.quote('casa3_nomatch_zz99\')) OR 1=1--')}",
-        headers=auth_req_headers,
-    )
-    st_err, _, body_err = http_probe("/rest/products/search?q=%27))", headers=auth_req_headers)
-    azi03_probes += 3
-    def count_records(st_c: int, txt_c: str) -> int:
-        if st_c != 200 or not txt_c:
-            return -1
-        try:
-            return len(json.loads(txt_c).get("data", []))
-        except Exception:
-            return len(re.findall(r'"id"\s*:\s*\d+', txt_c))
-
-    base_cnt = count_records(sb_st, sb_body)
-    bool_cnt = count_records(st_bool, body_bool)
-
-    if base_cnt >= 0 and bool_cnt > base_cnt:
-        azi03_findings.append(
-            {
-                "url": f"{base_url}/rest/products/search",
-                "vulnType": "SQLi_Boolean_Result_Altered",
-                "cwe": "CWE-89",
-                "status": st_bool,
-                "detail": (
-                    f"GET {base_url}/rest/products/search?q=... boolean SQLi payload \"')) OR 1=1--\" "
-                    f"altered result set from {base_cnt} to {bool_cnt} record(s) (HTTP {st_bool})."
-                ),
-            }
-        )
-    if st_err >= 500 and ("SQLITE_ERROR" in body_err or "syntax error" in body_err.lower()):
-        azi03_findings.append(
-            {
-                "url": f"{base_url}/rest/products/search",
-                "vulnType": "SQLi_Error_Based",
-                "cwe": "CWE-89",
-                "status": st_err,
-                "detail": f"GET {base_url}/rest/products/search?q=')) triggered uncaught SQLite syntax error (HTTP {st_err}).",
-            }
-        )
-
-    # 3. Non-destructive NoSQL $where / JavaScript injection on GET /rest/track-order/{id} (MarsDB)
-    nb_st, _, nb_body = http_probe("/rest/track-order/casa3_nonexistent_order_99", headers=auth_req_headers)
-    nosql_q = urllib.parse.quote("casa3_nonexistent_order_99' || true || '")
-    ns_st, _, ns_body = http_probe(
-        f"/rest/track-order/{nosql_q}",
-        headers=auth_req_headers,
-    )
-    azi03_probes += 2
-    try:
-        nbase_cnt = len(json.loads(nb_body).get("data", [])) if nb_st == 200 else -1
-        nsqli_cnt = len(json.loads(ns_body).get("data", [])) if ns_st == 200 else -1
-    except Exception:
-        nbase_cnt, nsqli_cnt = -1, -1
-
-    if nbase_cnt >= 0 and nsqli_cnt > nbase_cnt:
-        azi03_findings.append(
-            {
-                "url": f"{base_url}/rest/track-order",
-                "vulnType": "NoSQL_Where_Result_Altered",
-                "cwe": "CWE-943",
-                "status": ns_st,
-                "detail": (
-                    f"GET {base_url}/rest/track-order/ NoSQL $where payload \"' || true || '\" "
-                    f"altered MarsDB result set from {nbase_cnt} to {nsqli_cnt} order record(s) (HTTP {ns_st})."
-                ),
-            }
-        )
-
-    # 4. NoSQL JSON Operator Injection probes ($ne / $gt / $regex) on JSON login & search APIs
-    for op_name, op_payload in [
-        ("$ne_operator", {"email": {"$ne": "__none__"}, "password": {"$ne": "__none__"}}),
-        ("$regex_operator", {"email": {"$regex": ".*"}, "password": {"$ne": ""}}),
-    ]:
-        op_st, _, op_body = http_probe(
-            "/rest/user/login",
-            method="POST",
-            headers={"Content-Type": "application/json"},
-            body=json.dumps(op_payload).encode("utf-8"),
-        )
-        azi03_probes += 1
-        if op_st == 200 and '"token"' in op_body:
-            azi03_findings.append(
-                {
-                    "url": f"{base_url}/rest/user/login",
-                    "vulnType": f"NoSQL_Operator_{op_name}",
-                    "cwe": "CWE-943",
-                    "status": op_st,
-                    "detail": f"POST {base_url}/rest/user/login accepted NoSQL operator injection {op_name} (HTTP {op_st}).",
-                }
-            )
-
-    for afz3 in azi03_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AZI-03",
-                "level": "error",
-                "message": {"text": afz3["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": afz3["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AZI-03",
-                    "vulnType": afz3["vulnType"],
-                    "cwe": afz3["cwe"],
-                    "httpStatus": afz3["status"],
-                },
-            }
-        )
-
-    azi03_fail = len(azi03_findings) > 0
+    azi03_findings = azi03_eval["findings"]
+    azi03_probes = azi03_eval["probesRun"]
+    dast_sarif_results.extend(azi03_eval["sarifResults"])
+    azi03_fail = azi03_eval["azi03_fail"]
+    azi03_sm_ver = azi03_eval["sqlmap"].get("version") or "not-run"
+    azi03_sm_cnt = len(azi03_eval["sqlmap"].get("injectableParameters", []) or [])
     azi03_lines = [f"[{az3['cwe']} / {az3['vulnType']}] {az3['detail']}" for az3 in azi03_findings]
     results["AZI-03"] = {
-        "verdict": "FAIL" if azi03_fail else "PASS",
-        "tool": f"Authenticated SQLi & NoSQL Operator/Where Differential Scanner ({azi03_probes} active probes, SARIF 2.1.0 + redacted HAR 1.2)",
+        "verdict": azi03_eval["verdict"],
+        "tool": f"sqlmap {azi03_sm_ver}, OWASP ZAP {zap_ver_label} (Rules 40018/40024) & NoSQL Operator/$where Differential Scanner ({azi03_probes} probes, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] {len(azi03_findings)} SQL/NoSQL injection finding(s) confirmed across {azi03_probes} probes:\n  - "
+            f"[FAIL] {len(azi03_findings)} SQL/NoSQL injection finding(s) confirmed (sqlmap injectable={azi03_sm_cnt}, ZAP plugins={azi03_eval['zapPluginsMatched']}, probes={azi03_probes}):\n  - "
             + "\n  - ".join(azi03_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AZI-03 Audit JSON: {azi03_eval['reportPath']}\n  - sqlmap Summary JSON: {azi03_eval['sqlmap'].get('reportPath')}\n  - AZI-03 Redacted HAR 1.2: {azi03_eval['harPath']}\n  - ZAP SQLi SARIF 2.1.0: {azi03_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if azi03_fail
-            else f"[PASS] Executed {azi03_probes} authenticated SQLi and NoSQL operator/$where injection probes; 0 injectable parameters and 0 altered result sets.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] sqlmap ({azi03_sm_ver}), OWASP ZAP {zap_ver_label} (40018/40024), and {azi03_probes} SQL/NoSQL differential & operator probes reported 0 injectable parameters and 0 altered result sets.\nEvidence Artifacts:\n  - AZI-03 Audit JSON: {azi03_eval['reportPath']}\n  - sqlmap Summary JSON: {azi03_eval['sqlmap'].get('reportPath')}\n  - AZI-03 Redacted HAR 1.2: {azi03_eval['harPath']}\n  - ZAP SQLi SARIF 2.1.0: {azi03_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

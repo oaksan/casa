@@ -12,14 +12,14 @@
     "sessionStorage": {
       "bid": "[REDACTED;len=2]"
     },
-    "nonHttpOnlyCookies": "cookieconsent_status=[REDACTED;len=7]; language=[REDACTED;len=2]; token=[REDACTED;len=760]",
+    "nonHttpOnlyCookies": "welcomebanner_status=[REDACTED;len=7]; language=[REDACTED;len=2]; continueCode=[REDACTED;len=60]; token=[REDACTED;len=760]",
     "indexedDB": []
   },
   "after": {
     "href": "http://localhost:3000/#/",
     "localStorage": {},
     "sessionStorage": {},
-    "nonHttpOnlyCookies": "cookieconsent_status=[REDACTED;len=7]; language=[REDACTED;len=2]",
+    "nonHttpOnlyCookies": "welcomebanner_status=[REDACTED;len=7]; language=[REDACTED;len=2]; continueCode=[REDACTED;len=60]",
     "indexedDB": []
   },
   "findingsCount": 3,
@@ -29,29 +29,27 @@
       "store": "localStorage",
       "key": "token",
       "reasons": [
-        "JWT/session_token",
-        "canary(56)"
+        "JWT/session_token"
       ],
-      "detail": "[before_logout] browser localStorage['token'] holds sensitive authentication/canary material (JWT/session_token, canary(56); value='eyJ0eXAiOi...<len=760>') at http://localhost:3000/#/search."
+      "detail": "[before_logout] browser localStorage['token'] holds sensitive authentication/canary material (JWT/session_token; value='eyJ0eXAiOi...<len=760>') at http://localhost:3000/#/search."
     },
     {
       "phase": "before_logout",
       "store": "sessionStorage",
       "key": "bid",
       "reasons": [
-        "canary(59)"
+        "canary(11)"
       ],
-      "detail": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(59); value='59') at http://localhost:3000/#/search."
+      "detail": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(11); value='11') at http://localhost:3000/#/search."
     },
     {
       "phase": "before_logout",
       "store": "nonHttpOnlyCookies",
       "key": "token",
       "reasons": [
-        "JWT/session_token",
-        "canary(56)"
+        "JWT/session_token"
       ],
-      "detail": "[before_logout] browser nonHttpOnlyCookies['token'] holds sensitive authentication/canary material (JWT/session_token, canary(56); value='eyJ0eXAiOi...<len=760>') at http://localhost:3000/#/search."
+      "detail": "[before_logout] browser nonHttpOnlyCookies['token'] holds sensitive authentication/canary material (JWT/session_token; value='eyJ0eXAiOi...<len=760>') at http://localhost:3000/#/search."
     }
   ]
 }

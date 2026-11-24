@@ -4084,6 +4084,158 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 45/61: AZI-02 (Iteração SDD 115)", just2_txt)
 
+    def test_iteration116_azi03_guide_tooling(self) -> None:
+        import sqlite3
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_azi03_sqli_nosql
+
+        db = sqlite3.connect(":memory:", check_same_thread=False)
+        db.execute("CREATE TABLE products (id INT, name TEXT)")
+        db.executemany("INSERT INTO products VALUES (?, ?)", [(1, "apple"), (2, "banana"), (3, "cherry")])
+        db.commit()
+        db_lock = threading.Lock()
+
+        class _Azi03Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "safe"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def _send_json(self, st: int, obj: dict) -> None:
+                b = json.dumps(obj).encode("utf-8")
+                self.send_response(st)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+            def do_GET(self):
+                p, _, q = self.path.partition("?")
+                qs = urllib.parse.parse_qs(q)
+                term = qs.get("q", [""])[0]
+                m = type(self).mode
+                if p == "/":
+                    b = b'<html><body><a href="/rest/products/search?q=apple">search</a></body></html>'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(b)))
+                    self.end_headers()
+                    self.wfile.write(b)
+                elif p == "/rest/products/search":
+                    try:
+                        with db_lock:
+                            if m == "vulnerable":
+                                rows = db.execute(f"SELECT id, name FROM products WHERE name = '{term}'").fetchall()
+                            else:
+                                rows = db.execute("SELECT id, name FROM products WHERE name = ?", (term,)).fetchall()
+                        self._send_json(200, {"data": [{"id": r[0], "name": r[1]} for r in rows]})
+                    except Exception as exc:
+                        self._send_json(500, {"error": f"SQLITE_ERROR: {exc}"})
+                elif p.startswith("/rest/track-order/"):
+                    oid = urllib.parse.unquote(p[len("/rest/track-order/"):])
+                    if m == "vulnerable" and "|| true ||" in oid:
+                        self._send_json(200, {"data": [{"orderId": "1"}, {"orderId": "2"}, {"orderId": "3"}]})
+                    elif oid == "ORD-1":
+                        self._send_json(200, {"data": [{"orderId": "ORD-1"}]})
+                    else:
+                        self._send_json(200, {"data": []})
+                else:
+                    self._send_json(404, {"error": "not found"})
+
+            def do_POST(self):
+                cl = int(self.headers.get("Content-Length", "0") or 0)
+                raw = self.rfile.read(cl) if cl > 0 else b"{}"
+                try:
+                    payload = json.loads(raw.decode("utf-8", errors="ignore") or "{}")
+                except Exception:
+                    payload = {}
+                m = type(self).mode
+                if self.path == "/rest/user/login":
+                    email = payload.get("email", "")
+                    if m == "vulnerable" and isinstance(email, dict):
+                        self._send_json(200, {"authentication": {"token": "jwt_mock_tok", "umail": "admin@test.local"}})
+                    elif m == "vulnerable" and isinstance(email, str) and "' or 1=1" in email.lower():
+                        self._send_json(200, {"authentication": {"token": "jwt_mock_tok", "umail": "admin@test.local"}})
+                    else:
+                        self._send_json(401, {"error": "Invalid email or password."})
+                elif self.path == "/api/nosql-search":
+                    qv = payload.get("q", "")
+                    if isinstance(qv, dict):
+                        if m == "vulnerable" and any(op in qv for op in ("$ne", "$regex", "$gt")):
+                            self._send_json(200, {"data": [{"id": 1}, {"id": 2}]})
+                        else:
+                            self._send_json(400, {"error": "NoSQL operators rejected"})
+                    else:
+                        self._send_json(200, {"data": []})
+                else:
+                    self._send_json(404, {"error": "not found"})
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Azi03Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_azi3:
+            tdp = Path(td_azi3)
+            try:
+                # 1. Parameterized SQLite + rejected NoSQL operators -> PASS via real sqlmap + real OWASP ZAP 40018/40024 + NoSQL probes
+                _Azi03Handler.mode = "safe"
+                rep_pass = tdp / "azi03_pass.json"
+                har_pass = tdp / "azi03_pass.har"
+                r_pass = evaluate_azi03_sqli_nosql(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_sqli_tok_98765"},
+                    sqlmap_targets=[f"http://127.0.0.1:{port}/rest/products/search?q=apple"],
+                    nosql_query_targets=[{"path": "/api/nosql-search", "param": "q"}],
+                    zap_seed_urls=[f"http://127.0.0.1:{port}/rest/products/search?q=apple"],
+                    zap_json_out_path=tdp / "zap_sqli_pass.json",
+                    zap_sarif_out_path=tdp / "zap_sqli_pass.sarif",
+                    sqlmap_out_path=tdp / "sqlmap_pass.json",
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["sqlmap"]["executed"])
+                self.assertEqual(r_pass["sqlmap"]["injectableParameters"], [])
+                self.assertTrue(r_pass["zap"]["executed"])
+                self.assertTrue(rep_pass.exists())
+                self.assertTrue(har_pass.exists())
+
+                # 2. Vulnerable SQLite concatenation + NoSQL $where/$ne alteration -> FAIL confirmed by sqlmap + OWASP ZAP + NoSQL differential checks
+                _Azi03Handler.mode = "vulnerable"
+                rep_vuln = tdp / "azi03_vuln.json"
+                har_vuln = tdp / "azi03_vuln.har"
+                r_vuln = evaluate_azi03_sqli_nosql(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_sqli_tok_98765"},
+                    sqlmap_targets=[f"http://127.0.0.1:{port}/rest/products/search?q=apple"],
+                    nosql_query_targets=[{"path": "/api/nosql-search", "param": "q"}],
+                    zap_seed_urls=[f"http://127.0.0.1:{port}/rest/products/search?q=apple"],
+                    zap_json_out_path=tdp / "zap_sqli_vuln.json",
+                    zap_sarif_out_path=tdp / "zap_sqli_vuln.sarif",
+                    sqlmap_out_path=tdp / "sqlmap_vuln.json",
+                    report_out_path=rep_vuln,
+                    har_out_path=har_vuln,
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                self.assertGreaterEqual(len(r_vuln["sqlmap"]["injectableParameters"]), 1, f"Expected sqlmap SQLi detection, got {r_vuln['sqlmap']}")
+                self.assertTrue(any(p in {"40018", "40024"} for p in r_vuln["zapPluginsMatched"]), f"Expected ZAP 40018/40024, got {r_vuln['zapPluginsMatched']}")
+                vtypes = {f["vulnType"] for f in r_vuln["findings"]}
+                self.assertIn("sqlmap_SQLi", vtypes)
+                self.assertIn("NoSQL_Where_Result_Altered", vtypes)
+                self.assertIn("NoSQL_Operator_Result_Altered_$ne", vtypes)
+                self.assertTrue(any(s["ruleId"] == "CASA3-AZI-03" for s in r_vuln["sarifResults"]))
+                har_txt = har_vuln.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("secret_sqli_tok_98765", har_txt)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 46/61: AZI-03 (Iteração SDD 116)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,46 +32,6 @@
 			"results": [
 				{
 					"kind": "open",
-					"level": "error",
-					"locations": [
-						{
-							"message": {
-								"text": "localhost"
-							},
-							"physicalLocation": {
-								"artifactLocation": {
-									"description": {
-										"text": "localhost"
-									},
-									"uri": ".",
-									"uriBaseId": "%SRCROOT%"
-								},
-								"contextRegion": {
-									"endLine": 3,
-									"snippet": {
-										"text": "localhost"
-									},
-									"startLine": 1
-								},
-								"region": {
-									"snippet": {
-										"text": "localhost"
-									},
-									"startLine": 1
-								}
-							}
-						}
-					],
-					"message": {
-						"text": "Production Framework Debug / Stacktrace Markers Disclosed (casa3-cfg02-debug-traceback-markers) found on localhost"
-					},
-					"partialFingerprints": {
-						"primaryLocationLineHash": "6d902829cc16ccf144079f33eb0bad98"
-					},
-					"ruleId": "casa3-cfg02-debug-traceback-markers"
-				},
-				{
-					"kind": "open",
 					"level": "note",
 					"locations": [
 						{
@@ -109,6 +69,46 @@
 						"primaryLocationLineHash": "88d0457d7c8d400e388375a9d48bf69a"
 					},
 					"ruleId": "casa3-cfg02-prometheus-metrics"
+				},
+				{
+					"kind": "open",
+					"level": "error",
+					"locations": [
+						{
+							"message": {
+								"text": "localhost"
+							},
+							"physicalLocation": {
+								"artifactLocation": {
+									"description": {
+										"text": "localhost"
+									},
+									"uri": ".",
+									"uriBaseId": "%SRCROOT%"
+								},
+								"contextRegion": {
+									"endLine": 3,
+									"snippet": {
+										"text": "localhost"
+									},
+									"startLine": 1
+								},
+								"region": {
+									"snippet": {
+										"text": "localhost"
+									},
+									"startLine": 1
+								}
+							}
+						}
+					],
+					"message": {
+						"text": "Production Framework Debug / Stacktrace Markers Disclosed (casa3-cfg02-debug-traceback-markers) found on localhost"
+					},
+					"partialFingerprints": {
+						"primaryLocationLineHash": "6d902829cc16ccf144079f33eb0bad98"
+					},
+					"ruleId": "casa3-cfg02-debug-traceback-markers"
 				},
 				{
 					"kind": "open",
@@ -212,26 +212,6 @@
 								"text": "More details at"
 							},
 							"helpUri": "https://github.com/projectdiscovery/sarif",
-							"id": "casa3-cfg02-debug-traceback-markers",
-							"name": "Production Framework Debug / Stacktrace Markers Disclosed",
-							"properties": {
-								"security-severity": "8",
-								"tags": [
-									"security"
-								]
-							},
-							"shortDescription": {
-								"text": "Production Framework Debug / Stacktrace Markers Disclosed"
-							}
-						},
-						{
-							"fullDescription": {
-								"text": "\nMore details at\n\n"
-							},
-							"help": {
-								"text": "More details at"
-							},
-							"helpUri": "https://github.com/projectdiscovery/sarif",
 							"id": "casa3-cfg02-prometheus-metrics",
 							"name": "Prometheus Runtime Metrics Exposed",
 							"properties": {
@@ -242,6 +222,26 @@
 							},
 							"shortDescription": {
 								"text": "Prometheus Runtime Metrics Exposed"
+							}
+						},
+						{
+							"fullDescription": {
+								"text": "\nMore details at\n\n"
+							},
+							"help": {
+								"text": "More details at"
+							},
+							"helpUri": "https://github.com/projectdiscovery/sarif",
+							"id": "casa3-cfg02-debug-traceback-markers",
+							"name": "Production Framework Debug / Stacktrace Markers Disclosed",
+							"properties": {
+								"security-severity": "8",
+								"tags": [
+									"security"
+								]
+							},
+							"shortDescription": {
+								"text": "Production Framework Debug / Stacktrace Markers Disclosed"
 							}
 						},
 						{

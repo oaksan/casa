@@ -2292,3 +2292,62 @@ CONTROLE 45/61: AZI-02 (Iteração SDD 115)
     disparando callback HTTP ao vivo `GET 127.0.0.1:<port>/cb?vec=dom_search` ->
     Veredito **`FAIL`** (`CASA3-AZI-02`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 46/61: AZI-03 (Iteração SDD 116)
+Domínio 6: Authorization & Injection (AZI)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: AZI-03
+- Requisito (CASA 3.0 AL1):
+  "No SQL or NoSQL injection."
+- Referências: OWASP ASVS V5.3.4 (L1); MITRE CWE-89, CWE-943.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `sqlmap`, `ZAP`, `Burp Suite`, `Schemathesis`.
+- Formatos de Evidência Exigidos:
+  Achados de DAST autenticado em `OASIS SARIF 2.1.0` (`CASA3-AZI-03`) e captura
+  `HAR 1.2` redigida.
+- Critério Determinístico de Verificação:
+  * PASS: `sqlmap` não relata nenhum parâmetro injetável e nenhum payload NoSQL
+    altera o conjunto de resultados de uma consulta.
+  * FAIL: >= 1 parâmetro relatado como injetável, ou >= 1 payload NoSQL
+    alterando resultados de consulta.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 116`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `AZI-03` rodava inline em `run_dynamic_and_protocol_checks`
+  com 8 sondas Python próprias, sem invocar `sqlmap` nem regras ativas de SQLi
+  do OWASP ZAP (`40018`/`40024`), e sem gerar relatório JSON específico nem
+  arquivo HAR 1.2 isolado do controle.
+- O que foi feito e melhorado na Iteração SDD 116:
+  1) Instalação de `sqlmap 1.10.11` (`/home/user/.local/bin/sqlmap`) e adição de
+     `run_sqlmap_scan(...)` em `casa_audit/scanner.py` executando varredura
+     autenticada em diretório isolado (`--batch --flush-session --technique=BEU`)
+     com parsing estruturado dos blocos de parâmetros injetáveis e exportação
+     redigida para `output/azi03-sqlmap-report.json`.
+  2) Extração de `evaluate_azi03_sqli_nosql(...)` + helper compartilhado de
+     HAR redigido (`_make_redacted_har_probe`), combinando `sqlmap`, OWASP ZAP
+     ativo SQLi (`40018` + `40024` SQLite, SARIF em `output/zap-sqli-findings.sarif`),
+     bypass/booleana/erro SQLi (`CWE-89`) e sondas diferenciais NoSQL `$where` e
+     operadores JSON `$ne`/`$regex`/`$gt` (`CWE-943`), emitindo
+     `output/azi03-sqli-nosql-audit.json`, `output/azi03-replayed.har` e
+     achados `CASA3-AZI-03` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration116_azi03_guide_tooling`):
+  * **`PASS`** com SQLite parametrizado e operadores NoSQL rejeitados (`0`
+    parâmetros injetáveis no `sqlmap`, `0` alertas ZAP `40018`/`40024`, HAR + JSON
+    gerados).
+  * **`FAIL`** confirmado simultaneamente por **`sqlmap` real (`sqlmap_SQLi`)**,
+    **OWASP ZAP ativo (`40018`/`40024`)**, alteração diferencial `$where` e
+    alteração de resultados por operador JSON `$ne` (`[REDACTED]` validado no HAR).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Confirmou múltiplos vetores SQLi (`CWE-89` em `POST /rest/user/login` e
+    `GET /rest/products/search`) e NoSQL `$where` (`CWE-943` em
+    `GET /rest/track-order/`) -> Veredito **`FAIL`** (`CASA3-AZI-03`).
+================================================================================

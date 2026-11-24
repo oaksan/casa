@@ -2,14 +2,14 @@
   "standard": "NIST SP 800-90B (Section 6.3.1 MCV 99% UCB)",
   "target": "http://localhost:3000/rest/user/login",
   "sampleTarget": 200,
-  "elapsedSec": 6.07,
+  "elapsedSec": 6.23,
   "verdict": "FAIL",
   "totalSampled": 200,
   "uniqueTokens": 7,
   "duplicateTokens": 193,
-  "maxCollisionFrequency": 35,
-  "wholeTokenPointBits": 2.51,
-  "wholeTokenUcb99Bits": 2.03,
+  "maxCollisionFrequency": 41,
+  "wholeTokenPointBits": 2.29,
+  "wholeTokenUcb99Bits": 1.84,
   "positionalUcb99Bits": 0.0,
-  "effectiveMinEntropyBits": 2.03
+  "effectiveMinEntropyBits": 1.84
 }

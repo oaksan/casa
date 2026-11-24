@@ -4718,6 +4718,7 @@ def run_zap_automation(
     target_url: str,
     *,
     seed_urls: list[str] | None = None,
+    active_scan_rules: list[int] | None = None,
     json_out_path: Path | None = None,
     sarif_out_path: Path | None = None,
     timeout_sec: int = 120,
@@ -4756,6 +4757,29 @@ def run_zap_automation(
     if unique_seeds:
         req_lines = "\n".join(f'      - url: "{u}"' for u in unique_seeds[:40])
         req_block = f"  - type: requestor\n    requests:\n{req_lines}\n"
+
+    ascan_block = ""
+    if active_scan_rules:
+        rule_yaml = "\n".join(
+            f"        - id: {int(rid)}\n          threshold: Low\n          strength: Low"
+            for rid in active_scan_rules
+        )
+        ascan_block = (
+            f"  - type: activeScan-config\n"
+            f"    parameters:\n"
+            f"      maxScanDurationInMins: 1\n"
+            f"      maxRuleDurationInMins: 1\n"
+            f"      threadPerHost: 4\n"
+            f'      defaultPolicy: "Default Policy"\n'
+            f"  - type: activeScan\n"
+            f"    parameters:\n"
+            f"      context: casa-dast\n"
+            f'      policy: "Default Policy"\n'
+            f"    policyDefinition:\n"
+            f"      defaultStrength: Low\n"
+            f"      defaultThreshold: Off\n"
+            f"      rules:\n{rule_yaml}\n"
+        )
 
     returncode = None
     err_msg = None
@@ -4805,9 +4829,13 @@ def run_zap_automation(
             f"  - type: spider\n"
             f"    parameters:\n"
             f"      maxDuration: 1\n"
-            f"      maxDepth: 2\n"
-            f"      maxChildren: 25\n"
+            f"      maxDepth: {1 if active_scan_rules else 2}\n"
+            f"      maxChildren: {10 if active_scan_rules else 25}\n"
+            f"{ascan_block}"
             f"  - type: passiveScan-wait\n"
+            f"  - type: delay\n"
+            f"    parameters:\n"
+            f'      time: "2"\n'
             f"  - type: report\n"
             f"    parameters:\n"
             f"      template: traditional-json\n"
@@ -9965,6 +9993,349 @@ def evaluate_azi01_anti_csrf(
     }
 
 
+def evaluate_azi02_xss(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    auth_headers: dict[str, str] | None = None,
+    session_token: str = "",
+    browser_urls_fn=None,
+    zap_xss_report: dict | None = None,
+    zap_seed_urls: list[str] | None = None,
+    zap_json_out_path: Path | None = None,
+    zap_sarif_out_path: Path | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    http_probe_fn=None,
+) -> dict:
+    """Evaluate AZI-02 (ASVS V5.3.3 / CWE-79) via OWASP ZAP Active XSS (40012/40014) + Headless Chrome OOB callback."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    is_https = parsed.scheme.lower() == "https"
+    auth_hdrs = dict(auth_headers or {})
+    local_har_entries: list[dict] = []
+
+    def _record_har(method: str, url: str, req_hdrs: dict[str, str], req_body: bytes | None, st: int, resp_hdrs: dict[str, str], elapsed_ms: float) -> None:
+        sens = {"authorization", "cookie", "set-cookie", "x-api-key"}
+        entry: dict = {
+            "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "time": elapsed_ms,
+            "request": {
+                "method": method,
+                "url": url,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {
+                        "name": k,
+                        "value": (
+                            f"{v.split(' ', 1)[0]} [REDACTED]"
+                            if k.lower() == "authorization" and " " in str(v)
+                            else ("[REDACTED]" if k.lower() in sens else v)
+                        ),
+                    }
+                    for k, v in req_hdrs.items()
+                ],
+            },
+            "response": {
+                "status": st,
+                "httpVersion": "HTTP/1.1",
+                "headers": [
+                    {"name": k, "value": "[REDACTED]" if k.lower() in sens else v}
+                    for k, v in resp_hdrs.items()
+                ],
+            },
+        }
+        if req_body:
+            entry["request"]["postData"] = {"mimeType": "application/json", "text": req_body.decode("utf-8", errors="ignore")[:1024]}
+        local_har_entries.append(entry)
+
+    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
+        req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
+        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        try:
+            with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
+                return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            return he.code, {k.lower(): v for k, v in he.headers.items()}, he.read(16384).decode("utf-8", errors="ignore")
+        except Exception:
+            return 0, {}, ""
+
+    raw_probe = http_probe_fn or _default_probe
+
+    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+        url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
+        t0 = time.monotonic()
+        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        _record_har(method, url, headers or {}, body, st, hdrs, round((time.monotonic() - t0) * 1000, 1))
+        return st, hdrs, rbody
+
+    frontend_src = (repo / "frontend" / "src") if repo is not None else None
+    dom_xss_hits: list[str] = []
+    if frontend_src is not None and frontend_src.exists():
+        for fp in frontend_src.rglob("*.ts"):
+            txt = fp.read_text(encoding="utf-8", errors="ignore")
+            if "bypassSecurityTrustHtml" in txt and not str(fp).endswith(".spec.ts"):
+                dom_xss_hits.append(str(fp.relative_to(repo)))
+
+    # 1. Run focused OWASP ZAP Active XSS Scan (Rules 40012 Reflected + 40014 Persistent)
+    seeds_xss = zap_seed_urls or [f"{base_url}/rest/products/search?q=apple", f"{base_url}/profile"]
+    active_zap = (
+        zap_xss_report
+        if (zap_xss_report is not None and zap_xss_report.get("executed"))
+        else run_zap_automation(
+            base_url,
+            seed_urls=seeds_xss,
+            active_scan_rules=[40012, 40014],
+            json_out_path=zap_json_out_path or (OUTPUT_DIR / "zap-xss-report.json"),
+            sarif_out_path=zap_sarif_out_path or (OUTPUT_DIR / "zap-xss-findings.sarif"),
+            timeout_sec=180,
+        )
+    )
+
+    azi02_findings: list[dict] = []
+    seen_xss_keys: set[tuple[str, str]] = set()
+    zap_matched_plugins: set[str] = set()
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid in {"40012", "40014", "40016", "40017", "40026"} or "cross site scripting" in low_a:
+            zap_matched_plugins.add(pid or "40012")
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                k_x = (f"zap_{pid}", uri.split("?", 1)[0])
+                if k_x not in seen_xss_keys:
+                    seen_xss_keys.add(k_x)
+                    azi02_findings.append(
+                        {
+                            "url": uri.split("?", 1)[0],
+                            "xssType": f"OWASP_ZAP_{pid or 'XSS'}",
+                            "confirmedBy": f"owasp_zap_{pid or 'xss'}",
+                            "detail": f"[OWASP ZAP {pid}] {aname} detected at {uri.split('?', 1)[0]} (param='{inst.get('param', '')}', attack='{str(inst.get('attack', ''))[:60]}').",
+                        }
+                    )
+
+    # 2. Ephemeral Out-of-Band Callback Listener + Active Stored/Reflected/DOM Chrome Probes
+    xss_callbacks: list[str] = []
+    cb_port = 0
+    xss_headless_script = CASA_ASSESS_DIR / "scripts" / "headless_xss_callback.js"
+    xss_probes_run = 0
+    node_bin = shutil.which("node")
+    chrome_bin = shutil.which("google-chrome") or ("/usr/bin/google-chrome" if Path("/usr/bin/google-chrome").exists() else None)
+
+    if node_bin and chrome_bin and xss_headless_script.exists():
+        cb_hits: list[str] = []
+        cb_lock = threading.Lock()
+
+        class _XssCallbackHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                with cb_lock:
+                    cb_hits.append(self.path)
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def log_message(self, *args):
+                pass
+
+        cb_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _XssCallbackHandler)
+        cb_port = cb_srv.server_address[1]
+        threading.Thread(target=cb_srv.serve_forever, daemon=True).start()
+
+        try:
+            dom_payload = f"<img src=x onerror=\"fetch('http://127.0.0.1:{cb_port}/cb?vec=dom_search')\">"
+            stored_fb_payload = f"<img src=x onerror=\"fetch('http://127.0.0.1:{cb_port}/cb?vec=stored_feedback')\">"
+            stored_prof_payload = f"\"><img src=x onerror=\"fetch('http://127.0.0.1:{cb_port}/cb?vec=stored_profile')\">"
+
+            if browser_urls_fn is None:
+                cap_st, _, cap_body = _probe_logged("/rest/captcha/")
+                if cap_st == 200 and '"captchaId"' in cap_body:
+                    try:
+                        cap_obj = json.loads(cap_body)
+                        m_cap = re.match(r"^\s*(-?\d+)\s*([+\-*])\s*(-?\d+)\s*$", str(cap_obj.get("captcha", "")))
+                        if m_cap:
+                            a_c, op_c, b_c = int(m_cap.group(1)), m_cap.group(2), int(m_cap.group(3))
+                            ans_c = a_c + b_c if op_c == "+" else (a_c - b_c if op_c == "-" else a_c * b_c)
+                            _probe_logged(
+                                "/api/Feedbacks/",
+                                method="POST",
+                                headers={"Content-Type": "application/json", **auth_hdrs},
+                                body=json.dumps(
+                                    {
+                                        "captchaId": cap_obj["captchaId"],
+                                        "captcha": str(ans_c),
+                                        "comment": stored_fb_payload,
+                                        "rating": 3,
+                                    }
+                                ).encode("utf-8"),
+                            )
+                            xss_probes_run += 1
+                    except Exception:
+                        pass
+
+                if session_token:
+                    _probe_logged(
+                        "/profile",
+                        method="POST",
+                        headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": f"token={session_token}"},
+                        body=f"username={urllib.parse.quote(stored_prof_payload)}".encode("utf-8"),
+                    )
+                    xss_probes_run += 1
+
+            refl_token = "CASA3XSSPROBE9182"
+            refl_payload = f"<{refl_token} onload=1>"
+            r_st, r_hdrs, r_body = _probe_logged(f"/rest/products/search?q={urllib.parse.quote(refl_payload)}", headers=auth_hdrs)
+            xss_probes_run += 1
+            if "text/html" in r_hdrs.get("content-type", "").lower() and refl_payload in r_body:
+                k_refl = ("reflected_html", f"{base_url}/rest/products/search")
+                if k_refl not in seen_xss_keys:
+                    seen_xss_keys.add(k_refl)
+                    azi02_findings.append(
+                        {
+                            "url": f"{base_url}/rest/products/search",
+                            "xssType": "reflected_html",
+                            "confirmedBy": "unescaped_html_reflection",
+                            "detail": f"GET {base_url}/rest/products/search reflected unescaped HTML payload '{refl_payload}' in text/html response (CWE-79).",
+                        }
+                    )
+
+            with socket.socket() as sx:
+                sx.bind(("127.0.0.1", 0))
+                cdp_port_x = sx.getsockname()[1]
+
+            if browser_urls_fn is not None:
+                visit_urls = list(browser_urls_fn(cb_port))
+            else:
+                visit_urls = [
+                    f"{base_url}/#/about",
+                    f"{base_url}/#/search?q={urllib.parse.quote(dom_payload)}",
+                    f"{base_url}/profile",
+                ]
+            if visit_urls:
+                t_br = time.monotonic()
+                cp_xss = subprocess.run(
+                    [node_bin, str(xss_headless_script), str(cdp_port_x), base_url, session_token or "", *visit_urls],
+                    capture_output=True,
+                    text=True,
+                    timeout=35,
+                    env={**os.environ, "CHROME_BIN": chrome_bin},
+                )
+                _record_har(
+                    "GET",
+                    visit_urls[0],
+                    {"X-Headless-Driver": "google-chrome-cdp", **auth_hdrs},
+                    None,
+                    200 if cp_xss.returncode == 0 else 500,
+                    {"content-type": "text/html"},
+                    round((time.monotonic() - t_br) * 1000, 1),
+                )
+                xss_probes_run += len(visit_urls)
+            with cb_lock:
+                xss_callbacks = sorted(set(cb_hits))
+        finally:
+            cb_srv.shutdown()
+            cb_srv.server_close()
+
+    for cb_path in xss_callbacks:
+        vec_m = re.search(r"vec=([A-Za-z0-9_-]+)", cb_path)
+        vec_lbl = vec_m.group(1) if vec_m else cb_path
+        src_url = f"{base_url}/#/search" if "dom_" in vec_lbl else (f"{base_url}/#/about" if "feedback" in vec_lbl else f"{base_url}/profile")
+        azi02_findings.append(
+            {
+                "url": src_url,
+                "xssType": "DOM_XSS_callback_confirmed" if "dom_" in vec_lbl else "Stored_XSS_callback_confirmed",
+                "confirmedBy": "out_of_band_http_callback",
+                "detail": (
+                    f"Headless Chrome executed injected JavaScript payload at {src_url} and triggered live out-of-band "
+                    f"HTTP callback GET 127.0.0.1:{cb_port}{cb_path} (CWE-79 / ASVS V5.3.3)."
+                ),
+            }
+        )
+
+    if not azi02_findings and dom_xss_hits:
+        azi02_findings.append(
+            {
+                "url": base_url,
+                "xssType": "dom_xss_candidate_sink",
+                "confirmedBy": "static_source_bypassSecurityTrustHtml",
+                "detail": f"Unsanitized DomSanitizer.bypassSecurityTrustHtml() sink(s) detected in Angular frontend: {', '.join(dom_xss_hits)} (CWE-79).",
+            }
+        )
+
+    rep_file = report_out_path or (OUTPUT_DIR / "azi02-xss-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "OWASP ASVS V5.3.3 / CWE-79 (OWASP ZAP + Headless Chrome OOB)",
+                "target": base_url,
+                "verdict": "FAIL" if azi02_findings else "PASS",
+                "probesRun": xss_probes_run,
+                "zapPluginsMatched": sorted(zap_matched_plugins),
+                "callbacksReceived": xss_callbacks,
+                "angularBypassSinks": dom_xss_hits,
+                "findings": azi02_findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "azi02-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-azi02-xss-harness", "version": "3.0"},
+                    "entries": local_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for afz2 in azi02_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AZI-02",
+                "level": "error",
+                "message": {"text": afz2["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": afz2["url"]}}}],
+                "properties": {
+                    "controlId": "AZI-02",
+                    "xssType": afz2["xssType"],
+                    "confirmedBy": afz2["confirmedBy"],
+                    "angularBypassSinksCount": len(dom_xss_hits),
+                },
+            }
+        )
+
+    azi02_fail = len(azi02_findings) > 0
+    return {
+        "verdict": "FAIL" if azi02_fail else "PASS",
+        "azi02_fail": azi02_fail,
+        "probesRun": xss_probes_run,
+        "callbacksReceived": xss_callbacks,
+        "angularBypassSinks": dom_xss_hits,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "zap": active_zap,
+        "findings": azi02_findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -10983,180 +11354,30 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-02: Authenticated Reflected, Stored & DOM-Based XSS Scanner with Out-of-Band Callback Listener (SARIF 2.1.0 + redacted HAR 1.2)
-    frontend_src = repo / "frontend" / "src"
-    node_bin = shutil.which("node")
-    chrome_bin = shutil.which("google-chrome") or ("/usr/bin/google-chrome" if Path("/usr/bin/google-chrome").exists() else None)
-    dom_xss_hits: list[str] = []
-    if frontend_src.exists():
-        for fp in frontend_src.rglob("*.ts"):
-            txt = fp.read_text(encoding="utf-8", errors="ignore")
-            if "bypassSecurityTrustHtml" in txt and not str(fp).endswith(".spec.ts"):
-                dom_xss_hits.append(str(fp.relative_to(repo)))
-
-    xss_callbacks: list[str] = []
-    xss_headless_script = CASA_ASSESS_DIR / "scripts" / "headless_xss_callback.js"
-    azi02_findings: list[dict] = []
-    xss_probes_run = 0
-
-    if node_bin and chrome_bin and xss_headless_script.exists():
-        cb_hits: list[str] = []
-        cb_lock = threading.Lock()
-
-        class XssCallbackHandler(http.server.BaseHTTPRequestHandler):
-            def do_GET(self):
-                with cb_lock:
-                    cb_hits.append(self.path)
-                self.send_response(200)
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                self.wfile.write(b"ok")
-
-            def log_message(self, *args):
-                pass
-
-        cb_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), XssCallbackHandler)
-        cb_port = cb_srv.server_address[1]
-        cb_thread = threading.Thread(target=cb_srv.serve_forever, daemon=True)
-        cb_thread.start()
-
-        try:
-            dom_payload = f"<img src=x onerror=\"fetch('http://127.0.0.1:{cb_port}/cb?vec=dom_search')\">"
-            stored_fb_payload = f"<img src=x onerror=\"fetch('http://127.0.0.1:{cb_port}/cb?vec=stored_feedback')\">"
-            stored_prof_payload = f"\"><img src=x onerror=\"fetch('http://127.0.0.1:{cb_port}/cb?vec=stored_profile')\">"
-
-            # 1. Seed stored XSS payload into POST /api/Feedbacks (solving arithmetic captcha safely)
-            cap_st, _, cap_body = http_probe("/rest/captcha/")
-            if cap_st == 200 and '"captchaId"' in cap_body:
-                try:
-                    cap_obj = json.loads(cap_body)
-                    m_cap = re.match(r"^\s*(-?\d+)\s*([+\-*])\s*(-?\d+)\s*$", str(cap_obj.get("captcha", "")))
-                    if m_cap:
-                        a_c, op_c, b_c = int(m_cap.group(1)), m_cap.group(2), int(m_cap.group(3))
-                        ans_c = a_c + b_c if op_c == "+" else (a_c - b_c if op_c == "-" else a_c * b_c)
-                        http_probe(
-                            "/api/Feedbacks/",
-                            method="POST",
-                            headers={"Content-Type": "application/json", **auth_req_headers},
-                            body=json.dumps(
-                                {
-                                    "captchaId": cap_obj["captchaId"],
-                                    "captcha": str(ans_c),
-                                    "comment": stored_fb_payload,
-                                    "rating": 3,
-                                }
-                            ).encode("utf-8"),
-                        )
-                        xss_probes_run += 1
-                except Exception:
-                    pass
-
-            # 2. Seed stored/reflected payload into POST /profile if session exists
-            if session_a_tok:
-                http_probe(
-                    "/profile",
-                    method="POST",
-                    headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": f"token={session_a_tok}"},
-                    body=f"username={urllib.parse.quote(stored_prof_payload)}".encode("utf-8"),
-                )
-                xss_probes_run += 1
-
-            # 3. Direct HTML reflected XSS check on /profile and API search
-            refl_token = "CASA3XSSPROBE9182"
-            refl_payload = f"<{refl_token} onload=1>"
-            r_st, r_hdrs, r_body = http_probe(f"/rest/products/search?q={urllib.parse.quote(refl_payload)}", headers=auth_req_headers)
-            xss_probes_run += 1
-            if "text/html" in r_hdrs.get("content-type", "").lower() and refl_payload in r_body:
-                azi02_findings.append(
-                    {
-                        "url": f"{base_url}/rest/products/search",
-                        "xssType": "reflected_html",
-                        "confirmedBy": "unescaped_html_reflection",
-                        "detail": f"GET {base_url}/rest/products/search reflected unescaped HTML payload '{refl_payload}' in text/html response (CWE-79).",
-                    }
-                )
-
-            # 4. Execute Headless Chrome across DOM / Stored / Authenticated views to trigger real JS callbacks
-            with socket.socket() as sx:
-                sx.bind(("127.0.0.1", 0))
-                cdp_port_x = sx.getsockname()[1]
-
-            url_dom = f"{base_url}/#/search?q={urllib.parse.quote(dom_payload)}"
-            url_about = f"{base_url}/#/about"
-            url_prof = f"{base_url}/profile"
-            subprocess.run(
-                [node_bin, str(xss_headless_script), str(cdp_port_x), base_url, session_a_tok or "", url_about, url_dom, url_prof],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                env={**os.environ, "CHROME_BIN": chrome_bin},
-            )
-            xss_probes_run += 3
-            with cb_lock:
-                xss_callbacks = sorted(set(cb_hits))
-        finally:
-            cb_srv.shutdown()
-            cb_srv.server_close()
-
-    for cb_path in xss_callbacks:
-        vec_m = re.search(r"vec=([A-Za-z0-9_-]+)", cb_path)
-        vec_lbl = vec_m.group(1) if vec_m else cb_path
-        src_url = f"{base_url}/#/search" if "dom_" in vec_lbl else (f"{base_url}/#/about" if "feedback" in vec_lbl else f"{base_url}/profile")
-        azi02_findings.append(
-            {
-                "url": src_url,
-                "xssType": "DOM_XSS_callback_confirmed" if "dom_" in vec_lbl else "Stored_XSS_callback_confirmed",
-                "confirmedBy": "out_of_band_http_callback",
-                "detail": (
-                    f"Headless Chrome executed injected JavaScript payload at {src_url} and triggered live out-of-band "
-                    f"HTTP callback GET 127.0.0.1:{cb_port}{cb_path} (CWE-79 / ASVS V5.3.3)."
-                ),
-            }
-        )
-
-    if not azi02_findings and dom_xss_hits:
-        azi02_findings.append(
-            {
-                "url": base_url,
-                "xssType": "dom_xss_candidate_sink",
-                "confirmedBy": "static_source_bypassSecurityTrustHtml",
-                "detail": f"Unsanitized DomSanitizer.bypassSecurityTrustHtml() sink(s) detected in Angular frontend: {', '.join(dom_xss_hits)} (CWE-79).",
-            }
-        )
-
-    for afz2 in azi02_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AZI-02",
-                "level": "error",
-                "message": {"text": afz2["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": afz2["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AZI-02",
-                    "xssType": afz2["xssType"],
-                    "confirmedBy": afz2["confirmedBy"],
-                    "angularBypassSinksCount": len(dom_xss_hits),
-                },
-            }
-        )
-
-    azi02_fail = len(azi02_findings) > 0
+    # AZI-02: OWASP ZAP Active XSS (Rules 40012/40014) + Authenticated Reflected, Stored & DOM-Based XSS Out-of-Band Callback Harness (SARIF 2.1.0 + redacted HAR 1.2)
+    azi02_eval = evaluate_azi02_xss(
+        base_url,
+        repo=repo,
+        auth_headers=auth_req_headers,
+        session_token=session_a_tok or "",
+        http_probe_fn=http_probe,
+    )
+    azi02_findings = azi02_eval["findings"]
+    xss_callbacks = azi02_eval["callbacksReceived"]
+    dom_xss_hits = azi02_eval["angularBypassSinks"]
+    xss_probes_run = azi02_eval["probesRun"]
+    dast_sarif_results.extend(azi02_eval["sarifResults"])
+    azi02_fail = azi02_eval["azi02_fail"]
     azi02_lines = [f"[{az2['xssType']}] {az2['detail']}" for az2 in azi02_findings]
     results["AZI-02"] = {
-        "verdict": "FAIL" if azi02_fail else "PASS",
-        "tool": f"Active Headless Chrome DOM/Stored/Reflected XSS & Out-of-Band Callback Harness ({xss_probes_run} probes, {len(dom_xss_hits)} frontend sinks, SARIF 2.1.0 + redacted HAR 1.2)",
+        "verdict": azi02_eval["verdict"],
+        "tool": f"OWASP ZAP {zap_ver_label} (Rules 40012/40014) & Headless Chrome DOM/Stored/Reflected XSS OOB Callback Harness ({xss_probes_run} probes, {len(dom_xss_hits)} frontend sinks, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] {len(azi02_findings)} Cross-Site Scripting finding(s) confirmed ({len(xss_callbacks)} live browser JS execution callback(s), {len(dom_xss_hits)} Angular bypassSecurityTrustHtml sinks):\n  - "
+            f"[FAIL] {len(azi02_findings)} Cross-Site Scripting finding(s) confirmed ({len(xss_callbacks)} live browser JS execution callback(s), {len(dom_xss_hits)} Angular bypassSecurityTrustHtml sinks, ZAP plugins={azi02_eval.get('zapPluginsMatched')}):\n  - "
             + "\n  - ".join(azi02_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AZI-02 XSS Audit JSON: {azi02_eval['reportPath']}\n  - AZI-02 Redacted HAR 1.2: {azi02_eval['harPath']}\n  - ZAP XSS SARIF 2.1.0: {azi02_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if azi02_fail
-            else f"[PASS] Executed {xss_probes_run} active XSS probes (DOM, Stored, Reflected) in headless Chrome with out-of-band HTTP callback listener; 0 callbacks triggered.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] OWASP ZAP {zap_ver_label} (40012/40014) and {xss_probes_run} active XSS probes (DOM, Stored, Reflected) in headless Chrome with out-of-band HTTP callback listener found 0 XSS executions.\nEvidence Artifacts:\n  - AZI-02 XSS Audit JSON: {azi02_eval['reportPath']}\n  - AZI-02 Redacted HAR 1.2: {azi02_eval['harPath']}\n  - ZAP XSS SARIF 2.1.0: {azi02_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

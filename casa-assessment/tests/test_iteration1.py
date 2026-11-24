@@ -3989,6 +3989,101 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 44/61: AZI-01 (Iteração SDD 114)", just2_txt)
 
+    def test_iteration115_azi02_guide_tooling(self) -> None:
+        import html
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_azi02_xss
+
+        class _Azi02Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "escaped"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p, _, q = self.path.partition("?")
+                qs = urllib.parse.parse_qs(q)
+                val = qs.get("q", [""])[0]
+                m = type(self).mode
+                if p == "/":
+                    b = b'<html><body><a href="/rest/products/search?q=apple">search</a></body></html>'
+                    st = 200
+                elif p == "/rest/products/search":
+                    rendered = html.escape(val) if m == "escaped" else val
+                    b = f"<html><body>Results for: {rendered}</body></html>".encode("utf-8")
+                    st = 200
+                else:
+                    b = b"Not found"
+                    st = 404
+                self.send_response(st)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Azi02Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_azi2:
+            tdp = Path(td_azi2)
+            try:
+                # 1. Properly HTML-escaped search endpoint -> PASS via real OWASP ZAP 40012/40014 + Headless Chrome OOB listener
+                _Azi02Handler.mode = "escaped"
+                rep_pass = tdp / "azi02_pass.json"
+                har_pass = tdp / "azi02_pass.har"
+                r_pass = evaluate_azi02_xss(
+                    f"http://127.0.0.1:{port}",
+                    browser_urls_fn=lambda cb_port: [
+                        f"http://127.0.0.1:{port}/rest/products/search?q="
+                        + urllib.parse.quote(f"<img src=x onerror=\"fetch('http://127.0.0.1:{cb_port}/cb?vec=dom_search')\">")
+                    ],
+                    zap_seed_urls=[f"http://127.0.0.1:{port}/rest/products/search?q=apple"],
+                    zap_json_out_path=tdp / "zap_xss_pass.json",
+                    zap_sarif_out_path=tdp / "zap_xss_pass.sarif",
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["zap"]["executed"])
+                self.assertEqual(r_pass["callbacksReceived"], [])
+                self.assertTrue(rep_pass.exists())
+                self.assertTrue(har_pass.exists())
+
+                # 2. Unescaped reflected XSS -> FAIL confirmed by BOTH real OWASP ZAP 40012 AND live Headless Chrome OOB HTTP callback
+                _Azi02Handler.mode = "vulnerable_xss"
+                rep_vuln = tdp / "azi02_vuln.json"
+                har_vuln = tdp / "azi02_vuln.har"
+                r_vuln = evaluate_azi02_xss(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_xss_tok_12345"},
+                    browser_urls_fn=lambda cb_port: [
+                        f"http://127.0.0.1:{port}/rest/products/search?q="
+                        + urllib.parse.quote(f"<img src=x onerror=\"fetch('http://127.0.0.1:{cb_port}/cb?vec=dom_search')\">")
+                    ],
+                    zap_seed_urls=[f"http://127.0.0.1:{port}/rest/products/search?q=apple"],
+                    zap_json_out_path=tdp / "zap_xss_vuln.json",
+                    zap_sarif_out_path=tdp / "zap_xss_vuln.sarif",
+                    report_out_path=rep_vuln,
+                    har_out_path=har_vuln,
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                self.assertGreaterEqual(len(r_vuln["callbacksReceived"]), 1, f"Expected live OOB callback, got {r_vuln}")
+                self.assertIn("40012", r_vuln["zapPluginsMatched"], f"Expected ZAP 40012, got {r_vuln}")
+                self.assertTrue(any(f["confirmedBy"] == "out_of_band_http_callback" for f in r_vuln["findings"]))
+                self.assertTrue(any(s["ruleId"] == "CASA3-AZI-02" for s in r_vuln["sarifResults"]))
+                har_txt = har_vuln.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("secret_xss_tok_12345", har_txt)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 45/61: AZI-02 (Iteração SDD 115)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

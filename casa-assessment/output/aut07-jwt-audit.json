@@ -4,7 +4,7 @@
   "target": "http://localhost:3000/rest/wallet/balance",
   "verdict": "FAIL",
   "alg": "RS256",
-  "iat": 1795483124,
+  "iat": 1795487193,
   "exp": null,
   "lifetimeSec": null,
   "hmacKeyBits": null,

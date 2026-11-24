@@ -2245,3 +2245,50 @@ CONTROLE 44/61: AZI-01 (Iteração SDD 114)
     obteve `HTTP 200` com mutação persistida na releitura de `GET /profile` nos
     3 modos -> Veredito **`FAIL`** (3 violações `CASA3-AZI-01`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 45/61: AZI-02 (Iteração SDD 115)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 6 - AUTHZ & INJECTION)
+--------------------------------------------------------------------------------
+- Controle: `AZI-02` — *No Cross-Site Scripting — reflected, stored or
+  DOM-based* (ASVS V5.3.3 L1; CWE-79).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **OWASP ZAP** (varredura ativa XSS `40012` Refletido e `40014` Armazenado)
+    combinado à varredura **DOM-based e autenticada em navegador headless** com
+    **callback HTTP *out-of-band*** confirmando execução real de JavaScript, com
+    evidências em SARIF 2.1.0 (`CASA3-AZI-02`), relatório JSON (`output/azi02-xss-audit.json`)
+    e captura HAR 1.2 redigida (`output/azi02-replayed.har`).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 115`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  O harness de `AZI-02` rodava inline em `run_dynamic_and_protocol_checks`, não
+  disparava regras ativas de XSS (`40012`/`40014`) do OWASP ZAP, não gerava
+  relatório JSON estruturado nem arquivo HAR 1.2 isolado com credenciais
+  redigidas para o controle.
+- O que foi feito e melhorado na Iteração SDD 115:
+  1) Extensão de `run_zap_automation(..., active_scan_rules=[...])` para executar
+     política ativa focada em XSS (`40012`, `40014`) sem impactar as varreduras
+     passivas do Domínio 4.
+  2) Extração de `evaluate_azi02_xss(...)` integrando OWASP ZAP ativo
+     (`40012`/`40014`), listener efêmero *out-of-band* (`XssCallbackHandler`),
+     navegação autenticada em Google Chrome headless (`scripts/headless_xss_callback.js`),
+     checagem de reflexão HTML e auditoria de sinks `bypassSecurityTrustHtml`,
+     gravando `output/azi02-xss-audit.json` e `output/azi02-replayed.har`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration115_azi02_guide_tooling`):
+  * **`PASS`** com HTML escaping adequado (0 alertas ZAP `40012`/`40014`, 0
+    callbacks OOB e geração de relatório JSON + HAR redigido).
+  * **`FAIL`** confirmado simultaneamente por **OWASP ZAP ativo (`40012`)** e por
+    **callback HTTP *out-of-band* ao vivo no Google Chrome headless** em endpoint
+    refletido vulnerável (`[REDACTED]` confirmado no HAR).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Google Chrome headless executou payload DOM XSS em `/#/search?q=...`
+    disparando callback HTTP ao vivo `GET 127.0.0.1:<port>/cb?vec=dom_search` ->
+    Veredito **`FAIL`** (`CASA3-AZI-02`).
+================================================================================

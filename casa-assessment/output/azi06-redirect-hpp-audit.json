@@ -1,0 +1,35 @@
+{
+  "standard": "OWASP ASVS V5.1.5, V5.1.1 / CWE-601, CWE-235 (OWASP ZAP 20019/20014 + Open Redirect & HPP)",
+  "target": "http://localhost:3000",
+  "verdict": "FAIL",
+  "probesRun": 11,
+  "zapPluginsMatched": [
+    "20019"
+  ],
+  "findings": [
+    {
+      "url": "http://localhost:3000/redirect",
+      "kind": "OWASP_ZAP_20019",
+      "cwe": "CWE-601",
+      "status": 200,
+      "confirmedBy": "owasp_zap_20019",
+      "detail": "[OWASP ZAP 20019] External Redirect detected at http://localhost:3000/redirect (param='to', attack='https://5153025817436599105.owasp.org/?https://github.com/ju') (CWE-601)."
+    },
+    {
+      "url": "http://localhost:3000/redirect",
+      "kind": "OpenRedirect_query_substring_bypass",
+      "cwe": "CWE-601",
+      "status": 302,
+      "confirmedBy": "noredirect_open_redirect",
+      "detail": "GET http://localhost:3000/redirect?to=https://evil.example.com?https://github.com/juice-shop/juice-shop returned HTTP 302 target 'https://evil.example.com?https://github.com/juice-shop/juice-shop' resolving to off-allowlist host 'evil.example.com' (CWE-601)."
+    },
+    {
+      "url": "http://localhost:3000/redirect",
+      "kind": "HPP_Authorization_Outcome_Bypass",
+      "cwe": "CWE-235",
+      "status": 302,
+      "confirmedBy": "hpp_differential",
+      "detail": "Duplicated parameter flipped outcome on /redirect from HTTP 406 (denied) to HTTP 302 (Location='https://evil.example.com,https://github.com/juice-shop/juice-shop') (CWE-235)."
+    }
+  ]
+}

@@ -1,0 +1,1288 @@
+{
+   "runs": [
+      {
+         "results": [ 
+            {
+               "level": "error",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": ""
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The 301 or 302 response to a request for the following URL appeared to contain user input in the location header:\n\nhttp:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop\n\nThe user input found was:\n\nto=https:\/\/github.com\/juice-shop\/juice-shop\n\nThe context was:\n\nhttps:\/\/github.com\/juice-shop\/juice-shop"
+               },
+               "ruleId": "10028",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 302,
+                   "reasonPhrase": "Found",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Access-Control-Allow-Origin" : "*",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "62",
+                       "Content-Type" : "text\/plain; charset=utf-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Location" : "https:\/\/github.com\/juice-shop\/juice-shop",
+                       "Vary" : "Accept, Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "Found. Redirecting to https:\/\/github.com\/juice-shop\/juice-shop"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "error",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F5153025817436599105.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "https:\/\/5153025817436599105.owasp.org\/?@@@original@@@"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": "https:\/\/5153025817436599105.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The response contains a redirect in its Location header which allows an external Url to be set."
+               },
+               "ruleId": "20019",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F5153025817436599105.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 302,
+                   "reasonPhrase": "Found",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Access-Control-Allow-Origin" : "*",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "101",
+                       "Content-Type" : "text\/plain; charset=utf-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:56 GMT",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Location" : "https:\/\/5153025817436599105.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop",
+                       "Vary" : "Accept, Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "Found. Redirecting to https:\/\/5153025817436599105.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "warning",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": ""
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files."
+               },
+               "ruleId": "10038",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "warning",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/ftp"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": ""
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files."
+               },
+               "ruleId": "10038",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/ftp",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000\/robots.txt",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Access-Control-Allow-Origin" : "*",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "11308",
+                       "Content-Type" : "text\/html; charset=utf-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!DOCTYPE html>\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\" \/>\n    <title>listing directory \/ftp<\/title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;\n}\nh1, h2, h3 {\n  font-size: 22px;\n  color: #343434;\n}\nh1 em, h2 em {\n  padding: 0 5px;\n  font-weight: normal;\n}\nh1 {\n  font-size: 60px;\n}\nh2 {\n  margin-top: 10px;\n}\nh3 {\n  margin: 5px 0 10px 0;\n  padding-bottom: 5px;\n  border-bottom: 1px solid #eee;\n  font-size: 18px;\n}\nul li {\n  list-style: none;\n}\nul li:hover {\n  cursor: pointer;\n  color: #2e2e2e;\n}\nul li .path {\n  padding-left: 5px;\n  font-weight: bold;\n}\nul li .line {\n  padding-right: 5px;\n  font-style: italic;\n}\nul li:first-child .path {\n  padding-left: 0;\n}\np {\n  line-height: 1.5;\n}\na {\n  color: #555;\n  text-decoration: none;\n}\na:hover {\n  color: #303030;\n}\n#stacktrace {\n  margin-top: 15px;\n}\n.directory h1 {\n  margin-bottom: 15px;\n  font-size: 18px;\n}\nul#files {\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n}\nul#files li {\n  float: left;\n  width: 30%;\n  line-height: 25px;\n  margin: 1px;\n}\nul#files li a {\n  display: block;\n  height: 25px;\n  border: 1px solid transparent;\n  -webkit-border-radius: 5px;\n  -moz-border-radius: 5px;\n  border-radius: 5px;\n  overflow: hidden;\n  white-space: nowrap;\n}\nul#files li a:focus,\nul#files li a:hover {\n  background: rgba(255,255,255,0.65);\n  border: 1px solid #ececec;\n}\nul#files li a.highlight {\n  -webkit-transition: background .4s ease-in-out;\n  background: #ffff4f;\n  border-color: #E9DC51;\n}\n#search {\n  display: block;\n  position: fixed;\n  top: 20px;\n  right: 20px;\n  width: 90px;\n  -webkit-transition: width ease 0.2s, opacity ease 0.4s;\n  -moz-transition: width ease 0.2s, opacity ease 0.4s;\n  -webkit-border-radius: 32px;\n  -moz-border-radius: 32px;\n  -webkit-box-shadow: inset 0px 0px 3px rgba(0, 0, 0, 0.25), inset 0px 1px 3px rgba(0, 0, 0, 0.7), 0px 1px 0px rgba(255, 255, 255, 0.03);\n  -moz-box-shadow: inset 0px 0px 3px rgba(0, 0, 0, 0.25), inset 0px 1px 3px rgba(0, 0, 0, 0.7), 0px 1px 0px rgba(255, 255, 255, 0.03);\n  -webkit-font-smoothing: antialiased;\n  text-align: left;\n  font: 13px \"Helvetica Neue\", Arial, sans-serif;\n  padding: 4px 10px;\n  border: none;\n  background: transparent;\n  margin-bottom: 0;\n  outline: none;\n  opacity: 0.7;\n  color: #888;\n}\n#search:focus {\n  width: 120px;\n  opacity: 1.0; \n}\n\n\/*views*\/\n#files span {\n  display: inline-block;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  text-indent: 10px;\n}\n#files .name {\n  background-repeat: no-repeat;\n}\n#files .icon .name {\n  text-indent: 28px;\n}\n\n\/*tiles*\/\n.view-tiles .name {\n  width: 100%;\n  background-position: 8px 5px;\n}\n.view-tiles .size,\n.view-tiles .date {\n  display: none;\n}\n\n\/*details*\/\nul#files.view-details li {\n  float: none;\n  display: block;\n  width: 90%;\n}\nul#files.view-details li.header {\n  height: 25px;\n  background: #000;\n  color: #fff;\n  font-weight: bold;\n}\n.view-details .header {\n  border-radius: 5px;\n}\n.view-details .name {\n  width: 60%;\n  background-position: 8px 5px;\n}\n.view-details .size {\n  width: 10%;\n}\n.view-details .date {\n  width: 30%;\n}\n.view-details .size,\n.view-details .date {\n  text-align: right;\n  direction: rtl;\n}\n\n\/*mobile*\/\n@media (max-width: 768px) {\n  body {\n    font-size: 13px;\n    line-height: 16px;\n    padding: 0;\n  }\n  #search {\n    position: static;\n    width: 100%;\n    font-size: 2em;\n    line-height: 1.8em;\n    text-indent: 10px;\n    border: 0;\n    border-radius: 0;\n    padding: 10px 0;\n    margin: 0;\n  }\n  #search:focus {\n    width: 100%;\n    border: 0;\n    opacity: 1;\n  }\n  .directory h1 {\n    font-size: 2em;\n    line-height: 1.5em;\n    color: #fff;\n    background: #000;\n    padding: 15px 10px;\n    margin: 0;\n  }\n  ul#files {\n    border-top: 1px solid #cacaca;\n  }\n  ul#files li {\n    float: none;\n    width: auto !important;\n    display: block;\n    border-bottom: 1px solid #cacaca;\n    font-size: 2em;\n    line-height: 1.2em;\n    text-indent: 0;\n    margin: 0;\n  }\n  ul#files li:nth-child(odd) {\n    background: #e0e0e0;\n  }\n  ul#files li a {\n    height: auto;\n    border: 0;\n    border-radius: 0;\n    padding: 15px 10px;\n  }\n  ul#files li a:focus,\n  ul#files li a:hover {\n    border: 0;\n  }\n  #files .header,\n  #files .size,\n  #files .date {\n    display: none !important;\n  }\n  #files .name {\n    float: none;\n    display: inline-block;\n    width: 100%;\n    text-indent: 0;\n    background-position: 0 50%;\n  }\n  #files .icon .name {\n    text-indent: 41px;\n  }\n}\n#files .icon-directory .name {\n  background-image: url(data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAALGPC\/xhBQAAAWtQTFRFAAAA\/PPQ9Nhc2q402qQ12qs2\/PTX2pg12p81+\/LM89NE9dto2q82+\/fp2rM22qY39d6U+\/bo2qo2\/frx\/vz32q812qs12qE279SU8c4w9NZP+\/LK\/\/367s9y7s925cp0\/vzw9t92\/\/342po2\/vz25s1579B6+OSO2bQ0\/v799NyT8tE79dld8Msm+OrC\/vzx79KA2IYs7s6I9d6R4cJe9+OF\/PLI\/fry79OF\/v30\/\/328tWB89RJ8c9p8c0u9eCf\/\/7+9txs6sts5Mdr+++5+u2z\/vrv+\/fq6cFz8dBs8tA57cpq+OaU9uGs27Y8\/\/799NdX\/PbY9uB89unJ\/\/z14sNf+emh+emk+vDc+uys9+OL8dJy89NH+eic8tN5+OaV+OWR9N2n9dtl9t529+KF9+GB9Nue9NdU8tR\/9t5y89qW9dpj89iO89eG\/vvu2pQ12Y4z\/vzy2Ict\/vvv48dr\/vzz4sNg\/\/\/+2Igty3PqwQAAAAF0Uk5TAEDm2GYAAACtSURBVBjTY2AgA2iYlJWVhfohBPg0yx38y92dS0pKVOVBAqIi6sb2vsWWpfrFeTI8QAEhYQEta28nCwM1OVleZqCAmKCEkUdwYWmhQnFeOStQgL9cySqkNNDHVJGbiY0FKCCuYuYSGRsV5KgjxcXIARRQNncNj09JTgqw0ZbkZAcK5LuFJaRmZqfHeNnpSucDBQoiEtOycnIz4qI9bfUKQA6pKKqAgqIKQyK8BgAZ5yfODmnHrQAAAABJRU5ErkJggg==);\n}\n#files .icon-text .name {\n  background-image: url(data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAABGdBTUEAAK\/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAADoSURBVBgZBcExblNBGAbA2ceegTRBuIKOgiihSZNTcC5LUHAihNJR0kGKCDcYJY6D3\/77MdOinTvzAgCw8ysThIvn\/VojIyMjIyPP+bS1sUQIV2s95pBDDvmbP\/mdkft83tpYguZq5Jh\/OeaYh+yzy8hTHvNlaxNNczm+la9OTlar1UdA\/+C2A4trRCnD3jS8BB1obq2Gk6GU6QbQAS4BUaYSQAf4bhhKKTFdAzrAOwAxEUAH+KEM01SY3gM6wBsEAQB0gJ+maZoC3gI6iPYaAIBJsiRmHU0AALOeFC3aK2cWAACUXe7+AwO0lc9eTHYTAAAAAElFTkSuQmCC);\n}\n#files .icon-default .name {\n  background-image: url(data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAABGdBTUEAAK\/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAC4SURBVCjPdZFbDsIgEEWnrsMm7oGGfZrohxvU+Iq1TyjU60Bf1pac4Yc5YS4ZAtGWBMk\/drQBOVwJlZrWYkLhsB8UV9K0BUrPGy9cWbng2CtEEUmLGppPjRwpbixUKHBiZRS0p+ZGhvs4irNEvWD8heHpbsyDXznPhYFOyTjJc13olIqzZCHBouE0FRMUjA+s1gTjaRgVFpqRwC8mfoXPPEVPS7LbRaJL2y7bOifRCTEli3U7BMWgLzKlW\/CuebZPAAAAAElFTkSuQmCC);\n}\n<\/style>\n    <script>\n      function $(id){\n        var el = 'string' == typeof id\n          ? document.getElementById(id)\n          : id;\n\n        el.on = function(event, fn){\n          if ('content loaded' == event) {\n            event = window.attachEvent ? \"load\" : \"DOMContentLoaded\";\n          }\n          el.addEventListener\n            ? el.addEventListener(event, fn, false)\n            : el.attachEvent(\"on\" + event, fn);\n        };\n\n        el.all = function(selector){\n          return $(el.querySelectorAll(selector));\n        };\n\n        el.each = function(fn){\n          for (var i = 0, len = el.length; i < len; ++i) {\n            fn($(el[i]), i);\n          }\n        };\n\n        el.getClasses = function(){\n          return this.getAttribute('class').split(\/\\s+\/);\n        };\n\n        el.addClass = function(name){\n          var classes = this.getAttribute('class');\n          el.setAttribute('class', classes\n            ? classes + ' ' + name\n            : name);\n        };\n\n        el.removeClass = function(name){\n          var classes = this.getClasses().filter(function(curr){\n            return curr != name;\n          });\n          this.setAttribute('class', classes.join(' '));\n        };\n\n        return el;\n      }\n\n      function search() {\n        var str = $('search').value.toLowerCase();\n        var links = $('files').all('a');\n\n        links.each(function(link){\n          var text = [...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "warning",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/sitemap.xml"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": ""
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files."
+               },
+               "ruleId": "10038",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/sitemap.xml",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "warning",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "Access-Control-Allow-Origin: *"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+               },
+               "ruleId": "10098",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop",
+                   "method": "GET",
+                   "headers": {
+                       "host" : "localhost:3000"
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 302,
+                   "reasonPhrase": "Found",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Access-Control-Allow-Origin" : "*",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "62",
+                       "Content-Type" : "text\/plain; charset=utf-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Location" : "https:\/\/github.com\/juice-shop\/juice-shop",
+                       "Vary" : "Accept, Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "Found. Redirecting to https:\/\/github.com\/juice-shop\/juice-shop"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/chunk-AkObRTpM.js"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": "select"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"\/\/`)).test(e)){let[,t]=e.split(\/\\\/\\\/[^\\\/]+\/);return t}return e}function yv(e){return Oe(e)[le.LocaleId]}function vv(e,n,t){let r\", see evidence field for the suspicious comment\/snippet."
+               },
+               "ruleId": "10027",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/chunk-AkObRTpM.js",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "368823",
+                       "Content-Type" : "application\/javascript; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "ETag" : "W\/\"5a0b7-1a19f2fe20a\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 03 Nov 2026 02:14:37 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]ame`,`values`,`to`,`from`,`sandbox`,`allow`,`allowFullscreen`,`referrerPolicy`,`csp`,`fetchPriority`,`credentialless`]],[`iframe`,[`sandbox`,`allow`,`allowFullscreen`,`referrerPolicy`,`csp`,`fetchPriority`,`credentialless`]]]),Uo)}function gn(e,n,t){let r=n??Tl;for(let[o,i]of t){let s=o.toLowerCase();for(let a of i){let c=a.toLowerCase(),l=Uo[c]??=xl(),u=l[r]??=xl();u[s]=e}}}function jp(e,n,t){let o=E_()[n.toLowerCase()];if(!o)return z.NONE;let i=e.toLowerCase(),s;if(t){let a=o[t];a\u0026\u0026(s=a[i]??a[vp])}if(s===void 0){let a=o[Tl];a\u0026\u0026(s=a[i]??a[vp])}if(s===void 0\u0026\u0026(!t||t===Tl)){let a=o[Yn];a\u0026\u0026(s=a[i])}return s??z.NONE}function ye(e){for(;Array.isArray(e);)e=e[rt];return e}function Jl(e,n){return ye(n[e])}function Ae(e,n){return ye(n[e.index])}function ta(e,n){return e.data[n]}function ni(e,n){return e[n]}function ri(e,n,t,r){t>=e.data.length\u0026\u0026(e.data[t]=null,e.blueprint[t]=null),n[t]=r}function Ze(e,n){let t=n[e];return Xt(t)?t:t[rt]}function Bp(e){return(e[T]\u00264)===4}function na(e){return(e[T]\u0026128)===128}function Vp(e){return qe(e[ce])}function je(e,n){return n==null?null:e[n]}function eu(e){e[Jn]=0}function tu(e){e[T]\u00261024||(e[T]|=1024,na(e)\u0026\u0026or(e))}function Hp(e,n){for(;e>0;)n=n[En],e--;return n}function oi(e){return!!(e[T]\u00269216||e[Pe]?.dirty)}function ra(e){e[ot].changeDetectionScheduler?.notify(8),e[T]\u002664\u0026\u0026(e[T]|=1024),oi(e)\u0026\u0026or(e)}function or(e){e[ot].changeDetectionScheduler?.notify(0);let n=Kt(e);for(;n!==null\u0026\u0026!(n[T]\u00268192||(n[T]|=8192,!na(n)));)n=Kt(n)}function oa(e,n){if(rr(e))throw new g(911,!1);e[qt]===null\u0026\u0026(e[qt]=[]),e[qt].push(n)}function Up(e,n){if(e[qt]===null)return;let t=e[qt].indexOf(n);t!==-1\u0026\u0026e[qt].splice(t,1)}function Kt(e){let n=e[ce];return qe(n)?n[ce]:n}function nu(e){return e[zr]??=[]}function ru(e){return e.cleanup??=[]}function $p(e,n,t,r){let o=nu(n);o.push(t),e.firstCreatePass\u0026\u0026ru(e).push(r,o.length-1)}function zp(){return k.lFrame.elementDepthCount}function Gp(){k.lFrame.elementDepthCount++}function ou(){k.lFrame.elementDepthCount--}function ia(){return k.bindingsEnabled}function iu(){return k.skipHydrationRootTNode!==null}function su(e){return k.skipHydrationRootTNode===e}function au(){k.skipHydrationRootTNode=null}function D(){return k.lFrame.lView}function V(){return k.lFrame.tView}function Wp(e){return k.lFrame.contextLView=e,e[oe]}function qp(e){return k.lFrame.contextLView=null,e}function ue(){let e=cu();for(;e!==null\u0026\u0026e.type===64;)e=e.parent;return e}function cu(){return k.lFrame.currentTNode}function Zp(){let e=k.lFrame,n=e.currentTNode;return e.isParent?n:n.parent}function ir(e,n){let t=k.lFrame;t.currentTNode=e,t.isParent=n}function lu(){return k.lFrame.isParent}function uu(){k.lFrame.isParent=!1}function du(){return k.lFrame.contextLView}function fu(){return Ml}function zo(e){let n=Ml;return Ml=e,n}function sr(){let e=k.lFrame,n=e.bindingRootIndex;return n===-1\u0026\u0026(n=e.bindingRootIndex=e.tView.bindingStartIndex),n}function mu(){return k.lFrame.bindingIndex}function Kp(e){return k.lFrame.bindingIndex=e}function Ct(){return k.lFrame.bindingIndex++}function ii(e){let n=k.lFrame,t=n.bindingIndex;return n.bindingIndex=n.bindingIndex+e,t}function Yp(){return k.lFrame.inI18n}function Qp(e,n){let t=k.lFrame;t.bindingIndex=t.bindingRootIndex=e,sa(n)}function Xp(){return k.lFrame.currentDirectiveIndex}function sa(e){k.lFrame.currentDirectiveIndex=e}function Jp(e){let n=k.lFrame.currentDirectiveIndex;return n===-1?null:e[n]}function aa(){return k.lFrame.currentQueryIndex}function si(e){k.lFrame.currentQueryIndex=e}function __(e){let n=e[_];return n.type===2?n.declTNode:n.type===1?e[ge]:null}function pu(e,n,t){if(t\u00264){let o=n,i=e;for(;o=o.parent,o===null\u0026\u0026!(t\u00261);)if(o=__(i),o===null||(i=i[En],o.type\u002610))break;if(o===null)return!1;n=o,e=i}let r=k.lFrame=eh();return r.currentTNode=n,r.lView=e,!0}function ca(e){let n=eh(),t=e[_];k.lFrame=n,n.currentTNode=t.firstChild,n.lView=e,n.tView=t,n.contextLView=e,n.bindingIndex=t.bindingStartIndex,n.inI18n=!1}function eh(){let e=k.lFrame,n=e===null?null:e.child;return n===null?th(e):n}function th(e){let n={currentTNode:null,isParent:!0,lView:null,tView:null,selectedIndex:-1,contextLView:null,elementDepthCount:0,currentNamespace:null,currentDirectiveIndex:-1,bindingRootIndex:-1,bindingIndex:-1,currentQueryIndex:0,parent:e,child:null,inI18n:!1};return e!==null\u0026\u0026(e.child=n),n}function nh(){let e=k.lFrame;return k.lFrame=e.parent,e.currentTNode=null,e.lView=null,e}function la(){let e=nh();e.isParent=!0,e.tView=null,e.selectedIndex=-1,e.contextLView=null,e.elementDepthCount=0,e.currentDirectiveIndex=-1,e.currentNamespace=null,e.bindingRootIndex=-1,e.bindingIndex=-1,e.currentQueryIndex=0}function rh(e){return(k.lFrame.contextLView=Hp(e,k.lFrame.contextLView))[oe]}function Be(){return k.lFrame.selectedIndex}function wn(e){k.lFrame.selectedIndex=e}function In(){let e=k.lFrame;return ta(e.tView,e.selectedIndex)}function oh(){k.lFrame.currentNamespace=Yn}function ih(){w_()}function w_(){k.lFrame.currentNamespace=null}function gu(){return k.lFrame.currentNamespace}function ua(){return sh}function ai(e){sh=e}function Nl(e,n=null,t=null,r){let o=bu(e,n,t,r);return o.resolveInjectorInitializers(),o}function bu(e,n=null,t=null,r,o=\/* @__PURE__ *\/ new Set){return new Kn([t||ve,Rp(e)],n||Ur(),null,o)}function I_(){return new Us(D())}function $s(...e){}function vu(e){let n,t;function r(){e=$s;try{t!==void 0\u0026\u0026typeof cancelAnimationFrame==`function`\u0026\u0026cancelAnimationFrame(t),n!==void 0\u0026\u0026clearTimeout(n)}catch(o){}}return n=setTimeout(()=>{e(),r()}),typeof requestAnimationFrame==`function`\u0026\u0026(t=requestAnimationFrame(()=>{e(),r()})),()=>r()}function ch(e){return queueMicrotask(()=>e()),()=>{e=$s}}function Eu(e){if(e._nesting==0\u0026\u0026!e.hasPendingMicrotasks\u0026\u0026!e.isStable)try{e._nesting++,e.onMicrotaskEmpty.emit(null)}finally{if(e._nesting--,!e.hasPendingMicrotasks)try{e.runOutsideAngular(()=>e.onStable.emit(null))}finally{e.isStable=!0}}}function T_(e){if(e.isCheckStableRunning||e.callbackScheduled)return;e.callbackScheduled=!0;function n(){vu(()=>{e.callbackScheduled=!1,Rl(e),e.isCheckStableRunning=!0,Eu(e),e.isCheckStableRunning=!1})}e.scheduleInRootZone?Zone.root.run(()=>{n()}):e._outer.run(()=>{n()}),Rl(e)}function x_(e){let n=()=>{T_(e)},t=C_++;e._inner=e._inner.fork({name:`angular`,properties:{[Du]:!0,[Go]:t,[Go+t]:!0},onInvokeTask:(r,o,i,s,a,c)=>{if(M_(c))return r.invokeTask(i,s,a,c);try{return Dp(e),r.invokeTask(i,s,a,c)}finally{(e.shouldCoalesceEventChangeDetection\u0026\u0026s.type===`eventTask`||e.shouldCoalesceRunChangeDetection)\u0026\u0026n(),Ep(e)}},onInvoke:(r,o,i,s,a,c,l)=>{try{return Dp(e),r.invoke(i,s,a,c,l)}finally{e.shouldCoalesceRunChangeDetection\u0026\u0026!e.callbackScheduled\u0026\u0026!N_(c)\u0026\u0026n(),Ep(e)}},onHasTask:(r,o,i,s)=>{r.hasTask(i,s),o===i\u0026\u0026(s.change==`microTask`?(e._hasPendingMicrotasks=s.microTask,Rl(e),Eu(e)):s.change==`macroTask`\u0026\u0026(e.hasPendingMacrotasks=s.macroTask))},onHandleError:(r,o,i,s)=>(r.handleError(i,s),e.runOutsideAngular(()=>e.onError.emit(s)),!1)})}function Rl(e){e._hasPendingMicrotasks||(e.shouldCoalesceEventChangeDetection||e.shouldCoalesceRunChangeDetection)\u0026\u0026e.callbackScheduled===!0?e.hasPendingMicrotasks=!0:e.hasPendingMicrotasks=!1}function Dp(e){e._nesting++,e.isStable\u0026\u0026(e.isStable=!1,e.onUnstable.emit(null))}function Ep(e){e._nesting--,Eu(e)}function M_(e){return lh(e,`__ignore_ng_zone__`)}function N_(e){return lh(e,`__scheduler_tick__`)}function lh(e,n){return!Array.isArray(e)||e.length!==1?!1:e[0]?.data?.[n]===!0}function uh(e){return dh(e)?e:new Ol(e)}function dh(e){return e instanceof Error||typeof e==`object`\u0026\u0026e!==null\u0026\u0026typeof e.name==`string`\u0026\u0026typeof e.message==`string`}function st(e,n){let[t,r,o]=pl(e,n?.equal),i=t;i[te];return i.set=r,i.update=o,i.asReadonly=ci.bind(i),i}function ci(){let e=this[te];if(e.readonlyFn===void 0){let n=()=>this();n[te]=e,e.readonlyFn=n}return e.readonlyFn}function R_(){return new Kr(D(),ue())}function pa(e,n){let t=n?.injector??p(J),r=n?.manualCleanup!==!0?t.get(Ie):null,o,i=t.get(Kr,null,{optional:!0}),s=t.get(nt);return i!==null?(o=ph(i.view,s,e),r instanceof Us\u0026\u0026r._lView===i.view\u0026\u0026(r=null)):o=F_(e,t.get(ma),s),o.injector=t,r!==null\u0026\u0026(o.onDestroyFns=[r.onDestroy(()=>o.destroy())]),new zs(o)}function ph(e,n,t){let r=Object.create(k_);return r.view=e,r[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/chunk-B2J0VXxm.js"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": "SELECT"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"\/\/`)}catch(t){return!0}}function On(n){return n.segments.map(t=>ms(t)).join(`\/`)}function at(n,t){if(!n.hasChildren())return On(\", see evidence field for the suspicious comment\/snippet."
+               },
+               "ruleId": "10027",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/chunk-B2J0VXxm.js",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "190614",
+                       "Content-Type" : "application\/javascript; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "ETag" : "W\/\"2e896-1a19f2fe20a\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 03 Nov 2026 02:14:37 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]function uc(){return[{provide:Ii,useFactory:rc},{provide:of,multi:!0,useExisting:Ii}]}function sa(n){return Error(`Unable to find icon with the name \"${n}\"`)}function cc(){return Error(`Could not find HttpClient for use with Angular Material icons. Please add provideHttpClient() to your providers.`)}function aa(n){return Error(`The URL provided to MatIconRegistry was not trusted as a resource URL via Angular's DomSanitizer. Attempted URL was \"${n}\".`)}function la(n){return Error(`The literal provided to MatIconRegistry was not trusted as safe HTML by Angular's DomSanitizer. Attempted literal was \"${n}\".`)}function ir(n){return n.cloneNode(!0)}function ua(n,t){return n+`:`+t}function dc(n){return!!(n.url\u0026\u0026n.options)}function hc(n){let t=null,e=!1;return n.fonts\u0026\u0026typeof n.fonts.forEach==`function`\u0026\u0026n.fonts.forEach(r=>{let i=r.family.replace(\/['\"]\/g,``).trim().toLowerCase();(i===`material icons`||i.startsWith(`material icons `))\u0026\u0026(e=!0),i.startsWith(`material symbols rounded`)?t=`rounded`:i.startsWith(`material symbols sharp`)?t=`sharp`:i.startsWith(`material symbols`)\u0026\u0026(t=`outlined`)}),[t\u0026\u0026!e?`material-symbols-${t}`:`material-icons`,`mat-ligature-font`]}function yc(){let n=Ft()?Ft().getUserAgent():``;return\/android (\\d+)\/.test(n.toLowerCase())}function Oi(n){return n==null||Ti(n)===0}function Ti(n){return n==null?null:Array.isArray(n)||typeof n==`string`?n.length:n instanceof Set?n.size:null}function bc(n){return t=>{if(t.value==null||n==null)return null;let e=parseFloat(t.value);return!isNaN(e)\u0026\u0026e<n?{min:{min:n,actual:t.value}}:null}}function Sc(n){return t=>{if(t.value==null||n==null)return null;let e=parseFloat(t.value);return!isNaN(e)\u0026\u0026e>n?{max:{max:n,actual:t.value}}:null}}function Sa(n){return Oi(n.value)?{required:!0}:null}function Mc(n){return n.value===!0?null:{required:!0}}function Rc(n){return Oi(n.value)||_c.test(n.value)?null:{email:!0}}function Ma(n){return t=>{let e=t.value?.length??Ti(t.value);return e===null||e===0?null:e<n?{minlength:{requiredLength:n,actualLength:e}}:null}}function Ra(n){return t=>{let e=t.value?.length??Ti(t.value);return e!==null\u0026\u0026e>n?{maxlength:{requiredLength:n,actualLength:e}}:null}}function Ea(n){if(!n)return sr;let t,e;return typeof n==`string`?(e=``,n.charAt(0)!==`^`\u0026\u0026(e+=`^`),e+=n,n.charAt(n.length-1)!==`$`\u0026\u0026(e+=`$`),t=new RegExp(e)):(e=n.toString(),t=n),r=>{if(Oi(r.value))return null;let i=r.value;return t.test(i)?null:{pattern:{requiredPattern:e,actualValue:i}}}}function sr(n){return null}function wa(n){return n!=null}function Ia(n){return xi$1(n)?bt$1(n):n}function Aa(n){let t={};return n.forEach(e=>{t=e!=null?D(D({},t),e):t}),Object.keys(t).length===0?null:t}function Da(n,t){return t.map(e=>e(n))}function Ec(n){return!n.validate}function Na(n){return n.map(t=>Ec(t)?t:e=>t.validate(e))}function Oa(n){if(!n)return null;let t=n.filter(wa);return t.length==0?null:function(e){return Aa(Da(e,t))}}function Vi(n){return n!=null?Oa(Na(n)):null}function Ta(n){if(!n)return null;let t=n.filter(wa);return t.length==0?null:function(e){let r=Da(e,t).map(Ia);return el$1(r).pipe(X(Aa))}}function Fi(n){return n!=null?Ta(Na(n)):null}function ha(n,t){return n===null?[t]:Array.isArray(n)?[...n,t]:[n,t]}function Va(n){return n._rawValidators}function Fa(n){return n._rawAsyncValidators}function Di(n){return n?Array.isArray(n)?n:[n]:[]}function ar(n,t){return Array.isArray(n)?n.includes(t):n===t}function fa(n,t){let e=Di(t);return Di(n).forEach(i=>{ar(e,i)||e.push(i)}),e}function pa(n,t){return Di(t).filter(e=>!ar(n,e))}function Pa(n){return(vr(n)?n.validators:n)||null}function wc(n){return Array.isArray(n)?Vi(n):n||null}function xa(n,t){return(vr(t)?t.asyncValidators:n)||null}function Ic(n){return Array.isArray(n)?Fi(n):n||null}function vr(n){return n!=null\u0026\u0026!Array.isArray(n)\u0026\u0026typeof n==`object`}function Ac(n,t,e){let r=n.controls;if(!(t?Object.keys(r):r).length)throw new g(1e3,``);if(!ka(r,e))throw new g(1001,``)}function Dc(n,t,e){n._forEachChild((r,i)=>{if(e[i]===void 0)throw new g(-1002,``)})}function ka(n,t){return Object.hasOwn(n,t)}function Pi(n){return n.tagName===`INPUT`||n.tagName===`SELECT`||n.tagName===`TEXTAREA`}function La(n){if(n.tagName!==`INPUT`)return!1;let t=n.type;return t===`number`||t===`range`||t===`date`||t===`month`}function Ua(n){return n.tagName===`INPUT`||n.tagName===`TEXTAREA`}function dn(n,t,e,r){switch(e){case`name`:n.setAttribute(t,e,r);break;case`disabled`:case`readonly`:case`required`:r?n.setAttribute(t,e,``):n.removeAttribute(t,e);break;case`max`:case`min`:case`minLength`:case`maxLength`:r!==void 0?n.setAttribute(t,e,r.toString()):n.removeAttribute(t,e)}}function ja(n){return typeof n==`number`?n:parseInt(n,10)}function Ba(n,t){return[...t.path,n]}function dr(n,t,e=Cr){ki(n,t),t.valueAccessor.writeValue(n.value),(n.disabled||e===`always`)\u0026\u0026t.valueAccessor.setDisabledState?.(n.disabled),Lc(n,t),jc(n,t),Uc(n,t),kc(n,t)}function hr(n,t,e=!0){let r=()=>{};t?.valueAccessor?.registerOnChange(r),t?.valueAccessor?.registerOnTouched(r),pr(n,t),n\u0026\u0026(t._invokeOnDestroyCallbacks(),n._registerOnCollectionChange(()=>{}))}function fr(n,t){n.forEach(e=>{e.registerOnValidatorChange\u0026\u0026e.registerOnValidatorChange(t)})}function kc(n,t){if(t.valueAccessor.setDisabledState){let e=r=>{t.valueAccessor.setDisabledState(r)};n.registerOnDisabledChange(e),t._registerOnDestroy(()=>{n._unregisterOnDisabledChange(e)})}}function ki(n,t){let e=Va(n);t.validator!==null?n.setValidators(ha(e,t.validator)):typeof e==`function`\u0026\u0026n.setValidators([e]);let r=Fa(n);t.asyncValidator!==null?n.setAsyncValidators(ha(r,t.asyncValidator)):typeof r==`function`\u0026\u0026n.setAsyncValidators([r]);let i=()=>n.updateValueAndValidity();fr(t._rawValidators,i),fr(t._rawAsyncValidators,i)}function pr(n,t){let e=!1;if(n!==null){if(t.validator!==null){let i=Va(n);if(Array.isArray(i)\u0026\u0026i.length>0){let o=i.filter(s=>s!==t.validator);o.length!==i.length\u0026\u0026(e=!0,n.setValidators(o))}}if(t.asyncValidator!==null){let i=Fa(n);if(Array.isArray(i)\u0026\u0026i.length>0){let o=i.filter(s=>s!==t.asyncValidator);o.length!==i.length\u0026\u0026(e=!0,n.setAsyncValidators(o))}}}let r=()=>{};return fr(t._rawValidators,r),fr(t._rawAsyncValidators,r),e}function Lc(n,t){t.valueAccessor.registerOnChange(e=>{n._pendingValue=e,n._pendingChange=!0,n._pendingDirty=!0,n.updateOn===`change`\u0026\u0026Ha(n,t)})}function Uc(n,t){t.valueAccessor.registerOnTouched(()=>{n._pendingTouched=!0,n.updateOn===`blur`\u0026\u0026n._pendingChange\u0026\u0026Ha(n,t),n.updateOn!==`submit`\u0026\u0026n.markAsTouched()})}function Ha(n,t){n._pendingDirty\u0026\u0026n.markAsDirty(),n.setValue(n._pendingValue,{emitModelToViewChange:!1}),t.viewToModelUpdate(n._pendingValue),n._pendingChange=!1}function jc(n,t){let e=(r,i)=>{t.valueAccessor.writeValue(r),i\u0026\u0026t.viewToModelUpdate(r)};n.registerOnChange(e),t._registerOnDestroy(()=>{n._unregisterOnChange(e)})}function Ga(n,t){ki(n,t)}function $c(n,t){return pr(n,t)}function Li(n,t){if(!Object.hasOwn(n,`model`))return!1;let e=n.model;return e.isFirstChange()?!0:!Object.is(t,e.currentValue)}function Bc(n){return Object.getPrototypeOf(n.constructor)===mr}function qa(n,t){n._syncPendingControls(),t.forEach(e=>{let r=e.control;r.updateOn===`submit`\u0026\u0026r._pendingChange\u0026\u0026(e.viewToModelUpdate(r._pendingValue),r._pendingChange=!1)})}function Ui(n,t){if(!t)return null;let e,r,i;return t.forEach(o=>{o.constructor===ba?e=o:Bc(o)?r=o:i=o}),i||r||e||null}function Hc(n,t){let e=n.indexOf(t);e>-1\u0026\u0026n.splice(e,1)}function ga(n,t){let e=n.indexOf(t);e>-1\u0026\u0026n.splice(e,1)}function ma(n){return typeof n==`object`\u0026\u0026n!==null\u0026\u0026Object.keys(n).length===2\u0026\u0026`value`in n\u0026\u0026`disabled`in n}function za(n,t){return n==null?`${t}`:(t\u0026\u0026typeof t==`object`\u0026\u0026(t=`Object`),`${n}: ${t}`.slice(0,50))}function od(n){return n.split(`:`)[0]}function Ca(n,t){return n==null?`${t}`:(typeof t==`string`\u0026\u0026(t=`'${t}'`),t\u0026\u0026typeof t==`object`\u0026\u0026(t=`Object`),`${n}: ${t}`.slice(0,50))}function ad(n){return n.split(`:`)[0]}function sp(n){return n\u0026\u0026typeof n.connect==`function`\u0026\u0026!(n instanceof tl$1)}function ld(){return Hi}function $e(n,t){return(...e)=>{try{return Hi=t,n(...e)}finally{Hi=0}}}function ud(n){return!n}function Za(n){return n}function he(n){return Array.isArray(n)}function br(n){return(typeof n==`object`||typeof n==`function`)\u0026\u0026n!=null}function Ja(n,t){return n.length===[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/main.js"
+                        },
+                        
+                        "region": {
+                           "startLine": 89,
+                           
+                           "snippet": {
+                               "text": "query"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The following pattern was used: \\bQUERY\\b and was detected in likely comment: \"\/\/`+this._hostname()+this._port()+this.opts.path+this._query(t)}_hostname(){let a=this.opts.hostname;return a.indexOf(`:`)===-1?\", see evidence field for the suspicious comment\/snippet."
+               },
+               "ruleId": "10027",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/main.js",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "1200618",
+                       "Content-Type" : "application\/javascript; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:42 GMT",
+                       "ETag" : "W\/\"1251ea-1a19f2fe20a\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 03 Nov 2026 02:14:37 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]dth: 5%;\n  height: 100%;\n  overflow: hidden;\n}\n\n.mdc-circular-progress__gap-patch .mdc-circular-progress__indeterminate-circle-graphic {\n  left: -900%;\n  width: 2000%;\n  transform: rotate(180deg);\n}\n.mdc-circular-progress__circle-clipper .mdc-circular-progress__indeterminate-circle-graphic {\n  width: 200%;\n}\n.mdc-circular-progress__circle-right .mdc-circular-progress__indeterminate-circle-graphic {\n  left: -100%;\n}\n.mdc-circular-progress--indeterminate .mdc-circular-progress__circle-left .mdc-circular-progress__indeterminate-circle-graphic {\n  animation: mdc-circular-progress-left-spin calc(1333ms * var(--%NS%mat-progress-spinner-animation-multiplier)) cubic-bezier(0.4, 0, 0.2, 1) infinite both;\n}\n.mdc-circular-progress--indeterminate .mdc-circular-progress__circle-right .mdc-circular-progress__indeterminate-circle-graphic {\n  animation: mdc-circular-progress-right-spin calc(1333ms * var(--%NS%mat-progress-spinner-animation-multiplier)) cubic-bezier(0.4, 0, 0.2, 1) infinite both;\n}\n\n.mdc-circular-progress__circle-clipper {\n  display: inline-flex;\n  position: relative;\n  width: 50%;\n  height: 100%;\n  overflow: hidden;\n}\n\n.mdc-circular-progress--indeterminate .mdc-circular-progress__spinner-layer {\n  animation: mdc-circular-progress-spinner-layer-rotate calc(5332ms * var(--%NS%mat-progress-spinner-animation-multiplier)) cubic-bezier(0.4, 0, 0.2, 1) infinite both;\n}\n\n@keyframes mdc-circular-progress-container-rotate {\n  to {\n    transform: rotate(360deg);\n  }\n}\n@keyframes mdc-circular-progress-spinner-layer-rotate {\n  12.5% {\n    transform: rotate(135deg);\n  }\n  25% {\n    transform: rotate(270deg);\n  }\n  37.5% {\n    transform: rotate(405deg);\n  }\n  50% {\n    transform: rotate(540deg);\n  }\n  62.5% {\n    transform: rotate(675deg);\n  }\n  75% {\n    transform: rotate(810deg);\n  }\n  87.5% {\n    transform: rotate(945deg);\n  }\n  100% {\n    transform: rotate(1080deg);\n  }\n}\n@keyframes mdc-circular-progress-left-spin {\n  from {\n    transform: rotate(265deg);\n  }\n  50% {\n    transform: rotate(130deg);\n  }\n  to {\n    transform: rotate(265deg);\n  }\n}\n@keyframes mdc-circular-progress-right-spin {\n  from {\n    transform: rotate(-265deg);\n  }\n  50% {\n    transform: rotate(-130deg);\n  }\n  to {\n    transform: rotate(-265deg);\n  }\n}\n`],encapsulation:2})})()}return n})()}));function I(c){return typeof Symbol==`function`\u0026\u0026typeof Symbol.iterator==`symbol`?I=function(a){return typeof a}:I=function(a){return a\u0026\u0026typeof Symbol==`function`\u0026\u0026a.constructor===Symbol\u0026\u0026a!==Symbol.prototype?`symbol`:typeof a},I(c)}function y2(c,a){if(!(c instanceof a))throw new TypeError(`Cannot call a class as a function`)}function w1(c,a){for(var e=0;e<a.length;e++){var f=a[e];f.enumerable=f.enumerable||!1,f.configurable=!0,`value`in f\u0026\u0026(f.writable=!0),Object.defineProperty(c,f.key,f)}}function w2(c,a,e){return a\u0026\u0026w1(c.prototype,a),e\u0026\u0026w1(c,e),c}function k2(c,a,e){return a in c?Object.defineProperty(c,a,{value:e,enumerable:!0,configurable:!0,writable:!0}):c[a]=e,c}function t(c){for(var a=1;a<arguments.length;a++){var e=arguments[a]!=null?arguments[a]:{},f=Object.keys(e);typeof Object.getOwnPropertySymbols==`function`\u0026\u0026(f=f.concat(Object.getOwnPropertySymbols(e).filter(function(i){return Object.getOwnPropertyDescriptor(e,i).enumerable}))),f.forEach(function(i){k2(c,i,e[i])})}return c}function p1(c,a){return T2(c)||D2(c,a)||Z2()}function H1(c){return P2(c)||B2(c)||F2()}function P2(c){if(Array.isArray(c)){for(var a=0,e=new Array(c.length);a<c.length;a++)e[a]=c[a];return e}}function T2(c){if(Array.isArray(c))return c}function B2(c){if(Symbol.iterator in Object(c)||Object.prototype.toString.call(c)===`[object Arguments]`)return Array.from(c)}function D2(c,a){var e=[],f=!0,i=!1,r=void 0;try{for(var n=c[Symbol.iterator](),l;!(f=(l=n.next()).done)\u0026\u0026(e.push(l.value),!(a\u0026\u0026e.length===a));f=!0);}catch(v){i=!0,r=v}finally{try{!f\u0026\u0026n.return!=null\u0026\u0026n.return()}finally{if(i)throw r}}return e}function F2(){throw new TypeError(`Invalid attempt to spread non-iterable instance`)}function Z2(){throw new TypeError(`Invalid attempt to destructure non-iterable instance`)}function K2(c){var a=M.querySelector(`script[`+c+`]`);if(a)return a.getAttribute(c)}function X2(c){return c===``?!0:c===`false`?!1:c===`true`?!0:c}function a4(c){y\u0026\u0026(Y$1?setTimeout(c,0):f2.push(c))}function i4(){for(var c=0;c<E.length;c++)E[c][0](E[c][1]);E=[],h1=!1}function X(c,a){E.push([c,a]),h1||(h1=!0,f4(i4,0))}function r4(c,a){function e(i){u1(a,i)}function f(i){O(a,i)}try{c(e,f)}catch(i){f(i)}}function l2(c){var a=c.owner,e=a._state,f=a._data,i=c[e],r=c.then;if(typeof i==`function`){e=Q;try{f=i(f)}catch(n){O(r,n)}}n2(r,f)||(e===Q\u0026\u0026u1(r,f),e===K\u0026\u0026O(r,f))}function n2(c,a){var e;try{if(c===a)throw new TypeError(`A promises callback cannot return that same promise.`);if(a\u0026\u0026(typeof a==`function`||I(a)===`object`)){var f=a.then;if(typeof f==`function`)return f.call(a,function(i){e||(e=!0,a===i?v2(c,i):u1(c,i))},function(i){e||(e=!0,O(c,i))}),!0}}catch(i){return e||O(c,i),!0}return!1}function u1(c,a){(c===a||!n2(c,a))\u0026\u0026v2(c,a)}function v2(c,a){c._state===V1\u0026\u0026(c._state=i2,c._data=a,X(l4,c))}function O(c,a){c._state===V1\u0026\u0026(c._state=i2,c._data=a,X(n4,c))}function o2(c){c._then=c._then.forEach(l2)}function l4(c){c._state=Q,o2(c)}function n4(c){c._state=K,o2(c),!c._handled\u0026\u0026r2\u0026\u0026global.process.emit(`unhandledRejection`,c._data,c)}function v4(c){global.process.emit(`rejectionHandled`,c)}function L(c){if(typeof c!=`function`)throw new TypeError(`Promise resolver `+c+` is not a function`);if(!(this instanceof L))throw new TypeError(`Failed to construct 'Promise': Please use the 'new' operator, this object constructor cannot be called as a function.`);this._then=[],r4(c,this)}function o4(c){return~Q2.indexOf(c)}function h2(c){if(!(!c||!y)){var a=M.createElement(`style`);a.setAttribute(`type`,`text\/css`),a.innerHTML=c;for(var e=M.head.childNodes,f=null,i=e.length-1;i>-1;i--){var r=e[i],n=(r.tagName||``).toUpperCase();[`STYLE`,`LINK`].indexOf(n)>-1\u0026\u0026(f=r)}return M.head.insertBefore(a,f),c}}function q(){for(var c=12,a=``;c-->0;)a+=h4[Math.random()*62|0];return a}function Z(c){for(var a=[],e=(c||[]).length>>>0;e--;)a[e]=c[e];return a}function L1(c){return c.classList?Z(c.classList):(c.getAttribute(`class`)||``).split(` `).filter(function(a){return a})}function s4(c,a){var e=a.split(`-`),f=e[0],i=e.slice(1).join(`-`);return f===c\u0026\u0026i!==``\u0026\u0026!o4(i)?i:null}function s2(c){return``.concat(c).replace(\/\u0026\/g,`\u0026amp;`).replace(\/\"\/g,`\u0026quot;`).replace(\/'\/g,`\u0026#39;`).replace(\/<\/g,`\u0026lt;`).replace(\/>\/g,`\u0026gt;`)}function t4(c){return Object.keys(c||{}).reduce(function(a,e){return a+``.concat(e,`=\"`).concat(s2(c[e]),`\" `)},``).trim()}function a1(c){return Object.keys(c||{}).reduce(function(a,e){return a+``.concat(e,`: `).concat(c[e],`;`)},``)}function d1(c){return c.size!==A.size||c.x!==A.x||c.y!==A.y||c.rotate!==A.rotate||c.flipX||c.flipY}function t2(c){var a=c.transform,e=c.containerWidth,f=c.iconWidth,i={transform:`translate(`.concat(e\/2,` 256)`)},r=`translate(`.concat(a.x*32,`, `).concat(a.y*32,`) `),n=`scale(`.concat(a.size\/16*(a.flipX?-1:1),`, `).concat(a.size\/16*(a.flipY?-1:1),`) `),l=`rotate(`.concat(a.rotate,` 0 0)`);return{outer:i,inner:{transform:``.concat(r,` `).concat(n,` `).concat(l)},path:{transform:`translate(`.concat(f\/2*-1,` -256)`)}}}function m4(c){var a=c.transform,e=c.width,f=e===void 0?n1:e,i=c.height,r=i===void 0?n1:i,n=c.startCentered,l=n===void 0?!1:n,v=``;return l\u0026\u0026Q1?v+=`translate(`.concat(a.x\/k-f\/2,`em, `).concat(a.y\/k-r\/2,`em) `):l?v+=`translate(calc(-50% + `.concat(a.x\/k,`em), calc(-50% + `).concat(a.y\/k,`em)) `):v+=`translate(`.concat(a.x\/k,`em, `).concat(a.y\/k,`em) `),v+=`scale(`.concat(a.size\/k*(a.flipX?-1:1),`, `).concat(a.size\/k*(a.flipY?-1:1),`) `),v+=`rotate(`.concat(a.rotate,`deg) `),v}function Z1(c){var a=arguments.length>1\u0026\u0026arguments[1]!==void 0?arguments[1]:!0;return c.attributes\u0026\u0026(c.attributes.fill||a)\u0026\u0026(c.attributes.fill=`black`),c}function z4(c){return c.tag===`g`?c.children:[c]}function M4(c){var a=c.children,e=c.attributes,f=c.main,i=c.mask,r=c.maskId,n=c.transform,l=f.width,v=f.icon,h=i.width,s=i.icon,m=t2({transform:n,containerWidth:h,iconWidth:l}),z={tag:`rect`,attributes:t({},i1,{fill:`white`})},C=v.children?{children:v.children.ma[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/assets"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": ""
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": "Mozilla\/4.0 (compatible; MSIE 7.0; Windows NT 6.0)"
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response."
+               },
+               "ruleId": "10104",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/assets",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000",
+                       "user-agent" : "Mozilla\/4.0 (compatible; MSIE 7.0; Windows NT 6.0)"
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:11:19 GMT",
+                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/assets"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": ""
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": "Mozilla\/4.0 (compatible; MSIE 8.0; Windows NT 6.1)"
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response."
+               },
+               "ruleId": "10104",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/assets",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000",
+                       "user-agent" : "Mozilla\/4.0 (compatible; MSIE 8.0; Windows NT 6.1)"
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:11:19 GMT",
+                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/assets\/public"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": ""
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": "Mozilla\/4.0 (compatible; MSIE 8.0; Windows NT 6.1)"
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response."
+               },
+               "ruleId": "10104",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/assets\/public",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000",
+                       "user-agent" : "Mozilla\/4.0 (compatible; MSIE 8.0; Windows NT 6.1)"
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:11:19 GMT",
+                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "No links have been found while there are scripts, which is an indication that this is a modern web application."
+               },
+               "ruleId": "10109",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/sitemap.xml"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "No links have been found while there are scripts, which is an indication that this is a modern web application."
+               },
+               "ruleId": "10109",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/sitemap.xml",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            }
+         ],
+         "taxonomies": [
+            {
+               "downloadUri": "https:\/\/cwe.mitre.org\/data\/xml\/cwec_v4.8.xml.zip",
+               "guid":  "b000a760-3e52-3565-a35c-f61369da53b7",
+               "informationUri": "https:\/\/cwe.mitre.org\/data\/published\/cwe_v4.8.pdf",
+               "isComprehensive": true,
+               "language": "en",
+               "minimumRequiredLocalizedDataSemanticVersion": "4.8",
+               "name":  "CWE",
+               "organization": "MITRE",
+               "releaseDateUtc": "2022-06-28",
+               "shortDescription": {
+                  "text": "The MITRE Common Weakness Enumeration"
+               },
+               "taxa": [
+                  {
+                     "guid": "098ecca7-f059-3e81-a2ff-a54023da4848",
+                     "helpUri": "https:\/\/cwe.mitre.org\/data\/definitions\/-1.html",
+                     "id": "-1"
+                  },
+                  {
+                     "guid": "f8907572-697a-32f6-a1bc-c0750dbb374f",
+                     "helpUri": "https:\/\/cwe.mitre.org\/data\/definitions\/0.html",
+                     "id": "0"
+                  },
+                  {
+                     "guid": "450838d7-2a62-3e8a-aa2f-52d107c68259",
+                     "helpUri": "https:\/\/cwe.mitre.org\/data\/definitions\/264.html",
+                     "id": "264"
+                  },
+                  {
+                     "guid": "547efb43-11f6-31d0-a3fa-bd8d32bb7859",
+                     "helpUri": "https:\/\/cwe.mitre.org\/data\/definitions\/601.html",
+                     "id": "601"
+                  },
+                  {
+                     "guid": "d1f61072-0322-321b-81bf-16250cf04a62",
+                     "helpUri": "https:\/\/cwe.mitre.org\/data\/definitions\/615.html",
+                     "id": "615"
+                  },
+                  {
+                     "guid": "c60fb1e0-6538-36e7-9dfd-7702d6cf8b1f",
+                     "helpUri": "https:\/\/cwe.mitre.org\/data\/definitions\/693.html",
+                     "id": "693"
+                  }
+               ],
+               "version": "4.8"
+            }
+         ],
+         "tool": {
+            "driver": {
+               "guid": "3716e880-7ee2-34d2-9cf1-0f88c0dc613a",
+               "informationUri": "https:\/\/www.zaproxy.org\/",
+               "name": "ZAP",
+               "rules": [ 
+                  {
+                     "id": "10027",
+                     "defaultConfiguration": {
+                        "level": "none"
+                     },
+                     "fullDescription": {
+                        "text": "The response appears to contain suspicious comments which may help an attacker."
+                     },
+                     "name": "Information Disclosure - Suspicious Comments",
+                     "properties": {
+                            "references": [],
+                            "solution": {
+                                "text": "Remove all comments that return information that may help an attacker and fix any underlying problems they refer to."
+                            },
+                            "confidence": "low"
+                     },
+                     "relationships": [ 
+                        {
+                           "kinds": [
+                              "superset"
+                           ],
+                           "target": {
+                              "guid":"d1f61072-0322-321b-81bf-16250cf04a62",
+                              "id": "615",
+                              "toolComponent": {
+                                 "guid": "b000a760-3e52-3565-a35c-f61369da53b7",
+                                 "name": "CWE"
+                              }
+                           }
+                        }
+                        
+                     ],
+                     "shortDescription": {
+                        "text": "Information Disclosure - Suspicious Comments"
+                     }
+                  },
+                  {
+                     "id": "10028",
+                     "defaultConfiguration": {
+                        "level": "error"
+                     },
+                     "fullDescription": {
+                        "text": "Open redirects are one of the OWASP 2010 Top Ten vulnerabilities. This check looks at user-supplied input in query string parameters and POST data to identify where open redirects might be possible. Open redirects occur when an application allows user-supplied input (e.g. https:\/\/nottrusted.com) to control an off-site destination. This is generally a pretty accurate way to find where 301 or 302 redirects could be exploited by spammers or phishing attacks.\n\nFor example an attacker could supply a user with the following link: https:\/\/example.com\/example.php?url=https:\/\/malicious.example.com.\n\nNOTE: For the purposes of the passive check the authority portion of the origin and destination were compared. Manual testing may be required to validate the impact of this finding."
+                     },
+                     "name": "Off-site Redirect",
+                     "properties": {
+                            "references": [
+                                "https:\/\/cheatsheetseries.owasp.org\/cheatsheets\/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html",
+                                "https:\/\/cwe.mitre.org\/data\/definitions\/601.html"
+                            ],
+                            "solution": {
+                                "text": "To avoid the open redirect vulnerability, parameters of the application script\/program must be validated before sending 302 HTTP code (redirect) to the client browser. Implement safe redirect functionality that only redirects to relative URI's, or a list of trusted domains."
+                            },
+                            "confidence": "medium"
+                     },
+                     "relationships": [ 
+                        {
+                           "kinds": [
+                              "superset"
+                           ],
+                           "target": {
+                              "guid":"547efb43-11f6-31d0-a3fa-bd8d32bb7859",
+                              "id": "601",
+                              "toolComponent": {
+                                 "guid": "b000a760-3e52-3565-a35c-f61369da53b7",
+                                 "name": "CWE"
+                              }
+                           }
+                        }
+                        
+                     ],
+                     "shortDescription": {
+                        "text": "Off-site Redirect"
+                     }
+                  },
+                  {
+                     "id": "10038",
+                     "defaultConfiguration": {
+                        "level": "warning"
+                     },
+                     "fullDescription": {
+                        "text": "Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files."
+                     },
+                     "name": "Content Security Policy (CSP) Header Not Set",
+                     "properties": {
+                            "references": [
+                                "https:\/\/developer.mozilla.org\/en-US\/docs\/Web\/HTTP\/Guides\/CSP",
+                                "https:\/\/cheatsheetseries.owasp.org\/cheatsheets\/Content_Security_Policy_Cheat_Sheet.html",
+                                "https:\/\/www.w3.org\/TR\/CSP\/",
+                                "https:\/\/w3c.github.io\/webappsec-csp\/",
+                                "https:\/\/web.dev\/articles\/csp",
+                                "https:\/\/caniuse.com\/#feat=contentsecuritypolicy",
+                                "https:\/\/content-security-policy.com\/"
+                            ],
+                            "solution": {
+                                "text": "Ensure that your web server, application server, load balancer, etc. is configured to set the Content-Security-Policy header."
+                            },
+                            "confidence": "high"
+                     },
+                     "relationships": [ 
+                        {
+                           "kinds": [
+                              "superset"
+                           ],
+                           "target": {
+                              "guid":"c60fb1e0-6538-36e7-9dfd-7702d6cf8b1f",
+                              "id": "693",
+                              "toolComponent": {
+                                 "guid": "b000a760-3e52-3565-a35c-f61369da53b7",
+                                 "name": "CWE"
+                              }
+                           }
+                        }
+                        
+                     ],
+                     "shortDescription": {
+                        "text": "Content Security Policy (CSP) Header Not Set"
+                     }
+                  },
+                  {
+                     "id": "10098",
+                     "defaultConfiguration": {
+                        "level": "warning"
+                     },
+                     "fullDescription": {
+                        "text": "Web browser data loading may be possible, due to a Cross Origin Resource Sharing (CORS) misconfiguration on the web server."
+                     },
+                     "name": "Cross-Domain Misconfiguration",
+                     "properties": {
+                            "references": [
+                                "https:\/\/vulncat.fortify.com\/en\/detail?category=HTML5\u0026subcategory=Overly%20Permissive%20CORS%20Policy"
+                            ],
+                            "solution": {
+                                "text": "Ensure that sensitive data is not available in an unauthenticated manner (using IP address white-listing, for instance).\nConfigure the \"Access-Control-Allow-Origin\" HTTP header to a more restrictive set of domains, or remove all CORS headers entirely, to allow the web browser to enforce the Same Origin Policy (SOP) in a more restrictive manner."
+                            },
+                            "confidence": "medium"
+                     },
+                     "relationships": [ 
+                        {
+                           "kinds": [
+                              "superset"
+                           ],
+                           "target": {
+                              "guid":"450838d7-2a62-3e8a-aa2f-52d107c68259",
+                              "id": "264",
+                              "toolComponent": {
+                                 "guid": "b000a760-3e52-3565-a35c-f61369da53b7",
+                                 "name": "CWE"
+                              }
+                           }
+                        }
+                        
+                     ],
+                     "shortDescription": {
+                        "text": "Cross-Domain Misconfiguration"
+                     }
+                  },
+                  {
+                     "id": "10104",
+                     "defaultConfiguration": {
+                        "level": "none"
+                     },
+                     "fullDescription": {
+                        "text": "Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response."
+                     },
+                     "name": "User Agent Fuzzer",
+                     "properties": {
+                            "references": [
+                                "https:\/\/owasp.org\/wstg"
+                            ],
+                            "solution": {
+                                "text": ""
+                            },
+                            "confidence": "medium"
+                     },
+                     "relationships": [ 
+                     ],
+                     "shortDescription": {
+                        "text": "User Agent Fuzzer"
+                     }
+                  },
+                  {
+                     "id": "10109",
+                     "defaultConfiguration": {
+                        "level": "none"
+                     },
+                     "fullDescription": {
+                        "text": "The application appears to be a modern web application. If you need to explore it automatically then the Ajax Spider may well be more effective than the standard one."
+                     },
+                     "name": "Modern Web Application",
+                     "properties": {
+                            "references": [],
+                            "solution": {
+                                "text": "This is an informational alert and so no changes are required."
+                            },
+                            "confidence": "medium"
+                     },
+                     "relationships": [ 
+                     ],
+                     "shortDescription": {
+                        "text": "Modern Web Application"
+                     }
+                  },
+                  {
+                     "id": "20019",
+                     "defaultConfiguration": {
+                        "level": "error"
+                     },
+                     "fullDescription": {
+                        "text": "URL redirectors represent common functionality employed by web sites to forward an incoming request to an alternate resource. This can be done for a variety of reasons and is often done to allow resources to be moved within the directory structure and to avoid breaking functionality for users that request the resource at its previous location. URL redirectors may also be used to implement load balancing, leveraging abbreviated URLs or recording outgoing links. It is this last implementation which is often used in phishing attacks as described in the example below. URL redirectors do not necessarily represent a direct security vulnerability but can be abused by attackers trying to social engineer victims into believing that they are navigating to a site other than the true destination."
+                     },
+                     "name": "External Redirect",
+                     "properties": {
+                            "references": [
+                                "https:\/\/cheatsheetseries.owasp.org\/cheatsheets\/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html",
+                                "https:\/\/cwe.mitre.org\/data\/definitions\/601.html"
+                            ],
+                            "solution": {
+                                "text": "Assume all input is malicious. Use an \"accept known good\" input validation strategy, i.e., use an allow list of acceptable inputs that strictly conform to specifications. Reject any input that does not strictly conform to specifications, or transform it into something that does. Do not rely exclusively on looking for malicious or malformed inputs (i.e., do not rely on a deny list). However, deny lists can be useful for detecting potential attacks or determining which inputs are so malformed that they should be rejected outright.\n\nWhen performing input validation, consider all potentially relevant properties, including length, type of input, the full range of acceptable values, missing or extra inputs, syntax, consistency across related fields, and conformance to business rules. As an example of business rule logic, \"boat\" may be syntactically valid because it only contains alphanumeric characters, but it is not valid if you are expecting colors such as \"red\" or \"blue.\"\n\nUse an allow list of approved URLs or domains to be used for redirection.\n\nUse an intermediate disclaimer page that provides the user with a clear warning that they are leaving your site. Implement a long timeout before the redirect occurs, or force the user to click on the link. Be careful to avoid XSS problems when generating the disclaimer page.\n\nWhen the set of acceptable objects, such as filenames or URLs, is limited or known, create a mapping from a set of fixed input values (such as numeric IDs) to the actual filenames or URLs, and reject all other inputs.\n\nFor example, ID 1 could map to \"\/login.asp\" and ID 2 could map to \"https:\/\/www.example.com\/\". Features such as the ESAPI AccessReferenceMap provide this capability.\n\nUnderstand all the potential areas where untrusted inputs can enter your software: parameters or arguments, cookies, anything read from the network, environment variables, reverse DNS lookups, query results, request headers, URL components, e-mail, files, databases, and any external systems that provide data to the application. Remember that such inputs may be obtained indirectly through API calls.\n\nMany open redirect problems occur because the programmer assumed that certain inputs could not be modified, such as cookies and hidden form fields."
+                            },
+                            "confidence": "medium"
+                     },
+                     "relationships": [ 
+                        {
+                           "kinds": [
+                              "superset"
+                           ],
+                           "target": {
+                              "guid":"547efb43-11f6-31d0-a3fa-bd8d32bb7859",
+                              "id": "601",
+                              "toolComponent": {
+                                 "guid": "b000a760-3e52-3565-a35c-f61369da53b7",
+                                 "name": "CWE"
+                              }
+                           }
+                        }
+                        
+                     ],
+                     "shortDescription": {
+                        "text": "External Redirect"
+                     }
+                  }
+                  
+               ],
+               "semanticVersion": "2.17.0",
+               "supportedTaxonomies": [ 
+                  {
+                     "guid": "b000a760-3e52-3565-a35c-f61369da53b7",
+                     "name": "CWE"
+                  }
+               ],
+               "version": "2.17.0"
+            }
+         }
+      }
+   ],
+   "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+   "version": "2.1.0"
+}

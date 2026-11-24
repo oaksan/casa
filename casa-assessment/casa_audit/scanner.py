@@ -9485,11 +9485,25 @@ def evaluate_aut08_client_storage(
             entry["request"]["postData"] = {"mimeType": "application/json", "text": _redact_body_str(req_body)}
         local_har_entries.append(entry)
 
-    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+    class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+            return None
+
+    def _default_probe(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        follow_redirects: bool = True,
+    ):
         url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
         req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
         req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
-        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        handlers: list = []
+        if not follow_redirects:
+            handlers.append(_NoRedirectHandler())
+        if is_https:
+            handlers.append(urllib.request.HTTPSHandler(context=ssl._create_unverified_context()))
         try:
             with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
                 return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
@@ -9500,10 +9514,19 @@ def evaluate_aut08_client_storage(
 
     raw_probe = http_probe_fn or _default_probe
 
-    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+    def _probe_logged(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        follow_redirects: bool = True,
+    ):
         url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
         t0 = time.monotonic()
-        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        if not follow_redirects:
+            st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body, follow_redirects=False)
+        else:
+            st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
         _record_har(method, url, headers or {}, body, st, hdrs, round((time.monotonic() - t0) * 1000, 1))
         return st, hdrs, rbody
 
@@ -10050,11 +10073,25 @@ def evaluate_azi02_xss(
             entry["request"]["postData"] = {"mimeType": "application/json", "text": req_body.decode("utf-8", errors="ignore")[:1024]}
         local_har_entries.append(entry)
 
-    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+    class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+            return None
+
+    def _default_probe(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        follow_redirects: bool = True,
+    ):
         url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
         req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
         req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
-        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        handlers: list = []
+        if not follow_redirects:
+            handlers.append(_NoRedirectHandler())
+        if is_https:
+            handlers.append(urllib.request.HTTPSHandler(context=ssl._create_unverified_context()))
         try:
             with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
                 return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
@@ -10065,10 +10102,19 @@ def evaluate_azi02_xss(
 
     raw_probe = http_probe_fn or _default_probe
 
-    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+    def _probe_logged(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        follow_redirects: bool = True,
+    ):
         url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
         t0 = time.monotonic()
-        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        if not follow_redirects:
+            st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body, follow_redirects=False)
+        else:
+            st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
         _record_har(method, url, headers or {}, body, st, hdrs, round((time.monotonic() - t0) * 1000, 1))
         return st, hdrs, rbody
 
@@ -10359,11 +10405,25 @@ def _make_redacted_har_probe(base_url: str, http_probe_fn=None):
         txt = raw_body.decode("utf-8", errors="ignore")[:1024]
         return secret_body_re.sub(r'\1"[REDACTED]"', txt)
 
-    def _default_probe(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+    class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+            return None
+
+    def _default_probe(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        follow_redirects: bool = True,
+    ):
         url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
         req_hdrs = {"User-Agent": "ADA-CASA-3.0-Lab-Scanner/3.0", **(headers or {})}
         req = urllib.request.Request(url, data=body, headers=req_hdrs, method=method)
-        handlers = [urllib.request.HTTPSHandler(context=ssl._create_unverified_context())] if is_https else []
+        handlers: list = []
+        if not follow_redirects:
+            handlers.append(_NoRedirectHandler())
+        if is_https:
+            handlers.append(urllib.request.HTTPSHandler(context=ssl._create_unverified_context()))
         try:
             with urllib.request.build_opener(*handlers).open(req, timeout=6) as resp:
                 return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(16384).decode("utf-8", errors="ignore")
@@ -10374,10 +10434,19 @@ def _make_redacted_har_probe(base_url: str, http_probe_fn=None):
 
     raw_probe = http_probe_fn or _default_probe
 
-    def _probe_logged(path_or_url: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | None = None):
+    def _probe_logged(
+        path_or_url: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        follow_redirects: bool = True,
+    ):
         url = f"{base_url}{path_or_url}" if path_or_url.startswith("/") else path_or_url
         t0 = time.monotonic()
-        st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
+        if not follow_redirects:
+            st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body, follow_redirects=False)
+        else:
+            st, hdrs, rbody = raw_probe(path_or_url, method=method, headers=headers, body=body)
         req_entry: dict = {
             "method": method,
             "url": url,
@@ -11546,6 +11615,259 @@ def evaluate_azi05_lfi_rfi(
     }
 
 
+def _extract_redirect_target(st_code: int, hdrs_map: dict[str, str], body_txt: str) -> str:
+    """Extract redirect URL target from 3xx Location, meta-refresh, or inline JavaScript redirects."""
+    if 300 <= st_code < 400 and hdrs_map.get("location"):
+        return hdrs_map["location"].strip()
+    m_meta = re.search(r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+url=([^"\'>;\s]+)', body_txt, re.IGNORECASE)
+    if m_meta:
+        return m_meta.group(1).strip()
+    m_js = re.search(
+        r'(?:window\.)?location(?:\.href)?\s*=\s*["\']([^"\']+)["\']|(?:window\.)?location\.(?:replace|assign)\(\s*["\']([^"\']+)["\']',
+        body_txt,
+        re.IGNORECASE,
+    )
+    if m_js:
+        return (m_js.group(1) or m_js.group(2) or "").strip()
+    return ""
+
+
+def evaluate_azi06_open_redirect_hpp(
+    target_url: str,
+    *,
+    auth_headers: dict[str, str] | None = None,
+    auth_bid: str | int = 1,
+    allowed_hosts: set[str] | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    http_probe_fn=None,
+    redirect_targets: list[tuple[str, str]] | None = None,
+    hpp_targets: list[tuple[str, str, str]] | None = None,
+    zap_redirect_report: dict | None = None,
+    zap_seed_urls: list[str] | None = None,
+    zap_json_out_path: Path | None = None,
+    zap_sarif_out_path: Path | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    run_zap: bool = True,
+) -> dict:
+    """Evaluate AZI-06 (ASVS V5.1.5, V5.1.1 / CWE-601, CWE-235) via OWASP ZAP 20019/20014 + NoRedirect/HPP harness."""
+    base_url = target_url.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(base_url)
+    host_l = (parsed.hostname or "localhost").lower()
+    allow_hosts = set(allowed_hosts) if allowed_hosts is not None else {
+        host_l,
+        "github.com",
+        "blockchain.info",
+        "explorer.dash.org",
+        "etherscan.io",
+        "shop.spreadshirt.com",
+        "shop.spreadshirt.de",
+        "www.stickeryou.com",
+        "leanpub.com",
+    }
+    auth_hdrs = dict(auth_headers or {})
+    _probe_logged, _write_har, _ = _make_redacted_har_probe(base_url, http_probe_fn=http_probe_fn)
+    redir_param_names = {"to", "next", "redirect", "return", "url", "callback", "dest", "continue"}
+
+    # 1. Focused OWASP ZAP Active External Redirect (20019) & HTTP Parameter Pollution (20014) Scan
+    seeds_redir = list(zap_seed_urls or [f"{base_url}/redirect?to=https://github.com/juice-shop/juice-shop"])
+    for ex in crawled_exchanges or []:
+        ex_url = str(ex.get("url") or "")
+        if ex.get("method", "GET") == "GET" and "?" in ex_url and ex_url.startswith(base_url) and ex_url not in seeds_redir:
+            qs_keys = {k.lower() for k in urllib.parse.parse_qs(urllib.parse.urlparse(ex_url).query)}
+            if qs_keys & redir_param_names:
+                seeds_redir.append(ex_url)
+                if len(seeds_redir) >= 4:
+                    break
+
+    if zap_redirect_report is not None and zap_redirect_report.get("executed"):
+        active_zap = zap_redirect_report
+    elif run_zap:
+        active_zap = run_zap_automation(
+            base_url,
+            seed_urls=seeds_redir,
+            active_scan_rules=[20019, 20014],
+            json_out_path=zap_json_out_path or (OUTPUT_DIR / "zap-redirect-report.json"),
+            sarif_out_path=zap_sarif_out_path or (OUTPUT_DIR / "zap-redirect-findings.sarif"),
+            timeout_sec=180,
+        )
+    else:
+        active_zap = {"executed": False, "alerts": [], "sarifPath": str(zap_sarif_out_path or (OUTPUT_DIR / "zap-redirect-findings.sarif"))}
+
+    azi06_findings: list[dict] = []
+    seen_redir_keys: set[tuple[str, str]] = set()
+    zap_matched_plugins: set[str] = set()
+    azi06_probes = 0
+
+    def _add_finding(url: str, kind: str, cwe: str, status: int, detail: str, *, confirmed_by: str) -> None:
+        k6 = (url.split("?", 1)[0], kind)
+        if k6 in seen_redir_keys:
+            return
+        seen_redir_keys.add(k6)
+        azi06_findings.append(
+            {
+                "url": url,
+                "kind": kind,
+                "cwe": cwe,
+                "status": status,
+                "confirmedBy": confirmed_by,
+                "detail": detail,
+            }
+        )
+
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid in {"20019", "20014"} or "external redirect" in low_a or "parameter pollution" in low_a:
+            zap_matched_plugins.add(pid or "20019")
+            cwe_id = "CWE-235" if pid == "20014" or "parameter pollution" in low_a else "CWE-601"
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                p_nm = str(inst.get("param") or "")
+                atk = str(inst.get("attack") or "")
+                _add_finding(
+                    uri.split("?", 1)[0],
+                    f"OWASP_ZAP_{pid or 'Redirect'}",
+                    cwe_id,
+                    200,
+                    f"[OWASP ZAP {pid or 'Redirect'}] {aname} detected at {uri.split('?', 1)[0]} (param='{p_nm}', attack='{atk[:60]}') ({cwe_id}).",
+                    confirmed_by=f"owasp_zap_{pid or 'redirect'}",
+                )
+
+    # 2. Active NoRedirect Open-Redirect probes (3xx Location, meta-refresh, JS redirect)
+    base_redir_st, _, _ = _probe_logged("/redirect?to=https://evil.example.com", headers=auth_hdrs, follow_redirects=False)
+    azi06_probes += 1
+
+    redir_vectors = list(redirect_targets) if redirect_targets is not None else [
+        ("direct_off_allowlist", "/redirect?to=https://evil.example.com"),
+        ("protocol_relative", "/redirect?to=//evil.example.com"),
+        ("query_substring_bypass", "/redirect?to=https://evil.example.com?https://github.com/juice-shop/juice-shop"),
+        ("userinfo_at_bypass", "/redirect?to=https://github.com/juice-shop/juice-shop@evil.example.com"),
+    ]
+    if redirect_targets is None:
+        seen_cpaths: set[str] = {"/redirect"}
+        for ex in crawled_exchanges or []:
+            ex_url = str(ex.get("url") or "")
+            if ex.get("method", "GET") == "GET" and "?" in ex_url and ex_url.startswith(base_url):
+                pr = urllib.parse.urlparse(ex_url)
+                qs_keys = [k for k in urllib.parse.parse_qs(pr.query) if k.lower() in redir_param_names]
+                if qs_keys and pr.path not in seen_cpaths:
+                    seen_cpaths.add(pr.path)
+                    pk = qs_keys[0]
+                    redir_vectors.append((f"crawl_{pk}_direct", f"{pr.path}?{pk}=https://evil.example.com"))
+                    redir_vectors.append((f"crawl_{pk}_protocol_rel", f"{pr.path}?{pk}=//evil.example.com"))
+                    if len(seen_cpaths) >= 3:
+                        break
+
+    for r_lbl, r_path in redir_vectors:
+        r_st, r_hdrs, r_body = _probe_logged(r_path, headers=auth_hdrs, follow_redirects=False)
+        azi06_probes += 1
+        loc_target = _extract_redirect_target(r_st, r_hdrs, r_body)
+        if loc_target:
+            loc_host = (urllib.parse.urlparse(loc_target).hostname or "").lower()
+            if loc_host and loc_host not in allow_hosts:
+                _add_finding(
+                    f"{base_url}{r_path.split('?', 1)[0]}",
+                    f"OpenRedirect_{r_lbl}",
+                    "CWE-601",
+                    r_st,
+                    f"GET {base_url}{r_path} returned HTTP {r_st} target '{loc_target}' resolving to off-allowlist host '{loc_host}' (CWE-601).",
+                    confirmed_by="noredirect_open_redirect",
+                )
+
+    # 3. HTTP Parameter Pollution (HPP) duplicated-parameter authorization differential probes
+    hpp_checks = list(hpp_targets) if hpp_targets is not None else [
+        (
+            "/redirect?to=https://evil.example.com",
+            "/redirect?to=https://evil.example.com&to=https://github.com/juice-shop/juice-shop",
+            "HPP_Authorization_Outcome_Bypass",
+        ),
+    ]
+    for h_base, h_dup, h_kind in hpp_checks:
+        hb_st, _, _ = _probe_logged(h_base, headers=auth_hdrs, follow_redirects=False)
+        hd_st, hd_hdrs, hd_body = _probe_logged(h_dup, headers=auth_hdrs, follow_redirects=False)
+        azi06_probes += 2
+        if hb_st >= 400 and (200 <= hd_st < 400):
+            hd_loc = _extract_redirect_target(hd_st, hd_hdrs, hd_body)
+            _add_finding(
+                f"{base_url}{h_dup.split('?', 1)[0]}",
+                h_kind,
+                "CWE-235",
+                hd_st,
+                f"Duplicated parameter flipped outcome on {h_dup.split('?', 1)[0]} from HTTP {hb_st} (denied) to HTTP {hd_st} (Location='{hd_loc}') (CWE-235).",
+                confirmed_by="hpp_differential",
+            )
+
+    if hpp_targets is None:
+        _probe_logged(f"/rest/basket/{auth_bid}", headers=auth_hdrs, follow_redirects=False)
+        _probe_logged(f"/rest/basket/{auth_bid}?id={auth_bid}&id=1", headers=auth_hdrs, follow_redirects=False)
+        unauth_base_st, _, _ = _probe_logged("/rest/basket/1", follow_redirects=False)
+        unauth_hpp_st, _, _ = _probe_logged("/rest/basket/1?id=1&id=1", follow_redirects=False)
+        azi06_probes += 4
+        if unauth_base_st in {401, 403} and 200 <= unauth_hpp_st < 300:
+            _add_finding(
+                f"{base_url}/rest/basket/1",
+                "HPP_Authz_Privilege_Bypass",
+                "CWE-235",
+                unauth_hpp_st,
+                f"Duplicated query parameter on /rest/basket/1 changed unauthenticated HTTP {unauth_base_st} to HTTP {unauth_hpp_st}.",
+                confirmed_by="hpp_differential",
+            )
+
+    rep_file = report_out_path or (OUTPUT_DIR / "azi06-redirect-hpp-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "OWASP ASVS V5.1.5, V5.1.1 / CWE-601, CWE-235 (OWASP ZAP 20019/20014 + Open Redirect & HPP)",
+                "target": base_url,
+                "verdict": "FAIL" if azi06_findings else "PASS",
+                "probesRun": azi06_probes,
+                "zapPluginsMatched": sorted(zap_matched_plugins),
+                "findings": azi06_findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "azi06-replayed.har")
+    _write_har(har_file, "casa-audit-azi06-redirect-hpp-harness")
+
+    sarif_items: list[dict] = []
+    for afz6 in azi06_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AZI-06",
+                "level": "error",
+                "message": {"text": afz6["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": afz6["url"]}}}],
+                "properties": {
+                    "controlId": "AZI-06",
+                    "findingKind": afz6["kind"],
+                    "cwe": afz6["cwe"],
+                    "httpStatus": afz6["status"],
+                    "confirmedBy": afz6["confirmedBy"],
+                },
+            }
+        )
+
+    open_redir_vuln = len(azi06_findings) > 0
+    return {
+        "verdict": "FAIL" if open_redir_vuln else "PASS",
+        "azi06_fail": open_redir_vuln,
+        "probesRun": azi06_probes,
+        "zap": active_zap,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "findings": azi06_findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -12489,6 +12811,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     crafted_vectors_sent = aut07_eval["vectorsTested"]
     dast_sarif_results.extend(aut07_eval["sarifResults"])
     aut07_fail = aut07_eval["aut07_fail"]
+    jwt_confusion = any("confusion" in str(af7.get("vector", "")).lower() or "confusion" in str(af7.get("detail", "")).lower() for af7 in cfg_aut07_findings)
     aut07_lines = [f"[{af7['vector']}] {af7['detail']}" for af7 in cfg_aut07_findings]
     results["AUT-07"] = {
         "verdict": aut07_eval["verdict"],
@@ -12673,120 +12996,29 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-06: Active Open Redirect & HTTP Parameter Pollution (HPP) Authorization Differential Probe (SARIF 2.1.0 + redacted HAR 1.2)
-    allowed_redirect_hosts = {host.lower(), "github.com", "blockchain.info", "explorer.dash.org", "etherscan.io", "shop.spreadshirt.com", "shop.spreadshirt.de", "www.stickeryou.com", "leanpub.com"}
-    azi06_findings: list[dict] = []
-    azi06_probes = 0
-
-    def extract_redirect_target(st_code: int, hdrs_map: dict[str, str], body_txt: str) -> str:
-        if 300 <= st_code < 400 and hdrs_map.get("location"):
-            return hdrs_map["location"].strip()
-        m_meta = re.search(r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+url=([^"\'>;\s]+)', body_txt, re.IGNORECASE)
-        if m_meta:
-            return m_meta.group(1).strip()
-        return ""
-
-    # 1. Baseline denied redirect vs Open-Redirect bypass probes
-    base_redir_st, _, _ = http_probe("/redirect?to=https://evil.example.com", follow_redirects=False)
-    azi06_probes += 1
-
-    redir_vectors = [
-        ("direct_off_allowlist", "/redirect?to=https://evil.example.com"),
-        ("protocol_relative", "/redirect?to=//evil.example.com"),
-        ("query_substring_bypass", "/redirect?to=https://evil.example.com?https://github.com/juice-shop/juice-shop"),
-        ("userinfo_at_bypass", "/redirect?to=https://github.com/juice-shop/juice-shop@evil.example.com"),
-    ]
-    for r_lbl, r_path in redir_vectors:
-        r_st, r_hdrs, r_body = http_probe(r_path, follow_redirects=False)
-        azi06_probes += 1
-        loc_target = extract_redirect_target(r_st, r_hdrs, r_body)
-        if loc_target:
-            loc_host = (urllib.parse.urlparse(loc_target).hostname or "").lower()
-            if loc_host and loc_host not in allowed_redirect_hosts:
-                azi06_findings.append(
-                    {
-                        "url": f"{base_url}{r_path.split('?', 1)[0]}",
-                        "kind": f"OpenRedirect_{r_lbl}",
-                        "cwe": "CWE-601",
-                        "status": r_st,
-                        "detail": (
-                            f"GET {base_url}{r_path} returned HTTP {r_st} Location '{loc_target}' resolving to "
-                            f"off-allowlist host '{loc_host}' (allowlist substring '.includes()' / parser bypass — CWE-601)."
-                        ),
-                    }
-                )
-
-    # 2. HTTP Parameter Pollution (HPP) duplicated-parameter authorization differential probes
-    hpp_redir_st, hpp_redir_hdrs, _ = http_probe(
-        "/redirect?to=https://evil.example.com&to=https://github.com/juice-shop/juice-shop",
-        follow_redirects=False,
+    # AZI-06: OWASP ZAP Active Redirect/HPP (20019/20014) + NoRedirect Open Redirect & HPP Authorization Differential Probe (SARIF 2.1.0 + redacted HAR 1.2)
+    azi06_eval = evaluate_azi06_open_redirect_hpp(
+        base_url,
+        auth_headers=auth_req_headers,
+        auth_bid=auth_bid,
+        allowed_hosts={host.lower(), "github.com", "blockchain.info", "explorer.dash.org", "etherscan.io", "shop.spreadshirt.com", "shop.spreadshirt.de", "www.stickeryou.com", "leanpub.com"},
+        crawled_exchanges=crawled_exchanges,
+        http_probe_fn=http_probe,
     )
-    azi06_probes += 1
-    if (300 <= hpp_redir_st < 400) and base_redir_st >= 400:
-        hpp_loc = hpp_redir_hdrs.get("location", "")
-        azi06_findings.append(
-            {
-                "url": f"{base_url}/redirect",
-                "kind": "HPP_Authorization_Outcome_Bypass",
-                "cwe": "CWE-235",
-                "status": hpp_redir_st,
-                "detail": (
-                    f"Duplicated ?to= parameter flipped redirect authorization outcome from HTTP {base_redir_st} (denied) "
-                    f"to HTTP {hpp_redir_st} (Location='{hpp_loc}') via Express query-array coercion."
-                ),
-            }
-        )
-
-    # Also test duplicated auth/query parameters on protected route
-    b_auth_st, _, _ = http_probe(f"/rest/basket/{auth_bid}", headers=auth_req_headers)
-    hpp_auth_st, _, _ = http_probe(f"/rest/basket/{auth_bid}?id={auth_bid}&id=1", headers=auth_req_headers)
-    unauth_base_st, _, _ = http_probe("/rest/basket/1")
-    unauth_hpp_st, _, _ = http_probe("/rest/basket/1?id=1&id=1")
-    azi06_probes += 4
-    if unauth_base_st in {401, 403} and 200 <= unauth_hpp_st < 300:
-        azi06_findings.append(
-            {
-                "url": f"{base_url}/rest/basket/1",
-                "kind": "HPP_Authz_Privilege_Bypass",
-                "cwe": "CWE-235",
-                "status": unauth_hpp_st,
-                "detail": f"Duplicated query parameter on /rest/basket/1 changed unauthenticated HTTP {unauth_base_st} to HTTP {unauth_hpp_st}.",
-            }
-        )
-
-    for afz6 in azi06_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AZI-06",
-                "level": "error",
-                "message": {"text": afz6["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": afz6["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AZI-06",
-                    "findingKind": afz6["kind"],
-                    "cwe": afz6["cwe"],
-                    "httpStatus": afz6["status"],
-                },
-            }
-        )
-
-    open_redir_vuln = len(azi06_findings) > 0
+    azi06_findings = azi06_eval["findings"]
+    azi06_probes = azi06_eval["probesRun"]
+    dast_sarif_results.extend(azi06_eval["sarifResults"])
+    open_redir_vuln = azi06_eval["azi06_fail"]
     azi06_lines = [f"[{az6['cwe']} / {az6['kind']}] {az6['detail']}" for az6 in azi06_findings]
     results["AZI-06"] = {
-        "verdict": "FAIL" if open_redir_vuln else "PASS",
-        "tool": f"Active Open Redirect & HPP Differential Analyzer ({azi06_probes} no-redirect + HPP probes, SARIF 2.1.0 + redacted HAR 1.2)",
+        "verdict": azi06_eval["verdict"],
+        "tool": f"OWASP ZAP {zap_ver_label} (Rules 20019/20014) & Active Open Redirect + HPP Differential Analyzer ({azi06_probes} probes, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] {len(azi06_findings)} Open Redirect / HPP authorization bypass(es) confirmed across {azi06_probes} probes:\n  - "
+            f"[FAIL] {len(azi06_findings)} Open Redirect / HPP authorization bypass(es) confirmed (ZAP plugins={azi06_eval['zapPluginsMatched']}, probes={azi06_probes}):\n  - "
             + "\n  - ".join(azi06_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AZI-06 Audit JSON: {azi06_eval['reportPath']}\n  - AZI-06 Redacted HAR 1.2: {azi06_eval['harPath']}\n  - ZAP Redirect/HPP SARIF 2.1.0: {azi06_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if open_redir_vuln
-            else f"[PASS] Executed {azi06_probes} open-redirect and duplicated-parameter HPP probes; 0 off-allowlist redirects and 0 HPP authorization changes detected.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] Executed OWASP ZAP {zap_ver_label} (20019/20014) and {azi06_probes} open-redirect/duplicated-parameter HPP probes; 0 off-allowlist redirects and 0 HPP authorization changes detected.\nEvidence Artifacts:\n  - AZI-06 Audit JSON: {azi06_eval['reportPath']}\n  - AZI-06 Redacted HAR 1.2: {azi06_eval['harPath']}\n  - ZAP Redirect/HPP SARIF 2.1.0: {azi06_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 
@@ -13105,7 +13337,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     oau03_params = ("redirect", "next", "continue", "return_to", "RelayState")
 
     def _inspect_oau03_redirect_response(ep_path: str, param_name: str, payload_lbl: str, r_st: int, r_hdrs: dict[str, str], r_body: str) -> None:
-        redir_loc = extract_redirect_target(r_st, r_hdrs, r_body)
+        redir_loc = _extract_redirect_target(r_st, r_hdrs, r_body)
         if not redir_loc:
             m_js = re.search(
                 r'(?:window\.)?location(?:\.href)?\s*=\s*["\']([^"\']*oau03-evil\.example\.com[^"\']*)["\']'

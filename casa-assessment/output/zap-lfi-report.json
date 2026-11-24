@@ -1,16 +1,24 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Tue, 24 Nov 2026 10:41:32",
-	"created": "2026-11-24T13:41:32.560925956Z",
+	"@generated": "Tue, 24 Nov 2026 12:10:25",
+	"created": "2026-11-24T15:10:25.952126717Z",
 	"insights":[
+		{
+			"level": "High",
+			"reason": "Exceeded High",
+			"site": "",
+			"key": "insight.memory.usage",
+			"description": "Percentage of memory used",
+			"statistic": "95"
+		},
 		{
 			"level": "Low",
 			"reason": "Warning",
 			"site": "",
 			"key": "insight.log.error",
 			"description": "ZAP errors logged - see the zap.log file for details",
-			"statistic": "1"
+			"statistic": "2"
 		},
 		{
 			"level": "Low",
@@ -122,7 +130,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.response.slow",
 			"description": "Percentage of slow responses",
-			"statistic": "34"
+			"statistic": "33"
 		}
 	],
 	"site":[ 
@@ -143,7 +151,7 @@
 					"desc": "<p>Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.</p>",
 					"instances":[ 
 						{
-							"id": "8",
+							"id": "12",
 							"uri": "http://localhost:3000",
 							"nodeName": "http:\/\/localhost:3000",
 							"method": "GET",
@@ -173,7 +181,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "21",
+							"id": "9",
 							"uri": "http://localhost:3000/support",
 							"nodeName": "http:\/\/localhost:3000\/support",
 							"method": "GET",
@@ -183,7 +191,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "6",
+							"id": "4",
 							"uri": "http://localhost:3000/support/logs/",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/",
 							"method": "GET",
@@ -213,9 +221,19 @@
 					"desc": "<p>Web browser data loading may be possible, due to a Cross Origin Resource Sharing (CORS) misconfiguration on the web server.</p>",
 					"instances":[ 
 						{
-							"id": "5",
+							"id": "3",
 							"uri": "http://localhost:3000/assets/public/favicon_js.ico",
 							"nodeName": "http:\/\/localhost:3000\/assets\/public\/favicon_js.ico",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "Access-Control-Allow-Origin: *",
+							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+						},
+						{
+							"id": "6",
+							"uri": "http://localhost:3000/chunk-CE5v8pBj.js",
+							"nodeName": "http:\/\/localhost:3000\/chunk-CE5v8pBj.js",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -233,7 +251,7 @@
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						},
 						{
-							"id": "4",
+							"id": "7",
 							"uri": "http://localhost:3000/robots.txt",
 							"nodeName": "http:\/\/localhost:3000\/robots.txt",
 							"method": "GET",
@@ -243,17 +261,7 @@
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						},
 						{
-							"id": "3",
-							"uri": "http://localhost:3000/rolldown-runtime-kqx1xuJ_.js",
-							"nodeName": "http:\/\/localhost:3000\/rolldown-runtime-kqx1xuJ_.js",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "Access-Control-Allow-Origin: *",
-							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
-						},
-						{
-							"id": "7",
+							"id": "5",
 							"uri": "http://localhost:3000/support/logs/",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/",
 							"method": "GET",
@@ -270,7 +278,7 @@
 					"reference": "<p>https://vulncat.fortify.com/en/detail?category=HTML5&subcategory=Overly%20Permissive%20CORS%20Policy</p>",
 					"cweid": "264",
 					"wascid": "14",
-					"sourceid": "26"
+					"sourceid": "29"
 				},
 				{
 					"pluginid": "10096",
@@ -283,7 +291,7 @@
 					"desc": "<p>A timestamp was disclosed by the application/web server. - Unix</p>",
 					"instances":[ 
 						{
-							"id": "55",
+							"id": "54",
 							"uri": "http://localhost:3000/support/logs/access.log.2026-11-23",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/access.log.2026-11-23",
 							"method": "GET",
@@ -293,7 +301,7 @@
 							"otherinfo": "1635377555, which evaluates to: 2021-10-27 20:32:35."
 						},
 						{
-							"id": "53",
+							"id": "52",
 							"uri": "http://localhost:3000/support/logs/access.log.2026-11-23",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/access.log.2026-11-23",
 							"method": "GET",
@@ -303,7 +311,7 @@
 							"otherinfo": "2008052906, which evaluates to: 2033-08-19 05:28:26."
 						},
 						{
-							"id": "58",
+							"id": "56",
 							"uri": "http://localhost:3000/support/logs/access.log.2026-11-24",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/access.log.2026-11-24",
 							"method": "GET",
@@ -313,7 +321,7 @@
 							"otherinfo": "1635377555, which evaluates to: 2021-10-27 20:32:35."
 						},
 						{
-							"id": "60",
+							"id": "58",
 							"uri": "http://localhost:3000/support/logs/access.log.2026-11-24",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/access.log.2026-11-24",
 							"method": "GET",
@@ -380,7 +388,7 @@
 					"reference": "",
 					"cweid": "615",
 					"wascid": "13",
-					"sourceid": "37"
+					"sourceid": "38"
 				},
 				{
 					"pluginid": "10109",
@@ -413,7 +421,7 @@
 							"otherinfo": "Links have been found that do not have traditional href attributes, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "23",
+							"id": "24",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",
@@ -423,7 +431,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "24",
+							"id": "15",
 							"uri": "http://localhost:3000/support",
 							"nodeName": "http:\/\/localhost:3000\/support",
 							"method": "GET",
@@ -433,7 +441,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "13",
+							"id": "8",
 							"uri": "http://localhost:3000/support/logs/",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/",
 							"method": "GET",
@@ -463,7 +471,17 @@
 					"desc": "<p>Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response.</p>",
 					"instances":[ 
 						{
-							"id": "83",
+							"id": "93",
+							"uri": "http://localhost:3000/assets",
+							"nodeName": "http:\/\/localhost:3000\/assets",
+							"method": "GET",
+							"param": "Header User-Agent",
+							"attack": "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0)",
+							"evidence": "",
+							"otherinfo": ""
+						},
+						{
+							"id": "91",
 							"uri": "http://localhost:3000/assets",
 							"nodeName": "http:\/\/localhost:3000\/assets",
 							"method": "GET",
@@ -473,17 +491,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "85",
-							"uri": "http://localhost:3000/assets/public",
-							"nodeName": "http:\/\/localhost:3000\/assets\/public",
-							"method": "GET",
-							"param": "Header User-Agent",
-							"attack": "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0)",
-							"evidence": "",
-							"otherinfo": ""
-						},
-						{
-							"id": "84",
+							"id": "92",
 							"uri": "http://localhost:3000/assets/public",
 							"nodeName": "http:\/\/localhost:3000\/assets\/public",
 							"method": "GET",
@@ -500,7 +508,7 @@
 					"reference": "<p>https://owasp.org/wstg</p>",
 					"cweid": "0",
 					"wascid": "0",
-					"sourceid": "82"
+					"sourceid": "84"
 				}
 			]
 		}

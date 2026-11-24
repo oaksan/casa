@@ -2456,3 +2456,60 @@ Domínio 6: Authorization & Injection (AZI)
     `/ftp/*.yml%2500.md`) e `CWE-98` (fetch HTTP remoto via `POST /profile/image/url`)
     -> Veredito **`FAIL`** (`CASA3-AZI-05`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 49/61: AZI-06 (Iteração SDD 119)
+Domínio 6: Authorization & Injection (AZI) — Conclusão do Domínio
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: AZI-06
+- Requisito (CASA 3.0 AL1):
+  "No open redirect or unvalidated forward; HTTP parameter pollution handled safely."
+- Referências: OWASP ASVS V5.1.5, V5.1.1 (L1); MITRE CWE-601, CWE-235.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `ZAP`, `Burp Suite`.
+- Formatos de Evidência Exigidos:
+  Achados de DAST autenticado e harness em `OASIS SARIF 2.1.0` (`CASA3-AZI-06`)
+  e captura `HAR 1.2` redigida.
+- Critério Determinístico de Verificação:
+  * PASS: Nenhum 3xx `Location`, *meta-refresh* ou redirecionamento JavaScript
+    resolve para host fora da allowlist do escopo, e parâmetros duplicados não
+    alteram decisões de autorização.
+  * FAIL: >= 1 redirecionamento fora da allowlist ou alteração de decisão de
+    autorização por parâmetro duplicado (HPP).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 119`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `AZI-06` rodava inline em `run_dynamic_and_protocol_checks`, não
+  invocava as regras ativas `20019` (*External Redirect*) e `20014` (*HTTP
+  Parameter Pollution*) do OWASP ZAP, não verificava redirecionamentos via
+  JavaScript (`window.location`), não expandia parâmetros do crawl e não emitia
+  relatório JSON específico nem HAR 1.2 isolado do controle.
+- O que foi feito e melhorado na Iteração SDD 119:
+  1) Adição de suporte `follow_redirects: bool = True` em `_make_redacted_har_probe`
+     (`_NoRedirectHandler`) em `casa_audit/scanner.py`.
+  2) Extração de `evaluate_azi06_open_redirect_hpp(...)` integrando **OWASP ZAP
+     ativo (`20019` + `20014`)** com exportação para `output/zap-redirect-report.json`
+     e `output/zap-redirect-findings.sarif`, inspetor `NoRedirect` (3xx `Location`,
+     `meta-refresh` e `window.location`), expansão de parâmetros de redirect do
+     crawl e diferenciação HPP sobre parâmetros duplicados (`?to=...&to=...`,
+     `/rest/basket/{id}`), gravando `output/azi06-redirect-hpp-audit.json`,
+     `output/azi06-replayed.har` e `CASA3-AZI-06` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration119_azi06_guide_tooling`):
+  * **`PASS`** com allowlist estrita de hostname e rejeição de parâmetros duplicados
+    (`0` alertas ZAP `20019`/`20014`).
+  * **`FAIL`** confirmado simultaneamente por **OWASP ZAP ativo (`20019`)**,
+    bypass de substring em query (`OpenRedirect_query_substring_bypass`) e
+    redirecionamento JS (`OpenRedirect_js_redirect`), com `[REDACTED]` no HAR.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Confirma `OpenRedirect_query_substring_bypass` (`CWE-601`) e
+    `HPP_Authorization_Outcome_Bypass` (`CWE-235`: inversão HTTP `406 -> 302`)
+    -> Veredito **`FAIL`** (`CASA3-AZI-06`), encerrando o Domínio 6 (`AZI`).
+================================================================================

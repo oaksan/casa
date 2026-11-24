@@ -12,14 +12,14 @@
     "sessionStorage": {
       "bid": "[REDACTED;len=2]"
     },
-    "nonHttpOnlyCookies": "language=[REDACTED;len=2]; continueCode=[REDACTED;len=60]; token=[REDACTED;len=760]",
+    "nonHttpOnlyCookies": "language=[REDACTED;len=2]; token=[REDACTED;len=760]",
     "indexedDB": []
   },
   "after": {
     "href": "http://localhost:3000/#/",
     "localStorage": {},
     "sessionStorage": {},
-    "nonHttpOnlyCookies": "language=[REDACTED;len=2]; continueCode=[REDACTED;len=60]",
+    "nonHttpOnlyCookies": "language=[REDACTED;len=2]",
     "indexedDB": []
   },
   "findingsCount": 3,
@@ -38,9 +38,9 @@
       "store": "sessionStorage",
       "key": "bid",
       "reasons": [
-        "canary(16)"
+        "canary(40)"
       ],
-      "detail": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(16); value='16') at http://localhost:3000/#/search."
+      "detail": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(40); value='40') at http://localhost:3000/#/search."
     },
     {
       "phase": "before_logout",

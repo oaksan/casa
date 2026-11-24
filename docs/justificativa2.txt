@@ -2403,3 +2403,56 @@ Domínio 6: Authorization & Injection (AZI)
     confirmaram `0` callbacks e `0` marcadores de execução no SO -> Veredito **`PASS`**
     (preservando a distinção de `vm.runInContext`/JS sandbox `CWE-94` em `SAST-10`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 48/61: AZI-05 (Iteração SDD 118)
+Domínio 6: Authorization & Injection (AZI)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: AZI-05
+- Requisito (CASA 3.0 AL1):
+  "No Local/Remote File Inclusion or path traversal."
+- Referências: OWASP ASVS V5.3.9, V12.3.2, V12.3.3 (L1); MITRE CWE-22, CWE-98.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `ZAP`, `Burp Suite`, `Schemathesis`.
+- Formatos de Evidência Exigidos:
+  Achados de DAST autenticado e harness em `OASIS SARIF 2.1.0` (`CASA3-AZI-05`)
+  e captura `HAR 1.2` redigida.
+- Critério Determinístico de Verificação:
+  * PASS: Nenhuma resposta retorna conteúdo fora da raiz do documento e nenhum
+    marcador ou fetch de inclusão remota aparece.
+  * FAIL: >= 1 resposta contendo arquivo fora da raiz ou marcador/inclusão remota.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 118`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `AZI-05` rodava inline em `run_dynamic_and_protocol_checks`, não
+  invocava as regras ativas de *Path Traversal* (`6`) e *Remote File Inclusion*
+  (`7`) do OWASP ZAP, não expandia parâmetros descobertos no crawl e não emitia
+  relatório JSON específico nem arquivo HAR 1.2 isolado do controle.
+- O que foi feito e melhorado na Iteração SDD 118:
+  1) Extração de `evaluate_azi05_lfi_rfi(...)` em `casa_audit/scanner.py`
+     integrando **OWASP ZAP ativo (`6` Path Traversal + `7` Remote File Inclusion)**
+     com exportação para `output/zap-lfi-report.json` e `output/zap-lfi-findings.sarif`.
+  2) Matriz completa de traversal (`encoded`, `double-encoded`, `null-byte`,
+     `absolute`, `UNC`) + listener HTTP de inclusão remota (`_RfiCallbackHandler`,
+     `CASA3_RFI`) sobre `/ftp/`, `/support/logs/`, `/profile/image/url` e
+     parâmetros de caminho/URL do crawl, emitindo `output/azi05-lfi-rfi-audit.json`,
+     HAR redigido `output/azi05-replayed.har` e `CASA3-AZI-05` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration118_azi05_guide_tooling`):
+  * **`PASS`** com canonicalização estrita e bloqueio de esquemas externos
+    (`0` alertas ZAP `6`/`7`, `0` callbacks RFI).
+  * **`FAIL`** confirmado simultaneamente por **OWASP ZAP ativo (`6`/`7`)**,
+    vazamento por *path traversal* (`root:x:0:0:`) e **callback/marcador RFI
+    ao vivo (`CASA3_RFI`)**, com `[REDACTED]` validado em `output/azi05-replayed.har`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Confirma violações reais `CWE-22` (*null-byte* em `/ftp/*.bak%2500.md` e
+    `/ftp/*.yml%2500.md`) e `CWE-98` (fetch HTTP remoto via `POST /profile/image/url`)
+    -> Veredito **`FAIL`** (`CASA3-AZI-05`).
+================================================================================

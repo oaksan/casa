@@ -4341,6 +4341,119 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 47/61: AZI-04 (Iteração SDD 117)", just2_txt)
 
+    def test_iteration118_azi05_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_azi05_lfi_rfi
+
+        class _Azi05Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "safe"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p, _, q = self.path.partition("?")
+                qs = urllib.parse.parse_qs(q)
+                raw_file = qs.get("file", [""])[0]
+                m = type(self).mode
+                if p == "/":
+                    b = b'<html><body><a href="/view?file=readme.txt">view</a></body></html>'
+                    st = 200
+                elif p == "/view":
+                    decoded_twice = urllib.parse.unquote(urllib.parse.unquote(raw_file))
+                    if m == "vulnerable":
+                        if decoded_twice.startswith("http://127.0.0.1:") or decoded_twice.startswith("https://"):
+                            try:
+                                with urllib.request.urlopen(decoded_twice, timeout=2) as rf:
+                                    b = rf.read(4096)
+                                    st = 200
+                            except Exception:
+                                b = b"upstream error"
+                                st = 502
+                        elif "passwd" in decoded_twice or ".." in decoded_twice:
+                            b = b"root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n"
+                            st = 200
+                        else:
+                            b = b"Public doc contents"
+                            st = 200
+                    else:
+                        if any(bad in decoded_twice for bad in ("..", "/", "\\", "\x00", "http:", "https:")):
+                            b = b"Forbidden path or scheme"
+                            st = 403
+                        else:
+                            b = b"Public doc contents"
+                            st = 200
+                else:
+                    b = b"Not found"
+                    st = 404
+                self.send_response(st)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Azi05Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_azi5:
+            tdp = Path(td_azi5)
+            try:
+                # 1. Strict canonical path & scheme validation -> PASS via real OWASP ZAP 6/7 + traversal & RFI matrix
+                _Azi05Handler.mode = "safe"
+                rep_pass = tdp / "azi05_pass.json"
+                har_pass = tdp / "azi05_pass.har"
+                r_pass = evaluate_azi05_lfi_rfi(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_lfi_tok_24680"},
+                    param_targets=[("view", "/view?file={p}")],
+                    rfi_targets=["/view?file={p}"],
+                    zap_seed_urls=[f"http://127.0.0.1:{port}/view?file=readme.txt"],
+                    zap_json_out_path=tdp / "zap_lfi_pass.json",
+                    zap_sarif_out_path=tdp / "zap_lfi_pass.sarif",
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertTrue(r_pass["zap"]["executed"])
+                self.assertEqual(r_pass["rfiCallbacks"], [])
+                self.assertTrue(rep_pass.exists())
+                self.assertTrue(har_pass.exists())
+
+                # 2. Vulnerable traversal + RFI -> FAIL confirmed by real OWASP ZAP (6/7), traversal leak & RFI callback+marker
+                _Azi05Handler.mode = "vulnerable"
+                rep_vuln = tdp / "azi05_vuln.json"
+                har_vuln = tdp / "azi05_vuln.har"
+                r_vuln = evaluate_azi05_lfi_rfi(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_lfi_tok_24680"},
+                    param_targets=[("view", "/view?file={p}")],
+                    rfi_targets=["/view?file={p}"],
+                    zap_seed_urls=[f"http://127.0.0.1:{port}/view?file=readme.txt"],
+                    zap_json_out_path=tdp / "zap_lfi_vuln.json",
+                    zap_sarif_out_path=tdp / "zap_lfi_vuln.sarif",
+                    report_out_path=rep_vuln,
+                    har_out_path=har_vuln,
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                self.assertTrue(any(p in {"6", "7"} for p in r_vuln["zapPluginsMatched"]), f"Expected ZAP 6 or 7, got {r_vuln['zapPluginsMatched']}")
+                self.assertGreaterEqual(len(r_vuln["rfiCallbacks"]), 1, f"Expected live RFI callback, got {r_vuln}")
+                cby = {f["confirmedBy"] for f in r_vuln["findings"]}
+                self.assertIn("traversal_probe", cby)
+                self.assertTrue("rfi_inclusion_marker" in cby or "rfi_oob_fetch" in cby)
+                self.assertTrue(any(s["ruleId"] == "CASA3-AZI-05" for s in r_vuln["sarifResults"]))
+                har_txt = har_vuln.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("secret_lfi_tok_24680", har_txt)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 48/61: AZI-05 (Iteração SDD 118)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

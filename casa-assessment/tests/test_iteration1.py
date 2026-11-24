@@ -3691,6 +3691,148 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 42/61: AUT-07 (Iteração SDD 112)", just2_txt)
 
+    def test_iteration113_aut08_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_aut08_client_storage
+
+        class _Aut08Handler(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "clean_httponly"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p = self.path.split("?", 1)[0]
+                m = type(self).mode
+                if p == "/" or p == "/index.html":
+                    html_doc = f"""<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>AUT-08 Test</title></head>
+<body>
+  <input id="email" type="email" />
+  <input id="password" type="password" />
+  <button id="loginButton" type="button" onclick="doLogin()">Login</button>
+  <button id="navbarLogoutButton" type="button" onclick="doLogout()">Logout</button>
+  <script>
+    const MODE = {json.dumps(m)};
+    async function doLogin() {{
+      const email = document.querySelector('#email').value;
+      const password = document.querySelector('#password').value;
+      const r = await fetch('/rest/user/login', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json' }},
+        body: JSON.stringify({{ email, password }})
+      }});
+      const data = await r.json();
+      if (MODE === 'leaky_before_logout') {{
+        localStorage.setItem('token', data.token);
+        sessionStorage.setItem('profileEmail', email);
+      }} else if (MODE === 'survives_logout') {{
+        sessionStorage.setItem('session_marker', 'secret_surviving_token_value');
+      }}
+      document.documentElement.dataset.aut08Logged = '1';
+    }}
+    async function doLogout() {{
+      if (MODE === 'leaky_before_logout') {{
+        localStorage.removeItem('token');
+        sessionStorage.removeItem('profileEmail');
+      }}
+      document.documentElement.dataset.aut08LogoutDone = '1';
+    }}
+  </script>
+</body>
+</html>""".encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(html_doc)))
+                    self.end_headers()
+                    self.wfile.write(html_doc)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                if length:
+                    self.rfile.read(length)
+                p = self.path.split("?", 1)[0]
+                if p == "/rest/user/login":
+                    body = json.dumps({"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJlMTIzNDU"}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Set-Cookie", "sid=httponly_cookie_val; Path=/; HttpOnly")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Aut08Handler)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_aut8:
+            tdp = Path(td_aut8)
+            try:
+                # 1. Compliant HttpOnly-only app via real Headless Chrome CDP -> PASS + redacted dump & HAR
+                _Aut08Handler.mode = "clean_httponly"
+                rep_pass = tdp / "aut08_pass.json"
+                har_pass = tdp / "aut08_pass.har"
+                r_pass = evaluate_aut08_client_storage(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("canary_aut08@example.com", "CanaryPass!88"),
+                    canaries=["canary_aut08@example.com", "CanaryPass!88"],
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertTrue(r_pass["headlessExecuted"], f"Expected real Chrome headless run, got {r_pass}")
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertEqual(r_pass["postLogoutSurvivors"], 0)
+                self.assertTrue(rep_pass.exists())
+                self.assertTrue(har_pass.exists())
+
+                # 2. JWT in localStorage + canary email in sessionStorage before logout via real Headless Chrome -> FAIL
+                _Aut08Handler.mode = "leaky_before_logout"
+                rep_leak = tdp / "aut08_leak.json"
+                r_leak = evaluate_aut08_client_storage(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("canary_aut08@example.com", "CanaryPass!88"),
+                    canaries=["canary_aut08@example.com", "CanaryPass!88"],
+                    report_out_path=rep_leak,
+                    har_out_path=tdp / "aut08_leak.har",
+                )
+                self.assertTrue(r_leak["headlessExecuted"])
+                self.assertEqual(r_leak["verdict"], "FAIL")
+                stores_hit = {(f["phase"], f["store"], f["key"]) for f in r_leak["findings"]}
+                self.assertIn(("before_logout", "localStorage", "token"), stores_hit)
+                self.assertIn(("before_logout", "sessionStorage", "profileEmail"), stores_hit)
+                rep_txt = rep_leak.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED", rep_txt)
+                self.assertNotIn("c2lnbmF0dXJlMTIzNDU", rep_txt)
+
+                # 3. Auth material persists AFTER logout via real Headless Chrome -> FAIL
+                _Aut08Handler.mode = "survives_logout"
+                r_surv = evaluate_aut08_client_storage(
+                    f"http://127.0.0.1:{port}",
+                    credentials=("canary_aut08@example.com", "CanaryPass!88"),
+                    canaries=["secret_surviving_token_value"],
+                    report_out_path=tdp / "aut08_surv.json",
+                    har_out_path=tdp / "aut08_surv.har",
+                )
+                self.assertTrue(r_surv["headlessExecuted"])
+                self.assertEqual(r_surv["verdict"], "FAIL")
+                self.assertGreaterEqual(r_surv["postLogoutSurvivors"], 1)
+                self.assertTrue(any(s["ruleId"] == "CASA3-AUT-08" for s in r_surv["sarifResults"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 43/61: AUT-08 (Iteração SDD 113)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

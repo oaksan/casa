@@ -70,8 +70,8 @@ const path = require('path');
     };
 
     for (let i = 0; i < 25; i++) {
-      await new Promise((r) => setTimeout(r, 250));
-      if (await ev('!!document.querySelector("#email")')) break;
+      await new Promise((r) => setTimeout(r, 200));
+      if (await ev('!!document.querySelector("#email, input[type=email], input[name=email]")')) break;
     }
 
     await ev(`(() => {
@@ -80,27 +80,37 @@ const path = require('path');
       const cb = document.querySelector('a.cc-btn.cc-dismiss');
       if (cb) cb.click();
     })()`);
-    await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 200));
 
     await ev(`(() => {
-      const setVal = (sel, val) => {
-        const el = document.querySelector(sel);
-        if (!el) return false;
-        el.focus();
-        el.value = val;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
+      const setVal = (sels, val) => {
+        for (const sel of sels) {
+          const el = document.querySelector(sel);
+          if (el) {
+            el.focus();
+            el.value = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+        }
+        return false;
       };
-      setVal('#email', ${JSON.stringify(email)});
-      setVal('#password', ${JSON.stringify(password)});
-      const btn = document.querySelector('#loginButton');
+      setVal(['#email', 'input[type="email"]', 'input[name="email"]'], ${JSON.stringify(email)});
+      setVal(['#password', 'input[type="password"]', 'input[name="password"]'], ${JSON.stringify(password)});
+      const btn = document.querySelector('#loginButton, button[type="submit"], input[type="submit"]');
       if (btn) btn.click();
     })()`);
 
     for (let i = 0; i < 25; i++) {
-      await new Promise((r) => setTimeout(r, 250));
-      if (await ev('!!localStorage.getItem("token")')) break;
+      await new Promise((r) => setTimeout(r, 200));
+      if (
+        await ev(
+          '!!localStorage.getItem("token") || document.documentElement.dataset.aut08Logged === "1"'
+        )
+      ) {
+        break;
+      }
     }
 
     const dumpExpr = `(async () => {
@@ -114,7 +124,36 @@ const path = require('path');
         const k = sessionStorage.key(i);
         ss[k] = sessionStorage.getItem(k);
       }
-      const idb = indexedDB.databases ? await indexedDB.databases() : [];
+      const idb = [];
+      if (typeof indexedDB !== 'undefined' && indexedDB.databases) {
+        const dbs = await indexedDB.databases();
+        for (const dbInfo of dbs) {
+          const entry = { name: dbInfo.name, version: dbInfo.version, stores: {} };
+          try {
+            const db = await new Promise((resolve, reject) => {
+              const req = indexedDB.open(dbInfo.name);
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => reject(req.error);
+            });
+            for (const storeName of Array.from(db.objectStoreNames || [])) {
+              const vals = await new Promise((resolve) => {
+                try {
+                  const tx = db.transaction(storeName, 'readonly');
+                  const st = tx.objectStore(storeName);
+                  const gr = st.getAll(null, 50);
+                  gr.onsuccess = () => resolve(gr.result || []);
+                  gr.onerror = () => resolve([]);
+                } catch (_) {
+                  resolve([]);
+                }
+              });
+              entry.stores[storeName] = vals;
+            }
+            db.close();
+          } catch (_) {}
+          idb.push(entry);
+        }
+      }
       return JSON.stringify({
         localStorage: ls,
         sessionStorage: ss,
@@ -130,12 +169,21 @@ const path = require('path');
       const acc = document.querySelector('#navbarAccount');
       if (acc) acc.click();
     })()`);
-    await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 200));
     await ev(`(() => {
-      const lo = document.querySelector('#navbarLogoutButton');
+      const lo = document.querySelector('#navbarLogoutButton, #logoutButton, button[data-logout], a[href*="logout" i]');
       if (lo) lo.click();
     })()`);
-    await new Promise((r) => setTimeout(r, 700));
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 150));
+      if (
+        await ev(
+          'document.documentElement.dataset.aut08LogoutDone === "1" || (!localStorage.getItem("token") && !document.querySelector("#navbarLogoutButton"))'
+        )
+      ) {
+        break;
+      }
+    }
 
     out.after = JSON.parse((await ev(dumpExpr)) || '{}');
     out.ok = true;

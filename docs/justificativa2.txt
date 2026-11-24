@@ -2146,3 +2146,55 @@ CONTROLE 42/61: AUT-07 (Iteração SDD 112)
     confusão `HS256` assinada com `/encryptionkeys/jwt.pub` em `/rest/wallet/balance`
     -> Veredito **`FAIL`** (3 violações `CASA3-AUT-07`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 43/61: AUT-08 (Iteração SDD 113)
+================================================================================
+
+1. ALINHAMENTO DE FERRAMENTAL AO GUIA OFICIAL (DOMÍNIO 5 - AUTH & SESSION)
+--------------------------------------------------------------------------------
+- Controle: `AUT-08` — *Client-side storage holds no sensitive data or
+  authentication material, and is cleared on logout* (ASVS V8.2.3 L1).
+- Ferramental de referência exigido no `CASA 3.0 (AL1) Test Guide.md`:
+  * **Navegador headless** (`google-chrome --headless=new` via CDP em
+    `scripts/headless_storage_dump.js`, equivalente a Playwright) realizando
+    dump de `localStorage`, `sessionStorage`, `IndexedDB` e cookies não-`HttpOnly`
+    antes e depois do logout, cruzando os valores armazenados com tokens
+    observados, padrão JWT, PAN válido por algoritmo de Luhn, valores canário
+    e campos de perfil do IdP, com evidências em SARIF 2.1.0 (`CASA3-AUT-08`),
+    relatório JSON redigido (`output/aut08-storage-dump.json`) e HAR 1.2
+    redigido (`output/aut08-replayed.har`).
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 113`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A lógica de `AUT-08` estava inline em `run_dynamic_and_protocol_checks`,
+  `headless_storage_dump.js` listava apenas metadados (`name`/`version`) de
+  `IndexedDB` sem ler os registros dos object stores nem suportava seletores
+  HTML genéricos de login/logout fora do Angular do Juice Shop, e não havia
+  relatório JSON redigido nem HAR 1.2 isolado para o controle.
+- O que foi feito e melhorado na Iteração SDD 113:
+  1) Aprimoramento de `scripts/headless_storage_dump.js` para ler entradas de
+     object stores em `IndexedDB`, suportar seletores genéricos de login/logout
+     e encerrar rapidamente aplicações conformes que usam exclusivamente cookies
+     `HttpOnly`.
+  2) Extração de `_luhn_check`, `_scan_storage_snapshot`, `_redact_snapshot_dict`
+     e `evaluate_aut08_client_storage(...)` em `casa_audit/scanner.py`, com
+     detecção de material residual pós-logout e persistência de
+     `output/aut08-storage-dump.json` e `output/aut08-replayed.har` redigidos.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária com Google Chrome headless real (`test_iteration113_aut08_guide_tooling`):
+  * **`PASS`** em aplicação apenas com cookie `HttpOnly` (`0` itens sensíveis
+    pré e pós-logout).
+  * **`FAIL`** para armazenamento de JWT em `localStorage` e valor canário em
+    `sessionStorage` pré-logout (com valores brutos mascarados em
+    `aut08-storage-dump.json`), e **`FAIL`** quando material de autenticação
+    sobrevive após o clique em logout (`postLogoutSurvivors >= 1`).
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Google Chrome headless (`--headless=new`) capturou `localStorage['token']`,
+    `sessionStorage['bid']` e `nonHttpOnlyCookies['token']` antes do logout, com
+    `0` sobreviventes pós-logout -> Veredito **`FAIL`**.
+================================================================================

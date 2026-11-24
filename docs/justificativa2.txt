@@ -2351,3 +2351,55 @@ Domínio 6: Authorization & Injection (AZI)
     `GET /rest/products/search`) e NoSQL `$where` (`CWE-943` em
     `GET /rest/track-order/`) -> Veredito **`FAIL`** (`CASA3-AZI-03`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 47/61: AZI-04 (Iteração SDD 117)
+Domínio 6: Authorization & Injection (AZI)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: AZI-04
+- Requisito (CASA 3.0 AL1):
+  "No OS command injection."
+- Referências: OWASP ASVS V5.3.8 (L1); MITRE CWE-78.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `ZAP`, `Burp Suite`, `interactsh`, `Schemathesis`.
+- Formatos de Evidência Exigidos:
+  Achados de DAST autenticado e harness em `OASIS SARIF 2.1.0` (`CASA3-AZI-04`)
+  e captura `HAR 1.2` redigida.
+- Critério Determinístico de Verificação:
+  * PASS: Nenhum callback *out-of-band* (DNS ou HTTP) recebido e nenhuma resposta
+    contendo marcadores de saída de comando do SO.
+  * FAIL: >= 1 callback recebido ou marcador de saída de comando em resposta.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 117`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `AZI-04` rodava inline em `run_dynamic_and_protocol_checks`,
+  possuía apenas listener HTTP (sem listener DNS UDP *out-of-band*), não
+  invocava a regra ativa `90020` (Remote OS Command Injection) do OWASP ZAP e
+  não emitia relatório JSON específico nem arquivo HAR 1.2 isolado do controle.
+- O que foi feito e melhorado na Iteração SDD 117:
+  1) Extração de `evaluate_azi04_cmd_injection(...)` (com helper `_parse_dns_qname`)
+     em `casa_audit/scanner.py` integrando **OWASP ZAP ativo (`90020`)** com
+     exportação para `output/zap-cmdi-report.json` e `output/zap-cmdi-findings.sarif`.
+  2) Listeners efêmeros simultâneos **OOB HTTP (`127.0.0.1:0`)** e **OOB DNS UDP
+     (`127.0.0.1:0`)** com payloads `curl`, `nslookup` e `dig` além de marcadores
+     diretos (`uid=`, `root:x:0:0:`, Windows markers) sobre parâmetros descobertos e
+     superfícies padrão, emitindo `output/azi04-cmdi-audit.json`, HAR redigido
+     `output/azi04-replayed.har` e `CASA3-AZI-04` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration117_azi04_guide_tooling`):
+  * **`PASS`** em parâmetro sanitizado (`0` alertas ZAP `90020`, `0` callbacks HTTP/DNS).
+  * **`FAIL`** confirmado simultaneamente por **OWASP ZAP `90020`**, marcador direto
+    `uid=`, **callback HTTP OOB ao vivo** (`curl`) e **callback DNS UDP ao vivo**
+    (`nslookup`), com `[REDACTED]` validado em `output/azi04-replayed.har`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * O OWASP ZAP `90020` e as **36 sondas autenticadas** (OOB HTTP/DNS + shell)
+    confirmaram `0` callbacks e `0` marcadores de execução no SO -> Veredito **`PASS`**
+    (preservando a distinção de `vm.runInContext`/JS sandbox `CWE-94` em `SAST-10`).
+================================================================================

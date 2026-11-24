@@ -1,0 +1,10 @@
+{
+  "standard": "OWASP ASVS V5.3.8 / CWE-78 (OWASP ZAP 90020 + OOB HTTP/DNS Callback)",
+  "target": "http://localhost:3000",
+  "verdict": "PASS",
+  "probesRun": 36,
+  "httpCallbacks": [],
+  "dnsCallbacks": [],
+  "zapPluginsMatched": [],
+  "findings": []
+}

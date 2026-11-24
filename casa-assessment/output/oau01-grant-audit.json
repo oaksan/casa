@@ -1,0 +1,60 @@
+{
+  "standard": "RFC 9700 §2.1.2, §2.4 / RFC 6749 (Intercepting Proxy + Semgrep + Bundle/Source)",
+  "target": "http://localhost:3000",
+  "verdict": "FAIL",
+  "proxiedRequests": [],
+  "semgrepExecuted": true,
+  "semgrepHits": 3,
+  "semgrepSarifPath": "/home/user/felipe/speckit/casa/casa-assessment/output/oau01-semgrep.sarif",
+  "artifactsInspected": 5,
+  "findings": [
+    {
+      "location": "frontend/src/app/Services/user.service.ts:68",
+      "grantViolation": "semgrep_oauth_grant",
+      "confirmedBy": "semgrep",
+      "detail": "[Semgrep casa-assessment.rules.CASA3-OAU-01-implicit-or-hybrid-flow] frontend/src/app/Services/user.service.ts:68: OAU-01: Prohibited OAuth 2.0 Implicit or Hybrid response_type (must strictly equal 'code' per RFC 9700 §2.1.2)"
+    },
+    {
+      "location": "frontend/src/app/login/login.component.ts:149",
+      "grantViolation": "semgrep_oauth_grant",
+      "confirmedBy": "semgrep",
+      "detail": "[Semgrep casa-assessment.rules.CASA3-OAU-01-implicit-or-hybrid-flow] frontend/src/app/login/login.component.ts:149: OAU-01: Prohibited OAuth 2.0 Implicit or Hybrid response_type (must strictly equal 'code' per RFC 9700 §2.1.2)"
+    },
+    {
+      "location": "frontend/src/app/oauth/oauth.component.ts:29",
+      "grantViolation": "semgrep_oauth_grant",
+      "confirmedBy": "semgrep",
+      "detail": "[Semgrep casa-assessment.rules.CASA3-OAU-01-implicit-or-hybrid-flow] frontend/src/app/oauth/oauth.component.ts:29: OAU-01: Prohibited OAuth 2.0 Implicit or Hybrid response_type (must strictly equal 'code' per RFC 9700 §2.1.2)"
+    },
+    {
+      "location": "http://localhost:3000/main.js",
+      "grantViolation": "response_type=token",
+      "confirmedBy": "bundle_or_source",
+      "detail": "http://localhost:3000/main.js:1 configures OAuth 2.0 authorization request with prohibited grant parameter 'response_type=token' (Implicit/Hybrid flow prohibited under RFC 9700 §2.1.2; must strictly equal 'code')."
+    },
+    {
+      "location": "http://localhost:3000/main.js",
+      "grantViolation": "implicit_fragment_access_token",
+      "confirmedBy": "bundle_or_source",
+      "detail": "http://localhost:3000/main.js consumes OAuth Implicit access_token directly in client browser instead of backend Authorization Code exchange."
+    },
+    {
+      "location": "frontend/src/app/login/login.component.ts:149",
+      "grantViolation": "response_type=token",
+      "confirmedBy": "bundle_or_source",
+      "detail": "frontend/src/app/login/login.component.ts:149 configures OAuth 2.0 authorization request with prohibited grant parameter 'response_type=token' (Implicit/Hybrid flow prohibited under RFC 9700 §2.1.2; must strictly equal 'code')."
+    },
+    {
+      "location": "frontend/src/app/oauth/oauth.component.ts",
+      "grantViolation": "implicit_fragment_access_token",
+      "confirmedBy": "bundle_or_source",
+      "detail": "frontend/src/app/oauth/oauth.component.ts consumes OAuth Implicit access_token directly in client browser instead of backend Authorization Code exchange."
+    },
+    {
+      "location": "frontend/src/app/Services/user.service.ts",
+      "grantViolation": "implicit_fragment_access_token",
+      "confirmedBy": "bundle_or_source",
+      "detail": "frontend/src/app/Services/user.service.ts consumes OAuth Implicit access_token directly in client browser instead of backend Authorization Code exchange."
+    }
+  ]
+}

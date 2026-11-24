@@ -34,10 +34,7 @@
                    "target": "http:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop",
                    "method": "GET",
                    "headers": {
-                       "cache-control" : "no-cache",
-                       "host" : "localhost:3000",
-                       "pragma" : "no-cache",
-                       "user-agent" : ""
+                       "host" : "localhost:3000"
                    },
                    "body": {
                        
@@ -53,7 +50,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "62",
                        "Content-Type" : "text\/plain; charset=utf-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "Date" : "Tue, 24 Nov 2026 22:05:02 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Location" : "https:\/\/github.com\/juice-shop\/juice-shop",
@@ -74,7 +71,7 @@
                   {
                      "physicalLocation": {
                         "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F5153025817436599105.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop"
+                           "uri": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F6100041576945173918.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop"
                         },
                         
                         "region": {
@@ -84,12 +81,12 @@
                                "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
                             }, 
                            "snippet": {
-                               "text": "https:\/\/5153025817436599105.owasp.org\/?@@@original@@@"
+                               "text": "https:\/\/6100041576945173918.owasp.org\/?@@@original@@@"
                            }
                         }
                      },
                      "properties": {
-                         "attack": "https:\/\/5153025817436599105.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
+                         "attack": "https:\/\/6100041576945173918.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
                      }
                   }
                ],
@@ -100,7 +97,7 @@
                "webRequest": {
                    "protocol": "HTTP",
                    "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F5153025817436599105.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop",
+                   "target": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F6100041576945173918.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop",
                    "method": "GET",
                    "headers": {
                        "cache-control" : "no-cache",
@@ -122,17 +119,17 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "101",
                        "Content-Type" : "text\/plain; charset=utf-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:56 GMT",
+                       "Date" : "Tue, 24 Nov 2026 22:05:18 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Location" : "https:\/\/5153025817436599105.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop",
+                       "Location" : "https:\/\/6100041576945173918.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop",
                        "Vary" : "Accept, Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
                        "X-Recruiting" : "\/#\/jobs"
                    },
                    "body": {
-                       "text": "Found. Redirecting to https:\/\/5153025817436599105.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
+                       "text": "Found. Redirecting to https:\/\/6100041576945173918.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
                    },
                    "noResponseReceived": false
                }
@@ -190,11 +187,11 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
-                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
+                       "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Last-Modified" : "Tue, 24 Nov 2026 21:30:06 GMT",
                        "Vary" : "Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
@@ -258,7 +255,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "11308",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -325,11 +322,11 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
-                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
+                       "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Last-Modified" : "Tue, 24 Nov 2026 21:30:06 GMT",
                        "Vary" : "Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
@@ -337,6 +334,79 @@
                    },
                    "body": {
                        "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "warning",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/assets\/public\/favicon_js.ico"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "Access-Control-Allow-Origin: *"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+               },
+               "ruleId": "10098",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/assets\/public\/favicon_js.ico",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "15086",
+                       "Content-Type" : "image\/x-icon",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
+                       "ETag" : "W\/\"3aee-1a19f014194\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 03 Nov 2026 01:23:42 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "binary": "AAABAAMAMDAAAAEAIACoJQAANgAAACAgAAABACAAqBAAAN4lAAAQEAAAAQAgAGgEAACGNgAAKAAAADAAAABgAAAAAQAgAAAAAAAAJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWFsIBIznPFytP10cuWdpwMF7cezFg3WQxYN0oMV\/dAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACM6zxIjOs8rIzrPMiM6zy0iOM4jIjfOGCM6zw4jOs8GIzrPAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAjO88BIzrPDSI4zjgkPNCGKUzV0SlL1fcmQ9L\/K1DX\/zBe3P8xX93dMWDdWzFg3QUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
                    },
                    "noResponseReceived": false
                }
@@ -392,7 +462,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "62",
                        "Content-Type" : "text\/plain; charset=utf-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "Date" : "Tue, 24 Nov 2026 22:05:02 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Location" : "https:\/\/github.com\/juice-shop\/juice-shop",
@@ -403,6 +473,220 @@
                    },
                    "body": {
                        "text": "Found. Redirecting to https:\/\/github.com\/juice-shop\/juice-shop"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "warning",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/robots.txt"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "Access-Control-Allow-Origin: *"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+               },
+               "ruleId": "10098",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/robots.txt",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Access-Control-Allow-Origin" : "*",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "28",
+                       "Content-Type" : "text\/plain; charset=utf-8",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
+                       "ETag" : "W\/\"1c-8HgF6mNyhsSFK0pascC9uB0wjX0\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "User-agent: *\nDisallow: \/ftp"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "warning",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/rolldown-runtime-kqx1xuJ_.js"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "Access-Control-Allow-Origin: *"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+               },
+               "ruleId": "10098",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/rolldown-runtime-kqx1xuJ_.js",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "262",
+                       "Content-Type" : "application\/javascript; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
+                       "ETag" : "W\/\"106-1a19f2fe20b\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 03 Nov 2026 02:14:37 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "var __esmMin=(fn,res,err)=>()=>{if(err)throw err[0];try{return fn\u0026\u0026(res=fn(fn=0)),res}catch(e){throw err=[e],e}};var __commonJSMin=(cb,mod)=>()=>(mod||(cb((mod={exports:{}}).exports,mod,mod.exports),cb=null),mod.exports);export{__esmMin as n,__commonJSMin as t};"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "warning",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/sitemap.xml"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "properties" : { 
+                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
+                            }, 
+                           "snippet": {
+                               "text": "Access-Control-Allow-Origin: *"
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": ""
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+               },
+               "ruleId": "10098",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/sitemap.xml",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "user-agent" : ""
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
+                       "ETag" : "W\/\"2700-1a20f774e82\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 21:30:06 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
                    },
                    "noResponseReceived": false
                }
@@ -442,7 +726,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
                        "user-agent" : ""
                    },
                    "body": {
@@ -461,7 +745,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "368823",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
                        "ETag" : "W\/\"5a0b7-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -531,7 +815,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "190614",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
                        "ETag" : "W\/\"2e896-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -582,7 +866,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
+                       "referer" : "http:\/\/localhost:3000",
                        "user-agent" : ""
                    },
                    "body": {
@@ -601,7 +885,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "1200618",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:42 GMT",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
                        "ETag" : "W\/\"1251ea-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -613,76 +897,6 @@
                    },
                    "body": {
                        "text": "[...]dth: 5%;\n  height: 100%;\n  overflow: hidden;\n}\n\n.mdc-circular-progress__gap-patch .mdc-circular-progress__indeterminate-circle-graphic {\n  left: -900%;\n  width: 2000%;\n  transform: rotate(180deg);\n}\n.mdc-circular-progress__circle-clipper .mdc-circular-progress__indeterminate-circle-graphic {\n  width: 200%;\n}\n.mdc-circular-progress__circle-right .mdc-circular-progress__indeterminate-circle-graphic {\n  left: -100%;\n}\n.mdc-circular-progress--indeterminate .mdc-circular-progress__circle-left .mdc-circular-progress__indeterminate-circle-graphic {\n  animation: mdc-circular-progress-left-spin calc(1333ms * var(--%NS%mat-progress-spinner-animation-multiplier)) cubic-bezier(0.4, 0, 0.2, 1) infinite both;\n}\n.mdc-circular-progress--indeterminate .mdc-circular-progress__circle-right .mdc-circular-progress__indeterminate-circle-graphic {\n  animation: mdc-circular-progress-right-spin calc(1333ms * var(--%NS%mat-progress-spinner-animation-multiplier)) cubic-bezier(0.4, 0, 0.2, 1) infinite both;\n}\n\n.mdc-circular-progress__circle-clipper {\n  display: inline-flex;\n  position: relative;\n  width: 50%;\n  height: 100%;\n  overflow: hidden;\n}\n\n.mdc-circular-progress--indeterminate .mdc-circular-progress__spinner-layer {\n  animation: mdc-circular-progress-spinner-layer-rotate calc(5332ms * var(--%NS%mat-progress-spinner-animation-multiplier)) cubic-bezier(0.4, 0, 0.2, 1) infinite both;\n}\n\n@keyframes mdc-circular-progress-container-rotate {\n  to {\n    transform: rotate(360deg);\n  }\n}\n@keyframes mdc-circular-progress-spinner-layer-rotate {\n  12.5% {\n    transform: rotate(135deg);\n  }\n  25% {\n    transform: rotate(270deg);\n  }\n  37.5% {\n    transform: rotate(405deg);\n  }\n  50% {\n    transform: rotate(540deg);\n  }\n  62.5% {\n    transform: rotate(675deg);\n  }\n  75% {\n    transform: rotate(810deg);\n  }\n  87.5% {\n    transform: rotate(945deg);\n  }\n  100% {\n    transform: rotate(1080deg);\n  }\n}\n@keyframes mdc-circular-progress-left-spin {\n  from {\n    transform: rotate(265deg);\n  }\n  50% {\n    transform: rotate(130deg);\n  }\n  to {\n    transform: rotate(265deg);\n  }\n}\n@keyframes mdc-circular-progress-right-spin {\n  from {\n    transform: rotate(-265deg);\n  }\n  50% {\n    transform: rotate(-130deg);\n  }\n  to {\n    transform: rotate(-265deg);\n  }\n}\n`],encapsulation:2})})()}return n})()}));function I(c){return typeof Symbol==`function`\u0026\u0026typeof Symbol.iterator==`symbol`?I=function(a){return typeof a}:I=function(a){return a\u0026\u0026typeof Symbol==`function`\u0026\u0026a.constructor===Symbol\u0026\u0026a!==Symbol.prototype?`symbol`:typeof a},I(c)}function y2(c,a){if(!(c instanceof a))throw new TypeError(`Cannot call a class as a function`)}function w1(c,a){for(var e=0;e<a.length;e++){var f=a[e];f.enumerable=f.enumerable||!1,f.configurable=!0,`value`in f\u0026\u0026(f.writable=!0),Object.defineProperty(c,f.key,f)}}function w2(c,a,e){return a\u0026\u0026w1(c.prototype,a),e\u0026\u0026w1(c,e),c}function k2(c,a,e){return a in c?Object.defineProperty(c,a,{value:e,enumerable:!0,configurable:!0,writable:!0}):c[a]=e,c}function t(c){for(var a=1;a<arguments.length;a++){var e=arguments[a]!=null?arguments[a]:{},f=Object.keys(e);typeof Object.getOwnPropertySymbols==`function`\u0026\u0026(f=f.concat(Object.getOwnPropertySymbols(e).filter(function(i){return Object.getOwnPropertyDescriptor(e,i).enumerable}))),f.forEach(function(i){k2(c,i,e[i])})}return c}function p1(c,a){return T2(c)||D2(c,a)||Z2()}function H1(c){return P2(c)||B2(c)||F2()}function P2(c){if(Array.isArray(c)){for(var a=0,e=new Array(c.length);a<c.length;a++)e[a]=c[a];return e}}function T2(c){if(Array.isArray(c))return c}function B2(c){if(Symbol.iterator in Object(c)||Object.prototype.toString.call(c)===`[object Arguments]`)return Array.from(c)}function D2(c,a){var e=[],f=!0,i=!1,r=void 0;try{for(var n=c[Symbol.iterator](),l;!(f=(l=n.next()).done)\u0026\u0026(e.push(l.value),!(a\u0026\u0026e.length===a));f=!0);}catch(v){i=!0,r=v}finally{try{!f\u0026\u0026n.return!=null\u0026\u0026n.return()}finally{if(i)throw r}}return e}function F2(){throw new TypeError(`Invalid attempt to spread non-iterable instance`)}function Z2(){throw new TypeError(`Invalid attempt to destructure non-iterable instance`)}function K2(c){var a=M.querySelector(`script[`+c+`]`);if(a)return a.getAttribute(c)}function X2(c){return c===``?!0:c===`false`?!1:c===`true`?!0:c}function a4(c){y\u0026\u0026(Y$1?setTimeout(c,0):f2.push(c))}function i4(){for(var c=0;c<E.length;c++)E[c][0](E[c][1]);E=[],h1=!1}function X(c,a){E.push([c,a]),h1||(h1=!0,f4(i4,0))}function r4(c,a){function e(i){u1(a,i)}function f(i){O(a,i)}try{c(e,f)}catch(i){f(i)}}function l2(c){var a=c.owner,e=a._state,f=a._data,i=c[e],r=c.then;if(typeof i==`function`){e=Q;try{f=i(f)}catch(n){O(r,n)}}n2(r,f)||(e===Q\u0026\u0026u1(r,f),e===K\u0026\u0026O(r,f))}function n2(c,a){var e;try{if(c===a)throw new TypeError(`A promises callback cannot return that same promise.`);if(a\u0026\u0026(typeof a==`function`||I(a)===`object`)){var f=a.then;if(typeof f==`function`)return f.call(a,function(i){e||(e=!0,a===i?v2(c,i):u1(c,i))},function(i){e||(e=!0,O(c,i))}),!0}}catch(i){return e||O(c,i),!0}return!1}function u1(c,a){(c===a||!n2(c,a))\u0026\u0026v2(c,a)}function v2(c,a){c._state===V1\u0026\u0026(c._state=i2,c._data=a,X(l4,c))}function O(c,a){c._state===V1\u0026\u0026(c._state=i2,c._data=a,X(n4,c))}function o2(c){c._then=c._then.forEach(l2)}function l4(c){c._state=Q,o2(c)}function n4(c){c._state=K,o2(c),!c._handled\u0026\u0026r2\u0026\u0026global.process.emit(`unhandledRejection`,c._data,c)}function v4(c){global.process.emit(`rejectionHandled`,c)}function L(c){if(typeof c!=`function`)throw new TypeError(`Promise resolver `+c+` is not a function`);if(!(this instanceof L))throw new TypeError(`Failed to construct 'Promise': Please use the 'new' operator, this object constructor cannot be called as a function.`);this._then=[],r4(c,this)}function o4(c){return~Q2.indexOf(c)}function h2(c){if(!(!c||!y)){var a=M.createElement(`style`);a.setAttribute(`type`,`text\/css`),a.innerHTML=c;for(var e=M.head.childNodes,f=null,i=e.length-1;i>-1;i--){var r=e[i],n=(r.tagName||``).toUpperCase();[`STYLE`,`LINK`].indexOf(n)>-1\u0026\u0026(f=r)}return M.head.insertBefore(a,f),c}}function q(){for(var c=12,a=``;c-->0;)a+=h4[Math.random()*62|0];return a}function Z(c){for(var a=[],e=(c||[]).length>>>0;e--;)a[e]=c[e];return a}function L1(c){return c.classList?Z(c.classList):(c.getAttribute(`class`)||``).split(` `).filter(function(a){return a})}function s4(c,a){var e=a.split(`-`),f=e[0],i=e.slice(1).join(`-`);return f===c\u0026\u0026i!==``\u0026\u0026!o4(i)?i:null}function s2(c){return``.concat(c).replace(\/\u0026\/g,`\u0026amp;`).replace(\/\"\/g,`\u0026quot;`).replace(\/'\/g,`\u0026#39;`).replace(\/<\/g,`\u0026lt;`).replace(\/>\/g,`\u0026gt;`)}function t4(c){return Object.keys(c||{}).reduce(function(a,e){return a+``.concat(e,`=\"`).concat(s2(c[e]),`\" `)},``).trim()}function a1(c){return Object.keys(c||{}).reduce(function(a,e){return a+``.concat(e,`: `).concat(c[e],`;`)},``)}function d1(c){return c.size!==A.size||c.x!==A.x||c.y!==A.y||c.rotate!==A.rotate||c.flipX||c.flipY}function t2(c){var a=c.transform,e=c.containerWidth,f=c.iconWidth,i={transform:`translate(`.concat(e\/2,` 256)`)},r=`translate(`.concat(a.x*32,`, `).concat(a.y*32,`) `),n=`scale(`.concat(a.size\/16*(a.flipX?-1:1),`, `).concat(a.size\/16*(a.flipY?-1:1),`) `),l=`rotate(`.concat(a.rotate,` 0 0)`);return{outer:i,inner:{transform:``.concat(r,` `).concat(n,` `).concat(l)},path:{transform:`translate(`.concat(f\/2*-1,` -256)`)}}}function m4(c){var a=c.transform,e=c.width,f=e===void 0?n1:e,i=c.height,r=i===void 0?n1:i,n=c.startCentered,l=n===void 0?!1:n,v=``;return l\u0026\u0026Q1?v+=`translate(`.concat(a.x\/k-f\/2,`em, `).concat(a.y\/k-r\/2,`em) `):l?v+=`translate(calc(-50% + `.concat(a.x\/k,`em), calc(-50% + `).concat(a.y\/k,`em)) `):v+=`translate(`.concat(a.x\/k,`em, `).concat(a.y\/k,`em) `),v+=`scale(`.concat(a.size\/k*(a.flipX?-1:1),`, `).concat(a.size\/k*(a.flipY?-1:1),`) `),v+=`rotate(`.concat(a.rotate,`deg) `),v}function Z1(c){var a=arguments.length>1\u0026\u0026arguments[1]!==void 0?arguments[1]:!0;return c.attributes\u0026\u0026(c.attributes.fill||a)\u0026\u0026(c.attributes.fill=`black`),c}function z4(c){return c.tag===`g`?c.children:[c]}function M4(c){var a=c.children,e=c.attributes,f=c.main,i=c.mask,r=c.maskId,n=c.transform,l=f.width,v=f.icon,h=i.width,s=i.icon,m=t2({transform:n,containerWidth:h,iconWidth:l}),z={tag:`rect`,attributes:t({},i1,{fill:`white`})},C=v.children?{children:v.children.ma[...]"
-                   },
-                   "noResponseReceived": false
-               }
-            },
-            {
-               "level": "none",
-               "locations": [
-                  {
-                     "physicalLocation": {
-                        "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/assets"
-                        },
-                        
-                        "region": {
-                           "startLine": 1,
-                           
-                           "snippet": {
-                               "text": ""
-                           }
-                        }
-                     },
-                     "properties": {
-                         "attack": "Mozilla\/4.0 (compatible; MSIE 7.0; Windows NT 6.0)"
-                     }
-                  }
-               ],
-               "message": {
-                  "text": "Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response."
-               },
-               "ruleId": "10104",
-               "webRequest": {
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/assets",
-                   "method": "GET",
-                   "headers": {
-                       "cache-control" : "no-cache",
-                       "host" : "localhost:3000",
-                       "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
-                       "user-agent" : "Mozilla\/4.0 (compatible; MSIE 7.0; Windows NT 6.0)"
-                   },
-                   "body": {
-                       
-                   }
-               },
-               "webResponse": {
-                   "statusCode": 200,
-                   "reasonPhrase": "OK",
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "headers": {
-                       "Accept-Ranges" : "bytes",
-                       "Access-Control-Allow-Origin" : "*",
-                       "Cache-Control" : "public, max-age=0",
-                       "Connection" : "keep-alive",
-                       "Content-Length" : "9984",
-                       "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:11:19 GMT",
-                       "ETag" : "W\/\"2700-1a20cfc5820\"",
-                       "Feature-Policy" : "payment 'self'",
-                       "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
-                       "Vary" : "Accept-Encoding",
-                       "X-Content-Type-Options" : "nosniff",
-                       "X-Frame-Options" : "SAMEORIGIN",
-                       "X-Recruiting" : "\/#\/jobs"
-                   },
-                   "body": {
-                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
                    },
                    "noResponseReceived": false
                }
@@ -741,11 +955,81 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:11:19 GMT",
-                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Date" : "Tue, 24 Nov 2026 22:05:42 GMT",
+                       "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Last-Modified" : "Tue, 24 Nov 2026 21:30:06 GMT",
+                       "Vary" : "Accept-Encoding",
+                       "X-Content-Type-Options" : "nosniff",
+                       "X-Frame-Options" : "SAMEORIGIN",
+                       "X-Recruiting" : "\/#\/jobs"
+                   },
+                   "body": {
+                       "text": "[...]<!--\n  ~ Copyright (c) 2014-2026 Bjoern Kimminich \u0026 the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  -->\n\n<!doctype html>\n<html lang=\"en\" data-beasties-container>\n<head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop<\/title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https:\/\/fonts.gstatic.com\" crossorigin>\n  <style>@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isQFJXGdg.woff2) format('woff2');unicode-range:U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isRFJXGdg.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;}@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(https:\/\/fonts.gstatic.com\/s\/vt323\/v18\/pxiKyp0ihIEF2isfFJU.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}<\/style>\n  <link id=\"favicon\" rel=\"icon\" type=\"image\/x-icon\" href=\"assets\/public\/favicon_js.ico\">\n  <script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https:\/\/www.youtube.com\/watch?v=9PnbKL3wuH4\" }\n      })});\n  <\/script>\n<style>.bluegrey-lightgreen-theme{--mat-sys-background:#121316;--mat-sys-error:#ffb4ab;--mat-sys-error-container:#93000a;--mat-sys-inverse-on-surface:#2f3033;--mat-sys-inverse-primary:#005cbb;--mat-sys-inverse-surface:#e3e2e6;--mat-sys-on-background:#e3e2e6;--mat-sys-on-error:#690005;--mat-sys-on-error-container:#ffdad6;--mat-sys-on-primary:#002f65;--mat-sys-on-primary-container:#d7e3ff;--mat-sys-on-primary-fixed:#001b3f;--mat-sys-on-primary-fixed-variant:#00458f;--mat-sys-on-secondary:#283041;--mat-sys-on-secondary-container:#dae2f9;--mat-sys-on-secondary-fixed:#131c2b;--mat-sys-on-secondary-fixed-variant:#3e4759;--mat-sys-on-surface:#e3e2e6;--mat-sys-on-surface-variant:#e0e2ec;--mat-sys-on-tertiary:#173800;--mat-sys-on-tertiary-container:#82ff10;--mat-sys-on-tertiary-fixed:#0b2000;--mat-sys-on-tertiary-fixed-variant:#245100;--mat-sys-outline:#8e9099;--mat-sys-outline-variant:#44474e;--mat-sys-primary:#abc7ff;--mat-sys-primary-container:#00458f;--mat-sys-primary-fixed:#d7e3ff;--mat-sys-primary-fixed-dim:#abc7ff;--mat-sys-scrim:#000000;--mat-sys-secondary:#bec6dc;--mat-sys-secondary-container:#3e4759;--mat-sys-secondary-fixed:#dae2f9;--mat-sys-secondary-fixed-dim:#bec6dc;--mat-sys-shadow:#000000;--mat-sys-surface:#121316;--mat-sys-surface-bright:#38393c;--mat-sys-surface-container:#1f2022;--mat-sys-surface-container-high:#292a2c;--mat-sys-surface-container-highest:#343537;--mat-sys-surface-container-low:#1a1b1f;--mat-sys-surface-container-lowest:#0d0e11;--mat-sys-surface-dim:#121316;--mat-sys-surface-tint:#abc7ff;--mat-sys-surface-variant:#44474e;--mat-sys-tertiary:#70e000;--mat-sys-tertiary-container:#245100;--mat-sys-tertiary-fixed:#82ff10;--mat-sys-tertiary-fixed-dim:#70e000;--mat-sys-neutral-variant20:#2d3038;--mat-sys-neutral10:#1a1b1f;--mat-sys-level0:0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1:0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2:0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3:0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4:0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5:0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large:28px;--mat-sys-corner-extra-large-top:28px 28px 0 0;--mat-sys-corner-extra-small:4px;--mat-sys-corner-extra-small-top:4px 4px 0 0;--mat-sys-corner-full:9999px;--mat-sys-corner-large:16px;--mat-sys-corner-large-end:0 16px 16px 0;--mat-sys-corner-large-start:16px 0 0 16px;--mat-sys-corner-large-top:16px 16px 0 0;--mat-sys-corner-medium:12px;--mat-sys-corner-none:0;--mat-sys-corner-small:8px;--mat-sys-dragged-state-layer-opacity:.16;--mat-sys-focus-state-layer-opacity:.12;--mat-sys-hover-state-layer-opacity:.08;--mat-sys-pressed-state-layer-opacity:.12;color:var(--mat-sys-on-surface);background-color:var(--mat-sys-surface)}html{font-family:var(--mat-sys-body-medium-font, Roboto, \"Helvetica Neue\", sans-serif)}.bluegrey-lightgreen-theme{--theme-primary:#438fff;--theme-primary-lighter:rgb(38.2745098039%, 63.2273675428%, 100%);--theme-primary-light:rgb(46.2745098039%, 67.9933249896%, 100%);--theme-primary-darker:rgb(14.2745098039%, 48.9294952023%, 100%);--theme-primary-dark:rgb(6.2745098039%, 44.1635377555%, 100%);--theme-primary-fade-10:#438fff;--theme-primary-fade-20:#438fff;--theme-primary-fade-30:#438fff;--theme-primary-fade-40:#438fff;--theme-primary-fade-50:#438fff;--theme-accent:#50a400;--theme-accent-lighter:rgb(37.2262075562%, 76.3137254902%, 0%);--theme-accent-light:rgb(41.1286465806%, 84.3137254902%, 0%);--theme-accent-darker:rgb(25.518890483%, 52.3137254902%, 0%);--theme-accent-dark:rgb(21.6164514586%, 44.3137254902%, 0%);--theme-accent-fade-10:#50a400;--theme-accent-fade-20:#50a400;--theme-accent-fade-30:#50a400;--theme-accent-fade-40:#50a400;--theme-accent-fade-50:#50a400;--theme-warn:#ffb4ab;--theme-warn-lighter:rgb(100%, 81.3025210084%, 79.0588235294%);--theme-warn-light:rgb(100%, 88.4453781513%, 87.0588235294%);--theme-warn-darker:rgb(100%, 59.8739495798%, 55.0588235294%);--theme-warn-dark:rgb(100%, 52.731092437%, 47.0588235294%);--theme-warn-fade-10:#ffb4ab;--theme-warn-fade-20:#ffb4ab;--theme-warn-fade-30:#ffb4ab;--theme-warn-fade-40:#ffb4ab;--theme-warn-fade-50:#ffb4ab;--theme-text:#e3e2e6;--theme-text-lighter:rgb(95.2418300654%, 95.0718954248%, 95.7516339869%);--theme-text-light:rgb(99.3899782135%, 99.3681917211%, 99.4553376906%);--theme-text-darker:rgb(78.6492374728%, 77.8867102397%, 80.9368191721%);--theme-text-dark:rgb(63.0936819172%, 61.7755991285%, 67.0479302832%);--theme-text-fade-10:#e3e2e6;--theme-text-fade-20:#e3e2e6;--theme-text-fade-30:#e3e2e6;--theme-text-fade-40:#e3e2e6;--theme-text-fade-50:#e3e2e6;--theme-text-invert-15:rgb(77.3137254902%, 77.0392156863%, 78.137254902%);--theme-text-invert-30:rgb(65.6078431373%, 65.4509803922%, 66.0784313725%);--theme-background:#1f2022;--theme-background-lighter:rgb(17.8799396682%, 18.4567119155%, 19.6102564103%);--theme-background-light:rgb(21.6953242836%, 22.395173454%, 23.7948717949%);--theme-background-darker:rgb(6.433785822%, 6.6413273002%, 7.0564102564%);--theme-background-dark:rgb(2.6184012066%, 2.7028657617%, 2.8717948718%);--theme-background-darkest:hsl(220, 4.6153846154%, -1.2549019608%);--theme-thumbnail-border:1px solid #abc7ff;--mdc-filled-text-field-container-color:#0000;--mdc-filled-text-field-disabled-container-color:#0000;--theme-background:#3e3e3e;--theme-background-lighter:#4a4a4a;--theme-background-light:#5a5a5a;--theme-backg[...]"
+                   },
+                   "noResponseReceived": false
+               }
+            },
+            {
+               "level": "none",
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "artifactLocation": {
+                           "uri": "http:\/\/localhost:3000\/assets\/public"
+                        },
+                        
+                        "region": {
+                           "startLine": 1,
+                           
+                           "snippet": {
+                               "text": ""
+                           }
+                        }
+                     },
+                     "properties": {
+                         "attack": "Mozilla\/4.0 (compatible; MSIE 7.0; Windows NT 6.0)"
+                     }
+                  }
+               ],
+               "message": {
+                  "text": "Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response."
+               },
+               "ruleId": "10104",
+               "webRequest": {
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "target": "http:\/\/localhost:3000\/assets\/public",
+                   "method": "GET",
+                   "headers": {
+                       "cache-control" : "no-cache",
+                       "host" : "localhost:3000",
+                       "pragma" : "no-cache",
+                       "referer" : "http:\/\/localhost:3000",
+                       "user-agent" : "Mozilla\/4.0 (compatible; MSIE 7.0; Windows NT 6.0)"
+                   },
+                   "body": {
+                       
+                   }
+               },
+               "webResponse": {
+                   "statusCode": 200,
+                   "reasonPhrase": "OK",
+                   "protocol": "HTTP",
+                   "version": "1.1",
+                   "headers": {
+                       "Accept-Ranges" : "bytes",
+                       "Access-Control-Allow-Origin" : "*",
+                       "Cache-Control" : "public, max-age=0",
+                       "Connection" : "keep-alive",
+                       "Content-Length" : "9984",
+                       "Content-Type" : "text\/html; charset=UTF-8",
+                       "Date" : "Tue, 24 Nov 2026 22:05:42 GMT",
+                       "ETag" : "W\/\"2700-1a20f774e82\"",
+                       "Feature-Policy" : "payment 'self'",
+                       "Keep-Alive" : "timeout=5",
+                       "Last-Modified" : "Tue, 24 Nov 2026 21:30:06 GMT",
                        "Vary" : "Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
@@ -811,11 +1095,11 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:11:19 GMT",
-                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Date" : "Tue, 24 Nov 2026 22:05:42 GMT",
+                       "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Last-Modified" : "Tue, 24 Nov 2026 21:30:06 GMT",
                        "Vary" : "Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
@@ -883,11 +1167,11 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
-                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
+                       "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Last-Modified" : "Tue, 24 Nov 2026 21:30:06 GMT",
                        "Vary" : "Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
@@ -955,11 +1239,11 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Tue, 24 Nov 2026 15:10:41 GMT",
-                       "ETag" : "W\/\"2700-1a20cfc5820\"",
+                       "Date" : "Tue, 24 Nov 2026 22:05:03 GMT",
+                       "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 24 Nov 2026 09:56:33 GMT",
+                       "Last-Modified" : "Tue, 24 Nov 2026 21:30:06 GMT",
                        "Vary" : "Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",

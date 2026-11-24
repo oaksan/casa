@@ -1,0 +1,15 @@
+rules:
+  - id: CASA3-OAU-01-ropc-grant
+    languages: [typescript, javascript, python]
+    message: "OAU-01: Prohibited OAuth 2.0 Resource Owner Password Credentials (ROPC) grant_type=password detected (RFC 9700 §2.4)"
+    severity: ERROR
+    pattern-either:
+      - pattern-regex: '(?i)(?:grant_type\s*[:=]\s*["'']?password\b|["'']grant_type["'']\s*:\s*["'']password["'']|grant_type=password\b)'
+
+  - id: CASA3-OAU-01-implicit-or-hybrid-flow
+    languages: [typescript, javascript, python]
+    message: "OAU-01: Prohibited OAuth 2.0 Implicit or Hybrid response_type (must strictly equal 'code' per RFC 9700 §2.1.2)"
+    severity: ERROR
+    pattern-either:
+      - pattern-regex: 'response_type=(?:token|id_token|code(?:%20|\s|\+)token|code(?:%20|\s|\+)id_token|id_token(?:%20|\s|\+)token)\b'
+      - pattern-regex: 'parseRedirectUrlParams\(\)\.access_token|googleapis\.com/oauth2/v1/userinfo\?alt=json&access_token='

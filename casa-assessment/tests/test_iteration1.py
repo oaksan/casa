@@ -4589,6 +4589,133 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 49/61: AZI-06 (Iteração SDD 119)", just2_txt)
 
+    def test_iteration120_oau01_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_oau01_grant_type
+
+        class _MockOAuthServer(BaseHTTPRequestHandler):
+            timeout = 2
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p, _, q = self.path.partition("?")
+                if p == "/oauth/authorize":
+                    self.send_response(302)
+                    self.send_header("Location", "https://app.example.com/callback?code=auth_code_999&state=xyz")
+                    self.send_header("Set-Cookie", "idp_sess=idp_secret_111; HttpOnly")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Length", "2")
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+
+            def do_POST(self):
+                cl = int(self.headers.get("Content-Length", "0") or 0)
+                _ = self.rfile.read(cl) if cl > 0 else b""
+                b = json.dumps({"access_token": "tok_ok", "token_type": "Bearer"}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _MockOAuthServer)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_oau1:
+            tdp = Path(td_oau1)
+            safe_repo = tdp / "safe_repo"
+            (safe_repo / "src").mkdir(parents=True)
+            (safe_repo / "src" / "oauth.ts").write_text(
+                'export const AUTH_URL = "https://idp.example.com/authorize?response_type=code&client_id=c1";\n'
+                'export const TOKEN_BODY = { grant_type: "authorization_code" };\n',
+                encoding="utf-8",
+            )
+            vuln_repo = tdp / "vuln_repo"
+            (vuln_repo / "src").mkdir(parents=True)
+            (vuln_repo / "src" / "ropc.py").write_text(
+                'import requests\n'
+                'def login_ropc(user, pw):\n'
+                '    return requests.post("https://idp.example.com/token", data={"grant_type": "password", "username": user, "password": pw})\n',
+                encoding="utf-8",
+            )
+            try:
+                # 1. Proxied Authorization Code flow + clean source -> PASS
+                rep_pass = tdp / "oau01_pass.json"
+                har_pass = tdp / "oau01_pass.har"
+                sg_pass = tdp / "oau01_pass_sg.sarif"
+                r_pass = evaluate_oau01_grant_type(
+                    f"http://127.0.0.1:{port}",
+                    repo=safe_repo,
+                    oauth_flow_requests=[
+                        {"url": f"http://127.0.0.1:{port}/oauth/authorize?response_type=code&client_id=c1", "method": "GET"},
+                        {
+                            "url": f"http://127.0.0.1:{port}/oauth/token",
+                            "method": "POST",
+                            "headers": {"Content-Type": "application/x-www-form-urlencoded", "Authorization": "Bearer secret_bearer_01"},
+                            "body": "grant_type=authorization_code&code=secret_auth_code_99&client_secret=secret_cs_77",
+                        },
+                    ],
+                    semgrep_out_path=sg_pass,
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertEqual(len(r_pass["proxiedRequests"]), 2)
+                self.assertTrue(r_pass["semgrepExecuted"])
+                self.assertEqual(r_pass["semgrepHits"], 0)
+                har_pass_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_pass_txt)
+                self.assertNotIn("secret_auth_code_99", har_pass_txt)
+                self.assertNotIn("secret_cs_77", har_pass_txt)
+                self.assertNotIn("secret_bearer_01", har_pass_txt)
+                self.assertNotIn("idp_secret_111", har_pass_txt)
+
+                # 2. Hybrid response_type + ROPC proxied flow + Semgrep grant_type=password -> FAIL
+                rep_vuln = tdp / "oau01_vuln.json"
+                har_vuln = tdp / "oau01_vuln.har"
+                sg_vuln = tdp / "oau01_vuln_sg.sarif"
+                r_vuln = evaluate_oau01_grant_type(
+                    f"http://127.0.0.1:{port}",
+                    repo=vuln_repo,
+                    oauth_flow_requests=[
+                        {"url": f"http://127.0.0.1:{port}/oauth/authorize?response_type=code%20id_token&client_id=c1", "method": "GET"},
+                        {
+                            "url": f"http://127.0.0.1:{port}/oauth/token",
+                            "method": "POST",
+                            "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                            "body": "grant_type=password&username=alice&password=super_secret_pw_777",
+                        },
+                    ],
+                    semgrep_out_path=sg_vuln,
+                    report_out_path=rep_vuln,
+                    har_out_path=har_vuln,
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                self.assertGreaterEqual(r_vuln["semgrepHits"], 1, f"Expected real Semgrep ROPC hit, got {r_vuln}")
+                cby = {f["confirmedBy"] for f in r_vuln["findings"]}
+                gvs = {f["grantViolation"] for f in r_vuln["findings"]}
+                self.assertIn("intercepting_proxy", cby)
+                self.assertIn("semgrep", cby)
+                self.assertIn("response_type=code id_token", gvs)
+                self.assertIn("grant_type=password", gvs)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-01" for s in r_vuln["sarifResults"]))
+                har_vuln_txt = har_vuln.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_vuln_txt)
+                self.assertNotIn("super_secret_pw_777", har_vuln_txt)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 50/61: OAU-01 (Iteração SDD 120)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2513,3 +2513,61 @@ Domínio 6: Authorization & Injection (AZI) — Conclusão do Domínio
     `HPP_Authorization_Outcome_Bypass` (`CWE-235`: inversão HTTP `406 -> 302`)
     -> Veredito **`FAIL`** (`CASA3-AZI-06`), encerrando o Domínio 6 (`AZI`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 50/61: OAU-01 (Iteração SDD 120)
+Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: OAU-01
+- Requisito (CASA 3.0 AL1):
+  "Only the Authorization Code flow is used — Implicit and Resource Owner
+  Password Credentials grants are prohibited."
+- Referências: RFC 9700 §2.1.2, §2.4 (OAuth 2.0 Security BCP); RFC 6749.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `mitmproxy`, `Burp Suite`, `semgrep`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida do fluxo de autorização e `OASIS SARIF 2.1.0`
+  (`CASA3-OAU-01`) onde artefatos cliente sejam analisados estaticamente.
+- Critério Determinístico de Verificação:
+  * PASS: A requisição de autorização capturada traz `response_type`
+    exatamente igual a `code` e nenhuma requisição/artefato utiliza
+    `grant_type=password` (ROPC).
+  * FAIL: `response_type` diferente de `code` (incluindo valores híbridos) ou
+    qualquer requisição/código usando ROPC `grant_type=password`.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 120`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `OAU-01` rodava inline em `run_dynamic_and_protocol_checks`
+  inspecionando apenas strings/regex de bundles JS e 3 arquivos Angular, sem
+  proxy interceptador HTTP gravando captura HAR 1.2 dedicada nem varredura
+  estática Semgrep SARIF para fluxos ROPC e híbridos/implícitos.
+- O que foi feito e melhorado na Iteração SDD 120:
+  1) Criação do ruleset `rules/casa3_al1_oauth.yml` (validado via
+     `semgrep --validate`, 0 erros, 2 regras `CASA3-OAU-01-*`) para detecção
+     estática em TypeScript, JavaScript e Python de `grant_type=password`
+     (ROPC) e `response_type` implícito/híbrido.
+  2) Extração de `evaluate_oau01_grant_type(...)` em `casa_audit/scanner.py`
+     com **Proxy HTTP Interceptador efêmero (`_OAuthProxyHandler`)** capturando
+     requisições de autorização e token em `output/oau01-replayed.har` (com
+     redação estrita de tokens/segredos/`password`/`client_secret`), execução real
+     de **Semgrep (`output/oau01-semgrep.sarif`)** sobre `frontend/src` e código
+     do repositório, além da análise híbrida de bundles JS servidos ao vivo,
+     emitindo `output/oau01-grant-audit.json` e `CASA3-OAU-01` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration120_oau01_guide_tooling`):
+  * **`PASS`** com fluxo proxy autenticado `response_type=code` +
+    `grant_type=authorization_code` e código cliente limpo (`[REDACTED]` validado).
+  * **`FAIL`** confirmado simultaneamente por **proxy interceptador** (`response_type=code id_token` + `grant_type=password`) e **Semgrep AST (`CASA3-OAU-01-ropc-grant`)**, emitindo `CASA3-OAU-01` e HAR redigido.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * **Semgrep** + inspetor de bundles/fontes confirmaram fluxo Implícito
+    (`response_type=token`, `#access_token=`, `userinfo?alt=json&access_token=`)
+    em `main.js`, `login.component.ts`, `oauth.component.ts` e `user.service.ts`
+    -> Veredito **`FAIL`** (`CASA3-OAU-01`).
+================================================================================

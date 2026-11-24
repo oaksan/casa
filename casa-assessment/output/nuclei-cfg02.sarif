@@ -63,46 +63,6 @@
 						}
 					],
 					"message": {
-						"text": "Unauthenticated Swagger / OpenAPI Docs Exposed (casa3-cfg02-swagger-apidocs) found on localhost"
-					},
-					"partialFingerprints": {
-						"primaryLocationLineHash": "d87885e2c64bbb612f95dbb32f59dc7c"
-					},
-					"ruleId": "casa3-cfg02-swagger-apidocs"
-				},
-				{
-					"kind": "open",
-					"level": "note",
-					"locations": [
-						{
-							"message": {
-								"text": "localhost"
-							},
-							"physicalLocation": {
-								"artifactLocation": {
-									"description": {
-										"text": "localhost"
-									},
-									"uri": ".",
-									"uriBaseId": "%SRCROOT%"
-								},
-								"contextRegion": {
-									"endLine": 3,
-									"snippet": {
-										"text": "localhost"
-									},
-									"startLine": 1
-								},
-								"region": {
-									"snippet": {
-										"text": "localhost"
-									},
-									"startLine": 1
-								}
-							}
-						}
-					],
-					"message": {
 						"text": "Prometheus Runtime Metrics Exposed (casa3-cfg02-prometheus-metrics) found on localhost"
 					},
 					"partialFingerprints": {
@@ -148,7 +108,47 @@
 					"partialFingerprints": {
 						"primaryLocationLineHash": "6d902829cc16ccf144079f33eb0bad98"
 					},
-					"ruleId": "casa3-cfg02-debug-traceback-markers",
+					"ruleId": "casa3-cfg02-debug-traceback-markers"
+				},
+				{
+					"kind": "open",
+					"level": "note",
+					"locations": [
+						{
+							"message": {
+								"text": "localhost"
+							},
+							"physicalLocation": {
+								"artifactLocation": {
+									"description": {
+										"text": "localhost"
+									},
+									"uri": ".",
+									"uriBaseId": "%SRCROOT%"
+								},
+								"contextRegion": {
+									"endLine": 3,
+									"snippet": {
+										"text": "localhost"
+									},
+									"startLine": 1
+								},
+								"region": {
+									"snippet": {
+										"text": "localhost"
+									},
+									"startLine": 1
+								}
+							}
+						}
+					],
+					"message": {
+						"text": "Unauthenticated Swagger / OpenAPI Docs Exposed (casa3-cfg02-swagger-apidocs) found on localhost"
+					},
+					"partialFingerprints": {
+						"primaryLocationLineHash": "d87885e2c64bbb612f95dbb32f59dc7c"
+					},
+					"ruleId": "casa3-cfg02-swagger-apidocs",
 					"ruleIndex": 1
 				},
 				{
@@ -212,26 +212,6 @@
 								"text": "More details at"
 							},
 							"helpUri": "https://github.com/projectdiscovery/sarif",
-							"id": "casa3-cfg02-swagger-apidocs",
-							"name": "Unauthenticated Swagger / OpenAPI Docs Exposed",
-							"properties": {
-								"security-severity": "2",
-								"tags": [
-									"security"
-								]
-							},
-							"shortDescription": {
-								"text": "Unauthenticated Swagger / OpenAPI Docs Exposed"
-							}
-						},
-						{
-							"fullDescription": {
-								"text": "\nMore details at\n\n"
-							},
-							"help": {
-								"text": "More details at"
-							},
-							"helpUri": "https://github.com/projectdiscovery/sarif",
 							"id": "casa3-cfg02-prometheus-metrics",
 							"name": "Prometheus Runtime Metrics Exposed",
 							"properties": {
@@ -262,6 +242,26 @@
 							},
 							"shortDescription": {
 								"text": "Production Framework Debug / Stacktrace Markers Disclosed"
+							}
+						},
+						{
+							"fullDescription": {
+								"text": "\nMore details at\n\n"
+							},
+							"help": {
+								"text": "More details at"
+							},
+							"helpUri": "https://github.com/projectdiscovery/sarif",
+							"id": "casa3-cfg02-swagger-apidocs",
+							"name": "Unauthenticated Swagger / OpenAPI Docs Exposed",
+							"properties": {
+								"security-severity": "2",
+								"tags": [
+									"security"
+								]
+							},
+							"shortDescription": {
+								"text": "Unauthenticated Swagger / OpenAPI Docs Exposed"
 							}
 						},
 						{

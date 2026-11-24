@@ -1,0 +1,71 @@
+{
+  "standard": "RFC 9700 §2.1 / CWE-601 (Intercepting Proxy Redirect URIs + Callback Fuzzer)",
+  "target": "http://localhost:3000",
+  "verdict": "FAIL",
+  "observedRedirects": [
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:4200",
+    "http://192.168.99.100:3000",
+    "http://192.168.99.100:4200",
+    "http://localhost:3000",
+    "http://localhost:4200",
+    "http://penguin.termina.linux.test:3000",
+    "http://penguin.termina.linux.test:4200",
+    "https://demo.owasp-juice.shop",
+    "https://juice-shop-staging.herokuapp.com",
+    "https://juice-shop.herokuapp.com",
+    "https://juice-shop.wtf",
+    "https://local3000.owasp-juice.shop",
+    "https://local4200.owasp-juice.shop",
+    "https://localchromeos.owasp-juice.shop",
+    "https://localmac.owasp-juice.shop",
+    "https://preview.owasp-juice.shop"
+  ],
+  "loopbackHttpCount": 4,
+  "proxiedRequests": [],
+  "fuzzProbes": 33,
+  "findings": [
+    {
+      "location": "config/default.yml#authorizedRedirects",
+      "kind": "NonLoopback_HTTP_Redirect_URI",
+      "cwe": "CWE-319",
+      "status": 0,
+      "detail": "Registered OAuth redirect URI 'http://192.168.99.100:3000' (config/default.yml#authorizedRedirects) uses cleartext 'http:' on non-loopback host '192.168.99.100' (violates RFC 9700 §2.1 / OAU-03)."
+    },
+    {
+      "location": "config/default.yml#authorizedRedirects",
+      "kind": "NonLoopback_HTTP_Redirect_URI",
+      "cwe": "CWE-319",
+      "status": 0,
+      "detail": "Registered OAuth redirect URI 'http://192.168.99.100:4200' (config/default.yml#authorizedRedirects) uses cleartext 'http:' on non-loopback host '192.168.99.100' (violates RFC 9700 §2.1 / OAU-03)."
+    },
+    {
+      "location": "config/default.yml#authorizedRedirects",
+      "kind": "NonLoopback_HTTP_Redirect_URI",
+      "cwe": "CWE-319",
+      "status": 0,
+      "detail": "Registered OAuth redirect URI 'http://penguin.termina.linux.test:3000' (config/default.yml#authorizedRedirects) uses cleartext 'http:' on non-loopback host 'penguin.termina.linux.test' (violates RFC 9700 §2.1 / OAU-03)."
+    },
+    {
+      "location": "config/default.yml#authorizedRedirects",
+      "kind": "NonLoopback_HTTP_Redirect_URI",
+      "cwe": "CWE-319",
+      "status": 0,
+      "detail": "Registered OAuth redirect URI 'http://penguin.termina.linux.test:4200' (config/default.yml#authorizedRedirects) uses cleartext 'http:' on non-loopback host 'penguin.termina.linux.test' (violates RFC 9700 §2.1 / OAU-03)."
+    },
+    {
+      "location": "http://localhost:3000/redirect",
+      "kind": "Callback_Open_Redirect_query_substring_bypass",
+      "cwe": "CWE-601",
+      "status": 302,
+      "detail": "GET http://localhost:3000/redirect?to=... (query_substring_bypass) returned HTTP 302 redirect target 'https://oau03-evil.example.com?https://github.com/juice-shop/juice-shop' resolving to host 'oau03-evil.example.com' outside observed OAuth redirect hosts (CWE-601)."
+    },
+    {
+      "location": "http://localhost:3000/redirect",
+      "kind": "Callback_Open_Redirect_path_substring_bypass",
+      "cwe": "CWE-601",
+      "status": 302,
+      "detail": "GET http://localhost:3000/redirect?to=... (path_substring_bypass) returned HTTP 302 redirect target 'https://oau03-evil.example.com/https://github.com/juice-shop/juice-shop' resolving to host 'oau03-evil.example.com' outside observed OAuth redirect hosts (CWE-601)."
+    }
+  ]
+}

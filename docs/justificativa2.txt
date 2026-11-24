@@ -2630,3 +2630,59 @@ Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
     confirmaram ausência total de `code_challenge`, `code_challenge_method=S256`
     e `code_verifier` -> Veredito **`FAIL`** (`CASA3-OAU-02`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 52/61: OAU-03 (Iteração SDD 122)
+Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: OAU-03
+- Requisito (CASA 3.0 AL1):
+  "The application registers only exact, non-wildcard redirect URIs, and its
+  own callback endpoint contains no open redirect or forwarding chain."
+- Referências: RFC 9700 §2.1; CWE-601.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `mitmproxy`, `Burp Suite`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida do fluxo de autorização e `OASIS SARIF 2.1.0`
+  (`CASA3-OAU-03`) onde artefatos cliente sejam analisados estaticamente.
+- Critério Determinístico de Verificação:
+  * PASS: Nenhuma `redirect_uri` observada contém wildcard `*` ou esquema `http:`
+    não-loopback e nenhum fuzzing de callback (`redirect`, `next`, `continue`,
+    `return_to`, `RelayState`) redireciona via 3xx, meta-refresh ou script JS
+    para host fora dos hosts observados.
+  * FAIL: >= 1 `redirect_uri` com wildcard ou `http:` não-loopback, ou >= 1
+    redirecionamento externo via callback/forwarding.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 122`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `OAU-03` rodava inline em `run_dynamic_and_protocol_checks`, sem
+  passar o fluxo pelo proxy interceptador HTTP para capturar `redirect_uri` em
+  runtime e sem produzir JSON estruturado nem arquivo HAR 1.2 isolado do controle.
+- O que foi feito e melhorado na Iteração SDD 122:
+  1) Extração de `evaluate_oau03_redirect_uris(...)` em `casa_audit/scanner.py`
+     reaproveitando `_run_oauth_intercepting_proxy` (leitura de `redirect_uri`
+     do tráfego de autorização) e `_make_redacted_har_probe` (`follow_redirects=False`).
+  2) Auditoria multi-fonte de `redirect_uri` (`/rest/admin/application-configuration`,
+     HAR, `combined_oauth_sources`, `config/default.yml`), fuzzing de callbacks
+     sobre `redirect`/`next`/`continue`/`return_to`/`RelayState` (+ bypasses `to=`)
+     e gravação de `output/oau03-redirect-audit.json`, `output/oau03-replayed.har`
+     redigido e `CASA3-OAU-03` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration122_oau03_guide_tooling`):
+  * **`PASS`** com URI HTTPS exata + loopback `http://127.0.0.1` e `/callback`
+    bloqueando redirecionamento externo (`[REDACTED]` validado no HAR).
+  * **`FAIL`** confirmado por URI com wildcard (`*.example.com`), URI `http:`
+    não-loopback e open redirect em `/callback?next=...` -> `CASA3-OAU-03`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * **17 redirect URIs** auditadas (4 entradas `http:` não-loopback em
+    `application-configuration` e `config/default.yml`) + **33 sondas**
+    confirmando open redirect em `GET /redirect?to=...` -> Veredito **`FAIL`**
+    (`CASA3-OAU-03`).
+================================================================================

@@ -4861,6 +4861,109 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 51/61: OAU-02 (Iteração SDD 121)", just2_txt)
 
+    def test_iteration122_oau03_guide_tooling(self) -> None:
+        from http.server import BaseHTTPRequestHandler
+        from casa_audit.scanner import evaluate_oau03_redirect_uris
+
+        class _Oau03Server(BaseHTTPRequestHandler):
+            timeout = 2
+            mode = "safe"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                p, _, q = self.path.partition("?")
+                qs = urllib.parse.parse_qs(q)
+                m = type(self).mode
+                if p == "/oauth/authorize":
+                    self.send_response(302)
+                    self.send_header("Location", "https://app.example.com/callback?code=auth_secret_03&state=s1")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                elif p == "/callback":
+                    if m == "vulnerable":
+                        nxt = (qs.get("next") or [""])[0]
+                        if nxt:
+                            self.send_response(302)
+                            self.send_header("Location", nxt)
+                            self.send_header("Content-Length", "0")
+                            self.end_headers()
+                            return
+                    b = b"Callback blocked unallowlisted target"
+                    self.send_response(400)
+                    self.send_header("Content-Length", str(len(b)))
+                    self.end_headers()
+                    self.wfile.write(b)
+                else:
+                    b = b"ok"
+                    self.send_response(200)
+                    self.send_header("Content-Length", "2")
+                    self.end_headers()
+                    self.wfile.write(b)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), _Oau03Server)
+        srv.daemon_threads = True
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td_oau3:
+            tdp = Path(td_oau3)
+            try:
+                # 1. Exact HTTPS + loopback redirect_uri + hardened /callback -> PASS
+                _Oau03Server.mode = "safe"
+                rep_pass = tdp / "oau03_pass.json"
+                har_pass = tdp / "oau03_pass.har"
+                r_pass = evaluate_oau03_redirect_uris(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_oau03_tok_111"},
+                    oauth_sources=[("src/oauth.ts", 'const R = "redirect_uri=http%3A%2F%2F127.0.0.1%3A4200%2Fcb";')],
+                    oauth_flow_requests=[
+                        {"url": f"http://127.0.0.1:{port}/oauth/authorize?response_type=code&redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback", "method": "GET"}
+                    ],
+                    callback_paths=["/callback"],
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", f"Expected PASS, got {r_pass}")
+                self.assertGreaterEqual(len(r_pass["proxiedRequests"]), 1)
+                self.assertIn("https://app.example.com/callback", r_pass["observedRedirects"])
+                self.assertEqual(r_pass["loopbackHttpCount"], 1)
+                har_pass_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_pass_txt)
+                self.assertNotIn("secret_oau03_tok_111", har_pass_txt)
+                self.assertNotIn("auth_secret_03", har_pass_txt)
+
+                # 2. Wildcard + non-loopback http: + callback open redirect on ?next= -> FAIL
+                _Oau03Server.mode = "vulnerable"
+                rep_vuln = tdp / "oau03_vuln.json"
+                har_vuln = tdp / "oau03_vuln.har"
+                r_vuln = evaluate_oau03_redirect_uris(
+                    f"http://127.0.0.1:{port}",
+                    auth_headers={"Authorization": "Bearer secret_oau03_tok_111"},
+                    oauth_sources=[
+                        ("config.yml", 'redirect_uri=https://*.example.com/cb redirect_uri=http://dev.remote.local/cb'),
+                    ],
+                    oauth_flow_requests=[
+                        {"url": f"http://127.0.0.1:{port}/oauth/authorize?response_type=code&redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback", "method": "GET"}
+                    ],
+                    callback_paths=["/callback"],
+                    report_out_path=rep_vuln,
+                    har_out_path=har_vuln,
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                kinds = {f["kind"] for f in r_vuln["findings"]}
+                self.assertIn("Wildcard_Redirect_URI", kinds)
+                self.assertIn("NonLoopback_HTTP_Redirect_URI", kinds)
+                self.assertIn("Callback_Open_Redirect_direct", kinds)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-03" for s in r_vuln["sarifResults"]))
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 52/61: OAU-03 (Iteração SDD 122)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

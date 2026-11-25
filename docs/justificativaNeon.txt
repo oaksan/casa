@@ -1612,3 +1612,23 @@ CONTROLE 54/61: OAU-05 (Iteração SDD 185) — System Browser Only (No WebView)
    - `semgrep --validate` + `test_iteration185_oau05_neon_reeval` (`WebView2`,
      `webview_flutter` e HAR `Electron/` FAIL) + regressão
      `test_iteration124_oau05_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 55/61: OAU-06 (Iteração SDD 186) — No Embedded Client Secret
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1213):
+   - Referência: `MobSF, apktool, strings`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — extrator de strings e
+     arquivos `.apk`/`.ipa`/`.asar`/`.crx`/`.xpi` + prova ativa em token
+     endpoint + `semgrep` `CASA3-OAU-06` com HAR 1.2 redigido e SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_oau06_client_secret_scanner` verificava apenas `client_secret=`
+     na query URL do HAR, omitindo `request.postData.text` (corpo de troca
+     de token RFC 6749) e cabeçalhos `Authorization: Basic` em `/token`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionada inspeção de `request.postData.text` (`client_secret=` /
+     `"client_secret"`) e detecção de `Authorization: Basic` em requisições
+     HAR para `/token`.
+4. Validação:
+   - `test_iteration186_oau06_neon_reeval` (HAR `postData` + `Basic` auth FAIL)
+     + regressão `test_iteration125_oau06_guide_tooling`.

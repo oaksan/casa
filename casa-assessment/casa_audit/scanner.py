@@ -17142,15 +17142,25 @@ def evaluate_oau06_client_secret_scanner(
         files_scanned += 1
         _inspect_text(b_url, b_txt)
 
-    # Check HAR token endpoint traffic for client_secret parameter or Basic auth credentials
+    # Check HAR token endpoint traffic for client_secret parameter (URL/body) or Basic auth credentials
     for h_ent in (har_entries or []):
-        req_u = h_ent.get("request", {}).get("url", "")
-        if "client_secret=" in req_u:
+        req_obj = h_ent.get("request", {}) or {}
+        req_u = str(req_obj.get("url", "") or "")
+        post_txt = str((req_obj.get("postData") or {}).get("text", "") or "")
+        if "client_secret=" in req_u or "client_secret=" in post_txt or '"client_secret"' in post_txt:
             _add_finding(
                 req_u.split("?", 1)[0],
                 "HAR_Token_Request_Client_Secret",
-                f"HAR capture shows public-client token exchange to {req_u.split('?', 1)[0]} sending client_secret.",
+                f"HAR capture shows public-client token exchange to {req_u.split('?', 1)[0]} sending client_secret in URL or POST body (RFC 8252 §8.5).",
             )
+        if "/token" in req_u.lower():
+            for hdr6 in req_obj.get("headers", []) or []:
+                if str(hdr6.get("name", "")).lower() == "authorization" and str(hdr6.get("value", "")).strip().lower().startswith("basic "):
+                    _add_finding(
+                        req_u.split("?", 1)[0],
+                        "HAR_Token_Request_Basic_Client_Auth",
+                        f"HAR capture shows public-client token exchange to {req_u.split('?', 1)[0]} authenticating with HTTP Basic credentials (client_secret embedded in public client; RFC 8252 §8.5).",
+                    )
 
     # If loopback token endpoint(s) and candidates were both extracted, actively present candidates to token endpoint
     if local_token_endpoints and candidate_secrets and client_ids:

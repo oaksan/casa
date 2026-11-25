@@ -2330,6 +2330,36 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 54/61: OAU-05 (Iteração SDD 185)", just_neon)
 
+    def test_iteration186_oau06_neon_reeval(self) -> None:
+        """SDD 186 (OAU-06): HAR postData client_secret & Authorization: Basic on public-client /token."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            har_entries = [
+                {
+                    "request": {
+                        "method": "POST",
+                        "url": "https://idp.example.com/oauth2/token",
+                        "headers": [{"name": "Authorization", "value": "Basic Y2xpZW50OnNlY3JldA=="}],
+                        "postData": {"text": "grant_type=authorization_code&code=abc&client_secret=synthetic_secret_val"},
+                    }
+                }
+            ]
+            r_fail = sc.evaluate_oau06_client_secrets(
+                "https://app.example.com",
+                repo=tdp,
+                har_entries=har_entries,
+                run_semgrep=False,
+                report_out_path=tdp / "oau06.json",
+                har_out_path=tdp / "oau06.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            kinds = {f["kind"] for f in r_fail["findings"]}
+            self.assertIn("HAR_Token_Request_Client_Secret", kinds)
+            self.assertIn("HAR_Token_Request_Basic_Client_Auth", kinds)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 55/61: OAU-06 (Iteração SDD 186)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

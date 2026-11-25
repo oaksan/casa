@@ -407,3 +407,38 @@ Domínio 2: Static Code Analysis & Secrets
 - Novo teste unitário: `test_iteration139_sast03_neon_reeval` validando PHP
   (`aes-128-ecb`), Ruby (`des-ede3-cbc`) e Python (`from Crypto.Cipher import DES`).
 - Regressão validada: `test_iteration78_sast03_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 09/61: SAST-04 (Iteração SDD 140)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L225):
+  `semgrep`, `CodeQL`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `semgrep` em modo `taint` com regras `ERROR` (sinks de
+  segurança) e `INFO` (usos não-seguros como ETag/cache key) em SARIF 2.1.0.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 140)
+--------------------------------------------------------------------------------
+1) **Remoção de falso positivo acoplado ao nome `security.hash(...)`**:
+   - *Antes*: `CASA3-SAST-04-weak-hash` incluía `- pattern: security.hash(...)`,
+     gerando falso positivo em qualquer aplicação cujo helper `security.hash()`
+     utilizasse SHA-256/Argon2.
+   - *Melhoria*: Removido o padrão de nome fixo, mantendo a detecção baseada na
+     origem real de `md5`/`sha1` e fluxo de dados (`mode: taint`).
+2) **Expansão multilíngue (`PHP` e `C#`) e higiene de log**:
+   - Adicionadas regras `CASA3-SAST-04-weak-hash-taint-php` e
+     `CASA3-SAST-04-weak-hash-taint-csharp` em `casa3_al1_sast.yml`.
+   - Substituído `"informational"` por `"note-level"` em `info_note` no log de
+     `PASS` para preservar a invariante textual do SDD 070.
+
+3. VALIDAÇÃO (SDD 140)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration140_sast04_neon_reeval` validando `PASS`
+  para `security.hash()` seguro (SHA-256) e `FAIL` para fluxos taint MD5/SHA-1
+  em PHP e C#.
+- Regressão validada: `test_iteration79_sast04_guide_tooling` (`OK`).

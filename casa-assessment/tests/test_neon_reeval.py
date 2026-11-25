@@ -488,6 +488,38 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 08/61: SAST-03 (Iteração SDD 139)", just_neon)
 
+    def test_iteration140_sast04_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            # 1. Generic security.hash() using SHA-256 must NOT false-positive
+            (src / "safe_wrapper.ts").write_text(
+                "import crypto from 'crypto';\nexport const security = { hash: (x: string) => crypto.createHash('sha256').update(x).digest('hex') };\nexport const h = security.hash('abc');\n",
+                encoding="utf-8",
+            )
+            v_ok, f_ok, _, _, _ = sc.evaluate_sast04_weak_hashes(repo)
+            self.assertEqual(v_ok, "PASS", f"Safe security.hash() must PASS, got {f_ok}")
+
+            # 2. PHP and C# weak-hash taint into security sinks MUST FAIL
+            (src / "bad.php").write_text(
+                "<?php $h = sha1($pwd); $token = $h;\n",
+                encoding="utf-8",
+            )
+            (src / "Bad.cs").write_text(
+                "using System.Security.Cryptography;\nclass C { void F(byte[] b) { var d = SHA1.HashData(b); var token = d; } }\n",
+                encoding="utf-8",
+            )
+            v_fail, f_fail, err_s, _, _ = sc.evaluate_sast04_weak_hashes(repo)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            self.assertIn("bad.php", joined)
+            self.assertIn("Bad.cs", joined)
+            self.assertGreaterEqual(len(err_s), 2)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 09/61: SAST-04 (Iteração SDD 140)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

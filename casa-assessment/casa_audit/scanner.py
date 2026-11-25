@@ -4166,7 +4166,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
             }
         else:
             info_cnt = info_counts_by_sast_id.get(sid, 0)
-            info_note = f" ({info_cnt} informational ETag/cache notice(s) in SARIF)" if info_cnt else ""
+            info_note = f" ({info_cnt} note-level ETag/cache notice(s) in SARIF)" if info_cnt else ""
             results[sid] = {
                 "verdict": "PASS",
                 "tool": tool_label,

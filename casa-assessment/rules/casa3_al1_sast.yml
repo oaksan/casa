@@ -168,7 +168,6 @@ rules:
           export const hash = ($DATA) => crypto.createHash('md5').update($DATA).digest(...)
       - pattern: |
           export const hash = ($DATA) => crypto.createHash('sha1').update($DATA).digest(...)
-      - pattern: security.hash(...)
 
   - id: CASA3-SAST-04-weak-hash-taint-python
     languages: [python]
@@ -259,6 +258,43 @@ rules:
     pattern-either:
       - pattern: hmac.New(md5.New, ...)
       - pattern: hmac.New(sha1.New, ...)
+
+  - id: CASA3-SAST-04-weak-hash-taint-php
+    languages: [php]
+    mode: taint
+    message: "SAST-04: Data-flow taint path from weak hash (md5/sha1) into security-relevant sink in PHP (CWE-328)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: md5(...)
+      - pattern: sha1(...)
+      - pattern: hash('md5', ...)
+      - pattern: hash('sha1', ...)
+    pattern-sanitizers:
+      - pattern: $etag = $X
+      - pattern: $cacheKey = $X
+    pattern-sinks:
+      - pattern: $password = $SINK
+      - pattern: $token = $SINK
+      - pattern: $signature = $SINK
+      - pattern: hash_equals($SINK, ...)
+
+  - id: CASA3-SAST-04-weak-hash-taint-csharp
+    languages: [csharp]
+    mode: taint
+    message: "SAST-04: Data-flow taint path from weak hash (MD5/SHA1) into security-relevant sink in C# (CWE-328)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: MD5.Create()
+      - pattern: SHA1.Create()
+      - pattern: MD5.HashData(...)
+      - pattern: SHA1.HashData(...)
+    pattern-sinks:
+      - pattern: password = $SINK
+      - pattern: var password = $SINK;
+      - pattern: token = $SINK
+      - pattern: var token = $SINK;
+      - pattern: signature = $SINK
+      - pattern: var signature = $SINK;
 
   - id: CASA3-SAST-04-weak-hash-informational
     languages: [typescript, javascript]

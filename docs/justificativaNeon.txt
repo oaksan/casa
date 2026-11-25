@@ -698,3 +698,41 @@ Domínio 2: Static Code Analysis & Secrets
   de falso positivo em `JWT_SECRET=${JWT_SECRET}` + `/run/secrets/` e detecção
   genérica via `trivy image --scanners secret` em qualquer imagem.
 - Regressão validada: `test_iteration87_sast12_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 18/61: SAST-13 (Iteração SDD 149)
+Domínio 2: Static Code Analysis & Secrets — FECHAMENTO DO DOMÍNIO 2
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L415):
+  `semgrep`, `scripted replay harness`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `semgrep` (`mode: taint` com sanitizadores de mascaramento/hash
+  irreversível) e o harness de replay de canários em Python, emitindo SARIF 2.1.0.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 149)
+--------------------------------------------------------------------------------
+1) **Ampliação de fontes sensíveis e cobertura PHP (`casa3_al1_sast.yml`)**:
+   - Adicionadas fontes `cvv`, `creditCard`, `pan`, `apiKey`, `secret` e
+     `cookies.sessionId` em `CASA3-SAST-13-sensitive-logging` e criada a regra
+     `CASA3-SAST-13-sensitive-logging-php` (`error_log`, `syslog` com
+     sanitizador `hash('sha256', ...)`).
+2) **Refinamento do harness canário (`evaluate_sast13_canary_log_replay`)**:
+   - Adicionado parâmetro `extra_log_paths`, varredura de `*.log*` na raiz do
+     repositório, inclusão de canário `cvv` no fluxo de pagamento e validação
+     explícita de que logs contendo apenas o hash irreversível SHA-256 do token
+     não geram falso positivo (`Test Guide` L403/L419).
+
+3. VALIDAÇÃO (SDD 149 + FECHAMENTO DO DOMÍNIO 2 — SAST-01..SAST-13)
+--------------------------------------------------------------------------------
+- Validação de sintaxe Semgrep (`semgrep --validate`) + novo teste unitário
+  `test_iteration149_sast13_neon_reeval` + regressão `test_iteration88_sast13_guide_tooling`.
+
+- **Estabilização adicional de `run_zap_automation` (`scanner.py`)**: adicionadas regras passivas `10020` e `10021` em `threshold: Low` e um segundo `passiveScan-wait` após `delay: 2`, eliminando flake intermitente de drenagem passiva observado em `test_iteration99_cfg05_guide_tooling`.
+- **Consolidação Empírica ao Vivo — Fechamento do Domínio 2 (`SDD 137`–`SDD 149`)**:
+  * Validação de regressão: `82` testes (`81/82` + revalidação de `test_iteration99_cfg05_guide_tooling` + todos os 18 testes de `test_neon_reeval.py` em `OK`).
+  * Varredura completa ao vivo contra OWASP Juice Shop (`http://localhost:3000` + `juice-shop-master`, 61 controles: `FAIL=51, PASS=5, NOT_APPLICABLE=2, Not_Covered=3`):
+    - `SAST-01 [FAIL]` (42 achados — Gitleaks + Entropy/Artifacts), `SAST-02 [FAIL]` (9 achados — Gitleaks + Keystore/Tarball/Zip/PEM), `SAST-03 [PASS]` (0), `SAST-04 [FAIL]` (2), `SAST-05 [FAIL]` (2), `SAST-06 [FAIL]` (2), `SAST-07 [FAIL]` (1 — Semgrep + OWASP ZAP/Probe), `SAST-08 [FAIL]` (4), `SAST-09 [FAIL]` (6), `SAST-10 [FAIL]` (3), `SAST-11 [FAIL]` (10), `SAST-12 [FAIL]` (10 — Semgrep + Trivy + Docker), `SAST-13 [FAIL]` (1 — Semgrep + Canary Harness).

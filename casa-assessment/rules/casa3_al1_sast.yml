@@ -1079,10 +1079,16 @@ rules:
     pattern-sources:
       - pattern: "$REQ.body.password"
       - pattern: "$REQ.body.cardNum"
+      - pattern: "$REQ.body.cvv"
+      - pattern: "$REQ.body.creditCard"
+      - pattern: "$REQ.body.pan"
+      - pattern: "$REQ.body.apiKey"
+      - pattern: "$REQ.body.secret"
       - pattern: "$REQ.body.token"
       - pattern: "$REQ.body.refreshToken"
       - pattern: "$REQ.headers.authorization"
       - pattern: "$REQ.cookies.token"
+      - pattern: "$REQ.cookies.sessionId"
       - pattern: "query.current"
       - pattern: "query.new"
       - pattern: "$USER.password"
@@ -1179,3 +1185,18 @@ rules:
       - pattern: "slog.Info(...)"
       - pattern: "slog.Error(...)"
       - pattern: "fmt.Println(...)"
+
+  - id: CASA3-SAST-13-sensitive-logging-php
+    mode: taint
+    languages: [php]
+    message: "SAST-13: Sensitive credential/token/card flows unmasked to log sink in PHP (CWE-532)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: $_POST['password']
+      - pattern: $_POST['cardNum']
+      - pattern: $_SERVER['HTTP_AUTHORIZATION']
+    pattern-sanitizers:
+      - pattern: hash('sha256', ...)
+    pattern-sinks:
+      - pattern: error_log(...)
+      - pattern: syslog(...)

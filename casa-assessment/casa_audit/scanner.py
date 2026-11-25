@@ -5309,6 +5309,10 @@ def run_zap_automation(
             f"        threshold: Low\n"
             f"      - id: 10015\n"
             f"        threshold: Low\n"
+            f"      - id: 10020\n"
+            f"        threshold: Low\n"
+            f"      - id: 10021\n"
+            f"        threshold: Low\n"
             f"      - id: 10024\n"
             f"        threshold: Low\n"
             f"      - id: 10025\n"
@@ -5330,6 +5334,7 @@ def run_zap_automation(
             f"  - type: delay\n"
             f"    parameters:\n"
             f'      time: "2"\n'
+            f"  - type: passiveScan-wait\n"
             f"  - type: report\n"
             f"    parameters:\n"
             f"      template: traditional-json\n"
@@ -17941,11 +17946,14 @@ def evaluate_sast13_canary_log_replay(
     target_url: str,
     repo: Path,
     sarif_out: Path | None = None,
+    extra_log_paths: list[Path] | None = None,
 ) -> list[str]:
     """
     Scripted Canary Replay Harness for SAST-13 (CASA 3.0 AL1 Test Guide):
     Replay authentication, token-refresh, and payment flows with unique canary values
-    and search application log sinks (logs/*.log*, log/*.log*) for literal canary matches.
+    and search application log sinks (logs/*.log*, log/*.log*, root *.log*, and any
+    developer-supplied extra_log_paths) for literal canary matches. Irreversible hashed
+    representations (e.g. SHA-256 of session token) do not trigger false positives.
     """
     if not target_url or not target_url.strip():
         return []
@@ -17955,6 +17963,7 @@ def evaluate_sast13_canary_log_replay(
     canary_new = f"CASA3_CANARY_NEWPWD_{ts}"
     canary_tok = f"CASA3_CANARY_TOKEN_{ts}"
     canary_card = f"411111111111{str(ts)[-4:]}"
+    canary_cvv = f"CVV{str(ts)[-3:]}"
 
     replay_requests = [
         urllib.request.Request(
@@ -17981,7 +17990,9 @@ def evaluate_sast13_canary_log_replay(
         ),
         urllib.request.Request(
             f"{base}/api/Cards/",
-            data=json.dumps({"fullName": "Canary Lab", "cardNum": canary_card, "expMonth": "12", "expYear": "2099"}).encode("utf-8"),
+            data=json.dumps(
+                {"fullName": "Canary Lab", "cardNum": canary_card, "cvv": canary_cvv, "expMonth": "12", "expYear": "2099"}
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {canary_tok}"},
             method="POST",
         ),
@@ -17994,51 +18005,64 @@ def evaluate_sast13_canary_log_replay(
 
     time.sleep(0.25)
     hits: list[str] = []
-    canaries = (canary_cur, canary_new, canary_tok, canary_card)
+    canaries = (canary_cur, canary_new, canary_tok, canary_card, canary_cvv)
+
+    log_candidates: list[tuple[str, Path]] = []
     for log_sub in ("logs", "log"):
         log_dir = repo / log_sub
-        if not log_dir.is_dir():
+        if log_dir.is_dir():
+            for lf in sorted(log_dir.glob("*.log*")):
+                if lf.is_file():
+                    log_candidates.append((f"{log_sub}/{lf.name}", lf))
+    for lf in sorted(repo.glob("*.log*")):
+        if lf.is_file():
+            log_candidates.append((lf.name, lf))
+    for ep in extra_log_paths or []:
+        if ep.is_file():
+            log_candidates.append((ep.name, ep))
+
+    seen_files: set[Path] = set()
+    for rel_log, lf in log_candidates:
+        resolved = lf.resolve()
+        if resolved in seen_files:
             continue
-        for lf in sorted(log_dir.glob("*.log*")):
-            if not lf.is_file():
-                continue
-            try:
-                lines = lf.read_text(encoding="utf-8", errors="ignore").splitlines()
-            except Exception:
-                continue
-            for lno, line in enumerate(lines, start=1):
-                if any(c in line for c in canaries):
-                    rel_log = f"{log_sub}/{lf.name}"
-                    desc = (
-                        f"{rel_log}:{lno} — [CANARY CREDENTIAL LEAK IN LOG SINK] "
-                        f"Literal canary value written to log sink: {line.strip()}"
-                    )
-                    hits.append(desc)
-                    target_sarif = sarif_out or (OUTPUT_DIR / "semgrep-sast.sarif")
-                    if target_sarif.exists():
-                        try:
-                            sdata = json.loads(target_sarif.read_text(encoding="utf-8"))
-                            runs = sdata.get("runs", [])
-                            if runs:
-                                runs[0].setdefault("results", []).append(
-                                    {
-                                        "ruleId": "CASA3-SAST-13-canary-log-leak",
-                                        "level": "error",
-                                        "message": {"text": desc},
-                                        "locations": [
-                                            {
-                                                "physicalLocation": {
-                                                    "artifactLocation": {"uri": rel_log},
-                                                    "region": {"startLine": lno},
-                                                }
+        seen_files.add(resolved)
+        try:
+            lines = lf.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            continue
+        for lno, line in enumerate(lines, start=1):
+            if any(c in line for c in canaries):
+                desc = (
+                    f"{rel_log}:{lno} — [CANARY CREDENTIAL LEAK IN LOG SINK] "
+                    f"Literal canary value written to log sink: {line.strip()}"
+                )
+                hits.append(desc)
+                target_sarif = sarif_out or (OUTPUT_DIR / "semgrep-sast.sarif")
+                if target_sarif.exists():
+                    try:
+                        sdata = json.loads(target_sarif.read_text(encoding="utf-8"))
+                        runs = sdata.get("runs", [])
+                        if runs:
+                            runs[0].setdefault("results", []).append(
+                                {
+                                    "ruleId": "CASA3-SAST-13-canary-log-leak",
+                                    "level": "error",
+                                    "message": {"text": desc},
+                                    "locations": [
+                                        {
+                                            "physicalLocation": {
+                                                "artifactLocation": {"uri": rel_log},
+                                                "region": {"startLine": lno},
                                             }
-                                        ],
-                                    }
-                                )
-                                target_sarif.write_text(json.dumps(sdata, indent=2), encoding="utf-8")
-                        except Exception:
-                            pass
-                    break
+                                        }
+                                    ],
+                                }
+                            )
+                            target_sarif.write_text(json.dumps(sdata, indent=2), encoding="utf-8")
+                    except Exception:
+                        pass
+                break
     return hits
 
 

@@ -781,6 +781,62 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 17/61: SAST-12 (Iteração SDD 148)", just_neon)
 
+    def test_iteration149_sast13_neon_reeval(self) -> None:
+        import hashlib
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        import threading
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            (src / "bad_cvv.ts").write_text("export const f = (req: any, logger: any) => logger.info(req.body.cvv);\n", encoding="utf-8")
+            (src / "bad.php").write_text("<?php error_log($_POST['password']);\n", encoding="utf-8")
+            v_fail, f_fail, sarifs, _ = sc.evaluate_sast13_sensitive_logging(repo)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            self.assertIn("bad_cvv.ts", joined)
+            self.assertIn("bad.php", joined)
+            self.assertGreaterEqual(len(sarifs), 2)
+
+            # Canary replay: logging ONLY irreversible SHA-256 hash of token must PASS (0 hits)
+            ext_log = repo / "runtime_sink.log"
+
+            class _HashedHandler(BaseHTTPRequestHandler):
+                def log_message(self, *a):
+                    pass
+
+                def _h(self):
+                    auth = self.headers.get("Authorization", "")
+                    h_tok = hashlib.sha256(auth.encode()).hexdigest()
+                    with ext_log.open("a", encoding="utf-8") as fh:
+                        fh.write(f"auth_sha256={h_tok}\n")
+                    self.send_response(200)
+                    self.end_headers()
+
+                def do_GET(self):
+                    self._h()
+
+                def do_POST(self):
+                    ln = int(self.headers.get("Content-Length", "0"))
+                    _ = self.rfile.read(ln)
+                    self._h()
+
+            srv = ThreadingHTTPServer(("127.0.0.1", 0), _HashedHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                hits_hashed = sc.evaluate_sast13_canary_log_replay(
+                    f"http://127.0.0.1:{port}", repo, sarif_out=repo / "no.sarif", extra_log_paths=[ext_log]
+                )
+                self.assertEqual(hits_hashed, [], f"Hashed token log must NOT trigger canary leak: {hits_hashed}")
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 18/61: SAST-13 (Iteração SDD 149)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

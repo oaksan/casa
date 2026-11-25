@@ -1228,3 +1228,25 @@ CONTROLE 38/61: AUT-03 (Iteração SDD 169) — Session Fixation Prevented
 4. Validação:
    - `test_iteration169_aut03_neon_reeval` (rotação `PHPSESSID` em `302` PASS;
      fixação `PHPSESSID` FAIL) + regressão `test_iteration108_aut03_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 39/61: AUT-04 (Iteração SDD 170) — No Tokens/Credentials in URL/Referer
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L868):
+   - Referência: `ZAP, Burp Suite`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa OWASP ZAP 2.17.0 regras `3`/`10024`/`10025` + inspetor HAR 1.2
+     redigido + sonda ativa CWE-598).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Tokens percent-encoded (`%2B`, `%2F`, `%2E`) em URLs, `Referer` ou `Location`
+     podiam escapar da busca de substring direta.
+   - Parâmetros sensíveis `api_key`, `apikey`, `auth_token`, `bearer`,
+     `client_secret`, `code_verifier` e `secret` não estavam em `sens_param_re`
+     nem na redação de URL do HAR.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionada inspeção após `urllib.parse.unquote` em URLs, `Referer` e `Location`.
+   - Expandidos `sens_param_re` e `_redact_url_str` para cobrir `api_key`,
+     `client_secret`, `code_verifier`, `auth_token`, `bearer` e `secret`.
+4. Validação:
+   - `test_iteration170_aut04_neon_reeval` (token URL-encoded + `client_secret`
+     redigido no HAR) + regressão `test_iteration109_aut04_guide_tooling` (ZAP 2.17.0 real).

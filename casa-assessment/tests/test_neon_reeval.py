@@ -1642,6 +1642,41 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 38/61: AUT-03 (Iteração SDD 169)", just_neon)
 
+    def test_iteration170_aut04_neon_reeval(self) -> None:
+        empty_zap = {"executed": True, "alerts": []}
+        with tempfile.TemporaryDirectory() as td:
+            har_p = Path(td) / "aut04.har"
+            # 1. URL-encoded active token in query + client_secret in query -> FAIL + redacted HAR
+            raw_tok = "sess+tok/9876543210abcdef"
+            enc_tok = "sess%2Btok%2F9876543210abcdef"
+            r_enc = sc.evaluate_aut04_url_token_leak(
+                "https://app.example.com",
+                observed_tokens={raw_tok},
+                crawled_exchanges=[
+                    {
+                        "method": "GET",
+                        "url": f"https://app.example.com/cb?state={enc_tok}&client_secret=super_oauth_sec_99",
+                        "status": 200,
+                        "headers": {},
+                        "request_headers": {},
+                        "body": "{}",
+                    }
+                ],
+                zap_report=empty_zap,
+                http_probe_fn=lambda ep, method="GET", headers=None, body=None: (404, {}, ""),
+                har_out_path=har_p,
+            )
+            self.assertEqual(r_enc["verdict"], "FAIL")
+            channels = {f["channel"] for f in r_enc["findings"]}
+            self.assertIn("HAR_URL_Token_Leak", channels)
+            self.assertIn("HAR_Query_Credential", channels)
+            har_txt = har_p.read_text(encoding="utf-8")
+            self.assertNotIn("super_oauth_sec_99", har_txt)
+            self.assertIn("[REDACTED]", har_txt)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 39/61: AUT-04 (Iteração SDD 170)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8895,7 +8895,7 @@ def evaluate_aut04_url_token_leak(
 
     def _redact_url_str(u: str) -> str:
         return re.sub(
-            r"([?&#](?:current|new|repeat|password|passwd|token|access_token|refresh_token|id_token|jwt|sessionid|jsessionid|phpsessid|sid)=)[^&#\s]+",
+            r"([?&#](?:current|new|repeat|password|passwd|token|access_token|refresh_token|id_token|auth_token|bearer|api_key|apikey|client_secret|code_verifier|secret|jwt|sessionid|jsessionid|phpsessid|sid)=)[^&#\s]+",
             r"\1[REDACTED]",
             u,
             flags=re.IGNORECASE,
@@ -9003,7 +9003,7 @@ def evaluate_aut04_url_token_leak(
 
     jwt_url_re = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
     sens_param_re = re.compile(
-        r"(?:[?&#])(token|access_token|refresh_token|id_token|jwt|sessionid|jsessionid|phpsessid|sid|password|passwd|current|new)=([^&#\s]+)",
+        r"(?:[?&#])(token|access_token|refresh_token|id_token|auth_token|bearer|api_key|apikey|client_secret|code_verifier|secret|jwt|sessionid|jsessionid|phpsessid|sid|password|passwd|current|new)=([^&#\s]+)",
         re.IGNORECASE,
     )
     aut04_findings: list[dict] = []
@@ -9048,7 +9048,8 @@ def evaluate_aut04_url_token_leak(
     # 2. Scan recorded crawl exchanges (URLs, query strings, fragments, outbound request Referer, and Location redirect headers)
     for ex4 in local_exchanges:
         u4 = ex4.get("url", "")
-        if any(tok in u4 for tok in tok_set) or jwt_url_re.search(u4):
+        u4_dec = urllib.parse.unquote(u4)
+        if any(tok in u4 or tok in u4_dec for tok in tok_set) or jwt_url_re.search(u4) or jwt_url_re.search(u4_dec):
             _add_finding(
                 u4,
                 "HAR_URL_Token_Leak",
@@ -9067,14 +9068,26 @@ def evaluate_aut04_url_token_leak(
             ("outbound request", req_hdrs4.get("referer", "")),
             ("response", resp_hdrs4.get("referer", "")),
         ):
-            if ref_val and (any(tok in ref_val for tok in tok_set) or jwt_url_re.search(ref_val) or sens_param_re.search(ref_val)):
+            ref_dec = urllib.parse.unquote(ref_val) if ref_val else ""
+            if ref_val and (
+                any(tok in ref_val or tok in ref_dec for tok in tok_set)
+                or jwt_url_re.search(ref_val)
+                or jwt_url_re.search(ref_dec)
+                or sens_param_re.search(ref_val)
+            ):
                 _add_finding(
                     u4,
                     "Referer_Header_Leak",
                     f"{hdr_src.capitalize()} Referer header at {u4.split('?', 1)[0]} leaked session token or credential material.",
                 )
         loc_val = resp_hdrs4.get("location", "") or resp_hdrs4.get("refresh", "")
-        if loc_val and (any(tok in loc_val for tok in tok_set) or jwt_url_re.search(loc_val) or sens_param_re.search(loc_val)):
+        loc_dec = urllib.parse.unquote(loc_val) if loc_val else ""
+        if loc_val and (
+            any(tok in loc_val or tok in loc_dec for tok in tok_set)
+            or jwt_url_re.search(loc_val)
+            or jwt_url_re.search(loc_dec)
+            or sens_param_re.search(loc_val)
+        ):
             _add_finding(
                 u4,
                 "Redirect_Location_Token_Leak",

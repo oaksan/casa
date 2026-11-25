@@ -1880,6 +1880,45 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 43/61: AUT-08 (Iteração SDD 174)", just_neon)
 
+    def test_iteration175_azi01_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            # 1. Benign non-session cookie with SameSite=None + session cookie 'sid' with SameSite=Strict + strict CSRF -> PASS
+            state = {"displayName": "orig"}
+
+            def _probe_csrf(ep: str, method: str = "GET", headers=None, body=None):
+                ck = (headers or {}).get("Cookie", "")
+                if ep == "/settings" and method == "GET":
+                    csrf = "csrf_a" if "sid=tokA" in ck else "csrf_b"
+                    return (
+                        200,
+                        {
+                            "set-cookie": "sid=tokA; Path=/; HttpOnly; SameSite=Strict, analytics_id=123; Path=/; SameSite=None; Secure",
+                            "x-csrf-token": csrf,
+                        },
+                        f'<html>displayName={state["displayName"]}<input name="_csrf" value="{csrf}"></html>',
+                    )
+                if ep == "/settings" and method == "POST":
+                    tok = (headers or {}).get("X-CSRF-Token", "")
+                    if "sid=tokA" in ck and tok == "csrf_a":
+                        return 200, {}, '{"ok":true}'
+                    return 403, {}, '{"error":"bad csrf"}'
+                return 404, {}, ""
+
+            r_ok = sc.evaluate_azi01_anti_csrf(
+                "https://app.example.com",
+                session_a_token="tokA",
+                session_b_token="tokB",
+                state_endpoint="/settings",
+                cookie_name="sid",
+                state_field="displayName",
+                http_probe_fn=_probe_csrf,
+                har_out_path=Path(td) / "azi01_ok.har",
+            )
+            self.assertEqual(r_ok["verdict"], "PASS", f"Expected PASS, got {r_ok}")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 44/61: AZI-01 (Iteração SDD 175)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

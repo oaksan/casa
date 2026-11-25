@@ -1355,3 +1355,30 @@ CONTROLE 43/61: AUT-08 (Iteração SDD 174) — Client-Side Storage Hygiene
   * `AUT-07`: FAIL (PyJWT & Crafted JWT Attack Harness, 7 forged JWT attacks incl. alg:None & embedded JWK)
   * `AUT-08`: FAIL (Headless Chrome CDP Storage Dump pre/post-logout)
 - Zero uso de Burp Suite / Burp Sequencer pago em todo o Domínio 5.
+
+================================================================================
+DOMÍNIO 6: AUTHORIZATION & INJECTION (AZI-01 .. AZI-06)
+================================================================================
+
+--------------------------------------------------------------------------------
+CONTROLE 44/61: AZI-01 (Iteração SDD 175) — Strong Anti-CSRF Mechanism
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L977):
+   - Referência: `scripted harness, Burp Suite`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa harness Python de replay anti-CSRF nos 3 modos com releitura
+     de estado, HAR 1.2 redigido e SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Verificação `SameSite=None` inspecionava o cabeçalho `Set-Cookie` bruto,
+     gerando falso FAIL quando cookies não-sessão (ex.: `analytics_id`) usavam
+     `SameSite=None` enquanto o cookie de sessão usava `SameSite=Strict`.
+   - `cookie_name` e `state_field` eram fixos (`token`, `username`).
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Refinada checagem `SameSite=None` por cookie individual, restringindo a
+     cookies de sessão (`cookie_name` ou `_is_session_cookie_name`).
+   - Adicionados parâmetros opcionais `cookie_name` e `state_field` em
+     `evaluate_azi01_anti_csrf`.
+4. Validação:
+   - `test_iteration175_azi01_neon_reeval` (cookie `analytics_id` com
+     `SameSite=None` + `sid` com `SameSite=Strict` + CSRF estrito -> PASS) +
+     regressão `test_iteration114_azi01_guide_tooling`.

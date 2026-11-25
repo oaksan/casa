@@ -10711,6 +10711,8 @@ def evaluate_azi01_anti_csrf(
     credentials_b: tuple[str, str] | None = None,
     state_endpoint: str = "/profile",
     reread_endpoint: str | None = None,
+    cookie_name: str = "token",
+    state_field: str = "username",
     crawled_exchanges: list[dict] | None = None,
     har_out_path: Path | None = None,
     http_probe_fn=None,
@@ -10839,14 +10841,14 @@ def evaluate_azi01_anti_csrf(
     session_a_csrf = ""
     session_b_csrf = ""
     if tok_a:
-        p_get_st, p_get_hdrs, p_get_body = _probe_logged(state_endpoint, headers={"Cookie": f"token={tok_a}"})
+        p_get_st, p_get_hdrs, p_get_body = _probe_logged(state_endpoint, headers={"Cookie": f"{cookie_name}={tok_a}"})
         if 200 <= p_get_st < 300:
             session_a_csrf = _extract_csrf_token(p_get_hdrs, p_get_body)
             form_csrf_found = bool(session_a_csrf) or bool(
                 re.search(r'name=["\'](?:_csrf|csrf_token|csrfToken|csrftoken)["\']', p_get_body, re.IGNORECASE)
             )
     if tok_b:
-        pb_st, pb_hdrs, pb_body = _probe_logged(state_endpoint, headers={"Cookie": f"token={tok_b}"})
+        pb_st, pb_hdrs, pb_body = _probe_logged(state_endpoint, headers={"Cookie": f"{cookie_name}={tok_b}"})
         if 200 <= pb_st < 300:
             session_b_csrf = _extract_csrf_token(pb_hdrs, pb_body)
 
@@ -10857,28 +10859,28 @@ def evaluate_azi01_anti_csrf(
     if tok_a:
         ts_csrf = int(time.time())
         replay_modes = [
-            ("csrf_token_removed", {}, f"username=casa3_csrf_removed_{ts_csrf}"),
+            ("csrf_token_removed", {}, f"{state_field}=casa3_csrf_removed_{ts_csrf}"),
             (
                 "csrf_token_replaced",
                 {"X-CSRF-Token": "invalid_forged_csrf_token_xyz"},
-                f"username=casa3_csrf_replaced_{ts_csrf}&_csrf=invalid_forged_csrf_token_xyz",
+                f"{state_field}=casa3_csrf_replaced_{ts_csrf}&_csrf=invalid_forged_csrf_token_xyz",
             ),
             (
                 "csrf_token_second_session",
                 {"X-CSRF-Token": second_sess_csrf_val},
-                f"username=casa3_csrf_sess2_{ts_csrf}&_csrf={urllib.parse.quote(second_sess_csrf_val)}",
+                f"{state_field}=casa3_csrf_sess2_{ts_csrf}&_csrf={urllib.parse.quote(second_sess_csrf_val)}",
             ),
         ]
         for mode_name, extra_hdrs, form_body in replay_modes:
             expected_marker = form_body.split("=", 1)[1].split("&", 1)[0]
             csrf_hdrs = {
                 "Content-Type": "application/x-www-form-urlencoded",
-                "Cookie": f"token={tok_a}",
+                "Cookie": f"{cookie_name}={tok_a}",
                 "Origin": "https://evil.example.com",
                 **extra_hdrs,
             }
             mut_st, _, _ = _probe_logged(state_endpoint, method="POST", headers=csrf_hdrs, body=form_body.encode("utf-8"))
-            reread_st, _, reread_body = _probe_logged(reread_ep, headers={"Cookie": f"token={tok_a}"})
+            reread_st, _, reread_body = _probe_logged(reread_ep, headers={"Cookie": f"{cookie_name}={tok_a}"})
             azi01_replays_executed += 1
             state_mutated = (200 <= mut_st < 400) and (reread_st == 200) and (expected_marker in reread_body)
             if state_mutated:
@@ -10894,20 +10896,28 @@ def evaluate_azi01_anti_csrf(
                     }
                 )
 
-    seen_ss_urls: set[str] = set()
+    seen_ss_keys: set[tuple[str, str]] = set()
     for ex_c in local_exchanges:
         sc_c = (ex_c.get("headers") or {}).get("set-cookie", "")
         u_c = str(ex_c.get("url") or base_url)
-        if sc_c and "samesite=none" in sc_c.lower() and u_c not in seen_ss_urls:
-            seen_ss_urls.add(u_c)
-            azi01_findings.append(
-                {
-                    "url": u_c,
-                    "mode": "samesite_none_cookie",
-                    "status": ex_c.get("status", 0),
-                    "detail": f"Session cookie at {u_c} uses SameSite=None.",
-                }
-            )
+        if not sc_c:
+            continue
+        for single_sc in _split_set_cookie_headers(sc_c):
+            ck_info = _inspect_cookie_flags(single_sc)
+            ck_n = ck_info["name"]
+            is_sess_c = ck_n.lower() == cookie_name.lower() or _is_session_cookie_name(ck_n)
+            if is_sess_c and not ck_info.get("isDeletion") and ck_info.get("samesite") == "none":
+                ss_k = (u_c, ck_n.lower())
+                if ss_k not in seen_ss_keys:
+                    seen_ss_keys.add(ss_k)
+                    azi01_findings.append(
+                        {
+                            "url": u_c,
+                            "mode": "samesite_none_cookie",
+                            "status": ex_c.get("status", 0),
+                            "detail": f"Session cookie '{ck_n}' at {u_c} uses SameSite=None.",
+                        }
+                    )
 
     if not azi01_findings and csrf_missing and (insec_txt_l or server_txt_l):
         azi01_findings.append(

@@ -1545,3 +1545,25 @@ CONTROLE 51/61: OAU-02 (Iteração SDD 182) — PKCE S256 Enforcement
 4. Validação:
    - `test_iteration182_oau02_neon_reeval` (`code_verifier` curto < 43 FAIL;
      par S256 válido PASS) + regressão `test_iteration121_oau02_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 52/61: OAU-03 (Iteração SDD 183) — Exact Redirect URIs & Callback Safety
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1150):
+   - Referência: `mitmproxy, Burp Suite`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa proxy interceptador HTTP local + fuzzer de callback
+     NoRedirect gerando HAR 1.2 redigido e SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_oau03_redirect_uris` isentava `http:` em loopback mesmo quando a
+     superfície declarada era exclusivamente `Web_Application` (o Guia L1154–L1155
+     restringe a exceção loopback `http:` às superfícies `Mobile` e `Native`).
+   - `_inspect_cb` não normalizava redirecionamentos com barras invertidas
+     (`/\host`) nem sinalizava pseudo-esquemas `javascript:`/`data:`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionado parâmetro `surfaces: list[str] | None = None` para diferenciar
+     `Web_Surface_Loopback_HTTP_Redirect_URI` de superfícies `Mobile`/`Native`,
+     e integrado `_parse_redirect_scheme_host` em `_inspect_cb`.
+4. Validação:
+   - `test_iteration183_oau03_neon_reeval` (Web loopback HTTP FAIL + `/\` FAIL;
+     Mobile loopback HTTP PASS) + regressão `test_iteration122_oau03_guide_tooling`.

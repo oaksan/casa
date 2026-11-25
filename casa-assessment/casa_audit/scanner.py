@@ -13611,6 +13611,7 @@ def evaluate_oau03_redirect_uris(
     crawled_exchanges: list[dict] | None = None,
     http_probe_fn=None,
     callback_paths: list[str] | None = None,
+    surfaces: list[str] | None = None,
     report_out_path: Path | None = None,
     har_out_path: Path | None = None,
 ) -> dict:
@@ -13724,22 +13725,24 @@ def evaluate_oau03_redirect_uris(
                         "detail": f"Registered OAuth redirect URI '{obs_uri}' ({src_desc}) contains wildcard '*' (prohibited by RFC 9700 §2.1).",
                     }
                 )
+        allow_loopback_http = surfaces is None or any(s in {"Mobile", "Native"} for s in surfaces)
         if p_u.scheme.lower() == "http":
-            if obs_host in loopback_hosts:
+            if obs_host in loopback_hosts and allow_loopback_http:
                 loopback_http_count += 1
             else:
-                k3 = ("NonLoopback_HTTP_Redirect_URI", obs_uri)
+                kind_http = "Web_Surface_Loopback_HTTP_Redirect_URI" if obs_host in loopback_hosts else "NonLoopback_HTTP_Redirect_URI"
+                k3 = (kind_http, obs_uri)
                 if k3 not in seen_oau03_keys:
                     seen_oau03_keys.add(k3)
                     oau03_findings.append(
                         {
                             "location": src_desc,
-                            "kind": "NonLoopback_HTTP_Redirect_URI",
+                            "kind": kind_http,
                             "cwe": "CWE-319",
                             "status": 0,
                             "detail": (
-                                f"Registered OAuth redirect URI '{obs_uri}' ({src_desc}) uses cleartext 'http:' on non-loopback host '{obs_host}' "
-                                "(violates RFC 9700 §2.1 / OAU-03)."
+                                f"Registered OAuth redirect URI '{obs_uri}' ({src_desc}) uses cleartext 'http:' on host '{obs_host}' "
+                                "(OAU-03 permits loopback http: only on Mobile/Native surfaces; violates RFC 9700 §2.1)."
                             ),
                         }
                     )
@@ -13776,9 +13779,24 @@ def evaluate_oau03_redirect_uris(
                 redir_loc = (m_js.group(1) or m_js.group(2) or "").strip()
         if not redir_loc:
             return
-        norm_loc = f"https:{redir_loc}" if redir_loc.startswith("//") else redir_loc
-        dest_host = (urllib.parse.urlparse(norm_loc).hostname or "").lower()
-        if dest_host and (dest_host == "oau03-evil.example.com" or (allowed_oauth_hosts and dest_host not in allowed_oauth_hosts)):
+        dest_scheme, dest_host = _parse_redirect_scheme_host(redir_loc)
+        if dest_scheme in {"javascript", "data"}:
+            k3 = (f"Callback_Open_Redirect_{payload_lbl}_unsafe_scheme", f"{ep_path}?{param_name}")
+            if k3 not in seen_oau03_keys:
+                seen_oau03_keys.add(k3)
+                oau03_findings.append(
+                    {
+                        "location": f"{base_url}{ep_path}",
+                        "kind": f"Callback_Open_Redirect_{payload_lbl}_unsafe_scheme",
+                        "cwe": "CWE-601",
+                        "status": r_st,
+                        "detail": (
+                            f"GET {base_url}{ep_path}?{param_name}=... ({payload_lbl}) returned HTTP {r_st} redirect target "
+                            f"'{redir_loc}' using unsafe scheme '{dest_scheme}:' (CWE-601)."
+                        ),
+                    }
+                )
+        elif dest_host and (dest_host == "oau03-evil.example.com" or (allowed_oauth_hosts and dest_host not in allowed_oauth_hosts)):
             k3 = (f"Callback_Open_Redirect_{payload_lbl}", f"{ep_path}?{param_name}")
             if k3 not in seen_oau03_keys:
                 seen_oau03_keys.add(k3)

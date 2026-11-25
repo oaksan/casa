@@ -2220,6 +2220,45 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 51/61: OAU-02 (Iteração SDD 182)", just_neon)
 
+    def test_iteration183_oau03_neon_reeval(self) -> None:
+        """SDD 183 (OAU-03): Surface-scoped loopback http: rule & backslash callback redirect detection."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            def _probe_cb(url, method="GET", headers=None, body=None, timeout=5, follow_redirects=False):
+                if "/cb?next=" in url:
+                    return 302, {"location": "/\\oau03-evil.example.com/p"}, ""
+                return 200, {}, "ok"
+
+            r_web_fail = sc.evaluate_oau03_redirect_uris(
+                "https://app.example.com",
+                oauth_sources=[("auth.ts", "const u = 'https://idp.example.com/auth?redirect_uri=http://localhost:8080/cb';")],
+                callback_paths=["/cb"],
+                surfaces=["Web_Application"],
+                http_probe_fn=_probe_cb,
+                report_out_path=tdp / "oau03-web.json",
+                har_out_path=tdp / "oau03-web.har",
+            )
+            self.assertEqual(r_web_fail["verdict"], "FAIL")
+            kinds = {f["kind"] for f in r_web_fail["findings"]}
+            self.assertIn("Web_Surface_Loopback_HTTP_Redirect_URI", kinds)
+            self.assertIn("Callback_Open_Redirect_direct", kinds)
+
+            r_mobile_pass = sc.evaluate_oau03_redirect_uris(
+                "https://app.example.com",
+                oauth_sources=[("auth.ts", "const u = 'https://idp.example.com/auth?redirect_uri=http://127.0.0.1:8080/cb';")],
+                callback_paths=[],
+                surfaces=["Mobile"],
+                http_probe_fn=lambda *a, **kw: (200, {}, "ok"),
+                report_out_path=tdp / "oau03-mob.json",
+                har_out_path=tdp / "oau03-mob.har",
+            )
+            self.assertEqual(r_mobile_pass["verdict"], "PASS")
+            self.assertEqual(r_mobile_pass["loopbackHttpCount"], 1)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 52/61: OAU-03 (Iteração SDD 183)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

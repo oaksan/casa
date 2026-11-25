@@ -1030,3 +1030,20 @@ CONTROLE 29/61: CFG-05 (Iteração SDD 160) — Clickjacking Protection
    - `test_iteration160_cfg05_neon_reeval` (rejeição de `https:`, `https://*`,
      `*.*`, `*.com`; aceitação de origens explícitas) + regressão
      `test_iteration99_cfg05_guide_tooling` (OWASP ZAP 2.17.0 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 30/61: CFG-06 (Iteração SDD 161) — X-Content-Type-Options: nosniff
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L666):
+   - Referência: `OWASP ZAP (rule 10021 X-Content-Type-Options Header Missing), curl`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa OWASP ZAP 2.17.0
+     (Regra Passiva `10021`) + inspetor de 100% das respostas rastreadas. Zero Burp pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Em modo standalone, `evaluate_cfg06_xcto` não incluía sonda 4xx e não aceitava
+     `extra_endpoints` configuráveis para aplicações além dos caminhos padrão.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionado parâmetro `extra_endpoints` e sonda 4xx `/nonexistent-cfg06-probe`
+     no modo standalone, respeitando `http_probe_fn` também nesse modo.
+4. Validação:
+   - `test_iteration161_cfg06_neon_reeval` (404 sem `nosniff` falha; 100% com
+     `extra_endpoints` incluindo 404 passa) + regressão `test_iteration100_cfg06_guide_tooling`.

@@ -1295,6 +1295,42 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 29/61: CFG-05 (Iteração SDD 160)", just_neon)
 
+    def test_iteration161_cfg06_neon_reeval(self) -> None:
+        empty_zap = {"executed": True, "alerts": []}
+
+        # 1. 404 error response missing X-Content-Type-Options: nosniff -> FAIL (< 100%)
+        def _probe_404_missing(ep: str):
+            if "nonexistent" in ep:
+                return 404, {"content-type": "text/html"}, "Not Found"
+            return 200, {"content-type": "application/json", "x-content-type-options": "nosniff"}, "{}"
+
+        r_fail = sc.evaluate_cfg06_xcto(
+            "https://app.example.com",
+            http_probe_fn=_probe_404_missing,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_fail["verdict"], "FAIL")
+        self.assertLess(r_fail["compliancePct"], 100.0)
+        self.assertTrue(any(v["status"] == 404 for v in r_fail["violations"]))
+
+        # 2. Custom extra_endpoints all sending nosniff (including 404) -> PASS (100%)
+        def _probe_all_ok(ep: str):
+            st = 404 if "missing" in ep else 200
+            return st, {"content-type": "application/json", "x-content-type-options": "nosniff"}, "{}"
+
+        r_ok = sc.evaluate_cfg06_xcto(
+            "https://app.example.com",
+            extra_endpoints=["/", "/api/items", "/static/app.js", "/missing"],
+            http_probe_fn=_probe_all_ok,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_ok["verdict"], "PASS")
+        self.assertEqual(r_ok["compliancePct"], 100.0)
+        self.assertEqual(r_ok["totalResponses"], 4)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 30/61: CFG-06 (Iteração SDD 161)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

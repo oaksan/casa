@@ -6653,6 +6653,7 @@ def evaluate_cfg06_xcto(
     target_url: str,
     *,
     crawled_exchanges: list[dict] | None = None,
+    extra_endpoints: list[str] | None = None,
     zap_report: dict | None = None,
     json_out_path: Path | None = None,
     sarif_out_path: Path | None = None,
@@ -6680,13 +6681,16 @@ def evaluate_cfg06_xcto(
         except Exception as exc:
             return 0, {}, f"Connection error: {exc}"
 
+    probe_fn = http_probe_fn or _default_probe
     exchanges = list(crawled_exchanges) if crawled_exchanges is not None else []
     if crawled_exchanges is None:
-        for p_check in ["/", "/ftp/legal.md", "/metrics"]:
-            st, hdrs, body = _default_probe(p_check)
+        standalone_eps = list(extra_endpoints) if extra_endpoints is not None else ["/", "/ftp/legal.md", "/metrics", "/nonexistent-cfg06-probe"]
+        for p_check in standalone_eps:
+            st, hdrs, body = probe_fn(p_check)
             exchanges.append({"method": "GET", "url": f"{base_url}{p_check}", "status": st, "headers": hdrs, "body": body})
     elif http_probe_fn is not None:
-        for extra_ep in ["/ftp/legal.md", "/metrics"]:
+        crawl_extras = list(extra_endpoints) if extra_endpoints is not None else ["/ftp/legal.md", "/metrics"]
+        for extra_ep in crawl_extras:
             st, hdrs, body = http_probe_fn(extra_ep)
             ep_full = f"{base_url}{extra_ep}"
             if all(e.get("url") != ep_full for e in exchanges):

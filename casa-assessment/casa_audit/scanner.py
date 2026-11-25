@@ -4586,6 +4586,7 @@ def parse_testssl_ciphers(scan_result: list[dict], target_port: int) -> dict:
         "cipherlist_LOW": "LOW/RC4",
         "cipherlist_3DES_IDEA": "3DES/IDEA",
         "cipherlist_OBSOLETED": "OBSOLETED/CBC-SHA1",
+        "cipherlist_AVERAGE": "AVERAGE/LEGACY-CBC",
     }
     cipher_categories: dict[str, str] = {}
     banned_offered: list[str] = []
@@ -4598,6 +4599,22 @@ def parse_testssl_ciphers(scan_result: list[dict], target_port: int) -> dict:
     def _is_offered(finding_str: str) -> bool:
         low = finding_str.lower()
         return "offered" in low and "not offered" not in low and "no ciphers" not in low
+
+    def _is_banned_suite_name(suite: str) -> str | None:
+        up = suite.strip().upper()
+        if not up or up.startswith("TLS_AES_") or up.startswith("TLS_CHACHA20_"):
+            return None
+        if any(tok in up for tok in ("NULL", "EXPORT", "ADH", "AECDH", "ANON")):
+            return "NULL/EXPORT/ANON"
+        if "RC4" in up:
+            return "RC4"
+        if "3DES" in up or "DES-CBC3" in up or "_DES_" in up:
+            return "3DES/DES"
+        if ("_CBC_SHA" in up and not up.endswith(("SHA256", "SHA384", "SHA512"))) or (
+            up.endswith("-SHA") and not any(a in up for a in ("GCM", "POLY1305", "CCM"))
+        ):
+            return "CBC-SHA1"
+        return None
 
     for entry in scan_result or []:
         if not isinstance(entry, dict):
@@ -4624,7 +4641,12 @@ def parse_testssl_ciphers(scan_result: list[dict], target_port: int) -> dict:
             if fid == "FS" and _is_offered(finding):
                 fs_offered_flag = True
             elif fid == "FS_ciphers" and finding:
-                strong_fs.extend(finding.split())
+                for tok in finding.split():
+                    ban_reason = _is_banned_suite_name(tok)
+                    if ban_reason:
+                        banned_offered.append(f"{ban_reason}:{tok}")
+                    else:
+                        strong_fs.append(tok)
             elif fid == "FS_ECDHE_curves" and finding:
                 ecdhe_curves.extend(finding.split())
 

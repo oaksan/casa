@@ -912,6 +912,51 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 20/61: TLS-02 (Iteração SDD 151)", just_neon)
 
+    def test_iteration152_tls03_neon_reeval(self) -> None:
+        # 1. ECDHE CBC-SHA1 inside FS_ciphers + cipherlist_AVERAGE must FAIL TLS-03
+        fake_cbc_fs = {
+            "executed": True,
+            "scanResult": [
+                {
+                    "ciphers": [
+                        {"id": "cipherlist_STRONG_FS", "finding": "offered"},
+                        {"id": "cipherlist_AVERAGE", "finding": "offered"},
+                    ],
+                    "fs": [
+                        {"id": "FS", "finding": "offered"},
+                        {"id": "FS_ciphers", "finding": "ECDHE-RSA-AES128-GCM-SHA256 ECDHE-RSA-AES128-SHA"},
+                    ],
+                }
+            ],
+        }
+        res_fail = sc.evaluate_tls03_cipher_enforcement("https://app.example.com", testssl_info=fake_cbc_fs)
+        self.assertEqual(res_fail["verdict"], "FAIL")
+        self.assertTrue(any("CBC-SHA1:ECDHE-RSA-AES128-SHA" in b for b in res_fail["cipherAudit"]["bannedSuitesOffered"]))
+        self.assertTrue(any("AVERAGE/LEGACY-CBC" in b for b in res_fail["cipherAudit"]["bannedSuitesOffered"]))
+
+        # 2. Pure AEAD ECDHE + TLS 1.3 suites -> PASS
+        fake_clean = {
+            "executed": True,
+            "scanResult": [
+                {
+                    "ciphers": [
+                        {"id": "cipherlist_STRONG_FS", "finding": "offered"},
+                        {"id": "cipherlist_AVERAGE", "finding": "not offered"},
+                    ],
+                    "fs": [
+                        {"id": "FS", "finding": "offered"},
+                        {"id": "FS_ciphers", "finding": "TLS_AES_256_GCM_SHA384 ECDHE-RSA-AES256-GCM-SHA384"},
+                    ],
+                }
+            ],
+        }
+        res_ok = sc.evaluate_tls03_cipher_enforcement("https://app.example.com", testssl_info=fake_clean)
+        self.assertEqual(res_ok["verdict"], "PASS")
+        self.assertEqual(res_ok["cipherAudit"]["bannedSuitesOffered"], [])
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 21/61: TLS-03 (Iteração SDD 152)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

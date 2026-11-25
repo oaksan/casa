@@ -799,3 +799,33 @@ Domínio 3: Transport Security
 - Novo teste unitário: `test_iteration151_tls02_neon_reeval` validando `FAIL`
   para protocolo legado `"unverified"` e `PASS` para servidor TLS 1.3-only.
 - Regressão validada: `test_iteration90_tls02_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 21/61: TLS-03 (Iteração SDD 152)
+Domínio 3: Transport Security
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L482):
+  `testssl.sh`, `Qualys SSL Labs`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `testssl.sh --ssl-native -s -f` em JSON estruturado.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 152)
+--------------------------------------------------------------------------------
+1) **Detecção de `cipherlist_AVERAGE` e suítes CBC-SHA1 em `FS_ciphers` (`Test
+   Guide` L486–487)**:
+   - *Antes*: `parse_testssl_ciphers` não avaliava `cipherlist_AVERAGE` nem
+     inspecionava os nomes individuais listados em `FS_ciphers`, podendo deixar
+     passar suítes ECDHE com CBC-SHA1 (`ECDHE-RSA-AES128-SHA` / `_CBC_SHA`).
+   - *Melhoria*: Adicionada checagem de `cipherlist_AVERAGE` e função
+     `_is_banned_suite_name()` validando cada suíte individual em `FS_ciphers`
+     contra NULL, EXPORT, anônimas, RC4, 3DES e CBC-SHA1.
+
+3. VALIDAÇÃO (SDD 152)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration152_tls03_neon_reeval` validando `FAIL`
+  para `ECDHE-RSA-AES128-SHA` e `cipherlist_AVERAGE` e `PASS` para AEAD FS.
+- Regressão validada: `test_iteration91_tls03_guide_tooling` (`OK`).

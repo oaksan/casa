@@ -342,3 +342,39 @@ Domínio 2: Static Code Analysis & Secrets
   `verified=false; triaged=error` e `verified=true`, e remoção do literal do
   Juice Shop no ruleset.
 - Regressão validada: `test_iteration76_sast01_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 07/61: SAST-02 (Iteração SDD 138)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L183):
+  `gitleaks`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  `gitleaks dir` e `gitleaks git` (histórico completo do repositório) aliados ao
+  walker determinístico de keystores, certificados e blocos PEM `PRIVATE KEY` em
+  artefatos distribuídos. Removida a referência a `Semgrep` do rótulo de
+  ferramenta de `SAST-02`.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 138)
+--------------------------------------------------------------------------------
+1) **Inspeção de artefatos empacotados em tarball (`.tar.gz`, `.tgz`, `.tar`)
+   (`Test Guide` L182/L187)**:
+   - *Antes*: `evaluate_sast02_trust_material_and_keys` inspecionava apenas
+     arquivos ZIP/JAR/WAR/APK/IPA/WHL, ignorando tarballs distribuídos.
+   - *Melhoria*: Adicionado suporte `tarfile` para detectar keystores,
+     certificados e blocos PEM `PRIVATE KEY` dentro de `.tar.gz`/`.tgz`/`.tar`.
+2) **Ampliação da busca de blocos PEM `PRIVATE KEY`**:
+   - *Antes*: Restrita a 7 subdiretórios fixos (`lib`, `routes`, `config`,
+     `data`, `infrastructure`, `terraform`, `src`).
+   - *Melhoria*: Estendida para arquivos na raiz do repositório e subdiretórios
+     `app`, `pkg`, `cmd`, `internal`, `services` (incluindo `.go`, `.java`, `.env`).
+
+3. VALIDAÇÃO (SDD 138)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration138_sast02_neon_reeval` validando detecção
+  de `.p12` e bloco PEM dentro de `.tar.gz` e bloco PEM em `main.go` na raiz.
+- Regressão validada: `test_iteration77_sast02_guide_tooling` (`OK`).

@@ -3152,6 +3152,40 @@ def evaluate_sast02_trust_material_and_keys(
                                 _add_finding(entry_rel, 1, "CASA3-SAST-02-artifact-pem-private-key", desc)
             except Exception:
                 pass
+        elif fpath.name.lower().endswith((".tar.gz", ".tgz", ".tar")) and fpath.stat().st_size <= 20 * 1024 * 1024:
+            import tarfile
+
+            try:
+                with tarfile.open(fpath, "r:*") as tf:
+                    for member in tf.getmembers():
+                        if not member.isfile():
+                            continue
+                        entry_ext = Path(member.name).suffix.lower()
+                        entry_rel = f"{rel}!{member.name}"
+                        if entry_ext in keystore_extensions:
+                            label = keystore_extensions[entry_ext]
+                            desc = (
+                                f"{entry_rel}:1 — [SHIPPED TARBALL TRUST MATERIAL] {label} inside shipped artifact "
+                                f"{rel} (size={member.size} bytes)"
+                            )
+                            _add_finding(entry_rel, 1, "CASA3-SAST-02-artifact-trust-material", desc)
+                        elif member.size <= 256 * 1024 and not entry_ext.endswith(
+                            (".png", ".jpg", ".gif", ".woff", ".woff2", ".ttf", ".ico", ".class")
+                        ):
+                            try:
+                                ef = tf.extractfile(member)
+                                raw_entry = ef.read().decode("utf-8", errors="ignore") if ef else ""
+                            except Exception:
+                                continue
+                            m_arch_pem = pem_block_re.search(raw_entry)
+                            if m_arch_pem:
+                                desc = (
+                                    f"{entry_rel}:1 — [SHIPPED TARBALL PEM PRIVATE KEY] '{m_arch_pem.group(0)}' "
+                                    f"inside shipped artifact {rel} (CWE-321)"
+                                )
+                                _add_finding(entry_rel, 1, "CASA3-SAST-02-artifact-pem-private-key", desc)
+            except Exception:
+                pass
 
     # 1. Integrate official `gitleaks dir` private-key/trust-material detections first
     if gitleaks_dir_hits is None:
@@ -3194,15 +3228,21 @@ def evaluate_sast02_trust_material_and_keys(
         r"""(?ix)(?:mnemonic|seedPhrase)\s*=\s*['"](?P<phrase>[a-z]+(?:\s+[a-z]+){11,23})['"]"""
     )
 
-    for dname in ("lib", "routes", "config", "data", "infrastructure", "terraform", "src"):
+    source_candidates: list[Path] = [
+        fp for fp in sorted(repo.iterdir())
+        if fp.is_file() and fp.suffix in {".ts", ".js", ".py", ".go", ".java", ".yml", ".yaml", ".json", ".tf", ".env"}
+    ]
+    for dname in ("lib", "routes", "config", "data", "infrastructure", "terraform", "src", "app", "pkg", "cmd", "internal", "services"):
         dp = repo / dname
         if not dp.is_dir():
             continue
         for fp in sorted(dp.rglob("*")):
-            if not fp.is_file() or fp.suffix not in {".ts", ".js", ".py", ".yml", ".yaml", ".json", ".tf"}:
-                continue
+            if fp.is_file() and fp.suffix in {".ts", ".js", ".py", ".go", ".java", ".yml", ".yaml", ".json", ".tf", ".env"}:
+                source_candidates.append(fp)
+
+    for fp in source_candidates:
             rel = str(fp.relative_to(repo))
-            if rel.endswith((".spec.ts", ".spec.js")):
+            if rel.endswith((".spec.ts", ".spec.js")) or any(p in {"node_modules", ".git", "test", "tests"} for p in fp.parts):
                 continue
             try:
                 lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
@@ -4034,7 +4074,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
         elif sid == "SAST-02":
             gl_mode = "dir + git history" if gitleaks_git_ran else "dir"
             gl_tag2 = f"Gitleaks v8.30.1 ({gl_mode}) + " if (gitleaks_ran or gitleaks_git_ran) else ""
-            tool_label = f"{gl_tag2}Semgrep AST 1.180.0 + Keystore, Certificate & BIP-39 Seed Walker ({semgrep_duration}s, SARIF 2.1.0)"
+            tool_label = f"{gl_tag2}Keystore, Certificate, Tarball/Zip Artifact & PEM Walker (SARIF 2.1.0)"
             refs = []
             if gitleaks_ran and gl_sarif_out.exists():
                 refs.append(f"Gitleaks SARIF Evidence: {gl_sarif_out}")

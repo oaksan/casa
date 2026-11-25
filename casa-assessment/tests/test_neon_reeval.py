@@ -424,6 +424,43 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 06/61: SAST-01 (Iteração SDD 137)", just_neon)
 
+    def test_iteration138_sast02_neon_reeval(self) -> None:
+        import io
+        import tarfile
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            # 1. Shipped tarball (.tar.gz) containing keystore & PEM block
+            (repo / "releases").mkdir()
+            tb_path = repo / "releases" / "dist.tar.gz"
+            with tarfile.open(tb_path, "w:gz") as tf:
+                cert_bytes = b"MIIB-dummy-cert"
+                ti1 = tarfile.TarInfo("tls/prod.p12")
+                ti1.size = len(cert_bytes)
+                tf.addfile(ti1, io.BytesIO(cert_bytes))
+
+                pem_bytes = b"-----BEGIN " + b"EC PRIVATE KEY-----\nAAAA\n-----END EC PRIVATE KEY-----\n"
+                ti2 = tarfile.TarInfo("cfg/inline.txt")
+                ti2.size = len(pem_bytes)
+                tf.addfile(ti2, io.BytesIO(pem_bytes))
+
+            # 2. Root-level Go file with embedded PEM private key block
+            (repo / "main.go").write_text(
+                'package main\nconst k = "-----BEGIN ' + 'RSA PRIVATE KEY-----\\nXYZ"\n',
+                encoding="utf-8",
+            )
+            findings, sarifs = sc.evaluate_sast02_trust_material_and_keys(
+                repo, gitleaks_dir_hits=[], gitleaks_git_hits=[]
+            )
+            joined = "\n".join(findings)
+            self.assertIn("releases/dist.tar.gz!tls/prod.p12", joined)
+            self.assertIn("releases/dist.tar.gz!cfg/inline.txt", joined)
+            self.assertIn("main.go:2", joined)
+            self.assertGreaterEqual(len(sarifs), 3)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 07/61: SAST-02 (Iteração SDD 138)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

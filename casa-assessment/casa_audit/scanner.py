@@ -8347,13 +8347,30 @@ def estimate_sp800_90b_token_min_entropy(tokens: list[str]) -> dict:
     whole_ucb_bits = round(-math.log2(u_whole), 2) if u_whole > 0 else 0.0
 
     pos_ucb_bits = 0.0
+    compression_bits = 0.0
+    independent_cols = 0
     if unique_tokens == total_sampled and total_sampled >= 2:
+        import zlib
+
         segments = [t.split(".")[-1] if "." in t else t for t in tokens]
         min_len = min(len(s) for s in segments)
+        seen_col_sigs: set[tuple[int, ...]] = set()
         for pos_i in range(min_len):
             col = [s[pos_i] for s in segments]
             if len(set(col)) <= 1:
                 continue
+            # Canonical partition signature: detects identical or bijectively correlated columns
+            first_idx: dict[str, int] = {}
+            sig_list: list[int] = []
+            for ch in col:
+                if ch not in first_idx:
+                    first_idx[ch] = len(first_idx)
+                sig_list.append(first_idx[ch])
+            col_sig = tuple(sig_list)
+            if col_sig in seen_col_sigs:
+                continue
+            seen_col_sigs.add(col_sig)
+            independent_cols += 1
             max_c = Counter(col).most_common(1)[0][1]
             p_c = max_c / total_sampled
             u_c = min(
@@ -8362,7 +8379,9 @@ def estimate_sp800_90b_token_min_entropy(tokens: list[str]) -> dict:
             )
             pos_ucb_bits += -math.log2(u_c) if u_c > 0 else 0.0
         pos_ucb_bits = round(pos_ucb_bits, 2)
-        effective_bits = pos_ucb_bits
+        comp_bytes = len(zlib.compress("\n".join(segments).encode("utf-8"), level=9))
+        compression_bits = round((comp_bytes * 8.0) / total_sampled, 2)
+        effective_bits = round(min(pos_ucb_bits, compression_bits), 2)
     else:
         effective_bits = whole_ucb_bits
 
@@ -8374,6 +8393,8 @@ def estimate_sp800_90b_token_min_entropy(tokens: list[str]) -> dict:
         "wholeTokenPointBits": whole_point_bits,
         "wholeTokenUcb99Bits": whole_ucb_bits,
         "positionalUcb99Bits": pos_ucb_bits,
+        "independentColumns": independent_cols,
+        "compressionUpperBits": compression_bits,
         "effectiveMinEntropyBits": effective_bits,
     }
 

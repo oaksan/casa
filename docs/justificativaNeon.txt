@@ -1190,3 +1190,23 @@ CONTROLE 36/61: AUT-01 (Iteração SDD 167) — No Default / Vendor Credentials
 4. Validação:
    - `test_iteration167_aut01_neon_reeval` (RabbitMQ `guest:guest` em `302` +
      `Set-Cookie` FAIL; rejeição total PASS) + regressão `test_iteration106_aut01_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 37/61: AUT-02 (Iteração SDD 168) — Session Token Entropy >= 64 Bits
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L826):
+   - Referência: `Burp Sequencer, SP 800-90B entropy estimator`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Sequencer pago
+     NÃO utilizado; substituído integralmente pelo estimador NIST SP 800-90B
+     previsto no próprio Guia, com 200 amostras + HAR 1.2 redigido + SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `estimate_sp800_90b_token_min_entropy` somava MCV por posição assumindo
+     colunas independentes, permitindo falso PASS para tokens construídos pela
+     repetição/espelhamento de uma semente curta (ex.: 16 bits repetidos 16x).
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionada deduplicação de colunas bijetivamente correlacionadas (via
+     assinatura canônica de partição) e limite superior de compressão (`zlib`
+     nível 9 em bits/token, inspirado em SP 800-90B §6.3.4).
+4. Validação:
+   - `test_iteration168_aut02_neon_reeval` (semente de 16 bits repetida 16x
+     < 64 bits; CSPRNG 128 bits >= 64 bits) + regressão `test_iteration107_aut02_guide_tooling`.

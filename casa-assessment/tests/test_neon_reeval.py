@@ -1568,6 +1568,31 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 36/61: AUT-01 (Iteração SDD 167)", just_neon)
 
+    def test_iteration168_aut02_neon_reeval(self) -> None:
+        import secrets
+
+        # 1. Weak 16-bit seed repeated 16x (64 hex chars, all 200 distinct) MUST NOT false-pass (< 64 bits)
+        seen_seeds: set[str] = set()
+        repeated_tokens: list[str] = []
+        while len(repeated_tokens) < 200:
+            s = secrets.token_hex(2)
+            if s not in seen_seeds:
+                seen_seeds.add(s)
+                repeated_tokens.append(s * 16)
+        est_weak = sc.estimate_sp800_90b_token_min_entropy(repeated_tokens)
+        self.assertEqual(est_weak["uniqueTokens"], 200)
+        self.assertLessEqual(est_weak["independentColumns"], 4)
+        self.assertLess(est_weak["effectiveMinEntropyBits"], 64.0)
+
+        # 2. Genuine 128-bit CSPRNG tokens still pass comfortably >= 64 bits
+        strong_tokens = [secrets.token_hex(16) for _ in range(200)]
+        est_strong = sc.estimate_sp800_90b_token_min_entropy(strong_tokens)
+        self.assertEqual(est_strong["uniqueTokens"], 200)
+        self.assertGreaterEqual(est_strong["effectiveMinEntropyBits"], 64.0)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 37/61: AUT-02 (Iteração SDD 168)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

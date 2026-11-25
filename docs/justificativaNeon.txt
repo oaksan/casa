@@ -94,3 +94,53 @@ Domínio 1: Software Composition & Supply Chain
   `osv-scanner`, fallback de cache expirado CISA KEV, gate estrito CVSS >= 7.0,
   emissão SARIF `note`/`error` e cruzamento KEV em pacotes de contêiner.
 - Regressão validada: `test_iteration71_sca01_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 02/61: SCA-02 (Iteração SDD 133)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L74):
+  `OpenSSF Scorecard`, `endoflife.date`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O avaliador consulta as
+  APIs públicas oficiais `api.securityscorecards.dev` (OpenSSF Scorecard, check
+  `Maintained >= 5`) e `endoflife.date/api/<produto>.json`, complementadas pela
+  inspeção direta dos lockfiles e metadados oficiais de depreciação dos registros
+  canônicos (`registry.npmjs.org` e `pypi.org`).
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 133)
+--------------------------------------------------------------------------------
+1) **Remoção de heurísticas artificiais de EOL (`Test Guide` L78)**:
+   - *Antes*: `evaluate_sca02_dependencies()` falhava pacotes com regras
+     heurísticas fixas (`pinned_maj == 0 and latest_maj >= 6` e `latest_maj -
+     pinned_maj >= 2` para `sanitize-html`/`express-jwt`/`jsonwebtoken`),
+     criando declarações de EOL não publicadas pelo mantenedor nem pelo
+     `endoflife.date`.
+   - *Melhoria*: Removidas as heurísticas sintéticas de distância de versão
+     major; ampliado o mapa oficial de produtos do `endoflife.date` (incluindo
+     `electron`, `typescript`, `flask`, `fastapi`, `laravel`, `rails`, `redis`,
+     `mongodb`, além dos anteriores) e versionada a chave de cache para `v3:`.
+2) **Suporte ampliado a lockfiles e mirrors fixados por digest (`Test Guide` L78)**:
+   - *Antes*: Somente `package-lock.json` v2/v3 (`packages`) era lido;
+     `package-lock.json` v1 e `yarn.lock` eram ignorados, e um `--index-url`
+     HTTPS em `requirements.txt` falhava mesmo quando os pacotes estavam fixados
+     por `--hash=sha256:`/`sha512:`.
+   - *Melhoria*: Adicionado parser de `package-lock.json` v1 e `yarn.lock`,
+     reconhecimento de `https://registry.yarnpkg.com/` como registro canônico e
+     aceitação de mirrors HTTPS PyPI/npm quando acompanhados de digest
+     criptográfico (`sha256`/`sha512`).
+3) **Resiliência de cache e evidência SARIF `note` (`Test Guide` L23)**:
+   - Adicionado fallback automático para `sca02_metadata_cache.json` expirado em
+     caso de falha de rede e emissão de registros SARIF `level: "note"` quando
+     não existe resultado publicado no OpenSSF Scorecard para a dependência
+     (sem impactar o veredito).
+
+3. VALIDAÇÃO (SDD 133)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration133_sca02_neon_reeval` validando mirror
+  HTTPS com digest em `yarn.lock` e `requirements.txt`, rejeição de mirrors sem
+  digest, ausência de falso positivo `Legacy 0.x` e emissão SARIF `note`.
+- Regressão validada: `test_iteration72_sca02_guide_tooling` (`OK`).

@@ -207,19 +207,25 @@ def evaluate_sca02_dependencies(
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     cache_file = OUTPUT_DIR / "sca02_metadata_cache.json"
     cache: dict[str, dict] = {}
-    if cache_file.exists() and (time.time() - cache_file.stat().st_mtime < 86400):
+    stale_cache: dict[str, dict] = {}
+    if cache_file.exists():
         try:
-            cache = json.loads(cache_file.read_text(encoding="utf-8"))
+            loaded_cache = json.loads(cache_file.read_text(encoding="utf-8"))
+            if isinstance(loaded_cache, dict):
+                stale_cache = loaded_cache
+                if time.time() - cache_file.stat().st_mtime < 86400:
+                    cache = loaded_cache
         except Exception:
             cache = {}
 
-    # 1. Inspect lockfile (package-lock.json) for resolved versions, registry URLs and digest integrity
+    # 1. Inspect lockfiles (package-lock.json v1/v2/v3 and yarn.lock) for resolved versions, registry URLs and digest integrity
     lock_resolved: dict[str, tuple[str, str, str]] = {}  # pkg -> (resolved_url, integrity, resolved_version)
     pkg_lock = repo / "package-lock.json"
+    yarn_lock = repo / "yarn.lock"
     if pkg_lock.exists():
         try:
             ldata = json.loads(pkg_lock.read_text(encoding="utf-8", errors="ignore"))
-            for k, v in ldata.get("packages", {}).items():
+            for k, v in (ldata.get("packages") or {}).items():
                 if k.startswith("node_modules/") and isinstance(v, dict):
                     pname = k[len("node_modules/") :]
                     if "node_modules/" not in pname:
@@ -228,24 +234,57 @@ def evaluate_sca02_dependencies(
                             str(v.get("integrity", "")),
                             str(v.get("version", "")),
                         )
+            # Lockfile v1 fallback (`dependencies` map)
+            if not lock_resolved and isinstance(ldata.get("dependencies"), dict):
+                for pname, v in ldata["dependencies"].items():
+                    if isinstance(v, dict):
+                        lock_resolved[pname] = (
+                            str(v.get("resolved", "")),
+                            str(v.get("integrity", "")),
+                            str(v.get("version", "")),
+                        )
+        except Exception:
+            pass
+    elif yarn_lock.exists():
+        try:
+            y_text = yarn_lock.read_text(encoding="utf-8", errors="ignore")
+            for blk in re.split(r"\n\n+", y_text):
+                m_hdr = re.match(r'^"?(@?[^@\s",:]+)@', blk.strip())
+                if not m_hdr:
+                    continue
+                pname = m_hdr.group(1)
+                m_ver = re.search(r'^\s+version\s+"([^"]+)"', blk, re.MULTILINE)
+                m_res = re.search(r'^\s+resolved\s+"([^"]+)"', blk, re.MULTILINE)
+                m_int = re.search(r'^\s+integrity\s+([^\s"]+)', blk, re.MULTILINE)
+                if pname and pname not in lock_resolved:
+                    lock_resolved[pname] = (
+                        m_res.group(1) if m_res else "",
+                        m_int.group(1) if m_int else "",
+                        m_ver.group(1) if m_ver else "",
+                    )
         except Exception:
             pass
 
-    # Also detect untrusted pip sources (--index-url, --extra-index-url, git+, plain http://) in requirements*.txt
+    # Also detect untrusted pip sources (--index-url, --extra-index-url, git+, plain http://) and --hash digest pins in requirements*.txt
     pip_untrusted_sources: dict[str, str] = {}
+    pip_hashed_pkgs: set[str] = set()
     req_files = [repo / "requirements.txt"] if (repo / "requirements.txt").exists() else [
         p for p in repo.rglob("requirements*.txt") if "node_modules" not in p.parts
     ]
     custom_index_url = ""
     for rf in req_files:
         try:
-            for raw_line in rf.read_text(encoding="utf-8", errors="ignore").splitlines():
+            joined_lines = re.sub(r"\\\r?\n", " ", rf.read_text(encoding="utf-8", errors="ignore"))
+            for raw_line in joined_lines.splitlines():
                 ls = raw_line.strip()
                 m_idx = re.match(r"^--(?:extra-)?index-url\s+(\S+)", ls)
                 if m_idx:
                     idx_u = m_idx.group(1)
                     if not idx_u.startswith(("https://pypi.org/", "https://pypi.python.org/")):
                         custom_index_url = idx_u
+                m_pkg_hash = re.match(r"^([A-Za-z0-9_\-\.]+)\s*(?:==|>=|~=)", ls)
+                if m_pkg_hash and re.search(r"--hash=(?:sha256|sha512):[0-9a-fA-F]{64,128}", ls):
+                    pip_hashed_pkgs.add(m_pkg_hash.group(1).lower())
                 m_url = re.match(r"^([A-Za-z0-9_\-\.]+)\s*@\s*(\S+)", ls)
                 if m_url:
                     pip_untrusted_sources[m_url.group(1).lower()] = m_url.group(2)
@@ -260,7 +299,7 @@ def evaluate_sca02_dependencies(
         else:
             resolved_deps.append((eco, name, ver))
 
-    # 2. Expanded endoflife.date mapping across tracked ecosystem frameworks & libraries
+    # 2. Expanded endoflife.date official product mapping across tracked ecosystem frameworks & libraries
     eol_product_map = {
         "@angular/core": "angular",
         "angular": "angular",
@@ -274,6 +313,14 @@ def evaluate_sca02_dependencies(
         "nuxt": "nuxt",
         "django": "django",
         "sqlite3": "sqlite",
+        "electron": "electron",
+        "typescript": "typescript",
+        "flask": "flask",
+        "fastapi": "fastapi",
+        "laravel": "laravel",
+        "rails": "rails",
+        "redis": "redis",
+        "mongodb": "mongodb",
     }
     today_iso = datetime.date.today().isoformat()
     eol_cache: dict[str, list[dict]] = {}
@@ -281,7 +328,7 @@ def evaluate_sca02_dependencies(
 
     def inspect_single_dep(item: tuple[str, str, str]) -> dict:
         eco, name, ver = item
-        cache_key = f"v2:{eco}:{name}@{ver}"
+        cache_key = f"v3:{eco}:{name}@{ver}"
         if cache_key in cache:
             return cache[cache_key]
 
@@ -297,6 +344,7 @@ def evaluate_sca02_dependencies(
             "scorecard_overall": None,
             "last_published": "",
         }
+        network_ok = False
 
         if name in eol_product_map and re.match(r"^\d+", ver):
             prod = eol_product_map[name]
@@ -304,6 +352,7 @@ def evaluate_sca02_dependencies(
             past_eol, eol_dt = _check_endoflife_cycle(prod, major, today_iso, eol_cache, eol_lock)
             if eol_dt:
                 res_info["eol_date"] = eol_dt
+                network_ok = True
             if past_eol:
                 res_info["is_past_eol"] = True
 
@@ -312,23 +361,13 @@ def evaluate_sca02_dependencies(
                 encoded_name = urllib.parse.quote(name, safe="@/")
                 with urllib.request.urlopen(f"https://registry.npmjs.org/{encoded_name}", timeout=5) as r:
                     m = json.loads(r.read().decode("utf-8"))
+                    network_ok = True
                     ver_obj = m.get("versions", {}).get(ver, {})
                     latest_tag = m.get("dist-tags", {}).get("latest", "")
                     latest_obj = m.get("versions", {}).get(latest_tag, {})
                     dep_msg = ver_obj.get("deprecated") or latest_obj.get("deprecated") or ""
                     if dep_msg:
                         res_info["deprecated"] = str(dep_msg)
-
-                    # Check if pinned major branch is past EOL compared to current latest major
-                    if latest_tag and re.match(r"^\d+\.", ver) and re.match(r"^\d+\.", latest_tag):
-                        pinned_maj = int(ver.split(".")[0])
-                        latest_maj = int(latest_tag.split(".")[0])
-                        if pinned_maj == 0 and latest_maj >= 6:
-                            res_info["is_past_eol"] = True
-                            res_info["eol_date"] = f"Legacy 0.x branch (latest is {latest_tag})"
-                        elif latest_maj - pinned_maj >= 2 and name in {"sanitize-html", "express-jwt", "jsonwebtoken"}:
-                            res_info["is_past_eol"] = True
-                            res_info["eol_date"] = f"Legacy {pinned_maj}.x branch (latest is {latest_tag})"
 
                     time_map = m.get("time", {})
                     if latest_tag and latest_tag in time_map:
@@ -349,6 +388,7 @@ def evaluate_sca02_dependencies(
                 encoded_name = urllib.parse.quote(name, safe="")
                 with urllib.request.urlopen(f"https://pypi.org/pypi/{encoded_name}/json", timeout=5) as r:
                     pdata = json.loads(r.read().decode("utf-8"))
+                    network_ok = True
                     pinfo = pdata.get("info", {})
                     classifiers = pinfo.get("classifiers") or []
                     if any("7 - Inactive" in c for c in classifiers):
@@ -368,6 +408,8 @@ def evaluate_sca02_dependencies(
             except Exception:
                 pass
 
+        if not network_ok and cache_key in stale_cache:
+            return stale_cache[cache_key]
         return res_info
 
     # Inspect direct dependencies concurrently
@@ -376,7 +418,7 @@ def evaluate_sca02_dependencies(
         with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
             inspected = list(pool.map(inspect_single_dep, resolved_deps))
         for item_res in inspected:
-            cache[f"v2:{item_res['eco']}:{item_res['name']}@{item_res['ver']}"] = item_res
+            cache[f"v3:{item_res['eco']}:{item_res['name']}@{item_res['ver']}"] = item_res
         try:
             cache_file.write_text(json.dumps(cache, indent=2), encoding="utf-8")
         except Exception:
@@ -417,26 +459,28 @@ def evaluate_sca02_dependencies(
         eco = info["eco"]
         reasons: list[str] = []
 
-        # Criterion A: Source registry resolution in lockfile / requirements
+        # Criterion A: Source registry resolution in lockfile / requirements (canonical public registry or HTTPS mirror pinned by digest)
         if eco == "npm" and lock_resolved and name in lock_resolved:
             resolved_url, integrity, _ = lock_resolved[name]
             if not resolved_url:
-                reasons.append("Missing resolved source registry URL in package-lock.json")
+                reasons.append("Missing resolved source registry URL in lockfile")
                 stats["untrusted_registry"] += 1
-            elif not resolved_url.startswith("https://registry.npmjs.org/"):
+            elif not resolved_url.startswith(("https://registry.npmjs.org/", "https://registry.yarnpkg.com/")):
                 if not (resolved_url.startswith("https://") and integrity.startswith(("sha512-", "sha256-"))):
                     reasons.append(f"Untrusted/unpinned source registry ({resolved_url})")
                     stats["untrusted_registry"] += 1
         elif eco == "PyPI":
             direct_u = pip_untrusted_sources.get(name.lower(), "")
             if direct_u and not direct_u.startswith(("https://pypi.org/", "https://files.pythonhosted.org/")):
-                reasons.append(f"Untrusted direct PyPI source URL ({direct_u})")
-                stats["untrusted_registry"] += 1
+                if not (direct_u.startswith("https://") and name.lower() in pip_hashed_pkgs):
+                    reasons.append(f"Untrusted direct PyPI source URL ({direct_u})")
+                    stats["untrusted_registry"] += 1
             elif custom_index_url:
-                reasons.append(f"Non-canonical PyPI index-url ({custom_index_url})")
-                stats["untrusted_registry"] += 1
+                if not (custom_index_url.startswith("https://") and name.lower() in pip_hashed_pkgs):
+                    reasons.append(f"Non-canonical PyPI index-url without digest pin ({custom_index_url})")
+                    stats["untrusted_registry"] += 1
 
-        # Criterion B: End-of-life (endoflife.date / legacy branch / npm or PyPI deprecated)
+        # Criterion B: End-of-life (published endoflife.date date or official registry deprecation)
         if info["deprecated"]:
             reasons.append(f"Deprecated in registry: '{info['deprecated']}'")
             stats["eol_or_deprecated"] += 1
@@ -444,7 +488,7 @@ def evaluate_sca02_dependencies(
             reasons.append(f"Past End-of-Life ({info['eol_date']})")
             stats["eol_or_deprecated"] += 1
 
-        # Criterion C: OpenSSF Scorecard Maintained < 5
+        # Criterion C: OpenSSF Scorecard Maintained < 5 (where a Scorecard result exists)
         maint = info["scorecard_maintained"]
         if maint is not None and maint >= 0 and maint < 5:
             reasons.append(
@@ -452,15 +496,28 @@ def evaluate_sca02_dependencies(
             )
             stats["low_scorecard"] += 1
 
+        loc_uri = (
+            "package-lock.json"
+            if (eco == "npm" and pkg_lock.exists())
+            else ("yarn.lock" if (eco == "npm" and yarn_lock.exists()) else ("requirements.txt" if eco == "PyPI" else "package.json"))
+        )
         if reasons:
             line = f"{name}@{ver}: " + " | ".join(reasons)
             sca02_failures.append(line)
-            loc_uri = "package-lock.json" if (eco == "npm" and pkg_lock.exists()) else ("requirements.txt" if eco == "PyPI" else "package.json")
             sca02_sarif.append(
                 {
                     "ruleId": "CASA3-SCA-02",
                     "level": "error",
                     "message": {"text": f"SCA-02 violation on {line}"},
+                    "locations": [{"physicalLocation": {"artifactLocation": {"uri": loc_uri}}}],
+                }
+            )
+        elif maint is None:
+            sca02_sarif.append(
+                {
+                    "ruleId": "CASA3-SCA-02",
+                    "level": "note",
+                    "message": {"text": f"SCA-02 OpenSSF Scorecard result unavailable for {name}@{ver}"},
                     "locations": [{"physicalLocation": {"artifactLocation": {"uri": loc_uri}}}],
                 }
             )

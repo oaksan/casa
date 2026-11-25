@@ -156,6 +156,85 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 01/61: SCA-01 (Iteração SDD 132)", just_neon)
 
+    def test_iteration133_sca02_neon_reeval(self) -> None:
+        # 1. Verify developer-controlled HTTPS mirror pinned by digest passes (yarn.lock + PyPI --hash)
+        #    while unpinned mirror fails, and no fabricated "Legacy 0.x" EOL error is raised
+        with tempfile.TemporaryDirectory() as td, tempfile.TemporaryDirectory() as td_out:
+            repo = Path(td)
+            out_dir = Path(td_out)
+            (repo / "yarn.lock").write_text(
+                '"pinned-lib@^0.4.0":\n'
+                '  version "0.4.2"\n'
+                '  resolved "https://mirror.corp.example/npm/pinned-lib-0.4.2.tgz"\n'
+                '  integrity sha512-abcdef123456\n\n'
+                '"unpinned-lib@^1.0.0":\n'
+                '  version "1.0.0"\n'
+                '  resolved "https://mirror.corp.example/npm/unpinned-lib-1.0.0.tgz"\n',
+                encoding="utf-8",
+            )
+            (repo / "requirements.txt").write_text(
+                "--index-url https://mirror.corp.example/simple/\n"
+                "safe-py==1.2.3 --hash=sha256:" + ("a" * 64) + "\n"
+                "unpinned-py==1.0.0\n",
+                encoding="utf-8",
+            )
+
+            class _FakeResp:
+                def __init__(self, payload: dict):
+                    self._b = json.dumps(payload).encode("utf-8")
+
+                def read(self) -> bytes:
+                    return self._b
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    return False
+
+            def _fake_urlopen(url, timeout=5):
+                u = str(url)
+                if "registry.npmjs.org/pinned-lib" in u:
+                    return _FakeResp(
+                        {
+                            "dist-tags": {"latest": "9.0.0"},
+                            "versions": {"0.4.2": {}, "9.0.0": {}},
+                            "repository": {"url": "https://github.com/org/pinned-lib"},
+                        }
+                    )
+                if "registry.npmjs.org/unpinned-lib" in u:
+                    return _FakeResp({"dist-tags": {"latest": "1.0.0"}, "versions": {"1.0.0": {}}})
+                if "api.securityscorecards.dev" in u:
+                    return _FakeResp({"score": 7.0, "checks": [{"name": "Maintained", "score": 8}]})
+                if "pypi.org/pypi" in u:
+                    return _FakeResp({"info": {"classifiers": []}, "releases": {"1.2.3": [], "1.0.0": []}})
+                raise OSError("network disabled")
+
+            with mock.patch.object(sc, "OUTPUT_DIR", out_dir), mock.patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+                fails, sarifs, stats = sc.evaluate_sca02_dependencies(
+                    repo,
+                    [
+                        ("npm", "pinned-lib", "0.4.0"),
+                        ("npm", "unpinned-lib", "1.0.0"),
+                        ("PyPI", "safe-py", "1.2.3"),
+                        ("PyPI", "unpinned-py", "1.0.0"),
+                    ],
+                )
+            joined = "\n".join(fails)
+            # pinned-lib@0.4.2 has latest=9.0.0, HTTPS mirror with sha512 integrity, Maintained=8 -> MUST PASS (no artificial Legacy 0.x)
+            self.assertNotIn("pinned-lib@0.4.2", joined)
+            # safe-py has HTTPS mirror + sha256 --hash -> MUST PASS
+            self.assertNotIn("safe-py@1.2.3", joined)
+            # unpinned-lib and unpinned-py MUST FAIL on untrusted/unpinned registry
+            self.assertIn("unpinned-lib", joined)
+            self.assertIn("unpinned-py", joined)
+            self.assertEqual(stats["untrusted_registry"], 2)
+            # SARIF note emitted when Scorecard result is absent (safe-py)
+            self.assertTrue(any(r["level"] == "note" and "safe-py" in r["message"]["text"] for r in sarifs))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 02/61: SCA-02 (Iteração SDD 133)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

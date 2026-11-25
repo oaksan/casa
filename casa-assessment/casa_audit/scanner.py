@@ -14528,11 +14528,16 @@ def evaluate_oau07_token_storage(
 
         for idb_entry in before_s.get("indexedDB", []) or []:
             idb_name = str(idb_entry.get("name", "") if isinstance(idb_entry, dict) else idb_entry)
-            if any(t in idb_name.lower() for t in ("token", "auth", "oauth", "session")):
+            idb_blob = json.dumps(idb_entry, ensure_ascii=False) if isinstance(idb_entry, dict) else str(idb_entry)
+            has_idb_tok_val = bool(
+                re.search(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}", idb_blob)
+                or (observed_token and observed_token[:24] in idb_blob)
+            )
+            if any(t in idb_name.lower() for t in ("token", "auth", "oauth", "session")) or has_idb_tok_val:
                 _add_oau07(
-                    f"{base_url or 'browser'}#indexedDB.{idb_name}",
+                    f"{base_url or 'browser'}#indexedDB.{idb_name or 'store'}",
                     "Browser_IndexedDB_Token",
-                    f"Headless Chrome dump observed auth/token IndexedDB database '{idb_name}' (prohibited client storage per OAU-07).",
+                    f"Headless Chrome dump observed auth/token data in IndexedDB database '{idb_name}' (prohibited client storage per OAU-07).",
                 )
 
         doc_cookie_str = str(before_s.get("nonHttpOnlyCookies", "") or "")
@@ -14560,15 +14565,20 @@ def evaluate_oau07_token_storage(
         for lp in (login_paths or ["/oauth/callback", "/auth/session"]):
             l_st, l_hdrs, _ = _probe_logged(lp, follow_redirects=False)
             sc_raw = l_hdrs.get("set-cookie", "")
-            if sc_raw:
-                sc_low = sc_raw.lower()
-                ck_part = sc_raw.split(";", 1)[0]
-                ck_n = ck_part.split("=", 1)[0].strip()
-                if any(t in ck_n.lower() for t in ("token", "access_token", "refresh_token", "id_token", "session")):
+            for sc_item in _split_set_cookie_headers(sc_raw):
+                sc_low = sc_item.lower()
+                ck_part = sc_item.split(";", 1)[0]
+                if "=" not in ck_part:
+                    continue
+                ck_n, ck_v = ck_part.split("=", 1)
+                ck_n = ck_n.strip()
+                if not ck_v.strip() or re.search(r"max-age\s*=\s*0\b", sc_low):
+                    continue
+                if any(t in ck_n.lower() for t in ("token", "access_token", "refresh_token", "id_token", "session")) or _is_session_cookie_name(ck_n):
                     miss_attrs = [attr for attr in ("HttpOnly", "Secure") if attr.lower() not in sc_low]
                     if miss_attrs:
                         _add_oau07(
-                            f"{base_url}{lp}",
+                            f"{base_url}{lp}#cookie:{ck_n}",
                             "Cookie_Missing_HttpOnly_Or_Secure",
                             f"GET {base_url}{lp} (HTTP {l_st}) issued Set-Cookie '{ck_n}' missing {miss_attrs} (OAU-07 / CWE-922).",
                         )

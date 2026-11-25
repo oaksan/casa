@@ -1632,3 +1632,26 @@ CONTROLE 55/61: OAU-06 (Iteração SDD 186) — No Embedded Client Secret
 4. Validação:
    - `test_iteration186_oau06_neon_reeval` (HAR `postData` + `Basic` auth FAIL)
      + regressão `test_iteration125_oau06_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 56/61: OAU-07 (Iteração SDD 187) — Secure Platform Token Storage
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1234):
+   - Referência: `Playwright, MobSF`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — dump de storage via
+     Chrome Headless CDP equivalente a Playwright + auditor `Set-Cookie` +
+     inspetor APK/IPA/XML/plist estilo MobSF + `semgrep` `CASA3-OAU-07`).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Múltiplos `Set-Cookie` concatenados por vírgula eram inspecionados apenas
+     no primeiro cookie, podendo mascarar um segundo cookie `refresh_token`
+     sem `Secure`/`HttpOnly`, e deleções (`Max-Age=0`) não eram filtradas.
+   - Bancos `indexedDB` eram verificados apenas pelo nome, perdendo tokens JWT
+     ou `observed_token` armazenados em bancos com nome benigno (`app_cache`).
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Aplicado `_split_set_cookie_headers` com filtro de deleção `Max-Age=0` em
+     `evaluate_oau07_token_storage` e inspeção de conteúdo JWT/`observed_token`
+     nas entradas `indexedDB`.
+4. Validação:
+   - `test_iteration187_oau07_neon_reeval` (segundo cookie sem `Secure` FAIL,
+     `old_token=; Max-Age=0` ignorado, `app_cache` IndexedDB JWT FAIL) +
+     regressão `test_iteration126_oau07_guide_tooling`.

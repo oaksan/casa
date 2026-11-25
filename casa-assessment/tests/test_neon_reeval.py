@@ -2360,6 +2360,41 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 55/61: OAU-06 (Iteração SDD 186)", just_neon)
 
+    def test_iteration187_oau07_neon_reeval(self) -> None:
+        """SDD 187 (OAU-07): Multi Set-Cookie splitting, Max-Age=0 filter & benign-name IndexedDB JWT check."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            fake_jwt = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1MSJ9.c2lnbmF0dXJlMTIz"
+
+            def _probe_multi_cookie(url, method="GET", headers=None, body=None, timeout=5, follow_redirects=False):
+                return (
+                    200,
+                    {"set-cookie": "theme=dark; Path=/, refresh_token=tok_abc123; Path=/; HttpOnly, old_token=; Max-Age=0"},
+                    "ok",
+                )
+
+            r_fail = sc.evaluate_oau07_token_storage(
+                "https://app.example.com",
+                repo=tdp,
+                storage_snapshot={"before": {"localStorage": {}, "sessionStorage": {}, "indexedDB": [{"name": "app_cache", "items": [fake_jwt]}], "nonHttpOnlyCookies": ""}},
+                observed_token=fake_jwt,
+                login_paths=["/oauth/callback"],
+                http_probe_fn=_probe_multi_cookie,
+                run_semgrep=False,
+                report_out_path=tdp / "oau07.json",
+                har_out_path=tdp / "oau07.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            kinds = {f["kind"] for f in r_fail["findings"]}
+            locs = {f["location"] for f in r_fail["findings"]}
+            self.assertIn("Browser_IndexedDB_Token", kinds)
+            self.assertIn("Cookie_Missing_HttpOnly_Or_Secure", kinds)
+            self.assertIn("https://app.example.com/oauth/callback#cookie:refresh_token", locs)
+            self.assertNotIn("https://app.example.com/oauth/callback#cookie:old_token", locs)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 56/61: OAU-07 (Iteração SDD 187)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

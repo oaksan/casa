@@ -549,6 +549,33 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 10/61: SAST-05 (Iteração SDD 141)", just_neon)
 
+    def test_iteration142_sast06_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            # 1. Non-security arithmetic variable firstTerm using Math.random() must NOT false-positive
+            (src / "quiz.ts").write_text(
+                "export const mk = () => { const firstTerm = Math.floor(Math.random() * 10); return firstTerm; };\n",
+                encoding="utf-8",
+            )
+            v_ok, f_ok, _, _ = sc.evaluate_sast06_csprng_randomness(repo)
+            self.assertEqual(v_ok, "PASS", f"Non-security firstTerm must PASS, got {f_ok}")
+
+            # 2. PHP mt_rand -> csrfToken, C# Random -> token, TS Math.random -> sessionId MUST FAIL
+            (src / "bad.php").write_text("<?php $r = mt_rand(); $csrfToken = $r;\n", encoding="utf-8")
+            (src / "Bad.cs").write_text("using System;\nclass C { void F() { var r = new Random(); var token = r.Next(); } }\n", encoding="utf-8")
+            (src / "bad.ts").write_text("export const s = () => { const sessionId = Math.random().toString(36); return sessionId; };\n", encoding="utf-8")
+            v_fail, f_fail, sarifs, _ = sc.evaluate_sast06_csprng_randomness(repo)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fn in ("bad.php", "Bad.cs", "bad.ts"):
+                self.assertIn(fn, joined, f"Missing SAST-06 hit for {fn} in:\n{joined}")
+            self.assertGreaterEqual(len(sarifs), 3)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 11/61: SAST-06 (Iteração SDD 142)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

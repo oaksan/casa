@@ -417,22 +417,28 @@ rules:
       - pattern: "salt = $SINK"
       - pattern: "iv = $SINK"
       - pattern: "otp = $SINK"
+      - pattern: "session_id = $SINK"
+      - pattern: "csrf_token = $SINK"
+      - pattern: "api_key = $SINK"
       - pattern: "secretKey = $SINK"
       - pattern: "encryptionKey = $SINK"
+      - pattern: "sessionId = $SINK"
+      - pattern: "csrfToken = $SINK"
+      - pattern: "apiKey = $SINK"
+      - pattern: "authCode = $SINK"
+      - pattern: "verificationCode = $SINK"
       - pattern: "{ ..., resetToken: $SINK, ... }"
       - pattern: "{ ..., passwordResetToken: $SINK, ... }"
       - pattern: "{ ..., token: $SINK, ... }"
+      - pattern: "{ ..., sessionId: $SINK, ... }"
+      - pattern: "{ ..., csrfToken: $SINK, ... }"
+      - pattern: "{ ..., apiKey: $SINK, ... }"
       - pattern: "{ ..., nonce: $SINK, ... }"
       - pattern: "{ ..., salt: $SINK, ... }"
       - pattern: "{ ..., iv: $SINK, ... }"
       - pattern: "$RES.cookie($NAME, $SINK, ...)"
       - pattern: "CaptchaModel.create({ ..., captcha: $SINK, ... })"
       - pattern: "CaptchaModel.create($SINK)"
-      - pattern: "const firstTerm = $SINK"
-      - pattern: "const secondTerm = $SINK"
-      - pattern: "const thirdTerm = $SINK"
-      - pattern: "const firstOperator = $SINK"
-      - pattern: "const secondOperator = $SINK"
       - pattern: "crypto.createCipheriv($ALG, $KEY, $SINK)"
       - pattern: "crypto.pbkdf2($PWD, $SINK, ...)"
       - pattern: "crypto.pbkdf2Sync($PWD, $SINK, ...)"
@@ -471,6 +477,9 @@ rules:
       - pattern: "salt = $SINK"
       - pattern: "iv = $SINK"
       - pattern: "otp = $SINK"
+      - pattern: "session_id = $SINK"
+      - pattern: "csrf_token = $SINK"
+      - pattern: "api_key = $SINK"
 
   - id: CASA3-SAST-06-insecure-randomness-java
     mode: taint
@@ -514,6 +523,42 @@ rules:
       - pattern: "iv := $SINK"
       - pattern: "secret = $SINK"
       - pattern: "secret := $SINK"
+
+  - id: CASA3-SAST-06-insecure-randomness-php
+    mode: taint
+    languages: [php]
+    message: "SAST-06: Non-CSPRNG randomness (rand/mt_rand/uniqid/time) flows to a security-relevant sink in PHP (CWE-338)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: rand(...)
+      - pattern: mt_rand(...)
+      - pattern: uniqid(...)
+      - pattern: time()
+    pattern-sinks:
+      - pattern: $token = $SINK
+      - pattern: $resetToken = $SINK
+      - pattern: $csrfToken = $SINK
+      - pattern: $nonce = $SINK
+      - pattern: $salt = $SINK
+      - pattern: $apiKey = $SINK
+
+  - id: CASA3-SAST-06-insecure-randomness-csharp
+    mode: taint
+    languages: [csharp]
+    message: "SAST-06: Non-CSPRNG System.Random flows to a security-relevant sink in C# (CWE-338)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: new Random(...)
+      - pattern: Random.Shared
+    pattern-sinks:
+      - pattern: token = $SINK
+      - pattern: var token = $SINK;
+      - pattern: nonce = $SINK
+      - pattern: var nonce = $SINK;
+      - pattern: salt = $SINK
+      - pattern: var salt = $SINK;
+      - pattern: secret = $SINK
+      - pattern: var secret = $SINK;
 
   - id: CASA3-SAST-07-mass-assignment
     languages: [typescript, javascript]

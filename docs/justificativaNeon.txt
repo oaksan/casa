@@ -479,3 +479,34 @@ Domínio 2: Static Code Analysis & Secrets
   para `setDataValue('password', bcrypt.hashSync(pw, 12))` e `FAIL` para
   `argon2.hash(pw)` sem parâmetros e com salt literal.
 - Regressão validada: `test_iteration80_sast05_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 11/61: SAST-06 (Iteração SDD 142)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L267):
+  `semgrep`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `semgrep` em modo `taint` (SARIF 2.1.0, nível `ERROR`).
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 142)
+--------------------------------------------------------------------------------
+1) **Remoção de sinks genéricos propensos a falso positivo**:
+   - Removidos `firstTerm`, `secondTerm`, `thirdTerm`, `firstOperator` e
+     `secondOperator` de `CASA3-SAST-06-insecure-randomness`, preservando
+     `CaptchaModel.create(...)` e adicionando sinks de segurança reais
+     (`sessionId`, `csrfToken`, `apiKey`, `authCode`, `verificationCode`).
+2) **Expansão multilíngue (`PHP` e `C#`)**:
+   - Adicionadas regras `CASA3-SAST-06-insecure-randomness-php` (`rand`/
+     `mt_rand`/`uniqid`/`time`) e `CASA3-SAST-06-insecure-randomness-csharp`
+     (`System.Random`), além de `session_id`/`csrf_token`/`api_key` em Python.
+
+3. VALIDAÇÃO (SDD 142)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration142_sast06_neon_reeval` validando `PASS`
+  em `firstTerm` não-seguro e `FAIL` para taint em PHP, C# e TS (`sessionId`).
+- Regressão validada: `test_iteration81_sast06_guide_tooling` (`OK`).

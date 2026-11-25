@@ -4947,7 +4947,7 @@ def parse_testssl_hsts(scan_result: list[dict]) -> dict:
             if iid == "HSTS_time":
                 offered = True
                 raw_finding = finding
-                m_sec = re.search(r"=\s*(\d+)\s*seconds?", finding, re.IGNORECASE)
+                m_sec = re.search(r"(?:=\s*|\()(\d+)\s*seconds?", finding, re.IGNORECASE)
                 if m_sec:
                     hsts_time = int(m_sec.group(1))
             elif iid == "HSTS":
@@ -5052,13 +5052,13 @@ def evaluate_tls05_hsts_enforcement(
     for ep in hsts_endpoints:
         st, hdrs, _ = probe(ep)
         raw_hsts = hdrs.get("strict-transport-security", "")
-        m_age = re.search(r"max-age\s*=\s*(\d+)", raw_hsts, re.IGNORECASE)
+        m_age = re.search(r'max-age\s*=\s*"?(\d+)"?', raw_hsts, re.IGNORECASE)
         age_val = int(m_age.group(1)) if m_age else None
         inc_sub = "includesubdomains" in raw_hsts.lower()
         preloaded = "preload" in raw_hsts.lower()
         if age_val is not None:
             min_hsts_time = age_val if min_hsts_time is None else min(min_hsts_time, age_val)
-        ep_ok = is_https and (age_val is not None and age_val >= 31536000)
+        ep_ok = is_https and st > 0 and (age_val is not None and age_val >= 31536000)
         hsts_results_by_ep.append(
             {
                 "endpoint": ep,
@@ -5071,7 +5071,9 @@ def evaluate_tls05_hsts_enforcement(
                 "compliant": ep_ok,
             }
         )
-        if not raw_hsts:
+        if st == 0:
+            hsts_violations.append(f"GET {base_url}{ep} unreachable (connection error; cannot verify HSTS)")
+        elif not raw_hsts:
             hsts_violations.append(f"GET {base_url}{ep} missing Strict-Transport-Security header (HSTS_time=0 < 31536000)")
         elif age_val is None or age_val < 31536000:
             hsts_violations.append(f"GET {base_url}{ep} HSTS_time={age_val or 0} < 31536000 ('{raw_hsts}')")

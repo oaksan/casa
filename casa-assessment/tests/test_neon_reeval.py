@@ -1001,6 +1001,41 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 22/61: TLS-04 (Iteração SDD 153)", just_neon)
 
+    def test_iteration154_tls05_neon_reeval(self) -> None:
+        # 1. RFC 6797 quoted max-age="31536000" + parenthesized testssl HSTS_time -> PASS
+        fake_hsts = {
+            "executed": True,
+            "scanResult": [
+                {
+                    "headerResponse": [
+                        {"id": "HSTS_time", "finding": ">= 365 days (31536000 seconds)"},
+                        {"id": "HSTS_subdomains", "finding": "includes subdomains"},
+                    ]
+                }
+            ],
+        }
+        r_ok = sc.evaluate_tls05_hsts_enforcement(
+            "https://app.example.com",
+            testssl_info=fake_hsts,
+            endpoints=["/"],
+            http_probe_fn=lambda ep: (200, {"strict-transport-security": 'max-age="31536000"; includeSubDomains'}, ""),
+        )
+        self.assertEqual(r_ok["verdict"], "PASS", f"Quoted max-age must PASS, got {r_ok}")
+        self.assertEqual(r_ok["HSTS_time"], 31536000)
+
+        # 2. Unreachable endpoint reports connection error explicitly
+        r_err = sc.evaluate_tls05_hsts_enforcement(
+            "https://app.example.com",
+            testssl_info=fake_hsts,
+            endpoints=["/"],
+            http_probe_fn=lambda ep: (0, {}, "timeout"),
+        )
+        self.assertEqual(r_err["verdict"], "FAIL")
+        self.assertTrue(any("unreachable" in v for v in r_err["violations"]))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 23/61: TLS-05 (Iteração SDD 154)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

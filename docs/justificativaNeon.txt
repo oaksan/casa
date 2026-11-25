@@ -859,3 +859,34 @@ Domínio 3: Transport Security
   para certificado futuro (`notBefore=2099-01-01`) e `PASS` com aviso limpo
   (`< 30 days`, sem `"informational"`).
 - Regressão validada: `test_iteration92_tls04_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 23/61: TLS-05 (Iteração SDD 154)
+Domínio 3: Transport Security
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L524):
+  `testssl.sh`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  `testssl.sh --ssl-native -h` (JSON estruturado) complementado por sondas HTTPS
+  para verificar consistência do cabeçalho `Strict-Transport-Security`.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 154)
+--------------------------------------------------------------------------------
+1) **Conformidade com RFC 6797 §6.1 (`max-age="31536000"`) e formato
+   parentetizado de `HSTS_time`**:
+   - `parse_testssl_hsts` passou a aceitar tanto `= <N> seconds` quanto
+     `(<N> seconds)`.
+   - `evaluate_tls05_hsts_enforcement` passou a aceitar `max-age` entre aspas
+     (`max-age="31536000"`) e a reportar erros de conexão (`status=0`) de forma
+     distinta de ausência de cabeçalho HSTS.
+
+3. VALIDAÇÃO (SDD 154)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration154_tls05_neon_reeval` validando
+  `max-age="31536000"`, `HSTS_time` entre parênteses e diagnóstico de falha de
+  conexão.
+- Regressão validada: `test_iteration93_tls05_guide_tooling` (`OK`).

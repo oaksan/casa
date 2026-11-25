@@ -3,7 +3,7 @@
   "target": "http://localhost:3000",
   "verdict": "FAIL",
   "headlessExecuted": true,
-  "crawledResponses": 293,
+  "crawledResponses": 295,
   "sourcesAudited": 5,
   "semgrepHits": 4,
   "findings": [

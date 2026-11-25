@@ -3159,7 +3159,7 @@
           "ruleId": "CASA3-SAST-07-active-mass-assignment",
           "level": "error",
           "message": {
-            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=64) | GET http://localhost:3000/api/Users/64 verified lab-account read-back with role=\"admin\" (HTTP 200)"
+            "text": "[ACTIVE MASS ASSIGNMENT CONFIRMED] POST http://localhost:3000/api/Users/ persisted injected \"role\": \"admin\" (HTTP 201, id=69) | GET http://localhost:3000/api/Users/69 verified lab-account read-back with role=\"admin\" (HTTP 200)"
           },
           "locations": [
             {
@@ -3178,7 +3178,7 @@
           "ruleId": "CASA3-SAST-13-canary-log-leak",
           "level": "error",
           "message": {
-            "text": "logs/access.log.2026-11-25:598 \u2014 [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary value written to log sink: ::ffff:127.0.0.1 - - [25/Nov/2026:03:04:01 +0000] \"GET /rest/user/change-password?current=CASA3_CANARY_CURPWD_1795575841&new=CASA3_CANARY_NEWPWD_1795575841&repeat=CASA3_CANARY_NEWPWD_1795575841 HTTP/1.1\" 500 - \"-\" \"ADA-CASA-3.0-Lab-Scanner/3.0\""
+            "text": "logs/access.log.2026-11-25:7627 \u2014 [CANARY CREDENTIAL LEAK IN LOG SINK] Literal canary value written to log sink: ::ffff:127.0.0.1 - - [25/Nov/2026:03:39:30 +0000] \"GET /rest/user/change-password?current=CASA3_CANARY_CURPWD_1795577970&new=CASA3_CANARY_NEWPWD_1795577970&repeat=CASA3_CANARY_NEWPWD_1795577970 HTTP/1.1\" 500 - \"-\" \"ADA-CASA-3.0-Lab-Scanner/3.0\""
           },
           "locations": [
             {
@@ -3187,7 +3187,7 @@
                   "uri": "logs/access.log.2026-11-25"
                 },
                 "region": {
-                  "startLine": 598
+                  "startLine": 7627
                 }
               }
             }

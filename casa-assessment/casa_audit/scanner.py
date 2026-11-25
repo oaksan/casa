@@ -13862,6 +13862,206 @@ def evaluate_oau08_token_transport(
     }
 
 
+def _b64url_encode(raw_bytes: bytes) -> str:
+    return base64.urlsafe_b64encode(raw_bytes).rstrip(b"=").decode("ascii")
+
+
+def _b64url_decode_json(seg_str: str) -> dict:
+    padded = seg_str + "=" * (-len(seg_str) % 4)
+    return json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8", errors="ignore"))
+
+
+def evaluate_oau09_token_validation(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    observed_token: str = "",
+    endpoints: list[str] | None = None,
+    public_key_pem: bytes | None = None,
+    jwt_confusion: bool = False,
+    http_probe_fn=None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    semgrep_sarif_out_path: Path | None = None,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate OAU-09 (RFC 9700 §4.9 / RFC 8725) via 7-vector forged-JWT replay & Semgrep JWT rules."""
+    base_url = target_url.strip().rstrip("/")
+    oau09_findings: list[dict] = []
+    seen_oau09_keys: set[tuple[str, str]] = set()
+    oau09_probes = 0
+    oau09_endpoints = list(endpoints) if endpoints is not None else ["/rest/wallet/balance"]
+    oau09_rejected_vectors: set[str] = set()
+    oau09_accepted_vectors: set[str] = set()
+
+    def _add_oau09(location: str, vector: str, detail: str, status: int = 0) -> None:
+        key9 = (location, vector)
+        if key9 not in seen_oau09_keys:
+            seen_oau09_keys.add(key9)
+            oau09_findings.append(
+                {
+                    "location": location,
+                    "vector": vector,
+                    "cwe": "CWE-347",
+                    "status": status,
+                    "detail": detail,
+                }
+            )
+
+    _probe_logged, _, probe_har_entries = _make_redacted_har_probe(base_url, http_probe_fn=http_probe_fn)
+
+    if base_url and observed_token and observed_token.count(".") == 2:
+        _, pay9_b64, _ = observed_token.split(".")
+        try:
+            pay9 = _b64url_decode_json(pay9_b64)
+        except Exception:
+            pay9 = {}
+
+        oau09_pub_key = public_key_pem or b""
+        if not oau09_pub_key:
+            for pk_ep in ("/encryptionkeys/jwt.pub", "/.well-known/jwks.json"):
+                pk9_st, _, pk9_body = _probe_logged(pk_ep)
+                if pk9_st == 200 and ("BEGIN PUBLIC KEY" in pk9_body or '"keys"' in pk9_body):
+                    oau09_pub_key = pk9_body.encode("utf-8")
+                    break
+        if not oau09_pub_key and repo is not None and (repo / "encryptionkeys" / "jwt.pub").exists():
+            oau09_pub_key = (repo / "encryptionkeys" / "jwt.pub").read_bytes()
+
+        none9_hdr = _b64url_encode(json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+        foreign9_hdr = _b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+        foreign9_sig = _b64url_encode(
+            hmac.new(b"foreign-attacker-signing-key-999", f"{foreign9_hdr}.{pay9_b64}".encode("utf-8"), hashlib.sha256).digest()
+        )
+
+        def _sign_oau09(claim_updates: dict) -> str:
+            merged_pay = {**(pay9 if isinstance(pay9, dict) else {}), **claim_updates}
+            p_b64 = _b64url_encode(json.dumps(merged_pay, separators=(",", ":")).encode("utf-8"))
+            if oau09_pub_key:
+                h_b64 = _b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+                s_b64 = _b64url_encode(
+                    hmac.new(oau09_pub_key, f"{h_b64}.{p_b64}".encode("utf-8"), hashlib.sha256).digest()
+                )
+                return f"{h_b64}.{p_b64}.{s_b64}"
+            return f"{none9_hdr}.{p_b64}."
+
+        oau09_vectors: list[tuple[str, str]] = [
+            ("unsigned_alg_none", f"{none9_hdr}.{pay9_b64}."),
+            ("foreign_signing_key", f"{foreign9_hdr}.{pay9_b64}.{foreign9_sig}"),
+            ("alg_confusion_hs256_pubkey", _sign_oau09({})),
+            ("expired_exp_claim", _sign_oau09({"exp": 1577836800})),
+            ("wrong_audience_aud", _sign_oau09({"aud": "https://wrong-audience.example.com"})),
+            ("wrong_issuer_iss", _sign_oau09({"iss": "https://wrong-issuer.example.com"})),
+            ("insufficient_scope", _sign_oau09({"scope": "minimal:none"})),
+        ]
+
+        for ep9 in oau09_endpoints:
+            base9_st, _, _ = _probe_logged(ep9, headers={"Authorization": f"Bearer {observed_token}"})
+            oau09_probes += 1
+            if not (200 <= base9_st < 300):
+                continue
+            for vec9_name, vec9_tok in oau09_vectors:
+                v9_st, _, _ = _probe_logged(ep9, headers={"Authorization": f"Bearer {vec9_tok}"})
+                oau09_probes += 1
+                if 200 <= v9_st < 300:
+                    oau09_accepted_vectors.add(vec9_name)
+                    _add_oau09(
+                        f"{base_url}{ep9}",
+                        vec9_name,
+                        f"GET {base_url}{ep9} ACCEPTED crafted token '{vec9_name}' (HTTP {v9_st}) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347).",
+                        status=v9_st,
+                    )
+                else:
+                    oau09_rejected_vectors.add(vec9_name)
+    elif jwt_confusion:
+        _add_oau09(
+            "lib/insecurity.ts",
+            "static_alg_confusion_no_iss_aud",
+            "Backend token verification (lib/insecurity.ts) configures express-jwt with RSA publicKey without algorithm pinning or iss/aud claim validation (RFC 8725 / CWE-347).",
+        )
+
+    semgrep_sarif_file = semgrep_sarif_out_path or (OUTPUT_DIR / "oau09-semgrep.sarif")
+    semgrep_ran, sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "CASA3-OAU-09", semgrep_sarif_file) if run_semgrep else (False, [])
+    )
+    for sh in sg_hits:
+        _add_oau09(
+            sh["location"],
+            "Semgrep_OAU09_JWT_Validation_Weakness",
+            f"Semgrep rule {sh['ruleId']} flagged {sh['location']} ({sh['message']}).",
+        )
+
+    rep_file = report_out_path or (OUTPUT_DIR / "oau09-token-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "RFC 9700 §4.9 / RFC 8725 / CWE-347 (Backend Token Signature, Claims & Alg Confusion Validation)",
+                "target": base_url,
+                "verdict": "FAIL" if oau09_findings else "PASS",
+                "endpointsTested": oau09_endpoints,
+                "probesRun": oau09_probes,
+                "vectorsRejected": sorted(oau09_rejected_vectors),
+                "vectorsAccepted": sorted(oau09_accepted_vectors),
+                "semgrepHits": len(sg_hits),
+                "findings": oau09_findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "oau09-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-oau09-jwt-harness", "version": "3.0"},
+                    "entries": probe_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af_o9 in oau09_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-OAU-09",
+                "level": "error",
+                "message": {"text": af_o9["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af_o9["location"]}}}],
+                "properties": {
+                    "controlId": "OAU-09",
+                    "attackVector": af_o9["vector"],
+                    "cwe": af_o9["cwe"],
+                    "httpStatus": af_o9["status"],
+                },
+            }
+        )
+
+    oau09_fail = len(oau09_findings) > 0
+    return {
+        "verdict": "FAIL" if oau09_fail else "PASS",
+        "oau09_fail": oau09_fail,
+        "endpoints": oau09_endpoints,
+        "probesRun": oau09_probes,
+        "rejectedVectors": sorted(oau09_rejected_vectors),
+        "acceptedVectors": sorted(oau09_accepted_vectors),
+        "semgrepHits": len(sg_hits),
+        "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+        "findings": oau09_findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -15316,132 +15516,36 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
     # OAU-09: Active 7-Vector Crafted Token Replay & Claim Validation Harness (signature, iss, aud, exp, scope, alg:none, alg confusion) (SARIF 2.1.0 + redacted HAR 1.2)
-    oau09_token = aut05_replayed_token or auth_token or jwt_token
-    oau09_findings: list[dict] = []
-    seen_oau09_keys: set[tuple[str, str]] = set()
-    oau09_probes = 0
-    oau09_endpoints: list[str] = ["/rest/wallet/balance", f"/rest/basket/{auth_bid}"]
-    oau09_rejected_vectors: set[str] = set()
-
-    def _add_oau09(location: str, vector: str, detail: str, status: int = 0) -> None:
-        key9 = (location, vector)
-        if key9 not in seen_oau09_keys:
-            seen_oau09_keys.add(key9)
-            oau09_findings.append(
-                {
-                    "location": location,
-                    "vector": vector,
-                    "cwe": "CWE-347",
-                    "status": status,
-                    "detail": detail,
-                }
-            )
-
-    if base_url and oau09_token and oau09_token.count(".") == 2:
-        hdr9_b64, pay9_b64, _ = oau09_token.split(".")
-        try:
-            pay9 = b64url_decode_json(pay9_b64)
-        except Exception:
-            pay9 = {}
-
-        oau09_pub_key = b""
-        pk9_st, _, pk9_body = http_probe("/encryptionkeys/jwt.pub")
-        if pk9_st == 200 and "BEGIN PUBLIC KEY" in pk9_body:
-            oau09_pub_key = pk9_body.encode("utf-8")
-        elif (repo / "encryptionkeys" / "jwt.pub").exists():
-            oau09_pub_key = (repo / "encryptionkeys" / "jwt.pub").read_bytes()
-
-        none9_hdr = b64url_encode(json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
-        foreign9_hdr = b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
-        foreign9_sig = b64url_encode(
-            hmac.new(b"foreign-attacker-signing-key-999", f"{foreign9_hdr}.{pay9_b64}".encode("utf-8"), hashlib.sha256).digest()
-        )
-
-        def _sign_oau09(claim_updates: dict) -> str:
-            merged_pay = {**(pay9 if isinstance(pay9, dict) else {}), **claim_updates}
-            p_b64 = b64url_encode(json.dumps(merged_pay, separators=(",", ":")).encode("utf-8"))
-            if oau09_pub_key:
-                h_b64 = b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
-                s_b64 = b64url_encode(
-                    hmac.new(oau09_pub_key, f"{h_b64}.{p_b64}".encode("utf-8"), hashlib.sha256).digest()
-                )
-                return f"{h_b64}.{p_b64}.{s_b64}"
-            return f"{none9_hdr}.{p_b64}."
-
-        oau09_vectors: list[tuple[str, str]] = [
-            ("unsigned_alg_none", f"{none9_hdr}.{pay9_b64}."),
-            ("foreign_signing_key", f"{foreign9_hdr}.{pay9_b64}.{foreign9_sig}"),
-            ("alg_confusion_hs256_pubkey", _sign_oau09({})),
-            ("expired_exp_claim", _sign_oau09({"exp": 1577836800})),
-            ("wrong_audience_aud", _sign_oau09({"aud": "https://wrong-audience.example.com"})),
-            ("wrong_issuer_iss", _sign_oau09({"iss": "https://wrong-issuer.example.com"})),
-            ("insufficient_scope", _sign_oau09({"scope": "minimal:none"})),
-        ]
-
-        for ep9 in oau09_endpoints:
-            # Verify endpoint accepts genuine token first per OAU-09 Test Procedure
-            base9_st, _, _ = http_probe(ep9, headers={"Authorization": f"Bearer {oau09_token}"})
-            oau09_probes += 1
-            if not (200 <= base9_st < 300):
-                continue
-            for vec9_name, vec9_tok in oau09_vectors:
-                v9_st, _, _ = http_probe(ep9, headers={"Authorization": f"Bearer {vec9_tok}"})
-                oau09_probes += 1
-                if 200 <= v9_st < 300:
-                    _add_oau09(
-                        f"{base_url}{ep9}",
-                        vec9_name,
-                        f"GET {base_url}{ep9} ACCEPTED crafted token '{vec9_name}' (HTTP {v9_st}) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347).",
-                        status=v9_st,
-                    )
-                else:
-                    oau09_rejected_vectors.add(vec9_name)
-    elif jwt_confusion:
-        _add_oau09(
-            "lib/insecurity.ts",
-            "static_alg_confusion_no_iss_aud",
-            "Backend token verification (lib/insecurity.ts) configures express-jwt with RSA publicKey without algorithm pinning or iss/aud claim validation (RFC 8725 / CWE-347).",
-        )
-
-    for af_o9 in oau09_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-OAU-09",
-                "level": "error",
-                "message": {"text": af_o9["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af_o9["location"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "OAU-09",
-                    "attackVector": af_o9["vector"],
-                    "cwe": af_o9["cwe"],
-                    "httpStatus": af_o9["status"],
-                },
-            }
-        )
-
-    oau09_fail = len(oau09_findings) > 0
+    oau09_eval = evaluate_oau09_token_validation(
+        base_url,
+        repo=repo,
+        observed_token=aut05_replayed_token or auth_token or jwt_token,
+        endpoints=["/rest/wallet/balance", f"/rest/basket/{auth_bid}"],
+        jwt_confusion=jwt_confusion,
+        http_probe_fn=http_probe,
+    )
+    oau09_findings = oau09_eval["findings"]
+    oau09_probes = oau09_eval["probesRun"]
+    oau09_endpoints = oau09_eval["endpoints"]
+    oau09_rejected_vectors = oau09_eval["rejectedVectors"]
+    dast_sarif_results.extend(oau09_eval["sarifResults"])
+    oau09_fail = oau09_eval["oau09_fail"]
     oau09_lines = [f"[{o9['vector']}] {o9['detail']}" for o9 in oau09_findings]
     results["OAU-09"] = {
-        "verdict": "FAIL" if oau09_fail else "PASS",
+        "verdict": oau09_eval["verdict"],
         "tool": (
-            f"OAuth/OIDC Backend Token Replay & Claim Validator Harness ({oau09_probes} crafted-token probes across {len(oau09_endpoints)} protected endpoints, "
-            f"rejected={sorted(oau09_rejected_vectors)}, SARIF 2.1.0 + redacted HAR 1.2)"
+            f"OAuth/OIDC Backend Token Replay, Semgrep & Claim Validator Harness ({oau09_probes} crafted-token probes across {len(oau09_endpoints)} protected endpoints, "
+            f"rejected={oau09_rejected_vectors}, Semgrep hits={oau09_eval['semgrepHits']}, SARIF 2.1.0 + redacted HAR 1.2)"
         ),
         "log": (
             f"[FAIL] {len(oau09_findings)} crafted-token acceptance violation(s) detected across {oau09_probes} probes (RFC 9700 §4.9 / RFC 8725 / CWE-347):\n  - "
             + "\n  - ".join(oau09_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - OAU-09 Token Audit JSON: {oau09_eval['reportPath']}\n  - OAU-09 Redacted HAR 1.2: {oau09_eval['harPath']}\n  - OAU-09 Semgrep SARIF 2.1.0: {oau09_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if oau09_fail
             else (
                 f"[PASS] Executed {oau09_probes} crafted-token probes (unsigned/alg:none, foreign key, alg confusion, expired, wrong aud, wrong iss, insufficient scope) "
                 f"across {len(oau09_endpoints)} token-accepting endpoints; 100% rejected.\n"
-                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                f"Evidence Artifacts:\n  - OAU-09 Token Audit JSON: {oau09_eval['reportPath']}\n  - OAU-09 Redacted HAR 1.2: {oau09_eval['harPath']}\n  - OAU-09 Semgrep SARIF 2.1.0: {oau09_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             )
         ),
     }

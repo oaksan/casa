@@ -55,7 +55,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:59 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:27:09 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -123,7 +123,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -186,7 +186,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:34 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -251,7 +251,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -316,7 +316,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -384,7 +384,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -450,7 +450,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:34 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -518,7 +518,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -586,7 +586,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -597,141 +597,6 @@
                    },
                    "body": {
                        "text": "<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Unexpected path: \/rest\/products<\/title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;\n}\nh1, h2 {\n  font-size: 22px;\n  color: #343434;\n}\nh1 em, h2 em {\n  padding: 0 5px;\n  font-weight: normal;\n}\nh1 {\n  font-size: 60px;\n}\nh2 {\n  margin-top: 10px;\n}\nul li {\n  list-style: none;\n}\n#stacktrace {\n  margin-left: 60px;\n}\n<\/style>\n  <\/head>\n  <body>\n    <div id=\"wrapper\">\n      <h1>OWASP Juice Shop (Express ^4.22.1)<\/h1>\n      <h2><em>500<\/em> Error: Unexpected path: \/rest\/products<\/h2>\n      <ul id=\"stacktrace\"><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/angular.js:18:18<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/lib\/utils.js:239:26<\/li><li> \u0026nbsp; \u0026nbsp;at Layer.handle [as handle_request] (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5)<\/li><li> \u0026nbsp; \u0026nbsp;at trim_prefix (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:328:13)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:286:9<\/li><li> \u0026nbsp; \u0026nbsp;at router.process_params (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:346:12)<\/li><li> \u0026nbsp; \u0026nbsp;at next (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:280:10)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/verify.js:235:5<\/li><li> \u0026nbsp; \u0026nbsp;at Layer.handle [as handle_request] (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5)<\/li><li> \u0026nbsp; \u0026nbsp;at trim_prefix (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:328:13)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:286:9<\/li><li> \u0026nbsp; \u0026nbsp;at router.process_params (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:346:12)<\/li><li> \u0026nbsp; \u0026nbsp;at next (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:280:10)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/lib\/insecurity.js:218:5<\/li><li> \u0026nbsp; \u0026nbsp;at Layer.handle [as handle_request] (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5)<\/li><li> \u0026nbsp; \u0026nbsp;at trim_prefix (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:328:13)<\/li><\/ul>\n    <\/div>\n  <\/body>\n<\/html>\n"
-                   },
-                   "noResponseReceived": false
-               }
-            },
-            {
-               "level": "warning",
-               "locations": [
-                  {
-                     "physicalLocation": {
-                        "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/rest\/products\/search?q=apple"
-                        },
-                        
-                        "region": {
-                           "startLine": 1,
-                           
-                           "properties" : { 
-                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
-                            }, 
-                           "snippet": {
-                               "text": "Access-Control-Allow-Origin: *"
-                           }
-                        }
-                     },
-                     "properties": {
-                         "attack": ""
-                     }
-                  }
-               ],
-               "message": {
-                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
-               },
-               "ruleId": "10098",
-               "webRequest": {
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/rest\/products\/search?q=apple",
-                   "method": "GET",
-                   "headers": {
-                       "host" : "localhost:3000"
-                   },
-                   "body": {
-                       
-                   }
-               },
-               "webResponse": {
-                   "statusCode": 200,
-                   "reasonPhrase": "OK",
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "headers": {
-                       "Access-Control-Allow-Origin" : "*",
-                       "Connection" : "keep-alive",
-                       "Content-Length" : "1617",
-                       "Content-Type" : "application\/json; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:34 GMT",
-                       "ETag" : "W\/\"651-IUXdvl67doWn1H312stomGAcV2I\"",
-                       "Feature-Policy" : "payment 'self'",
-                       "Keep-Alive" : "timeout=5",
-                       "Vary" : "Accept-Encoding",
-                       "X-Content-Type-Options" : "nosniff",
-                       "X-Frame-Options" : "SAMEORIGIN",
-                       "X-Recruiting" : "\/#\/jobs"
-                   },
-                   "body": {
-                       "text": "{\"status\":\"success\",\"data\":[{\"id\":1,\"name\":\"Apple Juice (1000ml)\",\"description\":\"The all-time classic.\",\"price\":1.99,\"deluxePrice\":0.99,\"image\":\"apple_juice.jpg\",\"alternateImages\":[{\"file\":\"apple_juice-1x.avif\",\"format\":\"image\/avif\",\"density\":\"1x\"},{\"file\":\"apple_juice-2x.avif\",\"format\":\"image\/avif\",\"density\":\"2x\"},{\"file\":\"apple_juice-3x.avif\",\"format\":\"image\/avif\",\"density\":\"3x\"}],\"createdAt\":\"2026-11-24 21:30:04.983 +00:00\",\"updatedAt\":\"2026-11-24 21:30:04.983 +00:00\",\"deletedAt\":null},{\"id\":24,\"name\":\"Apple Pomace\",\"description\":\"Finest pressings of apples. Allergy disclaimer: Might contain traces of worms. Can be <a href=\\\"\/#recycle\\\">sent back to us<\/a> for recycling.\",\"price\":0.89,\"deluxePrice\":0.89,\"image\":\"apple_pressings.jpg\",\"alternateImages\":[{\"file\":\"apple_pressings-1x.avif\",\"format\":\"image\/avif\",\"density\":\"1x\"},{\"file\":\"apple_pressings-2x.avif\",\"format\":\"image\/avif\",\"density\":\"2x\"},{\"file\":\"apple_pressings-3x.avif\",\"format\":\"image\/avif\",\"density\":\"3x\"}],\"createdAt\":\"2026-11-24 21:30:04.984 +00:00\",\"updatedAt\":\"2026-11-24 21:30:04.984 +00:00\",\"deletedAt\":null},{\"id\":47,\"name\":\"Pineapple Juice (1000ml)\",\"description\":\"Tropical refreshment from the finest sun-ripened pineapples.\",\"price\":2.99,\"deluxePrice\":2.99,\"image\":\"pineapple_juice.jpg\",\"alternateImages\":[{\"file\":\"pineapple_juice-1x.avif\",\"format\":\"image\/avif\",\"density\":\"1x\"},{\"file\":\"pineapple_juice-2x.avif\",\"format\":\"image\/avif\",\"density\":\"2x\"},{\"file\":\"pineapple_juice-3x.avif\",\"format\":\"image\/avif\",\"density\":\"3x\"}],\"createdAt\":\"2026-11-24 21:30:04.985 +00:00\",\"updatedAt\":\"2026-11-24 21:30:04.985 +00:00\",\"deletedAt\":null}]}"
-                   },
-                   "noResponseReceived": false
-               }
-            },
-            {
-               "level": "warning",
-               "locations": [
-                  {
-                     "physicalLocation": {
-                        "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/robots.txt"
-                        },
-                        
-                        "region": {
-                           "startLine": 1,
-                           
-                           "properties" : { 
-                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
-                            }, 
-                           "snippet": {
-                               "text": "Access-Control-Allow-Origin: *"
-                           }
-                        }
-                     },
-                     "properties": {
-                         "attack": ""
-                     }
-                  }
-               ],
-               "message": {
-                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
-               },
-               "ruleId": "10098",
-               "webRequest": {
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/robots.txt",
-                   "method": "GET",
-                   "headers": {
-                       "cache-control" : "no-cache",
-                       "host" : "localhost:3000",
-                       "pragma" : "no-cache",
-                       "user-agent" : ""
-                   },
-                   "body": {
-                       
-                   }
-               },
-               "webResponse": {
-                   "statusCode": 200,
-                   "reasonPhrase": "OK",
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "headers": {
-                       "Access-Control-Allow-Origin" : "*",
-                       "Connection" : "keep-alive",
-                       "Content-Length" : "28",
-                       "Content-Type" : "text\/plain; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
-                       "ETag" : "W\/\"1c-8HgF6mNyhsSFK0pascC9uB0wjX0\"",
-                       "Feature-Policy" : "payment 'self'",
-                       "Keep-Alive" : "timeout=5",
-                       "Vary" : "Accept-Encoding",
-                       "X-Content-Type-Options" : "nosniff",
-                       "X-Frame-Options" : "SAMEORIGIN",
-                       "X-Recruiting" : "\/#\/jobs"
-                   },
-                   "body": {
-                       "text": "User-agent: *\nDisallow: \/ftp"
                    },
                    "noResponseReceived": false
                }
@@ -771,71 +636,6 @@
                    "target": "http:\/\/localhost:3000\/profile",
                    "method": "GET",
                    "headers": {
-                       "host" : "localhost:3000"
-                   },
-                   "body": {
-                       
-                   }
-               },
-               "webResponse": {
-                   "statusCode": 500,
-                   "reasonPhrase": "Internal Server Error",
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "headers": {
-                       "Access-Control-Allow-Origin" : "*",
-                       "Connection" : "keep-alive",
-                       "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:34 GMT",
-                       "Feature-Policy" : "payment 'self'",
-                       "Keep-Alive" : "timeout=5",
-                       "Vary" : "Accept-Encoding",
-                       "X-Content-Type-Options" : "nosniff",
-                       "X-Frame-Options" : "SAMEORIGIN",
-                       "X-Recruiting" : "\/#\/jobs",
-                       "content-length" : "1072"
-                   },
-                   "body": {
-                       "text": "<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Blocked illegal activity by ::ffff:127.0.0.1<\/title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;\n}\nh1, h2 {\n  font-size: 22px;\n  color: #343434;\n}\nh1 em, h2 em {\n  padding: 0 5px;\n  font-weight: normal;\n}\nh1 {\n  font-size: 60px;\n}\nh2 {\n  margin-top: 10px;\n}\nul li {\n  list-style: none;\n}\n#stacktrace {\n  margin-left: 60px;\n}\n<\/style>\n  <\/head>\n  <body>\n    <div id=\"wrapper\">\n      <h1>OWASP Juice Shop (Express ^4.22.1)<\/h1>\n      <h2><em>500<\/em> Error: Blocked illegal activity by ::ffff:127.0.0.1<\/h2>\n      <ul id=\"stacktrace\"><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/userProfile.js:69:18<\/li><\/ul>\n    <\/div>\n  <\/body>\n<\/html>\n"
-                   },
-                   "noResponseReceived": false
-               }
-            },
-            {
-               "level": "note",
-               "locations": [
-                  {
-                     "physicalLocation": {
-                        "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/rest"
-                        },
-                        
-                        "region": {
-                           "startLine": 1,
-                           
-                           "properties" : { 
-                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
-                            }, 
-                           "snippet": {
-                               "text": "HTTP\/1.1 500 Internal Server Error"
-                           }
-                        }
-                     },
-                     "properties": {
-                         "attack": ""
-                     }
-                  }
-               ],
-               "message": {
-                  "text": "This page contains an error\/warning message that may disclose sensitive information like the location of the file that produced the unhandled exception. This information can be used to launch further attacks against the web application. The alert could be a false positive if the error message is found inside a documentation page."
-               },
-               "ruleId": "90022",
-               "webRequest": {
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/rest",
-                   "method": "GET",
-                   "headers": {
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
@@ -854,17 +654,17 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
                        "X-Recruiting" : "\/#\/jobs",
-                       "content-length" : "2906"
+                       "content-length" : "1072"
                    },
                    "body": {
-                       "text": "<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Unexpected path: \/rest<\/title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;\n}\nh1, h2 {\n  font-size: 22px;\n  color: #343434;\n}\nh1 em, h2 em {\n  padding: 0 5px;\n  font-weight: normal;\n}\nh1 {\n  font-size: 60px;\n}\nh2 {\n  margin-top: 10px;\n}\nul li {\n  list-style: none;\n}\n#stacktrace {\n  margin-left: 60px;\n}\n<\/style>\n  <\/head>\n  <body>\n    <div id=\"wrapper\">\n      <h1>OWASP Juice Shop (Express ^4.22.1)<\/h1>\n      <h2><em>500<\/em> Error: Unexpected path: \/rest<\/h2>\n      <ul id=\"stacktrace\"><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/angular.js:18:18<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/lib\/utils.js:239:26<\/li><li> \u0026nbsp; \u0026nbsp;at Layer.handle [as handle_request] (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5)<\/li><li> \u0026nbsp; \u0026nbsp;at trim_prefix (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:328:13)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:286:9<\/li><li> \u0026nbsp; \u0026nbsp;at router.process_params (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:346:12)<\/li><li> \u0026nbsp; \u0026nbsp;at next (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:280:10)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/verify.js:235:5<\/li><li> \u0026nbsp; \u0026nbsp;at Layer.handle [as handle_request] (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5)<\/li><li> \u0026nbsp; \u0026nbsp;at trim_prefix (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:328:13)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:286:9<\/li><li> \u0026nbsp; \u0026nbsp;at router.process_params (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:346:12)<\/li><li> \u0026nbsp; \u0026nbsp;at next (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:280:10)<\/li><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/lib\/insecurity.js:218:5<\/li><li> \u0026nbsp; \u0026nbsp;at Layer.handle [as handle_request] (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5)<\/li><li> \u0026nbsp; \u0026nbsp;at trim_prefix (\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:328:13)<\/li><\/ul>\n    <\/div>\n  <\/body>\n<\/html>\n"
+                       "text": "<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Blocked illegal activity by ::ffff:127.0.0.1<\/title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;\n}\nh1, h2 {\n  font-size: 22px;\n  color: #343434;\n}\nh1 em, h2 em {\n  padding: 0 5px;\n  font-weight: normal;\n}\nh1 {\n  font-size: 60px;\n}\nh2 {\n  margin-top: 10px;\n}\nul li {\n  list-style: none;\n}\n#stacktrace {\n  margin-left: 60px;\n}\n<\/style>\n  <\/head>\n  <body>\n    <div id=\"wrapper\">\n      <h1>OWASP Juice Shop (Express ^4.22.1)<\/h1>\n      <h2><em>500<\/em> Error: Blocked illegal activity by ::ffff:127.0.0.1<\/h2>\n      <ul id=\"stacktrace\"><li> \u0026nbsp; \u0026nbsp;at \/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/userProfile.js:69:18<\/li><\/ul>\n    <\/div>\n  <\/body>\n<\/html>\n"
                    },
                    "noResponseReceived": false
                }
@@ -922,7 +722,7 @@
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -972,7 +772,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
                        "user-agent" : ""
                    },
                    "body": {
@@ -991,7 +791,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "368823",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"5a0b7-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1042,7 +842,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
+                       "referer" : "http:\/\/localhost:3000",
                        "user-agent" : ""
                    },
                    "body": {
@@ -1061,7 +861,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "190614",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"2e896-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1112,7 +912,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
                        "user-agent" : ""
                    },
                    "body": {
@@ -1131,7 +931,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "1200618",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"1251ea-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1201,7 +1001,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:52:22 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:27:32 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1271,7 +1071,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:52:22 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:27:32 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1341,7 +1141,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:52:22 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:27:32 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1413,7 +1213,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1467,7 +1267,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000\/rest\/products",
+                       "referer" : "http:\/\/localhost:3000\/rest",
                        "user-agent" : ""
                    },
                    "body": {
@@ -1486,7 +1286,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1540,7 +1340,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000\/rest",
+                       "referer" : "http:\/\/localhost:3000\/rest\/products",
                        "user-agent" : ""
                    },
                    "body": {
@@ -1559,7 +1359,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1581,7 +1381,7 @@
                   {
                      "physicalLocation": {
                         "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:286:9"
+                           "uri": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/userProfile.js:69:18"
                         },
                         
                         "region": {
@@ -1607,13 +1407,13 @@
                "webRequest": {
                    "protocol": "HTTP",
                    "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:286:9",
+                   "target": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/userProfile.js:69:18",
                    "method": "GET",
                    "headers": {
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000\/rest",
+                       "referer" : "http:\/\/localhost:3000\/profile",
                        "user-agent" : ""
                    },
                    "body": {
@@ -1632,7 +1432,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1704,7 +1504,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:51:35 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:26:44 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",

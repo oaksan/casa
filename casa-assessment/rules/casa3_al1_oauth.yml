@@ -73,3 +73,16 @@ rules:
     pattern-either:
       - pattern-regex: '(?:https?://[^\s''"`]+|\$\{[^}]+\})[^\n''"`]*\?(?:[^\n''"`]*&)?access_token='
       - pattern-regex: '#access_token=|parseRedirectUrlParams\(\)\.access_token'
+
+  - id: CASA3-OAU-09-jwt-validation-weakness
+    languages: [typescript, javascript, python]
+    message: "OAU-09: Backend JWT verification lacks explicit algorithms allowlist / issuer / audience enforcement (RFC 8725 / CWE-347)"
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-regex: '[^\n]*(?:expressJwt|express_jwt)\s*\([^\n]*publicKey[^\n]*'
+              - pattern-not-regex: 'algorithms'
+          - patterns:
+              - pattern-regex: '[^\n]*jwt\.verify\([^\n]*publicKey[^\n]*'
+              - pattern-not-regex: 'algorithms'

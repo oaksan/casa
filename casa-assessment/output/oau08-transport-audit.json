@@ -2,8 +2,8 @@
   "standard": "RFC 6750 §2.3 / ASVS V3.1.1 (Access Token Transport Enforcement)",
   "target": "http://localhost:3000",
   "verdict": "FAIL",
-  "harRequestsInspected": 308,
-  "bearerHeaderRequests": 165,
+  "harRequestsInspected": 310,
+  "bearerHeaderRequests": 166,
   "probesRun": 2,
   "sourcesAudited": 6,
   "proxiedRequests": [

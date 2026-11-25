@@ -5548,6 +5548,154 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 57/61: OAU-08 (Iteração SDD 127)", just2_txt)
 
+    def test_iteration128_oau09_guide_tooling(self) -> None:
+        import base64
+        import hmac
+        import hashlib
+        import http.server
+        import json
+        import socketserver
+        import tempfile
+        import threading
+        import time
+
+        from casa_audit.scanner import evaluate_oau09_token_validation
+
+        def _b64u(b: bytes) -> str:
+            return base64.urlsafe_b64encode(b).decode("ascii").rstrip("=")
+
+        def _dec_part(p: str) -> dict:
+            pad = "=" * ((4 - len(p) % 4) % 4)
+            return json.loads(base64.urlsafe_b64decode((p + pad).encode("ascii")).decode("utf-8"))
+
+        valid_secret = b"genuine-idp-hmac-or-ec-test-secret-09"
+        hdr_v = _b64u(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
+        pay_v = _b64u(
+            json.dumps(
+                {
+                    "sub": "user-128",
+                    "iss": "https://idp.example.com",
+                    "aud": "https://api.example.com",
+                    "scope": "wallet:read",
+                    "exp": int(time.time()) + 3600,
+                },
+                separators=(",", ":"),
+            ).encode()
+        )
+        sig_v = _b64u(hmac.new(valid_secret, f"{hdr_v}.{pay_v}".encode(), hashlib.sha256).digest())
+        valid_tok = f"{hdr_v}.{pay_v}.{sig_v}"
+
+        class _JwtBackendStub(http.server.BaseHTTPRequestHandler):
+            mode = "hardened"
+
+            def log_message(self, format, *args) -> None:
+                return
+
+            def do_GET(self) -> None:
+                if self.path == "/encryptionkeys/jwt.pub":
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"-----BEGIN PUBLIC KEY-----\nTESTPUBKEY128\n-----END PUBLIC KEY-----")
+                    return
+                auth = self.headers.get("Authorization", "")
+                tok = auth[7:].strip() if auth.startswith("Bearer ") else ""
+                if tok.count(".") != 2:
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+                hp, pp, sp = tok.split(".")
+                try:
+                    hdr = _dec_part(hp)
+                    pay = _dec_part(pp)
+                except Exception:
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+
+                if _JwtBackendStub.mode == "hardened":
+                    if tok == valid_tok and hdr.get("alg") == "HS256":
+                        self.send_response(200)
+                        self.end_headers()
+                        self.wfile.write(b'{"balance":100}')
+                    else:
+                        self.send_response(401)
+                        self.end_headers()
+                    return
+
+                # Vulnerable: rejects only expired or foreign key, accepts alg:none / pubkey confusion / wrong aud/iss/scope
+                is_foreign = hdr.get("alg") == "HS256" and pay.get("exp", 0) > int(time.time()) and pay.get("aud") == "https://api.example.com" and pay.get("iss") == "https://idp.example.com" and pay.get("scope") == "wallet:read" and tok != valid_tok and not hmac.compare_digest(sp, _b64u(hmac.new(b"-----BEGIN PUBLIC KEY-----\nTESTPUBKEY128\n-----END PUBLIC KEY-----", f"{hp}.{pp}".encode(), hashlib.sha256).digest()))
+                if pay.get("exp", 0) < int(time.time()) or is_foreign:
+                    self.send_response(401)
+                else:
+                    self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"balance":100}')
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+
+        srv = _ThreadedHTTPServer(("127.0.0.1", 0), _JwtBackendStub)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                tdp = Path(td)
+                lib_dir = tdp / "lib"
+                lib_dir.mkdir(parents=True)
+                (lib_dir / "auth.ts").write_text(
+                    "export const verify = jwt.verify(tok, publicKey, { algorithms: ['RS256'], issuer: 'https://idp.example.com', audience: 'https://api.example.com' });\n",
+                    encoding="utf-8",
+                )
+
+                # 1. Hardened: accepts genuine token and rejects all 7 forged vectors + Semgrep 0 hits -> PASS
+                r_pass = evaluate_oau09_token_validation(
+                    f"http://127.0.0.1:{port}",
+                    repo=tdp,
+                    observed_token=valid_tok,
+                    endpoints=["/rest/wallet/balance"],
+                    report_out_path=tdp / "oau09_pass.json",
+                    har_out_path=tdp / "oau09_pass.har",
+                    semgrep_sarif_out_path=tdp / "oau09_pass_sg.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertEqual(len(r_pass["rejectedVectors"]), 7)
+                self.assertEqual(r_pass["semgrepHits"], 0)
+                har_txt = (tdp / "oau09_pass.har").read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn(sig_v, har_txt)
+
+                # 2. Vulnerable: accepts alg:none, hs256 confusion, wrong aud/iss/scope + Semgrep rule -> FAIL
+                _JwtBackendStub.mode = "vulnerable"
+                (lib_dir / "auth.ts").write_text(
+                    "export const verify = () => expressJwt(({ secret: publicKey }));\n",
+                    encoding="utf-8",
+                )
+                r_fail = evaluate_oau09_token_validation(
+                    f"http://127.0.0.1:{port}",
+                    repo=tdp,
+                    observed_token=valid_tok,
+                    endpoints=["/rest/wallet/balance"],
+                    report_out_path=tdp / "oau09_fail.json",
+                    har_out_path=tdp / "oau09_fail.har",
+                    semgrep_sarif_out_path=tdp / "oau09_fail_sg.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                vecs = {f["vector"] for f in r_fail["findings"]}
+                self.assertIn("unsigned_alg_none", vecs)
+                self.assertIn("alg_confusion_hs256_pubkey", vecs)
+                self.assertIn("wrong_audience_aud", vecs)
+                self.assertIn("wrong_issuer_iss", vecs)
+                self.assertIn("insufficient_scope", vecs)
+                self.assertIn("Semgrep_OAU09_JWT_Validation_Weakness", vecs)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-09" for s in r_fail["sarifResults"]))
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 58/61: OAU-09 (Iteração SDD 128)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

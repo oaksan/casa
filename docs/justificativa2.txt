@@ -2974,3 +2974,60 @@ Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
     Semgrep confirmando `?alt=json&access_token=` e `#access_token=` -> Veredito
     **`FAIL`** (`CASA3-OAU-08`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 58/61: OAU-09 (Iteração SDD 128) — Encerramento do Domínio 7: OAU
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: OAU-09
+- Requisito (CASA 3.0 AL1):
+  "Where the application's own backend accepts identity-provider ID tokens or
+  access tokens as proof of identity, it validates signature, iss, aud, exp and
+  scope against the identity provider's published keys; alg:none and algorithm
+  confusion are rejected."
+- Referências: RFC 9700 §4.9; RFC 8725; CWE-347 | Superfície: Web_Application.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `jwt_tool`, `scripted harness`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida + `OASIS SARIF 2.1.0` (`CASA3-OAU-09`).
+- Critério Determinístico de Verificação:
+  * PASS: Todo endpoint que aceita token válido rejeita 100% dos 7 vetores
+    forjados (`unsigned_alg_none`, `foreign_signing_key`,
+    `alg_confusion_hs256_pubkey`, `expired_exp_claim`, `wrong_audience_aud`,
+    `wrong_issuer_iss`, `insufficient_scope`).
+  * FAIL: >= 1 vetor forjado aceito por qualquer endpoint ou fraqueza AST Semgrep.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 128`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `OAU-09` rodava inline em `run_dynamic_and_protocol_checks`, sem
+  suporte a `/.well-known/jwks.json`, sem regra Semgrep AST para `expressJwt` /
+  `jwt.verify` sem allowlist `algorithms` e sem relatório JSON / HAR 1.2
+  dedicado do controle.
+- O que foi feito e melhorado na Iteração SDD 128:
+  1) Adição da regra AST `CASA3-OAU-09-jwt-validation-weakness` em
+     `rules/casa3_al1_oauth.yml` (detectando `expressJwt`/`jwt.verify` com
+     `publicKey` sem `algorithms`).
+  2) Extração de `evaluate_oau09_token_validation(...)` em `casa_audit/scanner.py`
+     reaproveitando `_make_redacted_har_probe`, busca de chaves publicadas
+     (`/encryptionkeys/jwt.pub` e `/.well-known/jwks.json`) e `_run_oauth_semgrep_sarif`.
+  3) Emissão de `output/oau09-token-audit.json`, `output/oau09-replayed.har`
+     redigido, `output/oau09-semgrep.sarif` e `CASA3-OAU-09` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration128_oau09_guide_tooling`):
+  * **`PASS`** confirmado com rejeição dos **7/7** vetores forjados, `0` hits
+    Semgrep e redação `[REDACTED]` no HAR.
+  * **`FAIL`** confirmado para aceitação de `unsigned_alg_none`,
+    `alg_confusion_hs256_pubkey`, `wrong_audience_aud`, `wrong_issuer_iss`,
+    `insufficient_scope` e regra Semgrep `CASA3-OAU-09`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Endpoints autenticados (`/rest/wallet/balance`, `/rest/basket/{bid}`) +
+    `/encryptionkeys/jwt.pub` + Semgrep sobre `lib/insecurity.ts` confirmando
+    aceitação ativa dos vetores forjados (`alg:none`, `HS256` pubkey confusion,
+    `aud`/`iss`/`scope`) -> Veredito **`FAIL`** (`CASA3-OAU-09`).
+================================================================================

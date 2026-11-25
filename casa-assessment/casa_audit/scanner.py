@@ -5859,19 +5859,25 @@ def run_nuclei_scan(
 def evaluate_cfg02_debug_modes(
     target_url: str,
     *,
+    crawled_exchanges: list[dict] | None = None,
     zap_report: dict | None = None,
+    nuclei_result: dict | None = None,
     jsonl_out_path: Path | None = None,
     sarif_out_path: Path | None = None,
     templates_dir: Path | None = None,
 ) -> dict:
-    """Evaluate CFG-02 using ProjectDiscovery Nuclei templates + OWASP ZAP debug/error alerts."""
+    """Evaluate CFG-02 using ProjectDiscovery Nuclei templates + OWASP ZAP debug/error alerts + crawled debug markers."""
     base_url = target_url.strip().rstrip("/")
-    nuc = run_nuclei_scan(
-        base_url,
-        templates_dir or NUCLEI_CFG02_DIR,
-        jsonl_out_path=jsonl_out_path or (OUTPUT_DIR / "nuclei-cfg02.jsonl"),
-        sarif_out_path=sarif_out_path or (OUTPUT_DIR / "nuclei-cfg02.sarif"),
-        timeout_sec=60,
+    nuc = (
+        nuclei_result
+        if nuclei_result is not None
+        else run_nuclei_scan(
+            base_url,
+            templates_dir or NUCLEI_CFG02_DIR,
+            jsonl_out_path=jsonl_out_path or (OUTPUT_DIR / "nuclei-cfg02.jsonl"),
+            sarif_out_path=sarif_out_path or (OUTPUT_DIR / "nuclei-cfg02.sarif"),
+            timeout_sec=60,
+        )
     )
 
     findings: list[dict] = []
@@ -5924,6 +5930,37 @@ def evaluate_cfg02_debug_modes(
                         "url": uri,
                         "status": 500 if pid in {"10023", "90022"} else 200,
                         "detail": f"[OWASP ZAP {pid}] {uri} flagged '{aname}'",
+                    }
+                )
+
+    framework_debug_markers = [
+        ("django-debug-true", "Django DEBUG=True Error Page", re.compile(r"you['’]re seeing this error because you have\s*(?:<code>)?\s*debug\s*=\s*true|django tried these url patterns,\s*in this order", re.IGNORECASE)),
+        ("werkzeug-debugger", "Flask/Werkzeug Interactive Debugger", re.compile(r"werkzeug debugger|evalex\s*=\s*true|the debugger caught an exception in your wsgi application", re.IGNORECASE)),
+        ("rails-debug-page", "Ruby on Rails Debug Exception Page", re.compile(r"action controller:\s*exception caught", re.IGNORECASE)),
+        ("aspnet-ysod", "ASP.NET Detailed Debug Error Page", re.compile(r"server error in ['\"]?/['\"]? application\.[\s\S]{0,600}version information:\s*microsoft \.net framework", re.IGNORECASE)),
+        ("laravel-whoops-ignition", "Laravel Whoops/Ignition Debug Page", re.compile(r"whoops!\s*there was an error\.[\s\S]{0,600}illuminate\\", re.IGNORECASE)),
+    ]
+    for ex in crawled_exchanges or []:
+        ex_body = ex.get("body") or ""
+        if not ex_body:
+            continue
+        ex_url = str(ex.get("url") or base_url)
+        ex_st = int(ex.get("status") or 0)
+        norm_p = urllib.parse.urlparse(ex_url).path or "/"
+        for marker_id, marker_label, marker_re in framework_debug_markers:
+            if marker_re.search(ex_body):
+                dedup_m = (norm_p, marker_id)
+                if dedup_m in seen_keys:
+                    continue
+                seen_keys.add(dedup_m)
+                findings.append(
+                    {
+                        "kind": "debug_marker",
+                        "templateId": marker_id,
+                        "label": marker_label,
+                        "url": ex_url,
+                        "status": ex_st,
+                        "detail": f"[Crawl:{marker_id}] {ex_url} (HTTP {ex_st}) exposed framework debug marker ({marker_label})",
                     }
                 )
 
@@ -15131,6 +15168,7 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
 
     cfg02_eval = evaluate_cfg02_debug_modes(
         base_url,
+        crawled_exchanges=crawled_exchanges,
         zap_report=zap_domain4_report,
         jsonl_out_path=OUTPUT_DIR / "nuclei-cfg02.jsonl",
         sarif_out_path=OUTPUT_DIR / "nuclei-cfg02.sarif",

@@ -950,3 +950,24 @@ CONTROLE 25/61: CFG-01 (Iteração SDD 156) — Directory Browsing Disabled
 4. Validação:
    - `test_iteration156_cfg01_neon_reeval` (Azure Blob XML, IIS autoindex, HTML limpo)
      + regressão `test_iteration95_cfg01_guide_tooling` (OWASP ZAP 2.17.0 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 26/61: CFG-02 (Iteração SDD 157) — Debug Modes Disabled
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L582):
+   - Referência: `Nuclei (exposures/ + misconfiguration/ templates), OWASP ZAP`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa ProjectDiscovery
+     Nuclei 3.11.1 (`rules/nuclei_cfg02`) + OWASP ZAP 2.17.0 (`10023`/`90022`/`40042`).
+     Zero uso de Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_cfg02_debug_modes` não inspecionava `crawled_exchanges` em busca de
+     marcadores de debug de frameworks em rotas dinâmicas (Passo 2 do Test Guide:
+     Django `DEBUG = True`, Flask/Werkzeug `EVALEX`, Rails `Action Controller:
+     Exception caught`, ASP.NET `Server Error in '/' Application`, Laravel Whoops).
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionado parâmetro `crawled_exchanges` (e opcional `nuclei_result`) a
+     `evaluate_cfg02_debug_modes` com 5 assinaturas de debug de frameworks.
+   - Passado `crawled_exchanges=crawled_exchanges` em `run_dynamic_and_protocol_checks`.
+4. Validação:
+   - `test_iteration157_cfg02_neon_reeval` (produção limpa vs Django DEBUG=True +
+     Werkzeug Debugger) + regressão `test_iteration96_cfg02_guide_tooling` (Nuclei 3.11.1 real).

@@ -1105,6 +1105,46 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 25/61: CFG-01 (Iteração SDD 156)", just_neon)
 
+    def test_iteration157_cfg02_neon_reeval(self) -> None:
+        empty_nuc = {"executed": True, "matches": [], "version": "3.11.1"}
+
+        # 1. Clean crawled responses -> PASS
+        r_clean = sc.evaluate_cfg02_debug_modes(
+            "https://app.example.com",
+            crawled_exchanges=[
+                {"url": "https://app.example.com/", "status": 200, "body": "<html><body>Production Home</body></html>"},
+                {"url": "https://app.example.com/missing", "status": 404, "body": '{"error":"Not found"}'},
+            ],
+            nuclei_result=empty_nuc,
+        )
+        self.assertEqual(r_clean["verdict"], "PASS")
+
+        # 2. Django DEBUG=True & Werkzeug interactive debugger in crawled responses -> FAIL
+        r_dbg = sc.evaluate_cfg02_debug_modes(
+            "https://app.example.com",
+            crawled_exchanges=[
+                {
+                    "url": "https://app.example.com/nonexistent",
+                    "status": 404,
+                    "body": "<html><body>You're seeing this error because you have <code>DEBUG = True</code> in your Django settings file.</body></html>",
+                },
+                {
+                    "url": "https://app.example.com/crash",
+                    "status": 500,
+                    "body": "<html><title>Werkzeug Debugger</title><script>var EVALEX = true;</script></html>",
+                },
+            ],
+            nuclei_result=empty_nuc,
+        )
+        self.assertEqual(r_dbg["verdict"], "FAIL")
+        tids = {f["templateId"] for f in r_dbg["findings"]}
+        self.assertIn("django-debug-true", tids)
+        self.assertIn("werkzeug-debugger", tids)
+        self.assertTrue(all(f["kind"] == "debug_marker" for f in r_dbg["findings"]))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 26/61: CFG-02 (Iteração SDD 157)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

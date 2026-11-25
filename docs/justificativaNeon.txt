@@ -1272,3 +1272,27 @@ CONTROLE 40/61: AUT-05 (Iteração SDD 171) — Logout Server-Side Invalidation
 4. Validação:
    - `test_iteration171_aut05_neon_reeval` (`DELETE /api/session` + JSON denial
      200 + replay form-urlencoded `/oauth/token`) + regressão `test_iteration110_aut05_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 41/61: AUT-06 (Iteração SDD 172) — Session Cookie Flags
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L910):
+   - Referência: `ZAP, Burp Suite`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa OWASP ZAP 2.17.0 regras `10010`/`10011`/`10054` + inspetor
+     `Set-Cookie` com HAR 1.2 redigido e SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Cookies de sessão com nomes não-padrão (ex.: `app_c`) escapavam da detecção
+     baseada apenas em heurística de nome (Guia L909 define cookie de sessão
+     como aquele cuja remoção encerra a sessão autenticada).
+   - Cabeçalhos `Set-Cookie` de deleção (`Max-Age=0` / valor vazio no logout)
+     podiam gerar falso positivo.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Implementada ablação comportamental 1-a-1 contra `protected_endpoint` em
+     `evaluate_aut06_session_cookie_flags` (além de `session_cookie_names`).
+   - Adicionado filtro `isDeletion` (`Max-Age=0`, valor vazio, `Expires=...1970`)
+     em `_inspect_cookie_flags`.
+4. Validação:
+   - `test_iteration172_aut06_neon_reeval` (cookie arbitrário `app_c` identificado
+     comportamentalmente com `SameSite=None` FAIL; deleção `Max-Age=0` ignorada
+     PASS) + regressão `test_iteration111_aut06_guide_tooling` (ZAP 2.17.0 real).

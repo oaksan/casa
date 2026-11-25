@@ -9510,7 +9510,9 @@ def _inspect_cookie_flags(cookie_str: str) -> dict:
     """Inspect a single Set-Cookie directive for Secure, HttpOnly, and SameSite=Lax|Strict."""
     parts = [p.strip() for p in cookie_str.split(";") if p.strip()]
     name_val = parts[0] if parts else ""
-    cname = name_val.split("=", 1)[0].strip()
+    cname, cval = name_val.split("=", 1) if "=" in name_val else (name_val, "")
+    cname = cname.strip()
+    cval = cval.strip().strip('"')
     attr_map: dict[str, str] = {}
     for attr in parts[1:]:
         if "=" in attr:
@@ -9518,6 +9520,12 @@ def _inspect_cookie_flags(cookie_str: str) -> dict:
             attr_map[ak.strip().lower()] = av.strip().lower()
         else:
             attr_map[attr.strip().lower()] = "true"
+    is_deletion = (
+        not cval
+        or cval.lower() in {"deleted", "expired"}
+        or attr_map.get("max-age") in {"0", "-1"}
+        or "1970" in attr_map.get("expires", "")
+    )
     has_secure = "secure" in attr_map
     has_httponly = "httponly" in attr_map
     ss_val = attr_map.get("samesite", "")
@@ -9529,7 +9537,7 @@ def _inspect_cookie_flags(cookie_str: str) -> dict:
         missing.append("HttpOnly")
     if not samesite_ok:
         missing.append(f"SameSite=Lax|Strict (got '{ss_val or '<missing>'}')")
-    return {"name": cname, "missing": missing, "samesite": ss_val or "<missing>"}
+    return {"name": cname, "value": cval, "isDeletion": is_deletion, "missing": missing, "samesite": ss_val or "<missing>"}
 
 
 def _is_session_cookie_name(cookie_name: str) -> bool:
@@ -9561,6 +9569,8 @@ def evaluate_aut06_session_cookie_flags(
     login_body: bytes | None = None,
     credentials: tuple[str, str] | None = None,
     fallback_token: str = "",
+    protected_endpoint: str | None = None,
+    session_cookie_names: set[str] | list[str] | None = None,
     crawled_exchanges: list[dict] | None = None,
     zap_report: dict | None = None,
     json_out_path: Path | None = None,
@@ -9675,11 +9685,8 @@ def evaluate_aut06_session_cookie_flags(
     )
 
     set_cookie_count = 0
-    session_cookies_observed: list[dict] = []
-    cfg06_aut06_findings: list[dict] = []
-    seen_aut06_keys: set[tuple[str, str]] = set()
-    findings_by_key: dict[tuple[str, str], dict] = {}
-
+    all_parsed_cookies: list[tuple[dict, dict]] = []
+    latest_cookie_jar: dict[str, str] = {}
     for ex6 in local_exchanges:
         _record_har(ex6.get("method", "GET"), ex6.get("url", base_url), {}, None, ex6.get("status", 0), ex6.get("headers") or {}, 0.0)
         raw_sc = (ex6.get("headers") or {}).get("set-cookie", "").strip()
@@ -9688,24 +9695,48 @@ def evaluate_aut06_session_cookie_flags(
         for single_sc in _split_set_cookie_headers(raw_sc):
             set_cookie_count += 1
             parsed_ck = _inspect_cookie_flags(single_sc)
-            if _is_session_cookie_name(parsed_ck["name"]):
-                session_cookies_observed.append({"url": ex6["url"], **parsed_ck})
-                if parsed_ck["missing"]:
-                    dk = (urllib.parse.urlparse(ex6["url"]).path or "/", parsed_ck["name"].lower())
-                    if dk not in seen_aut06_keys:
-                        seen_aut06_keys.add(dk)
-                        item = {
-                            "url": ex6["url"],
-                            "cookieName": parsed_ck["name"],
-                            "missing": parsed_ck["missing"],
-                            "source": "SetCookieInspector",
-                            "detail": (
-                                f"{ex6.get('method', 'GET')} {ex6['url']} Set-Cookie '{parsed_ck['name']}' misses required attribute(s): "
-                                f"{', '.join(parsed_ck['missing'])} (ASVS V3.4.1–V3.4.3)."
-                            ),
-                        }
-                        cfg06_aut06_findings.append(item)
-                        findings_by_key[dk] = item
+            if parsed_ck.get("isDeletion"):
+                continue
+            all_parsed_cookies.append((ex6, parsed_ck))
+            latest_cookie_jar[parsed_ck["name"]] = parsed_ck["value"]
+
+    # Behavioral session-cookie identification (Test Guide L909): drop each cookie 1-by-1 against protected_endpoint
+    confirmed_session_names: set[str] = {n.strip().lower() for n in (session_cookie_names or []) if str(n).strip()}
+    if protected_endpoint and latest_cookie_jar:
+        full_ck_hdr = "; ".join(f"{k}={v}" for k, v in latest_cookie_jar.items())
+        base_st, _, _ = _probe_logged(protected_endpoint, headers={"Cookie": full_ck_hdr})
+        if 200 <= base_st < 300:
+            for cand_name in list(latest_cookie_jar.keys()):
+                reduced = "; ".join(f"{k}={v}" for k, v in latest_cookie_jar.items() if k != cand_name)
+                drop_st, _, _ = _probe_logged(protected_endpoint, headers={"Cookie": reduced} if reduced else {})
+                if not (200 <= drop_st < 300):
+                    confirmed_session_names.add(cand_name.lower())
+
+    session_cookies_observed: list[dict] = []
+    cfg06_aut06_findings: list[dict] = []
+    seen_aut06_keys: set[tuple[str, str]] = set()
+    findings_by_key: dict[tuple[str, str], dict] = {}
+
+    for ex6, parsed_ck in all_parsed_cookies:
+        is_sess_ck = (parsed_ck["name"].lower() in confirmed_session_names) or _is_session_cookie_name(parsed_ck["name"])
+        if is_sess_ck:
+            session_cookies_observed.append({"url": ex6["url"], **parsed_ck})
+            if parsed_ck["missing"]:
+                dk = (urllib.parse.urlparse(ex6["url"]).path or "/", parsed_ck["name"].lower())
+                if dk not in seen_aut06_keys:
+                    seen_aut06_keys.add(dk)
+                    item = {
+                        "url": ex6["url"],
+                        "cookieName": parsed_ck["name"],
+                        "missing": parsed_ck["missing"],
+                        "source": "SetCookieInspector",
+                        "detail": (
+                            f"{ex6.get('method', 'GET')} {ex6['url']} Set-Cookie '{parsed_ck['name']}' misses required attribute(s): "
+                            f"{', '.join(parsed_ck['missing'])} (ASVS V3.4.1–V3.4.3)."
+                        ),
+                    }
+                    cfg06_aut06_findings.append(item)
+                    findings_by_key[dk] = item
 
     # Inspect OWASP ZAP passive cookie rules (10010 HttpOnly, 10011 Secure, 10054 SameSite) for session cookies
     zap_matched_plugins: set[str] = set()

@@ -1714,6 +1714,64 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 40/61: AUT-05 (Iteração SDD 171)", just_neon)
 
+    def test_iteration172_aut06_neon_reeval(self) -> None:
+        empty_zap = {"executed": True, "alerts": []}
+        with tempfile.TemporaryDirectory() as td:
+            # 1. Arbitrary cookie name 'app_c' identified behaviorally (removal ends session) with SameSite=None -> FAIL
+            def _probe_behav(ep: str, method: str = "GET", headers=None, body=None):
+                if ep == "/api/me":
+                    ck = (headers or {}).get("Cookie", "")
+                    return (200, {}, '{"user":"ok"}') if "app_c=live_val_99" in ck else (401, {}, '{"error":"denied"}')
+                return 200, {}, ""
+
+            r_fail = sc.evaluate_aut06_session_cookie_flags(
+                "https://app.example.com",
+                protected_endpoint="/api/me",
+                crawled_exchanges=[
+                    {
+                        "method": "POST",
+                        "url": "https://app.example.com/login",
+                        "status": 200,
+                        "headers": {
+                            "set-cookie": "app_c=live_val_99; Path=/; Secure; HttpOnly; SameSite=None, theme=dark; Path=/"
+                        },
+                        "body": "{}",
+                    }
+                ],
+                http_probe_fn=_probe_behav,
+                zap_report=empty_zap,
+                har_out_path=Path(td) / "aut06_behav.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertEqual([f["cookieName"] for f in r_fail["findings"]], ["app_c"])
+
+            # 2. Deletion Set-Cookie (Max-Age=0) ignored while active session cookie has all flags -> PASS
+            r_ok = sc.evaluate_aut06_session_cookie_flags(
+                "https://app.example.com",
+                crawled_exchanges=[
+                    {
+                        "method": "POST",
+                        "url": "https://app.example.com/login",
+                        "status": 200,
+                        "headers": {"set-cookie": "sid=valid123; Path=/; Secure; HttpOnly; SameSite=Lax"},
+                        "body": "{}",
+                    },
+                    {
+                        "method": "POST",
+                        "url": "https://app.example.com/logout",
+                        "status": 200,
+                        "headers": {"set-cookie": "sid=; Path=/; Max-Age=0"},
+                        "body": "{}",
+                    },
+                ],
+                zap_report=empty_zap,
+                har_out_path=Path(td) / "aut06_del.har",
+            )
+            self.assertEqual(r_ok["verdict"], "PASS", f"Expected PASS, got {r_ok}")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 41/61: AUT-06 (Iteração SDD 172)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

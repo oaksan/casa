@@ -603,6 +603,22 @@ rules:
       - pattern: "$CTX.BindJSON(&$MODEL)"
       - pattern: "$CTX.ShouldBind(&$MODEL)"
 
+  - id: CASA3-SAST-07-mass-assignment-ruby
+    languages: [ruby]
+    message: "SAST-07: Mass assignment via Rails params.permit! unrestricted parameter binding (CWE-915)"
+    severity: ERROR
+    pattern-either:
+      - pattern: "$PARAMS.permit!"
+      - pattern-regex: "params\\.permit!"
+
+  - id: CASA3-SAST-07-mass-assignment-php
+    languages: [php]
+    message: "SAST-07: Mass assignment via unrestricted Laravel/Eloquent $request->all() or empty $guarded (CWE-915)"
+    severity: ERROR
+    pattern-either:
+      - pattern-regex: "::(?:create|update)\\s*\\(\\s*\\$request->all\\(\\)"
+      - pattern-regex: "\\$guarded\\s*=\\s*\\[\\s*\\]"
+
   - id: CASA3-SAST-08-sql-injection
     mode: taint
     languages: [typescript, javascript]

@@ -510,3 +510,34 @@ Domínio 2: Static Code Analysis & Secrets
 - Novo teste unitário: `test_iteration142_sast06_neon_reeval` validando `PASS`
   em `firstTerm` não-seguro e `FAIL` para taint em PHP, C# e TS (`sessionId`).
 - Regressão validada: `test_iteration81_sast06_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 12/61: SAST-07 (Iteração SDD 143)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L288):
+  `semgrep`, `ZAP`, `Burp Suite`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito; Burp Suite comercial substituído por OWASP ZAP +
+  harness ativo em Python conforme cláusula de equivalência da L21)**. Combina
+  `semgrep` (binders estáticos irrestritos em SARIF 2.1.0), correlação de
+  alertas do `OWASP ZAP` (`dast-findings.sarif`) e sonda ativa autenticada de
+  injeção + read-back de campos privilegiados.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 143)
+--------------------------------------------------------------------------------
+1) **Ampliação de frameworks para binders irrestritos (`casa3_al1_sast.yml`)**:
+   - Adicionadas regras `CASA3-SAST-07-mass-assignment-ruby` (`params.permit!`)
+     e `CASA3-SAST-07-mass-assignment-php` (`$request->all()` e `$guarded = []`).
+2) **Ampliação de campos privilegiados no probe ativo (`Test Guide` L287/L292)**:
+   - `evaluate_sast07_mass_assignment_probe` agora injeta e verifica read-back
+     para `role`, `isAdmin`, `is_admin`, `admin` e `permissions`.
+
+3. VALIDAÇÃO (SDD 143)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration143_sast07_neon_reeval` validando
+  detecção estática Ruby/PHP e detecção ativa de persistência de `is_admin=True`.
+- Regressão validada: `test_iteration82_sast07_guide_tooling` (`OK`).

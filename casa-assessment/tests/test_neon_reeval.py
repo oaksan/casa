@@ -576,6 +576,73 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 11/61: SAST-06 (Iteração SDD 142)", just_neon)
 
+    def test_iteration143_sast07_neon_reeval(self) -> None:
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        import threading
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            (src / "user.rb").write_text("def up\n  User.update(params.permit!)\nend\n", encoding="utf-8")
+            (src / "User.php").write_text("<?php class User { protected $guarded = []; }\n", encoding="utf-8")
+            v_fail, f_fail, sarifs, _ = sc.evaluate_sast07_framework_binding(repo)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            self.assertIn("user.rb", joined)
+            self.assertIn("User.php", joined)
+            self.assertGreaterEqual(len(sarifs), 2)
+
+            # Verify active probe detects snake_case is_admin read-back without Burp Suite
+            class _H(BaseHTTPRequestHandler):
+                is_admin = False
+
+                def log_message(self, *a):
+                    pass
+
+                def do_POST(self):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    if self.path.endswith("/login"):
+                        self.wfile.write(json.dumps({"token": "t1"}).encode())
+                    else:
+                        self.wfile.write(json.dumps({"data": {"id": 1, "role": "user"}}).encode())
+
+                def do_PUT(self):
+                    ln = int(self.headers.get("Content-Length", "0"))
+                    body = json.loads(self.rfile.read(ln).decode() or "{}")
+                    if body.get("is_admin") is True:
+                        type(self).is_admin = True
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"data": {"id": 1, "is_admin": type(self).is_admin}}).encode())
+
+                def do_GET(self):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"data": {"id": 1, "is_admin": type(self).is_admin}}).encode())
+
+            srv = ThreadingHTTPServer(("127.0.0.1", 0), _H)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                hit = sc.evaluate_sast07_mass_assignment_probe(
+                    f"http://127.0.0.1:{port}",
+                    dast_sarif_path=repo / "none.sarif",
+                    sarif_out=repo / "none2.sarif",
+                )
+                self.assertIsNotNone(hit)
+                self.assertIn("is_admin=True", hit)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 12/61: SAST-07 (Iteração SDD 143)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

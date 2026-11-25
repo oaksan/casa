@@ -3630,20 +3630,31 @@ def evaluate_sast12_secrets_management_and_iac(
                 if m in m_txt:
                     sdk_call_sites.append(f"{manifest_name} ({m})")
 
-    for dname in ("lib", "routes", "src", "app"):
+    runtime_mount_markers = ("/run/secrets/", "secrets-store.csi.k8s.io", "secretKeyRef")
+    for dname in ("lib", "routes", "src", "app", "k8s", "deploy", "helm"):
         dp = repo / dname
         if dp.is_dir():
             for fp in dp.rglob("*"):
-                if fp.is_file() and fp.suffix in {".ts", ".js", ".py", ".go", ".java"}:
+                if fp.is_file() and fp.suffix in {".ts", ".js", ".py", ".go", ".java", ".yml", ".yaml"}:
                     txt = fp.read_text(encoding="utf-8", errors="ignore")
                     for m in sdk_markers:
                         if m in txt:
                             sdk_call_sites.append(f"{fp.relative_to(repo)} ({m})")
+                    for rm in runtime_mount_markers:
+                        if rm in txt:
+                            sdk_call_sites.append(f"{fp.relative_to(repo)} (runtime mount: {rm})")
+    for dc_name in ("docker-compose.yml", "docker-compose.yaml", "compose.yml"):
+        dcf = repo / dc_name
+        if dcf.is_file():
+            dtxt = dcf.read_text(encoding="utf-8", errors="ignore")
+            for rm in runtime_mount_markers:
+                if rm in dtxt:
+                    sdk_call_sites.append(f"{dc_name} (runtime mount: {rm})")
 
     sdk_status = (
-        f"Secrets Manager SDKs found: {', '.join(sdk_call_sites)}"
+        f"Secrets Manager SDKs/Runtime Mounts found: {', '.join(dict.fromkeys(sdk_call_sites))}"
         if sdk_call_sites
-        else "Secrets Manager SDK Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK integrated)"
+        else "Secrets Manager SDK / Runtime Mount Inventory: 0 call sites found (no AWS/GCP/Azure/Vault SDK or /run/secrets mount)"
     )
 
     # 2. Execute official Trivy FS secret + misconfig detector (SARIF 2.1.0)
@@ -3669,7 +3680,7 @@ def evaluate_sast12_secrets_management_and_iac(
             iac_files.append(rp)
 
     iac_secret_re = re.compile(
-        r"""(?ix)(?:private_key\s*=\s*["']-----BEGIN|(?:CTF_KEY|JWT_SECRET|API_KEY|DB_PASSWORD|SECRET_KEY|AWS_SECRET_ACCESS_KEY)\s*[:=]\s*["']?[^\s"']{6,})"""
+        r"""(?ix)(?:private_key\s*=\s*["']-----BEGIN|(?:CTF_KEY|JWT_SECRET|API_KEY|DB_PASSWORD|SECRET_KEY|AWS_SECRET_ACCESS_KEY)\s*[:=]\s*["']?(?!\$)(?!\{\{)[^\s"']{6,})"""
     )
     for fpath in iac_files:
         rel = str(fpath.relative_to(repo))
@@ -3685,7 +3696,7 @@ def evaluate_sast12_secrets_management_and_iac(
                 )
                 _add_s12(rel, lno, "CASA3-SAST-12-iac-secret", desc)
 
-    # 4. Inspect Docker image .Config.Env layers & baked secret files for local container images
+    # 4. Inspect Docker image .Config.Env layers & generic Trivy image secret scan (no app-specific hardcoding)
     dockerfile = repo / "Dockerfile"
     if run_docker and (dockerfile.exists() or (repo / "docker-compose.yml").exists()):
         docker_env = {**os.environ, "DOCKER_API_VERSION": "1.44"}
@@ -3710,22 +3721,27 @@ def evaluate_sast12_secrets_management_and_iac(
                         f"({secret_envs}) instead of runtime secret mount or Secrets Manager SDK ({sdk_status})"
                     )
                     _add_s12("Dockerfile", 1, "CASA3-SAST-12-docker-env-secret", desc)
-                if "juice-shop" in img.lower():
-                    baked_check = subprocess.run(
-                        [
-                            "docker", "run", "--rm", "--entrypoint", "/nodejs/bin/node", img, "-e",
-                            "const fs=require('fs'); console.log(JSON.stringify(['/juice-shop/ctf.key','/juice-shop/encryptionkeys/jwt.pub','/juice-shop/encryptionkeys/premium.key','/juice-shop/ftp/incident-support.kdbx','/juice-shop/data/static/users.yml'].filter(p=>fs.existsSync(p))));",
-                        ],
-                        capture_output=True, text=True, env=docker_env, timeout=8,
+                if Path(TRIVY_BIN).exists():
+                    t_img = subprocess.run(
+                        [TRIVY_BIN, "image", "--scanners", "secret", "--format", "json", "--quiet", img],
+                        capture_output=True,
+                        text=True,
+                        env=docker_env,
+                        timeout=60,
                     )
-                    baked_files = json.loads(baked_check.stdout.strip()) if baked_check.returncode == 0 and baked_check.stdout.strip().startswith("[") else []
-                    if baked_files:
-                        desc = (
-                            f"Dockerfile:38 — [SECRETS BAKED INTO CONTAINER IMAGE LAYER] Image '{img}' (.Config.Env={env_raw}) "
-                            f"bakes server-side secret artifacts directly inside image via COPY instead of runtime secret mount or Secrets Manager SDK: "
-                            f"{', '.join(baked_files)} ({sdk_status})"
-                        )
-                        _add_s12("Dockerfile", 38, "CASA3-SAST-12-baked-image-secrets", desc)
+                    if t_img.returncode == 0 and t_img.stdout.strip().startswith("{"):
+                        tdata = json.loads(t_img.stdout)
+                        for rblk in tdata.get("Results") or []:
+                            tgt = str(rblk.get("Target") or img)
+                            for sec_hit in rblk.get("Secrets") or []:
+                                rid = str(sec_hit.get("RuleID") or "image-secret")
+                                title = str(sec_hit.get("Title") or rid)
+                                slno = int(sec_hit.get("StartLine") or 1)
+                                desc = (
+                                    f"image:{img}:{tgt}:{slno} — [TRIVY IMAGE LAYER SECRET {rid}] {title} "
+                                    f"baked inside container image layer instead of runtime mount or Secrets Manager SDK ({sdk_status})"
+                                )
+                                _add_s12(f"image:{tgt}", slno, f"CASA3-SAST-12-trivy-image-{rid}", desc)
             except Exception:
                 pass
 

@@ -662,3 +662,39 @@ Domínio 2: Static Code Analysis & Secrets
   unitário `test_iteration147_sast11_neon_reeval` cobrindo TS (`createReadStream`),
   PHP e C#.
 - Regressão validada: `test_iteration86_sast11_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 17/61: SAST-12 (Iteração SDD 148)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L393):
+  `semgrep`, `trivy`, `docker`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `semgrep`, `trivy` (`trivy fs --scanners secret,misconfig` e
+  `trivy image --scanners secret`) e `docker image inspect` (`.Config.Env`),
+  emitindo evidência em SARIF 2.1.0.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 148)
+--------------------------------------------------------------------------------
+1) **Remoção de inspeção hardcoded do Juice Shop -> `trivy image --scanners secret` genérico**:
+   - *Antes*: `evaluate_sast12_secrets_management_and_iac` executava um bloco
+     específico `if "juice-shop" in img.lower():` verificando 5 caminhos fixos.
+   - *Melhoria*: Substituído por varredura genérica `trivy image --scanners
+     secret --format json` sobre qualquer imagem local descoberta via `docker`,
+     eliminando acoplamento ao benchmark.
+2) **Inventário de montagens de segredos em runtime e eliminação de falso
+   positivo em `${VAR}` (`Test Guide` L398)**:
+   - Inventário ampliado para detectar `/run/secrets/`, `secretKeyRef` e
+     `secrets-store.csi.k8s.io` em código, Compose e manifestos K8s/Helm.
+   - `iac_secret_re` agora ignora substituições `${...}` / `{{...}}`.
+
+3. VALIDAÇÃO (SDD 148)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration148_sast12_neon_reeval` validando ausência
+  de falso positivo em `JWT_SECRET=${JWT_SECRET}` + `/run/secrets/` e detecção
+  genérica via `trivy image --scanners secret` em qualquer imagem.
+- Regressão validada: `test_iteration87_sast12_guide_tooling` (`OK`).

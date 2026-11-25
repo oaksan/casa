@@ -740,6 +740,47 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 16/61: SAST-11 (Iteração SDD 147)", just_neon)
 
+    def test_iteration148_sast12_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            # 1. Parameterized ${JWT_SECRET} in docker-compose + /run/secrets/ mount must NOT false-positive
+            (repo / "docker-compose.yml").write_text(
+                "services:\n  app:\n    image: myapp:1.0\n    environment:\n      - JWT_SECRET=${JWT_SECRET}\n    volumes:\n      - /run/secrets/db_pass:/run/secrets/db_pass:ro\n",
+                encoding="utf-8",
+            )
+            f_ok, _, sdk_txt = sc.evaluate_sast12_secrets_management_and_iac(repo, run_trivy=False, run_docker=False)
+            self.assertEqual(f_ok, [], f"Parameterized compose with /run/secrets mount must PASS, got {f_ok}")
+            self.assertIn("/run/secrets/", sdk_txt)
+
+            # 2. Generic `trivy image --scanners secret` catches baked secrets on ANY image (no juice-shop hardcoding)
+            def _fake_sub(cmd, **kw):
+                if cmd[0] == "docker":
+                    return mock.Mock(returncode=0, stdout='["PATH=/usr/bin"]', stderr="")
+                if "image" in cmd and "--scanners" in cmd:
+                    return mock.Mock(
+                        returncode=0,
+                        stdout=json.dumps(
+                            {
+                                "Results": [
+                                    {
+                                        "Target": "app/config.yml",
+                                        "Secrets": [{"RuleID": "private-key", "Title": "Asymmetric Private Key", "StartLine": 4}],
+                                    }
+                                ]
+                            }
+                        ),
+                        stderr="",
+                    )
+                return mock.Mock(returncode=1, stdout="", stderr="")
+
+            with mock.patch("subprocess.run", side_effect=_fake_sub):
+                f_img, s_img, _ = sc.evaluate_sast12_secrets_management_and_iac(repo, run_trivy=False, run_docker=True)
+            self.assertTrue(any("[TRIVY IMAGE LAYER SECRET private-key]" in f for f in f_img))
+            self.assertTrue(any(s["ruleId"] == "CASA3-SAST-12-trivy-image-private-key" for s in s_img))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 17/61: SAST-12 (Iteração SDD 148)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

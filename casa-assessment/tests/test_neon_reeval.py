@@ -2395,6 +2395,61 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 56/61: OAU-07 (Iteração SDD 187)", just_neon)
 
+    def test_iteration188_oau08_neon_reeval(self) -> None:
+        """SDD 188 (OAU-08): Opaque URL fragment, POST form-body access_token & DPoP Authorization PASS."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            har_bad = [
+                {
+                    "request": {
+                        "method": "GET",
+                        "url": "https://api.example.com/v1/profile#access_token=opaque_frag_tok_123",
+                        "headers": [],
+                    }
+                },
+                {
+                    "request": {
+                        "method": "POST",
+                        "url": "https://api.example.com/v1/orders",
+                        "headers": [{"name": "Content-Type", "value": "application/x-www-form-urlencoded"}],
+                        "postData": {"text": "access_token=opaque_body_tok_456&item=1"},
+                    }
+                },
+            ]
+            r_fail = sc.evaluate_oau08_token_transport(
+                "https://api.example.com",
+                har_entries_in=har_bad,
+                run_semgrep=False,
+                report_out_path=tdp / "oau08-fail.json",
+                har_out_path=tdp / "oau08-fail.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            kinds = {f["kind"] for f in r_fail["findings"]}
+            self.assertIn("HAR_Fragment_Access_Token", kinds)
+            self.assertIn("HAR_Body_Form_Access_Token", kinds)
+
+            har_good = [
+                {
+                    "request": {
+                        "method": "GET",
+                        "url": "https://api.example.com/v1/profile",
+                        "headers": [{"name": "Authorization", "value": "DPoP valid_bound_tok"}],
+                    }
+                }
+            ]
+            r_pass = sc.evaluate_oau08_token_transport(
+                "https://api.example.com",
+                har_entries_in=har_good,
+                run_semgrep=False,
+                report_out_path=tdp / "oau08-pass.json",
+                har_out_path=tdp / "oau08-pass.har",
+            )
+            self.assertEqual(r_pass["verdict"], "PASS")
+            self.assertEqual(r_pass["bearerHeaderRequests"], 1)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 57/61: OAU-08 (Iteração SDD 188)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

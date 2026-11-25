@@ -14835,17 +14835,30 @@ def evaluate_oau08_token_transport(
                         f"Resource request {req_url.split('?', 1)[0]} used non-Bearer/DPoP Authorization scheme (OAU-08 requires Bearer or DPoP).",
                     )
         p_u8 = urllib.parse.urlparse(req_url)
+        post_txt8 = str((req_obj.get("postData") or {}).get("text", "") or "")
         if ("access_token=" in p_u8.query or "id_token=" in p_u8.query) and "rest/basket" not in p_u8.path:
             _add_oau08(
                 req_url.split("?", 1)[0],
                 "HAR_Query_Access_Token",
                 f"Captured proxy request {req_url.split('?', 1)[0]} transmitted access_token/id_token in URL query string instead of Authorization header.",
             )
+        elif "access_token=" in p_u8.fragment or "id_token=" in p_u8.fragment:
+            _add_oau08(
+                req_url.split("#", 1)[0].split("?", 1)[0],
+                "HAR_Fragment_Access_Token",
+                f"Captured proxy request {req_url.split('#', 1)[0]} transmitted access_token/id_token in URL fragment instead of Authorization Bearer/DPoP header (RFC 6750 §2.3).",
+            )
         elif jwt_url_re.search(p_u8.query) or jwt_url_re.search(p_u8.fragment):
             _add_oau08(
                 req_url.split("?", 1)[0],
                 "HAR_URL_JWT_Exposure",
                 f"Captured proxy request {req_url.split('?', 1)[0]} placed JWT bearer token inside URL query/fragment (RFC 6750 §2.3).",
+            )
+        if re.search(r"(?:^|&)\s*(?:access_token|id_token)=", post_txt8, re.IGNORECASE):
+            _add_oau08(
+                req_url.split("?", 1)[0],
+                "HAR_Body_Form_Access_Token",
+                f"Captured proxy resource request {req_url.split('?', 1)[0]} sent access_token in POST body instead of Authorization Bearer/DPoP header (OAU-08 / RFC 6750).",
             )
 
     # 4. Inspect live JS bundles (main.js) & OAuth client sources + routing for resource query/fragment token transport
@@ -14898,6 +14911,12 @@ def evaluate_oau08_token_transport(
         req_e = ent_copy.get("request", {})
         if req_e.get("url"):
             req_e["url"] = re.sub(r"(?i)(access_token|id_token|token)=([^&#\s]+)", r"\1=[REDACTED]", req_e["url"])
+        if isinstance(req_e.get("postData"), dict) and req_e["postData"].get("text"):
+            req_e["postData"]["text"] = re.sub(
+                r"(?i)(access_token|id_token|token)=([^&#\s]+)",
+                r"\1=[REDACTED]",
+                str(req_e["postData"]["text"]),
+            )
         redacted_har_entries.append(ent_copy)
 
     rep_file = report_out_path or (OUTPUT_DIR / "oau08-transport-audit.json")

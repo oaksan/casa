@@ -4443,6 +4443,7 @@ def parse_testssl_protocols(scan_result: list[dict]) -> dict[str, str]:
         "TLS1_2": "TLS 1.2",
         "TLS1_3": "TLS 1.3",
     }
+    deprecated_keys = {"SSLv2", "SSLv3", "TLS 1.0", "TLS 1.1"}
     for entry in scan_result or []:
         if not isinstance(entry, dict):
             continue
@@ -4453,8 +4454,13 @@ def parse_testssl_protocols(scan_result: list[dict]) -> dict[str, str]:
             if not key:
                 continue
             finding = str(proto.get("finding") or "").lower()
-            if "offered" in finding and "not offered" not in finding:
+            sev = str(proto.get("severity") or "").upper()
+            if "not offered" in finding:
+                matrix[key] = "not offered"
+            elif "offered" in finding or (key in deprecated_keys and sev in {"HIGH", "CRITICAL"}):
                 matrix[key] = "offered"
+            elif any(tok in finding for tok in ("local problem", "not tested", "unable", "error")):
+                matrix[key] = "unverified"
     return matrix
 
 
@@ -4547,10 +4553,17 @@ def evaluate_tls02_protocol_enforcement(
     deprecated_offered = [
         p for p in ("SSLv2", "SSLv3", "TLS 1.0", "TLS 1.1") if protocols_matrix.get(p) == "offered"
     ]
+    deprecated_unverified = [
+        p for p in ("SSLv2", "SSLv3", "TLS 1.0", "TLS 1.1") if protocols_matrix.get(p) == "unverified"
+    ]
     modern_offered = [
         p for p in ("TLS 1.2", "TLS 1.3") if protocols_matrix.get(p) == "offered"
     ]
-    tls02_pass = bool(modern_offered) and len(deprecated_offered) == 0
+    tls02_pass = (
+        bool(modern_offered)
+        and len(deprecated_offered) == 0
+        and len(deprecated_unverified) == 0
+    )
     return {
         "verdict": "PASS" if tls02_pass else "FAIL",
         "tls02_pass": tls02_pass,
@@ -4558,6 +4571,7 @@ def evaluate_tls02_protocol_enforcement(
         "protocols": protocols_matrix,
         "modernOffered": modern_offered,
         "deprecatedOffered": deprecated_offered,
+        "deprecatedUnverified": deprecated_unverified,
         "source": source_label,
         "testssl": active_testssl,
     }

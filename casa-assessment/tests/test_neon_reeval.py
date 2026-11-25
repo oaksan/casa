@@ -867,6 +867,51 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 19/61: TLS-01 (Iteração SDD 150)", just_neon)
 
+    def test_iteration151_tls02_neon_reeval(self) -> None:
+        # 1. Local problem on SSLv3 must mark SSLv3 unverified and FAIL (not silently assume not offered)
+        fake_unverified = {
+            "executed": True,
+            "scanResult": [
+                {
+                    "protocols": [
+                        {"id": "SSLv2", "finding": "not offered", "severity": "OK"},
+                        {"id": "SSLv3", "finding": "Local problem: openssl lacks SSLv3", "severity": "WARN"},
+                        {"id": "TLS1", "finding": "not offered", "severity": "OK"},
+                        {"id": "TLS1_1", "finding": "not offered", "severity": "OK"},
+                        {"id": "TLS1_2", "finding": "offered", "severity": "OK"},
+                        {"id": "TLS1_3", "finding": "offered", "severity": "OK"},
+                    ]
+                }
+            ],
+        }
+        res_unv = sc.evaluate_tls02_protocol_enforcement("https://app.example.com", testssl_info=fake_unverified)
+        self.assertEqual(res_unv["verdict"], "FAIL")
+        self.assertEqual(res_unv["protocols"]["SSLv3"], "unverified")
+        self.assertIn("SSLv3", res_unv["deprecatedUnverified"])
+
+        # 2. All 4 legacy protocols explicitly not offered + TLS 1.3 offered -> PASS
+        fake_clean = {
+            "executed": True,
+            "scanResult": [
+                {
+                    "protocols": [
+                        {"id": "SSLv2", "finding": "not offered", "severity": "OK"},
+                        {"id": "SSLv3", "finding": "not offered", "severity": "OK"},
+                        {"id": "TLS1", "finding": "not offered", "severity": "OK"},
+                        {"id": "TLS1_1", "finding": "not offered", "severity": "OK"},
+                        {"id": "TLS1_2", "finding": "not offered", "severity": "INFO"},
+                        {"id": "TLS1_3", "finding": "offered with final", "severity": "OK"},
+                    ]
+                }
+            ],
+        }
+        res_ok = sc.evaluate_tls02_protocol_enforcement("https://app.example.com", testssl_info=fake_clean)
+        self.assertEqual(res_ok["verdict"], "PASS")
+        self.assertEqual(res_ok["modernOffered"], ["TLS 1.3"])
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 20/61: TLS-02 (Iteração SDD 151)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

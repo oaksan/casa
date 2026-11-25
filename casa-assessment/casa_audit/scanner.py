@@ -1231,7 +1231,7 @@ TOP_CANONICAL_NPM_PACKAGES: tuple[str, ...] = (
     "qs",
     "typescript",
     "eslint",
-    " eslint-scope",
+    "eslint-scope",
     "jsonwebtoken",
     "socket.io",
     "socket.io-client",
@@ -1245,7 +1245,6 @@ TOP_CANONICAL_NPM_PACKAGES: tuple[str, ...] = (
     "helmet",
     "winston",
     "nodemailer",
-    " ngx-cookie",
     "ngx-cookie",
     "ngx-translate",
     "epilogue",
@@ -1258,6 +1257,57 @@ TOP_CANONICAL_NPM_PACKAGES: tuple[str, ...] = (
     "node-ipc",
     "faker",
     "peacenotwar",
+)
+
+TOP_CANONICAL_PYPI_PACKAGES: tuple[str, ...] = (
+    "requests",
+    "urllib3",
+    "botocore",
+    "boto3",
+    "numpy",
+    "pandas",
+    "setuptools",
+    "wheel",
+    "pip",
+    "certifi",
+    "idna",
+    "charset-normalizer",
+    "cryptography",
+    "pyyaml",
+    "typing-extensions",
+    "packaging",
+    "six",
+    "python-dateutil",
+    "click",
+    "jinja2",
+    "flask",
+    "django",
+    "fastapi",
+    "pydantic",
+    "sqlalchemy",
+    "scipy",
+    "pillow",
+    "pytest",
+    "httpx",
+    "aiohttp",
+    "beautifulsoup4",
+    "lxml",
+    "redis",
+    "celery",
+    "pyjwt",
+    "werkzeug",
+    "uvicorn",
+    "gunicorn",
+    "paramiko",
+    "psutil",
+    "grpcio",
+    "protobuf",
+    "colorama",
+    "tqdm",
+    "attrs",
+    "pytz",
+    "regex",
+    "matplotlib",
 )
 
 
@@ -1293,6 +1343,27 @@ def fetch_npm_maintainers(pkg_name: str) -> tuple[list[str], str]:
             ]
             desc = str(data.get("description") or "").strip()
             return [m for m in maintainers if m], desc
+    except Exception:
+        return [], ""
+
+
+def fetch_pypi_maintainers(pkg_name: str) -> tuple[list[str], str]:
+    """Fetch author/maintainer identities and summary for a PyPI package from pypi.org."""
+    url = f"https://pypi.org/pypi/{urllib.parse.quote(pkg_name, safe='')}/json"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "CASA-3.0-AL1-Scanner/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            info = json.loads(resp.read().decode("utf-8")).get("info") or {}
+            identities: list[str] = []
+            for field in ("author", "author_email", "maintainer", "maintainer_email"):
+                raw = str(info.get(field) or "").strip()
+                if raw and raw.lower() not in {"unknown", "none"}:
+                    for part in re.split(r"[,;]", raw):
+                        tok = part.strip().lower()
+                        if tok and tok not in identities:
+                            identities.append(tok)
+            desc = str(info.get("summary") or "").strip()
+            return identities, desc
     except Exception:
         return [], ""
 
@@ -1478,29 +1549,93 @@ def evaluate_sca05_malicious_and_typosquat(
         except Exception:
             pass
 
-    # 2. Check Levenshtein distance == 1 & suffix typosquatting against Top-10k canonical packages with maintainer verification
-    canonical_clean = [c.strip() for c in TOP_CANONICAL_NPM_PACKAGES if c.strip()]
-    canonical_set = set(canonical_clean)
-    checked_typos: set[str] = set()
+    # 2. Check Levenshtein distance == 1 & suffix typosquatting against Top-10k canonical packages (npm + PyPI, direct + transitive)
+    typo_candidates: list[tuple[str, str, str, str]] = list(pkg_entries)
+    seen_typo_pkgs: set[tuple[str, str]] = {(eco.lower(), name.lower()) for eco, name, _, _ in typo_candidates}
 
-    for eco, name, ver, rel_mf in pkg_entries:
-        if eco != "npm" or name in checked_typos or name.startswith("@") or name in canonical_set:
+    # Include transitive lockfile packages so typosquatted indirect dependencies are also caught
+    pkg_lock_path = repo / "package-lock.json"
+    if pkg_lock_path.exists():
+        try:
+            ldata = json.loads(pkg_lock_path.read_text(encoding="utf-8", errors="ignore"))
+            for p_path, meta in (ldata.get("packages") or {}).items():
+                if not p_path or not isinstance(meta, dict):
+                    continue
+                if "node_modules/" in p_path:
+                    pname = p_path.rsplit("node_modules/", 1)[-1].strip()
+                else:
+                    pname = str(meta.get("name", "")).strip()
+                pver = str(meta.get("version", "")).strip()
+                if pname and ("npm", pname.lower()) not in seen_typo_pkgs:
+                    seen_typo_pkgs.add(("npm", pname.lower()))
+                    typo_candidates.append(("npm", pname, pver or "lockfile", "package-lock.json"))
+        except Exception:
+            pass
+    if osv_data:
+        for res_blk in osv_data.get("results", []):
+            src_uri = str((res_blk.get("source") or {}).get("path") or "package-lock.json")
+            try:
+                src_uri = str(Path(src_uri).relative_to(repo))
+            except Exception:
+                pass
+            for pkg_entry in res_blk.get("packages", []):
+                pinfo = pkg_entry.get("package", {})
+                pname = str(pinfo.get("name", "")).strip()
+                pver = str(pinfo.get("version", "")).strip()
+                peco_raw = str(pinfo.get("ecosystem", "")).strip().lower()
+                peco = "PyPI" if peco_raw == "pypi" else ("npm" if peco_raw == "npm" else "")
+                if pname and peco and (peco.lower(), pname.lower()) not in seen_typo_pkgs:
+                    seen_typo_pkgs.add((peco.lower(), pname.lower()))
+                    typo_candidates.append((peco, pname, pver, src_uri))
+
+    canonical_npm = [c.strip() for c in TOP_CANONICAL_NPM_PACKAGES if c.strip()]
+    canonical_npm_set = set(canonical_npm)
+    canonical_pypi = [c.strip().lower() for c in TOP_CANONICAL_PYPI_PACKAGES if c.strip()]
+    canonical_pypi_set = set(canonical_pypi)
+    maint_cache: dict[tuple[str, str], tuple[list[str], str]] = {}
+
+    def _get_maintainers(eco_key: str, pkg_id: str) -> tuple[list[str], str]:
+        ck = (eco_key, pkg_id)
+        if ck not in maint_cache:
+            maint_cache[ck] = (
+                fetch_pypi_maintainers(pkg_id) if eco_key == "pypi" else fetch_npm_maintainers(pkg_id)
+            )
+        return maint_cache[ck]
+
+    checked_typos: set[tuple[str, str]] = set()
+    for eco, name, ver, rel_mf in typo_candidates:
+        eco_l = eco.lower()
+        name_l = name.lower()
+        if (eco_l, name_l) in checked_typos:
             continue
-        for target_canon in canonical_clean:
-            if name == target_canon:
+        if eco_l == "npm":
+            if name.startswith("@") or name_l in canonical_npm_set:
                 continue
-            dist = compute_levenshtein_distance(name, target_canon)
-            is_suffix_squat = name in {f"{target_canon}-js", f"{target_canon}.js", f"{target_canon}-node"}
+            canon_list = canonical_npm
+            suffixes_fn = lambda t: {f"{t}-js", f"{t}.js", f"{t}-node"}
+        elif eco_l == "pypi":
+            if name_l in canonical_pypi_set:
+                continue
+            canon_list = canonical_pypi
+            suffixes_fn = lambda t: {f"{t}-py", f"py-{t}"}
+        else:
+            continue
+
+        for target_canon in canon_list:
+            if name_l == target_canon:
+                continue
+            dist = compute_levenshtein_distance(name_l, target_canon)
+            is_suffix_squat = name_l in suffixes_fn(target_canon)
             if dist == 1 or is_suffix_squat:
-                pkg_maint, pkg_desc = fetch_npm_maintainers(name)
-                canon_maint, canon_desc = fetch_npm_maintainers(target_canon)
+                pkg_maint, pkg_desc = _get_maintainers(eco_l, name)
+                canon_maint, canon_desc = _get_maintainers(eco_l, target_canon)
                 # Confirm different maintainer sets
                 if pkg_maint and canon_maint and set(pkg_maint).isdisjoint(set(canon_maint)):
-                    checked_typos.add(name)
+                    checked_typos.add((eco_l, name_l))
                     pred_type = (
-                        f"Levenshtein distance = 1 from top-10k package '{target_canon}'"
+                        f"Levenshtein distance = 1 from top-10k {eco} package '{target_canon}'"
                         if dist == 1
-                        else f"Language-suffix typosquat (dist={dist}) of canonical package '{target_canon}'"
+                        else f"Language-suffix typosquat (dist={dist}) of canonical {eco} package '{target_canon}'"
                     )
                     cloned_note = (
                         " [CLONED DESCRIPTION]" if (pkg_desc and pkg_desc == canon_desc) else ""
@@ -1518,13 +1653,13 @@ def evaluate_sca05_malicious_and_typosquat(
                             "locations": [{"physicalLocation": {"artifactLocation": {"uri": rel_mf}}}],
                         }
                     )
-                break
+                    break
 
     verdict = ("FAIL" if sca05_failures else ("PASS" if pkg_entries or osv_data else "Not_Covered"))
     engine_lbl = "osv-scanner + OpenSSF malicious-packages" if osv_ran_sca05 else "OSV.dev + OpenSSF MAL-*"
     meta_summary = (
-        f"{engine_lbl} | Scanned {len(pkg_entries)} manifest dependencies across {len(all_manifests)} manifest(s) "
-        f"+ lockfile transitive packages (Levenshtein<=1 / suffix typosquat & npm maintainer verification)"
+        f"{engine_lbl} | Scanned {len(typo_candidates)} dependencies across {len(all_manifests)} manifest(s) "
+        f"+ lockfile transitive packages (Levenshtein<=1 / suffix typosquat & npm/PyPI maintainer verification)"
     )
     return verdict, sca05_failures, sca05_sarif, meta_summary
 

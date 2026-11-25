@@ -343,6 +343,59 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 04/61: SCA-04 (Iteração SDD 135)", just_neon)
 
+    def test_iteration136_sca05_neon_reeval(self) -> None:
+        # 1. Verify TOP_CANONICAL_NPM_PACKAGES has no stray leading whitespace
+        self.assertTrue(all(p == p.strip() for p in sc.TOP_CANONICAL_NPM_PACKAGES))
+
+        # 2. Verify PyPI Levenshtein=1 typosquat AND transitive npm lockfile typosquat are detected
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "requirements.txt").write_text("requestss==2.31.0\n", encoding="utf-8")
+            (repo / "package.json").write_text(
+                json.dumps({"name": "demo", "dependencies": {"express": "4.22.1"}}),
+                encoding="utf-8",
+            )
+            (repo / "package-lock.json").write_text(
+                json.dumps(
+                    {
+                        "lockfileVersion": 3,
+                        "packages": {
+                            "node_modules/lodasg": {"version": "1.0.0"},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            def _fake_npm(pkg: str):
+                if pkg == "lodasg":
+                    return (["attacker"], "clone")
+                if pkg == "lodash":
+                    return (["jdalton"], "lodash")
+                return ([], "")
+
+            def _fake_pypi(pkg: str):
+                if pkg == "requestss":
+                    return (["evil@example.com"], "http")
+                if pkg == "requests":
+                    return (["kennethreitz@example.com"], "http")
+                return ([], "")
+
+            with mock.patch.object(sc, "fetch_npm_maintainers", side_effect=_fake_npm), mock.patch.object(
+                sc, "fetch_pypi_maintainers", side_effect=_fake_pypi
+            ), mock.patch("subprocess.run", return_value=mock.Mock(returncode=0, stdout='{"results":[]}', stderr="")):
+                verdict, fails, sarifs, _ = sc.evaluate_sca05_malicious_and_typosquat(repo)
+
+            joined = "\n".join(fails)
+            self.assertEqual(verdict, "FAIL")
+            self.assertIn("requestss@2.31.0", joined)
+            self.assertIn("lodasg@1.0.0", joined)
+            self.assertTrue(any("requirements.txt" in str(s) for s in sarifs))
+            self.assertTrue(any("package-lock.json" in str(s) for s in sarifs))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 05/61: SCA-05 (Iteração SDD 136)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -244,3 +244,58 @@ Domínio 1: Software Composition & Supply Chain
   `@angular/core`, e `PASS` sem falso erro residual para SBOM publicado em
   contêiner.
 - Regressão validada: `test_iteration74_sca04_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 05/61: SCA-05 (Iteração SDD 136)
+Domínio 1: Software Composition & Supply Chain — FECHAMENTO DO DOMÍNIO 1
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L137):
+  `osv-scanner`, `OpenSSF malicious-packages feed`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa o
+  binário oficial gratuito `osv-scanner` alimentado pelo feed OpenSSF Malicious
+  Packages (`MAL-*`) sobre lockfiles e sub-manifestos, somado ao algoritmo
+  determinístico de distância de Levenshtein (`dist == 1`) com verificação de
+  mantenedores nos registros oficiais (`registry.npmjs.org` e `pypi.org`).
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 136)
+--------------------------------------------------------------------------------
+1) **Limpeza de lista canônica npm + cobertura PyPI (`Test Guide` L136/L141)**:
+   - *Antes*: `TOP_CANONICAL_NPM_PACKAGES` continha entradas com espaços à
+     esquerda (`" eslint-scope"`, `" ngx-cookie"`), e pacotes `PyPI` eram
+     ignorados na checagem de typosquatting (`if eco != "npm": continue`).
+   - *Melhoria*: Removidos espaços espúrios e duplicatas; adicionados
+     `TOP_CANONICAL_PYPI_PACKAGES` (48 pacotes PyPI de altíssima popularidade) e
+     `fetch_pypi_maintainers()` com cache em memória.
+2) **Cobertura de dependências transitivas de lockfiles (`package-lock.json` /
+   `osv_data`)**:
+   - *Antes*: Apenas manifestos diretos eram verificados contra o predicado de
+     typosquatting.
+   - *Melhoria*: Dependências transitivas em `package-lock.json` e em `osv_data`
+     foram incorporadas à lista de candidatos avaliados para Levenshtein = 1 sob
+     mantenedor diferente.
+3) **Correção do `break` prematuro no laço de candidatos canônicos**:
+   - *Antes*: O `break` ocorria fora do bloco `if set(pkg_maint).isdisjoint(...)`,
+     interrompendo a comparação caso o primeiro vizinho canônico compartilhasse
+     mantenedor.
+   - *Melhoria*: `break` movido para dentro do bloco de detecção confirmada.
+
+3. VALIDAÇÃO (SDD 136 + FECHAMENTO DO DOMÍNIO 1 — SCA-01..SCA-05)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration136_sca05_neon_reeval` validando ausência
+  de espaços espúrios, detecção de typosquat PyPI (`requestss` vs `requests`) e
+  detecção de typosquat transitivo em `package-lock.json` (`lodasg` vs `lodash`).
+- Regressão: `test_iteration75_sca05_guide_tooling` + suíte integral `unittest
+  discover` + varredura completa ao vivo contra OWASP Juice Shop (`SCA-01..SCA-05`).
+
+- **Consolidação Empírica ao Vivo — Fechamento do Domínio 1 (`SDD 132`–`SDD 136`)**:
+  * Suíte integral `unittest discover`: **69 testes executados em 1046.346s — OK**.
+  * Varredura completa ao vivo contra OWASP Juice Shop (`http://localhost:3000` + `juice-shop-master`, 61 controles: `FAIL=51, PASS=5, NOT_APPLICABLE=2, Not_Covered=3`):
+    - `SCA-01 [FAIL]`: 14 pacotes bloqueantes (`1181` pacotes via `Syft + osv-scanner + CISA KEV`).
+    - `SCA-02 [FAIL]`: 46 violações em 114 dependências diretas (`EOL/Deprecated=10`, `OpenSSF Scorecard Maintained<5=38`, `Untrusted Registry=0`).
+    - `SCA-03 [FAIL]`: 3 achados bloqueantes via `Trivy` sobre `bkimminich/juice-shop` (`Debian:13.7`, 14 pacotes OS, `libssl3t64` + `zlib1g` + tags sem `@sha256`).
+    - `SCA-04 [FAIL]`: 2 falhas reais em `container:bkimminich/juice-shop:latest:/juice-shop/bom.json` (`CycloneDX 1.6`, `NTIA gaps=66/537`, `SetDiff=220`, sem falso erro de ausência no repo).
+    - `SCA-05 [FAIL]`: 6 violações maliciosas/typosquatting sobre `1125` dependências (manifestos + transitivas do lockfile) via `osv-scanner + OpenSSF malicious-packages`.

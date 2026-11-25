@@ -1492,6 +1492,45 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 34/61: CFG-10 (Iteração SDD 165)", just_neon)
 
+    def test_iteration166_cfg11_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            # 1. Expanded can-i-take-over-xyz provider (.zendesk.com) on extra_hosts subdomain -> FAIL
+            def _lookup(h: str):
+                if h == "support.app.example.com":
+                    return [h, "unclaimed-corp.zendesk.com"], "NXDOMAIN", []
+                return [h], "NOERROR", ["93.184.216.34"]
+
+            r_sub = sc.evaluate_cfg11_dns_takeover(
+                "http://127.0.0.1:9",
+                root_body="<html><body>Healthy primary</body></html>",
+                extra_hosts=["support.app.example.com", "docs.app.example.com"],
+                cname_lookup_fn=_lookup,
+                dnsx_out_path=tdp / "dnsx.json",
+                nuclei_jsonl_path=tdp / "nuc.jsonl",
+                nuclei_sarif_path=tdp / "nuc.sarif",
+            )
+            self.assertEqual(r_sub["verdict"], "FAIL")
+            self.assertGreaterEqual(r_sub["providersCount"], 24)
+            self.assertIn("support.app.example.com", r_sub["auditedHosts"])
+            self.assertTrue(any("zendesk.com" in f["detail"] for f in r_sub["findings"]))
+
+            # 2. Clean primary + clean extra_hosts -> PASS
+            r_ok = sc.evaluate_cfg11_dns_takeover(
+                "http://127.0.0.1:9",
+                root_body="<html><body>Healthy primary</body></html>",
+                extra_hosts=["docs.app.example.com"],
+                cname_lookup_fn=lambda h: ([h], "NOERROR", ["93.184.216.34"]),
+                dnsx_out_path=tdp / "dnsx_ok.json",
+                nuclei_jsonl_path=tdp / "nuc_ok.jsonl",
+                nuclei_sarif_path=tdp / "nuc_ok.sarif",
+            )
+            self.assertEqual(r_ok["verdict"], "PASS", f"Expected PASS, got {r_ok}")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 35/61: CFG-11 (Iteração SDD 166)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

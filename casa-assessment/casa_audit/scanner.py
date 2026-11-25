@@ -7760,6 +7760,7 @@ def evaluate_cfg11_dns_takeover(
     target_url: str,
     *,
     root_body: str = "",
+    extra_hosts: list[str] | None = None,
     dnsx_out_path: Path | None = None,
     nuclei_jsonl_path: Path | None = None,
     nuclei_sarif_path: Path | None = None,
@@ -7780,6 +7781,8 @@ def evaluate_cfg11_dns_takeover(
         (".azurewebsites.net", ("404 web site not found",)),
         (".trafficmanager.net", ("404 web site not found",)),
         (".cloudapp.net", ("404 web site not found",)),
+        (".azureedge.net", ("404 web site not found", "our services aren't available right now")),
+        (".azure-api.net", ("404 web site not found",)),
         (".netlify.app", ("not found - request id:",)),
         (".vercel.app", ("the deployment could not be found",)),
         (".cloudfront.net", ("error: the request could not be satisfied",)),
@@ -7788,6 +7791,12 @@ def evaluate_cfg11_dns_takeover(
         (".pantheonsite.io", ("404 error unknown site",)),
         (".readthedocs.io", ("unknown to read the docs",)),
         (".surge.sh", ("project not found",)),
+        (".fly.dev", ("404 not found",)),
+        (".bitbucket.io", ("repository not found",)),
+        (".ghost.io", ("the thing you were looking for is no longer here",)),
+        (".zendesk.com", ("help center closed",)),
+        (".unbouncepages.com", ("the requested url was not found on this server",)),
+        (".wpengine.com", ("the site you were looking for couldn't be found",)),
     ]
 
     def _run_dig_query(qname: str, qtype: str) -> tuple[str, list[str]]:
@@ -7940,6 +7949,46 @@ def evaluate_cfg11_dns_takeover(
                 source_s="HTTP+CNAME",
             )
 
+    audited_hosts: list[str] = [host]
+    for extra_h in extra_hosts or []:
+        eh = (extra_h or "").strip().lower()
+        if not eh or eh == host.lower() or eh in audited_hosts:
+            continue
+        audited_hosts.append(eh)
+        if cname_lookup_fn is not None:
+            eh_chain, eh_st, eh_ans = cname_lookup_fn(eh)
+            eh_chain = list(eh_chain) if eh_chain else [eh]
+            eh_aaaa: list[str] = []
+        else:
+            eh_chain = [eh]
+            cur_eh = eh
+            seen_eh = {eh}
+            for _ in range(8):
+                _, c_ans = _run_dig_query(cur_eh, "CNAME")
+                if c_ans:
+                    nxt = c_ans[0]
+                    eh_chain.append(nxt)
+                    if nxt.lower() in seen_eh:
+                        break
+                    seen_eh.add(nxt.lower())
+                    cur_eh = nxt
+                else:
+                    break
+            eh_st, eh_ans = _run_dig_query(eh_chain[-1], "A")
+            _, eh_aaaa = _run_dig_query(eh_chain[-1], "AAAA")
+        for eh_hop in eh_chain:
+            eh_hop_l = eh_hop.lower()
+            for prov_suffix, _ in takeover_fingerprints:
+                if eh_hop_l.endswith(prov_suffix) and (
+                    eh_st == "NXDOMAIN" or (not eh_ans and not eh_aaaa and len(eh_chain) > 1)
+                ):
+                    _add_finding(
+                        eh_hop,
+                        "dangling_cname_nxdomain",
+                        f"In-scope subdomain '{eh}' CNAME chain {' -> '.join(eh_chain)} points to unclaimed provider '{prov_suffix}' (DNS status={eh_st})",
+                        source_s="dnsx+CNAME",
+                    )
+
     sarif_items: list[dict] = []
     for cf11 in cfg11_findings:
         sarif_items.append(
@@ -7963,6 +8012,7 @@ def evaluate_cfg11_dns_takeover(
         "verdict": "FAIL" if cfg11_fail else "PASS",
         "cfg11_fail": cfg11_fail,
         "host": host,
+        "auditedHosts": audited_hosts,
         "cnameChain": cname_chain,
         "resolvedIps": resolved_ips,
         "providersCount": len(takeover_fingerprints),

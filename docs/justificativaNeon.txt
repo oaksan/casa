@@ -1121,3 +1121,46 @@ CONTROLE 34/61: CFG-10 (Iteração SDD 165) — Administrative Interfaces Protec
 4. Validação:
    - `test_iteration165_cfg10_neon_reeval` (normalização de timestamps/UUIDs +
      portão de login) + regressão `test_iteration104_cfg10_guide_tooling` (ZAP 2.17.0 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 35/61: CFG-11 (Iteração SDD 166) — Subdomain & DNS Takeover Prevention
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L770):
+   - Referência: `dnsx, Nuclei (takeovers/ templates), can-i-take-over-xyz`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa ProjectDiscovery
+     `dnsx` 1.3.1 + `Nuclei` 3.11.1 (`rules/nuclei_cfg11`) + catálogo
+     `can-i-take-over-xyz`. Zero uso de Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `takeover_fingerprints` possuía apenas 16 provedores, faltando 8 provedores
+     frequentes em `can-i-take-over-xyz` (`.fly.dev`, `.bitbucket.io`, `.ghost.io`,
+     `.zendesk.com`, `.unbouncepages.com`, `.wpengine.com`, `.azureedge.net`,
+     `.azure-api.net`).
+   - `evaluate_cfg11_dns_takeover` auditava apenas o hostname de `target_url`,
+     sem parâmetro `extra_hosts` para múltiplos subdomínios declarados em escopo.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido `takeover_fingerprints` para 24 provedores `can-i-take-over-xyz`.
+   - Adicionado parâmetro opcional `extra_hosts` e campo `auditedHosts` com
+     resolução de cadeia CNAME para todos os subdomínios em escopo.
+4. Validação:
+   - `test_iteration166_cfg11_neon_reeval` (subdomínio `.zendesk.com` NXDOMAIN
+     em `extra_hosts` + subdomínio limpo) + regressão `test_iteration105_cfg11_guide_tooling`.
+
+--- FECHAMENTO DO DOMÍNIO 4 (CFG-01 .. CFG-11, SDD 156 .. SDD 166) ---
+- Suíte Completa `unittest discover -s casa-assessment/tests -v`:
+  99/99 testes `OK` em 1030.172s (zero falhas, zero flakes; correção definitiva
+  do seed `requestor` na raiz em `run_zap_automation` validada na prática).
+- Scan Live Completo contra OWASP Juice Shop (`http://localhost:3000`,
+  `/home/user/felipe/speckit/juice-shop-master`, daemon `casa_audit` porta 8080):
+  TOTAL: 61 controles (`FAIL: 51, PASS: 5, NOT_APPLICABLE: 2, Not_Covered: 3`).
+  * `CFG-01`: FAIL (OWASP ZAP 2.17.0 Spider+10033 & Autoindex/ListBucketResult, 20 prefixes)
+  * `CFG-02`: FAIL (Nuclei v3.11.1 + OWASP ZAP 2.17.0)
+  * `CFG-03`: FAIL (OWASP ZAP 2.17.0 10036/10037, 28 HTTP exchanges)
+  * `CFG-04`: FAIL (Google csp-evaluator 1.1.8, 21 HTML routes)
+  * `CFG-05`: PASS (OWASP ZAP 2.17.0 10020, 21 HTML routes)
+  * `CFG-06`: FAIL (OWASP ZAP 2.17.0 10021, 28 HTTP responses)
+  * `CFG-07`: FAIL (OWASP ZAP 2.17.0 10049/10015, 9 routes)
+  * `CFG-08`: FAIL (OWASP ZAP 2.17.0 10098, 28 active CORS probes across 7 endpoints)
+  * `CFG-09`: FAIL (OWASP ZAP 2.17.0 90022, 8 4xx/5xx responses)
+  * `CFG-10`: FAIL (OWASP ZAP 2.17.0 & SecLists Admin Wordlist, 60 auth/unauth probes)
+  * `CFG-11`: PASS (dnsx 1.3.1 & Nuclei v3.11.1, 24 providers)
+- Zero uso de Burp Suite pago em todo o Domínio 4.

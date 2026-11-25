@@ -2744,3 +2744,66 @@ Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
     `oauth.component.ts` + replays em `/oauth`) confirmando omissão completa de
     `state=` e validação ausente em callback -> Veredito **`FAIL`** (`CASA3-OAU-04`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 54/61: OAU-05 (Iteração SDD 124)
+Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: OAU-05
+- Requisito (CASA 3.0 AL1):
+  "Native, mobile and desktop clients perform authorization in the system browser
+  (Custom Tabs / ASWebAuthenticationSession) — never an embedded WebView."
+- Referências: RFC 8252 §8.12; CWE-749 | Superfície: Mobile, Native.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `mitmproxy`, `MobSF`, `semgrep`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida do fluxo de autorização e `OASIS SARIF 2.1.0`
+  (`CASA3-OAU-05`) para análise estática de artefatos/binários cliente.
+- Critério Determinístico de Verificação:
+  * PASS: URL de autorização apresentada em `CustomTabsIntent` /
+    `ASWebAuthenticationSession` / navegador externo do sistema, sem classes
+    WebView embutidas carregando endpoints de autorização.
+  * FAIL: Endpoint de autorização carregado em `WebView`, `WKWebView`,
+    `SFSafariViewController`, `BrowserWindow`/`InAppBrowser` ou `User-Agent`
+    de WebView em captura HAR.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 124`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `evaluate_oau05_system_browser_policy` lia apenas bytes brutos sem descompactar
+  arquivos ZIP `.apk`/`.ipa`, não executava `Semgrep` sobre Kotlin/Java/Swift/TS/JS,
+  não roteava fluxos pelo proxy interceptador HTTP e não emitia relatórios JSON/HAR
+  isolados do controle.
+- O que foi feito e melhorado na Iteração SDD 124:
+  1) Adição da regra AST `CASA3-OAU-05-embedded-webview-oauth` (`kotlin`,
+     `java`, `swift`, `typescript`, `javascript`) em `rules/casa3_al1_oauth.yml` e
+     inclusão de diretórios móveis/nativos (`android`, `ios`, `mobile`, `electron`,
+     `src-tauri`) em `_resolve_semgrep_scan_targets`.
+  2) Criação do extrator compartilhado `_extract_mobile_binary_text` (descompactação
+     ZIP estilo MobSF para `AndroidManifest.xml`, `Info.plist`, `classes*.dex` +
+     `/usr/bin/strings`) preservando a assinatura 5-tupla compatível de
+     `evaluate_oau05_system_browser_policy`.
+  3) Criação de `evaluate_oau05_system_browser(...)` integrando
+     `_run_oauth_intercepting_proxy` (captura de `User-Agent`), Semgrep
+     correlacionado a contexto OAuth e emissão de `output/oau05-browser-audit.json`,
+     `output/oau05-replayed.har` redigido, `output/oau05-semgrep.sarif` e
+     `CASA3-OAU-05` nos modos dinâmico e estático.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP E FIXTURES (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration124_oau05_guide_tooling`):
+  * **`PASS`** validado em fixture Kotlin/Swift/APK comprimido com
+    `CustomTabsIntent` + `ASWebAuthenticationSession` e HAR `[REDACTED]`.
+  * **`FAIL`** confirmado simultaneamente via `.apk` ZIP descompactado,
+    `LegacyAuth.kt` (`WebView`), `LegacyAuth.swift` (`SFSafariViewController`),
+    regras Semgrep (`CASA3-OAU-05-embedded-webview-oauth`) e proxy HAR (`; wv)`).
+  * **`Not_Covered`** validado em repositório exclusivamente web.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Escopo `Web_Application`: **`NOT_APPLICABLE`** (superfície exclusiva web);
+    em execução forçada em superfícies móveis/nativas, retorna **`Not_Covered`**
+    (0 binários móveis/nativos) em vez de falso `PASS`.
+================================================================================

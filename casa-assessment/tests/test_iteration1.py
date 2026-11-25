@@ -5097,6 +5097,133 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 53/61: OAU-04 (Iteração SDD 123)", just2_txt)
 
+    def test_iteration124_oau05_guide_tooling(self) -> None:
+        import http.server
+        import socketserver
+        import tempfile
+        import threading
+        import zipfile
+
+        from casa_audit.scanner import evaluate_oau05_system_browser
+
+        class _IdpStub(http.server.BaseHTTPRequestHandler):
+            def log_message(self, format, *args) -> None:
+                return
+
+            def do_GET(self) -> None:
+                self.send_response(302)
+                self.send_header("Location", "myapp://cb?code=c1")
+                self.end_headers()
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+
+        srv = _ThreadedHTTPServer(("127.0.0.1", 0), _IdpStub)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                tdp = Path(td)
+                # 1. Hardened mobile client: CustomTabsIntent + ASWebAuthenticationSession + clean APK ZIP -> PASS
+                pass_repo = tdp / "pass_mobile"
+                (pass_repo / "android").mkdir(parents=True)
+                (pass_repo / "ios").mkdir(parents=True)
+                (pass_repo / "android" / "OAuthLogin.kt").write_text(
+                    'val url = "https://idp.example.com/authorize?client_id=c1"\n'
+                    'CustomTabsIntent.Builder().build().launchUrl(ctx, Uri.parse(url))\n',
+                    encoding="utf-8",
+                )
+                (pass_repo / "ios" / "AuthSession.swift").write_text(
+                    'let s = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "myapp") { _, _ in }\n',
+                    encoding="utf-8",
+                )
+                with zipfile.ZipFile(pass_repo / "app-release.apk", "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("AndroidManifest.xml", "<manifest package='org.safe.app'/>")
+                    zf.writestr("classes.dex", b"CustomTabsIntent oauth2 authorize")
+
+                r_pass = evaluate_oau05_system_browser(
+                    f"http://127.0.0.1:{port}",
+                    repo=pass_repo,
+                    oauth_flow_requests=[
+                        {
+                            "url": f"http://127.0.0.1:{port}/oauth/authorize?client_id=c1&response_type=code",
+                            "method": "GET",
+                            "headers": {
+                                "User-Agent": "Mozilla/5.0 (Linux; Android 14) Chrome/124.0 Mobile Safari/537.36",
+                                "Authorization": "Bearer secret_oau05_hdr",
+                            },
+                        }
+                    ],
+                    report_out_path=tdp / "oau05_pass.json",
+                    har_out_path=tdp / "oau05_pass.har",
+                    semgrep_sarif_out_path=tdp / "oau05_pass_sg.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertGreaterEqual(r_pass["binCount"], 1)
+                self.assertIn("CustomTabsIntent", r_pass["approvedHits"])
+                self.assertEqual(r_pass["semgrepHits"], 0)
+                har_txt = (tdp / "oau05_pass.har").read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("secret_oau05_hdr", har_txt)
+
+                # 2. Vulnerable: zipped .apk with compressed WebView + Kotlin WebView + Swift SFSafariViewController + HAR ; wv) UA -> FAIL
+                fail_repo = tdp / "fail_mobile"
+                (fail_repo / "android").mkdir(parents=True)
+                (fail_repo / "ios").mkdir(parents=True)
+                (fail_repo / "android" / "LegacyAuth.kt").write_text(
+                    'val web = WebView(ctx)\nweb.loadUrl("https://idp.example.com/authorize?client_id=c1")\n',
+                    encoding="utf-8",
+                )
+                (fail_repo / "ios" / "LegacyAuth.swift").write_text(
+                    'let vc = SFSafariViewController(url: URL(string: "https://idp.example.com/oauth2/authorize")!)\n',
+                    encoding="utf-8",
+                )
+                with zipfile.ZipFile(fail_repo / "app-debug.apk", "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("classes.dex", b"android.webkit.WebView loadUrl https://idp.example.com/oauth/authorize")
+
+                r_fail = evaluate_oau05_system_browser(
+                    f"http://127.0.0.1:{port}",
+                    repo=fail_repo,
+                    oauth_flow_requests=[
+                        {
+                            "url": f"http://127.0.0.1:{port}/oauth/authorize?client_id=c1&response_type=code",
+                            "method": "GET",
+                            "headers": {"User-Agent": "Mozilla/5.0 (Linux; Android 13; wv) AppleWebKit/537.36 Version/4.0 Chrome/120.0"},
+                        }
+                    ],
+                    report_out_path=tdp / "oau05_fail.json",
+                    har_out_path=tdp / "oau05_fail.har",
+                    semgrep_sarif_out_path=tdp / "oau05_fail_sg.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                kinds = {f["kind"] for f in r_fail["findings"]}
+                self.assertIn("Android_WebView", kinds)
+                self.assertIn("iOS_SFSafariViewController", kinds)
+                self.assertIn("HAR_Embedded_WebView_UserAgent", kinds)
+                self.assertIn("Semgrep_OAU05_Embedded_WebView", kinds)
+                self.assertGreaterEqual(r_fail["semgrepHits"], 2)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-05" for s in r_fail["sarifResults"]))
+
+                # 3. Web-only repo -> Not_Covered (never fake PASS)
+                web_repo = tdp / "web_only"
+                web_repo.mkdir()
+                (web_repo / "index.ts").write_text("console.log('spa web app');", encoding="utf-8")
+                r_nc = evaluate_oau05_system_browser(
+                    "",
+                    repo=web_repo,
+                    report_out_path=tdp / "oau05_nc.json",
+                    har_out_path=tdp / "oau05_nc.har",
+                    semgrep_sarif_out_path=tdp / "oau05_nc_sg.sarif",
+                )
+                self.assertEqual(r_nc["verdict"], "Not_Covered")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 54/61: OAU-05 (Iteração SDD 124)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

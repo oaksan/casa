@@ -1,0 +1,25 @@
+{
+  "standard": "RFC 8252 §8.12 (System Browser vs Embedded WebView)",
+  "target": "http://localhost:3000",
+  "verdict": "Not_Covered",
+  "filesScanned": 659,
+  "binaryPackages": 0,
+  "approvedBrowserApis": [],
+  "proxiedRequests": [
+    {
+      "method": "GET",
+      "url": "http://localhost:3000/oauth/authorize",
+      "status": 200,
+      "response_type": null,
+      "grant_type": null,
+      "code_challenge": null,
+      "code_challenge_method": null,
+      "code_verifier": null,
+      "redirect_uri": null,
+      "state": null,
+      "nonce": null
+    }
+  ],
+  "semgrepHits": 0,
+  "findings": []
+}

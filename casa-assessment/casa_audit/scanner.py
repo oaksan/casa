@@ -3263,6 +3263,7 @@ def _resolve_semgrep_scan_targets(repo: Path) -> list[str]:
     """Select source/config targets inside repo while skipping huge compiled bundles."""
     candidate_dirs = [
         "lib", "routes", "models", "data", "src", "app",
+        "android", "ios", "mobile", "electron", "src-tauri",
         "server.ts", "app.ts", "config", "services", "pkg", "cmd", "internal",
     ]
     targets = [str(repo / d) for d in candidate_dirs if (repo / d).exists()]
@@ -13094,6 +13095,144 @@ def evaluate_oau04_state_nonce(
     }
 
 
+def evaluate_oau05_system_browser(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    har_entries: list[dict] | None = None,
+    bundle_texts: dict[str, str] | None = None,
+    oauth_flow_requests: list[dict] | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    semgrep_sarif_out_path: Path | None = None,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate OAU-05 (RFC 8252 §8.12) via intercepting proxy HAR UA capture, MobSF-style APK/IPA unpacking & Semgrep."""
+    base_url = target_url.strip().rstrip("/")
+    repo_path = repo if repo is not None else Path(".")
+
+    # 1. Pass OAuth authorization requests through intercepting proxy to record User-Agent headers in HAR 1.2
+    captured_flows, proxy_har_entries = _run_oauth_intercepting_proxy(
+        base_url,
+        oauth_flow_requests=oauth_flow_requests,
+        crawled_exchanges=crawled_exchanges,
+        creator_name="casa-audit-oau05-browser-proxy",
+        har_out_path=None,
+    )
+    combined_har = [*(har_entries or []), *proxy_har_entries]
+
+    # 2. Core binary/source/HAR WebView & system-browser inspection
+    verdict, files_scanned, bin_count, findings, approved_hits = evaluate_oau05_system_browser_policy(
+        repo_path,
+        har_entries=combined_har,
+        bundle_texts=bundle_texts,
+    )
+
+    # 3. Multi-language Semgrep rule check (CASA3-OAU-05) gated by OAuth context in matched files
+    oauth_ctx_re = re.compile(
+        r"(?:oauth2?|authorize|authorization|auth[_-]?url|authEndpoint|client_id=|response_type=|redirect_uri=|accounts\.google\.com|login\.microsoftonline\.com|auth0\.com/authorize)",
+        re.IGNORECASE,
+    )
+    semgrep_sarif_file = semgrep_sarif_out_path or (OUTPUT_DIR / "oau05-semgrep.sarif")
+    semgrep_ran, raw_sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "CASA3-OAU-05", semgrep_sarif_file) if run_semgrep else (False, [])
+    )
+    kept_sg_hits: list[dict] = []
+    seen_oau05 = {(f["location"], f["kind"]) for f in findings}
+    for sh in raw_sg_hits:
+        rel_part = sh["location"].rsplit(":", 1)[0]
+        matched_file = (repo_path / rel_part) if repo is not None else Path(rel_part)
+        if matched_file.exists():
+            f_txt = matched_file.read_text(encoding="utf-8", errors="ignore")
+            if not oauth_ctx_re.search(f_txt):
+                continue
+        kept_sg_hits.append(sh)
+        k5 = (sh["location"], "Semgrep_OAU05_Embedded_WebView")
+        if k5 not in seen_oau05:
+            seen_oau05.add(k5)
+            findings.append(
+                {
+                    "location": sh["location"],
+                    "kind": "Semgrep_OAU05_Embedded_WebView",
+                    "cwe": "CWE-749",
+                    "detail": f"Semgrep rule {sh['ruleId']} flagged {sh['location']} ({sh['message']}).",
+                }
+            )
+
+    if findings:
+        verdict = "FAIL"
+
+    rep_file = report_out_path or (OUTPUT_DIR / "oau05-browser-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "RFC 8252 §8.12 (System Browser vs Embedded WebView)",
+                "target": base_url,
+                "verdict": verdict,
+                "filesScanned": files_scanned,
+                "binaryPackages": bin_count,
+                "approvedBrowserApis": approved_hits,
+                "proxiedRequests": captured_flows,
+                "semgrepHits": len(kept_sg_hits),
+                "findings": findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "oau05-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-oau05-browser-harness", "version": "3.0"},
+                    "entries": combined_har,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af_o5 in findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-OAU-05",
+                "level": "error",
+                "message": {"text": af_o5["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af_o5["location"]}}}],
+                "properties": {
+                    "controlId": "OAU-05",
+                    "findingKind": af_o5["kind"],
+                    "cwe": af_o5["cwe"],
+                },
+            }
+        )
+
+    return {
+        "verdict": verdict,
+        "oau05_fail": verdict == "FAIL",
+        "filesScanned": files_scanned,
+        "binCount": bin_count,
+        "approvedHits": approved_hits,
+        "proxiedRequests": captured_flows,
+        "semgrepHits": len(kept_sg_hits),
+        "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+        "findings": findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -14397,52 +14536,40 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
     # OAU-05: Native/Mobile System Browser Authorization Inspector (RFC 8252 §8.12, Mobile/Native only; SARIF 2.1.0 + redacted HAR 1.2)
-    oau05_verdict, oau05_files, oau05_bins, oau05_findings, oau05_approved = evaluate_oau05_system_browser_policy(
-        repo,
+    oau05_eval = evaluate_oau05_system_browser(
+        base_url,
+        repo=repo,
         har_entries=har_entries,
         bundle_texts=oauth_bundle_texts,
+        crawled_exchanges=crawled_exchanges,
     )
-    for af_o5 in oau05_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-OAU-05",
-                "level": "error",
-                "message": {"text": af_o5["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af_o5["location"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "OAU-05",
-                    "findingKind": af_o5["kind"],
-                    "cwe": af_o5["cwe"],
-                },
-            }
-        )
+    oau05_verdict = oau05_eval["verdict"]
+    oau05_files = oau05_eval["filesScanned"]
+    oau05_bins = oau05_eval["binCount"]
+    oau05_findings = oau05_eval["findings"]
+    oau05_approved = oau05_eval["approvedHits"]
+    dast_sarif_results.extend(oau05_eval["sarifResults"])
     oau05_lines = [f"[{o5['kind']}] {o5['detail']}" for o5 in oau05_findings]
     results["OAU-05"] = {
         "verdict": oau05_verdict,
         "tool": (
-            f"Mobile/Native System Browser & WebView Inspector ({oau05_files} artifacts, {oau05_bins} binaries, "
-            f"HAR 1.2 User-Agent + SARIF 2.1.0)"
+            f"Mobile/Native System Browser, MobSF Archive & Semgrep Inspector ({oau05_files} artifacts, {oau05_bins} binaries, "
+            f"Semgrep hits={oau05_eval['semgrepHits']}, HAR 1.2 User-Agent + SARIF 2.1.0)"
         ),
         "log": (
             f"[FAIL] {len(oau05_findings)} embedded WebView OAuth authorization violation(s) detected across {oau05_files} client artifact(s):\n  - "
             + "\n  - ".join(oau05_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - OAU-05 Audit JSON: {oau05_eval['reportPath']}\n  - OAU-05 Redacted HAR 1.2: {oau05_eval['harPath']}\n  - OAU-05 Semgrep SARIF 2.1.0: {oau05_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if oau05_verdict == "FAIL"
             else (
                 f"[PASS] Audited {oau05_files} mobile/native artifact(s) ({oau05_bins} binaries); verified system browser authorization APIs "
                 f"({', '.join(oau05_approved) if oau05_approved else 'external browser policy'}) and 0 embedded WebView OAuth flows.\n"
-                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                f"Evidence Artifacts:\n  - OAU-05 Audit JSON: {oau05_eval['reportPath']}\n  - OAU-05 Redacted HAR 1.2: {oau05_eval['harPath']}\n  - OAU-05 Semgrep SARIF 2.1.0: {oau05_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
                 if oau05_verdict == "PASS"
                 else (
                     f"[Not_Covered] Scanned {oau05_files} workspace files ({oau05_bins} mobile/native binaries); no Mobile/Native binary or source client "
                     f"(APK/IPA/Kotlin/Swift/Electron/Capacitor) present in target workspace for RFC 8252 §8.12 WebView inspection.\n"
-                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                    f"Evidence Artifacts:\n  - OAU-05 Audit JSON: {oau05_eval['reportPath']}\n  - OAU-05 Redacted HAR 1.2: {oau05_eval['harPath']}\n  - OAU-05 Semgrep SARIF 2.1.0: {oau05_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
                 )
             )
         ),
@@ -15112,6 +15239,45 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     return results
 
 
+def _extract_mobile_binary_text(fpath: Path, max_bytes: int = 4_194_304) -> str:
+    """Extract strings, manifest XML/Plist and constant pools from .apk/.ipa/.asar/.crx/.xpi binaries."""
+    chunks: list[str] = []
+    if zipfile.is_zipfile(fpath):
+        try:
+            with zipfile.ZipFile(fpath, "r") as zf:
+                for info in zf.infolist():
+                    if info.is_dir() or info.file_size > max_bytes:
+                        continue
+                    try:
+                        entry_raw = zf.read(info.filename)[:max_bytes]
+                    except Exception:
+                        continue
+                    decoded_e = entry_raw.decode("latin-1", errors="ignore")
+                    printable_e = " ".join(
+                        m.decode("ascii", errors="ignore")
+                        for m in re.findall(rb"[ -~]{6,}", entry_raw)
+                    )
+                    chunks.append(f"[{info.filename}] {decoded_e}\n{printable_e}")
+        except Exception:
+            pass
+    try:
+        raw = fpath.read_bytes()[:max_bytes]
+        chunks.append(raw.decode("latin-1", errors="ignore"))
+        strings_bin = shutil.which("strings")
+        if strings_bin:
+            cp_st = subprocess.run(
+                [strings_bin, "-n", "6", str(fpath)],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if cp_st.stdout:
+                chunks.append(cp_st.stdout[:max_bytes])
+    except Exception:
+        pass
+    return "\n".join(chunks)
+
+
 def evaluate_oau05_system_browser_policy(
     repo: Path,
     har_entries: list[dict] | None = None,
@@ -15196,8 +15362,7 @@ def evaluate_oau05_system_browser_policy(
                     has_mobile_native_artifacts = True
                     files_scanned += 1
                     try:
-                        raw = fpath.read_bytes()[:4_194_304]
-                        decoded = raw.decode("latin-1", errors="ignore")
+                        decoded = _extract_mobile_binary_text(fpath)
                         if native_marker_re.search(decoded) or oauth_ctx_re.search(decoded):
                             _inspect_text(rel_path, decoded)
                     except Exception:
@@ -16308,11 +16473,19 @@ def run_automated_al1_scan(
 
     # OAU-05 Static Client/Binary Execution when target_url is absent and Mobile/Native surface is active
     if (not target_url or not target_url.strip()) and any(s in {"Mobile", "Native"} for s in declared_surfaces) and repo.exists():
-        oau05_v, oau05_f, oau05_b, oau05_hits, oau05_app = evaluate_oau05_system_browser_policy(repo)
+        oau05_eval_st = evaluate_oau05_system_browser("", repo=repo)
+        oau05_v = oau05_eval_st["verdict"]
+        oau05_f = oau05_eval_st["filesScanned"]
+        oau05_b = oau05_eval_st["binCount"]
+        oau05_hits = oau05_eval_st["findings"]
+        oau05_app = oau05_eval_st["approvedHits"]
         oau05_lines_st = [f"[{o5['kind']}] {o5['detail']}" for o5 in oau05_hits]
         merged["OAU-05"] = {
             "verdict": oau05_v,
-            "tool": f"Mobile/Native System Browser & WebView Inspector ({oau05_f} artifacts, {oau05_b} binaries, SARIF 2.1.0)",
+            "tool": (
+                f"Mobile/Native System Browser, MobSF Archive & Semgrep Inspector ({oau05_f} artifacts, {oau05_b} binaries, "
+                f"Semgrep hits={oau05_eval_st['semgrepHits']}, SARIF 2.1.0)"
+            ),
             "log": (
                 f"[FAIL] {len(oau05_hits)} embedded WebView OAuth authorization violation(s) detected across {oau05_f} client artifact(s):\n  - "
                 + "\n  - ".join(oau05_lines_st)

@@ -194,3 +194,53 @@ Domínio 1: Software Composition & Supply Chain
   de `end_of_life`, exclusão de `not_affected` e veredito `Not_Covered` honesto
   sem lista hardcoded quando o Trivy não alcança a imagem.
 - Regressão validada: `test_iteration73_sca03_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 04/61: SCA-04 (Iteração SDD 135)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L116):
+  `syft`, `cyclonedx-cli`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle usa
+  exclusivamente `syft` (SBOM independente do avaliador) e `cyclonedx`
+  (`cyclonedx validate` + `cyclonedx diff`) com verificação determinística dos
+  elementos mínimos NTIA e da diferença de conjuntos `(Assessor − Published)`.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 135)
+--------------------------------------------------------------------------------
+1) **Eliminação de falso `FAIL` quando o SBOM publicado está no artefato de
+   build/contêiner (`scanner.py`, `evaluate_sca04_sbom_completeness`)**:
+   - *Antes*: Quando o repositório não continha `*bom*.json`, uma falha
+     `"No developer-published SBOM found"` era registrada imediatamente *antes*
+     de inspecionar o SBOM embutido na imagem de contêiner (`/juice-shop/bom.json`
+     ou `/app/bom.json`), condenando o controle a `FAIL` mesmo com SBOM válido no
+     artefato de build.
+   - *Melhoria*: O erro de ausência só é registrado caso `pub_sbom_data is None`
+     após verificar tanto o repositório quanto o artefato de contêiner.
+2) **Rejeição de valores placeholder NTIA em SPDX 2.3+ e CycloneDX 1.5+ (`Test
+   Guide` L120–121)**:
+   - *Antes*: Em SPDX 2.3+, valores como `"supplier": "NOASSERTION"` ou `"NONE"`
+     passavam como verdadeiros na checagem booleana, mascarando ausência real do
+     elemento mínimo NTIA.
+   - *Melhoria*: Introduzida validação explícita rejeitando `""`, `NOASSERTION`,
+     `NONE`, `UNKNOWN` e `N/A` para `supplier/author/publisher/originator`,
+     `name`, `version` e `unique_id`, além de extração de `purl` em
+     `externalRefs` do SPDX 2.3+.
+3) **Normalização de escopo (`group/name`) e `purl` no Set Difference**:
+   - *Antes*: Componentes emitidos pelo `syft` com `group` + `name` (ex.:
+     `group="@angular", name="core"`) eram comparados apenas por `name` (`core`),
+     gerando risco de colisão ou falso mismatch.
+   - *Melhoria*: Normalização consistente de `group/name` e comparação primária
+     por `purl` canônico (decodificado e sem qualificadores).
+
+3. VALIDAÇÃO (SDD 135)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration135_sca04_neon_reeval` validando rejeição
+  de `NOASSERTION` em SPDX 2.3, `PASS` em SPDX 2.3 válido com pacote com escopo
+  `@angular/core`, e `PASS` sem falso erro residual para SBOM publicado em
+  contêiner.
+- Regressão validada: `test_iteration74_sca04_guide_tooling` (`OK`).

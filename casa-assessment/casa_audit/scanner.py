@@ -902,9 +902,12 @@ def evaluate_sca04_sbom_completeness(
     sca04_sarif: list[dict] = []
 
     candidate_files: list[Path] = []
+    assessor_resolved = assessor_sbom_path.resolve() if assessor_sbom_path else None
     for pattern in ("*sbom*.json", "*bom*.json", "*.cdx.json", "*.spdx.json", "ftp/*bom*.json"):
         for p in repo.glob(pattern):
             if p.is_file() and p not in candidate_files:
+                if assessor_resolved is not None and p.resolve() == assessor_resolved:
+                    continue
                 candidate_files.append(p)
 
     pub_sbom_data: dict | None = None
@@ -930,18 +933,6 @@ def evaluate_sca04_sbom_completeness(
             )
             return "FAIL", sca04_failures, sca04_sarif, f"Unparseable SBOM ({pub_sbom_source})"
     else:
-        msg = (
-            f"No developer-published SBOM (*bom*.json / *sbom*.json / *.cdx.json / *.spdx.json) found in source repository '{repo.name}'"
-        )
-        sca04_failures.append(msg)
-        sca04_sarif.append(
-            {
-                "ruleId": "CASA3-SCA-04",
-                "level": "error",
-                "message": {"text": f"SCA-04: {msg}"},
-                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "package.json"}}}],
-            }
-        )
         # Also inspect container image build artifact if available when repo has a Dockerfile or is juice-shop
         if (repo / "Dockerfile").exists() or "juice-shop" in repo.name.lower():
             docker_env = {**os.environ, "DOCKER_API_VERSION": "1.44"}
@@ -976,6 +967,18 @@ def evaluate_sca04_sbom_completeness(
                     continue
 
     if pub_sbom_data is None:
+        msg = (
+            f"No developer-published SBOM (*bom*.json / *sbom*.json / *.cdx.json / *.spdx.json) found in source repository '{repo.name}' or container build artifact"
+        )
+        sca04_failures.append(msg)
+        sca04_sarif.append(
+            {
+                "ruleId": "CASA3-SCA-04",
+                "level": "error",
+                "message": {"text": f"SCA-04: {msg}"},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "package.json"}}}],
+            }
+        )
         return (
             "FAIL",
             sca04_failures,
@@ -1065,36 +1068,54 @@ def evaluate_sca04_sbom_completeness(
     raw_pub_comps = pub_sbom_data.get("components") or pub_sbom_data.get("packages") or []
     ntia_missing_comps: list[str] = []
     published_names: dict[str, set[str]] = {}  # normalized_name -> set of versions
+    published_purls: set[str] = set()
+    placeholder_vals = {"", "noassertion", "none", "unknown", "n/a"}
+
+    def _valid_ntia_val(val) -> bool:
+        if isinstance(val, dict):
+            s = str(val.get("name") or "").strip()
+        else:
+            s = str(val or "").strip()
+        return s.lower() not in placeholder_vals
 
     for comp in raw_pub_comps:
         c_group = str(comp.get("group", "")).strip()
         c_name = str(comp.get("name", "")).strip()
         full_name = f"{c_group}/{c_name}" if c_group and not c_name.startswith(f"{c_group}/") else c_name
         c_ver = str(comp.get("version") or comp.get("versionInfo") or "").strip()
+        spdx_purl = ""
+        for ext_ref in comp.get("externalRefs") or []:
+            if isinstance(ext_ref, dict) and ext_ref.get("referenceType") == "purl":
+                spdx_purl = str(ext_ref.get("referenceLocator") or "").strip()
+                break
+        c_purl = str(comp.get("purl") or spdx_purl or "").strip()
         c_uid = str(
-            comp.get("purl") or comp.get("cpe") or comp.get("bom-ref") or comp.get("SPDXID") or ""
+            c_purl or comp.get("cpe") or comp.get("bom-ref") or comp.get("SPDXID") or ""
         ).strip()
-        c_supplier = (
-            comp.get("supplier")
-            or comp.get("author")
-            or comp.get("publisher")
-            or comp.get("originator")
-            or c_group
+        supplier_candidates = (
+            comp.get("supplier"),
+            comp.get("author"),
+            comp.get("publisher"),
+            comp.get("originator"),
+            c_group,
         )
+        has_valid_supplier = any(_valid_ntia_val(cand) for cand in supplier_candidates)
 
         if full_name:
             published_names.setdefault(full_name.lower(), set()).add(c_ver)
-            if c_name:
+            if c_name and not c_group:
                 published_names.setdefault(c_name.lower(), set()).add(c_ver)
+        if c_purl:
+            published_purls.add(urllib.parse.unquote(c_purl.split("?", 1)[0]).lower())
 
         missing_fields: list[str] = []
-        if not c_supplier:
+        if not has_valid_supplier:
             missing_fields.append("supplier/author/publisher")
-        if not full_name:
+        if not _valid_ntia_val(full_name):
             missing_fields.append("name")
-        if not c_ver:
+        if not _valid_ntia_val(c_ver):
             missing_fields.append("version")
-        if not c_uid:
+        if not _valid_ntia_val(c_uid):
             missing_fields.append("unique_id(purl/bom-ref)")
 
         if missing_fields:
@@ -1120,23 +1141,29 @@ def evaluate_sca04_sbom_completeness(
             }
         )
 
-    # 3. Compute Set Difference: (Assessor_SBOM - Published_SBOM)
+    # 3. Compute Set Difference: (Assessor_SBOM - Published_SBOM) using group-qualified name & canonical purl
     set_diff_missing: list[str] = []
     for acomp in assessor_components:
         a_type = str(acomp.get("type", "library")).strip()
         if a_type == "file":
             continue
+        a_group = str(acomp.get("group", "")).strip()
         a_name = str(acomp.get("name", "")).strip()
+        a_full = f"{a_group}/{a_name}" if a_group and not a_name.startswith(f"{a_group}/") else a_name
         a_ver = str(acomp.get("version", "")).strip()
         a_purl = str(acomp.get("purl", "")).strip()
+        a_purl_norm = urllib.parse.unquote(a_purl.split("?", 1)[0]).lower() if a_purl else ""
 
-        key = a_name.lower()
+        if a_purl_norm and a_purl_norm in published_purls:
+            continue
+
+        key = a_full.lower()
         if key not in published_names:
-            set_diff_missing.append(f"{a_name}@{a_ver} [{a_type}] ({a_purl}) -> ABSENT from published SBOM")
+            set_diff_missing.append(f"{a_full}@{a_ver} [{a_type}] ({a_purl}) -> ABSENT from published SBOM")
         elif a_ver not in published_names[key] and len(published_names[key]) > 0:
             pub_vers = ", ".join(sorted(v for v in published_names[key] if v))
             set_diff_missing.append(
-                f"{a_name}@{a_ver} [{a_type}] -> VERSION DRIFT in published SBOM (published has: {pub_vers})"
+                f"{a_full}@{a_ver} [{a_type}] -> VERSION DRIFT in published SBOM (published has: {pub_vers})"
             )
 
     if set_diff_missing:

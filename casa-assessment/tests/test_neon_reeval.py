@@ -289,6 +289,60 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 03/61: SCA-03 (Iteração SDD 134)", just_neon)
 
+    def test_iteration135_sca04_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            assessor_comps = [
+                {
+                    "type": "library",
+                    "bom-ref": "pkg:npm/%40angular/core@18.0.0",
+                    "group": "@angular",
+                    "name": "core",
+                    "version": "18.0.0",
+                    "supplier": {"name": "Google"},
+                    "purl": "pkg:npm/%40angular/core@18.0.0",
+                }
+            ]
+            # 1. SPDX 2.3 SBOM with NOASSERTION supplier MUST FAIL NTIA validation
+            spdx_bad = {
+                "spdxVersion": "SPDX-2.3",
+                "creationInfo": {"created": "2026-11-25T00:00:00Z", "creators": ["Tool: syft"]},
+                "packages": [
+                    {
+                        "SPDXID": "SPDXRef-pkg-1",
+                        "name": "@angular/core",
+                        "versionInfo": "18.0.0",
+                        "supplier": "NOASSERTION",
+                        "externalRefs": [{"referenceType": "purl", "referenceLocator": "pkg:npm/%40angular/core@18.0.0"}],
+                    }
+                ],
+                "relationships": [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-pkg-1"}],
+            }
+            (repo / "sbom.spdx.json").write_text(json.dumps(spdx_bad), encoding="utf-8")
+            a_path = repo / "assessor.cdx.json"
+            a_path.write_text(json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.5", "components": assessor_comps}), encoding="utf-8")
+            v_bad, f_bad, _, _ = sc.evaluate_sca04_sbom_completeness(repo, assessor_comps, a_path)
+            self.assertEqual(v_bad, "FAIL")
+            self.assertTrue(any("NTIA" in f for f in f_bad))
+
+            # 2. Valid SPDX 2.3 SBOM with real supplier + matching scoped group/name passes
+            spdx_good = json.loads(json.dumps(spdx_bad))
+            spdx_good["packages"][0]["supplier"] = "Organization: Google"
+            (repo / "sbom.spdx.json").write_text(json.dumps(spdx_good), encoding="utf-8")
+            v_good, f_good, _, _ = sc.evaluate_sca04_sbom_completeness(repo, assessor_comps, a_path)
+            self.assertEqual(v_good, "PASS", f"Expected PASS, got {f_good}")
+
+            # 3. Container-only valid SBOM must NOT carry stale repo-missing failure
+            (repo / "sbom.spdx.json").unlink()
+            (repo / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+            fake_proc = mock.Mock(returncode=0, stdout=json.dumps(spdx_good), stderr="")
+            with mock.patch("subprocess.run", return_value=fake_proc):
+                v_ctr, f_ctr, _, _ = sc.evaluate_sca04_sbom_completeness(repo, assessor_comps, a_path)
+            self.assertEqual(v_ctr, "PASS", f"Container SBOM should PASS without stale repo-missing error, got {f_ctr}")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 04/61: SCA-04 (Iteração SDD 135)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

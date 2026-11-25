@@ -10007,9 +10007,14 @@ def evaluate_aut07_jwt_security(
 
         # 2. If HS256 and source/artifact reveals key, check >= 256 bits; otherwise record Not_Covered
         if alg_val == "HS256":
-            m_hmac = re.search(r"(?:secret|jwtSecret|JWT_SECRET|HMAC_KEY)\s*[:=]\s*['\"]([^'\"]+)['\"]", src_txt)
+            m_hmac = re.search(
+                r"(?:(?:secret|jwtSecret|JWT_SECRET|HMAC_KEY)\s*[:=]\s*['\"]([^'\"]+)['\"]|"
+                r"jwt\.sign\([^,]+,\s*['\"]([^'\"]+)['\"])",
+                src_txt,
+            )
             if m_hmac:
-                key_bits = len(m_hmac.group(1).encode("utf-8")) * 8
+                secret_lit = m_hmac.group(1) or m_hmac.group(2) or ""
+                key_bits = len(secret_lit.encode("utf-8")) * 8
                 hmac_key_bits = key_bits
                 if key_bits < 256:
                     cfg_aut07_findings.append(
@@ -10067,10 +10072,12 @@ def evaluate_aut07_jwt_security(
                 except Exception:
                     pass
 
-        # 5. Build the 5 crafted JWT attack tokens per CASA 3.0 AL1 Test Procedure
+        # 5. Build crafted JWT attack tokens per CASA 3.0 AL1 Test Procedure (alg:none, Alg:None, kid, jku, embedded jwk, HS256 confusion, tampered payload)
         c_none_hdr = _b64u_enc(json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+        c_none_mc_hdr = _b64u_enc(json.dumps({"alg": "None", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
         crafted_tokens: list[tuple[str, str]] = [
             ("unsigned_alg_none", f"{c_none_hdr}.{pay_b64_7}."),
+            ("unsigned_alg_none_mixedcase", f"{c_none_mc_hdr}.{pay_b64_7}."),
             (
                 "foreign_kid_injection",
                 f"{_b64u_enc(json.dumps({'alg': alg_val or 'RS256', 'typ': 'JWT', 'kid': '../../etc/passwd'}, separators=(',', ':')).encode('utf-8'))}.{pay_b64_7}.{sig_b64_7}",
@@ -10091,6 +10098,34 @@ def evaluate_aut07_jwt_security(
             tampered_pay["sub"] = "tampered_casa3"
         tampered_b64 = _b64u_enc(json.dumps(tampered_pay, separators=(",", ":")).encode("utf-8"))
         crafted_tokens.append(("modified_payload_original_sig", f"{hdr_b64_7}.{tampered_b64}.{sig_b64_7}"))
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ec as _ec_mod
+            from cryptography.hazmat.primitives import hashes as _hashes_mod
+            from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature as _dec_dss
+
+            ephem_priv = _ec_mod.generate_private_key(_ec_mod.SECP256R1())
+            pub_nums = ephem_priv.public_key().public_numbers()
+            jwk_hdr = _b64u_enc(
+                json.dumps(
+                    {
+                        "alg": "ES256",
+                        "typ": "JWT",
+                        "jwk": {
+                            "kty": "EC",
+                            "crv": "P-256",
+                            "x": _b64u_enc(pub_nums.x.to_bytes(32, "big")),
+                            "y": _b64u_enc(pub_nums.y.to_bytes(32, "big")),
+                        },
+                    },
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            )
+            signing_input = f"{jwk_hdr}.{tampered_b64}".encode("ascii")
+            r_int, s_int = _dec_dss(ephem_priv.sign(signing_input, _ec_mod.ECDSA(_hashes_mod.SHA256())))
+            es_sig = _b64u_enc(r_int.to_bytes(32, "big") + s_int.to_bytes(32, "big"))
+            crafted_tokens.append(("embedded_jwk_key_substitution", f"{jwk_hdr}.{tampered_b64}.{es_sig}"))
+        except Exception:
+            pass
 
         for vec_name, forged_tok in crafted_tokens:
             crafted_vectors_sent += 1

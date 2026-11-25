@@ -1772,6 +1772,49 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 41/61: AUT-06 (Iteração SDD 172)", just_neon)
 
+    def test_iteration173_aut07_neon_reeval(self) -> None:
+        import base64, hashlib, hmac, time
+
+        def _b64u(b: bytes) -> str:
+            return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
+
+        now = int(time.time())
+        h_b64 = _b64u(json.dumps({"alg": "HS256", "typ": "JWT"}).encode("utf-8"))
+        p_b64 = _b64u(json.dumps({"sub": "u1", "iat": now, "exp": now + 3600}).encode("utf-8"))
+        sig = _b64u(hmac.new(b"A" * 40, f"{h_b64}.{p_b64}".encode("utf-8"), hashlib.sha256).digest())
+        valid_tok = f"{h_b64}.{p_b64}.{sig}"
+
+        with tempfile.TemporaryDirectory() as td:
+            # 1. Server accepting embedded JWK header & mixed-case alg:None -> FAIL
+            def _probe_jwk_bug(ep: str, method: str = "GET", headers=None, body=None):
+                if ep == "/rest/wallet/balance":
+                    auth = (headers or {}).get("Authorization", "")
+                    tok = auth.split(" ", 1)[1] if auth.startswith("Bearer ") else ""
+                    if tok.count(".") == 2:
+                        hs = tok.split(".")[0]
+                        hdr = json.loads(base64.urlsafe_b64decode(hs + "=" * (-len(hs) % 4)))
+                        if hdr.get("alg") == "None" or "jwk" in hdr:
+                            return 200, {}, '{"balance":999}'
+                    return 401, {}, '{"error":"denied"}'
+                return 404, {}, ""
+
+            r_vuln = sc.evaluate_aut07_jwt_security(
+                "https://app.example.com",
+                token=valid_tok,
+                source_text='const tok = jwt.sign(payload, "tiny");',
+                http_probe_fn=_probe_jwk_bug,
+                report_out_path=Path(td) / "aut07.json",
+                har_out_path=Path(td) / "aut07.har",
+            )
+            self.assertEqual(r_vuln["verdict"], "FAIL")
+            vecs = {f["vector"] for f in r_vuln["findings"]}
+            self.assertIn("unsigned_alg_none_mixedcase", vecs)
+            self.assertIn("embedded_jwk_key_substitution", vecs)
+            self.assertIn("weak_hs256_key", vecs)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 42/61: AUT-07 (Iteração SDD 173)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

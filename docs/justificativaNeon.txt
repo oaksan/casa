@@ -1296,3 +1296,24 @@ CONTROLE 41/61: AUT-06 (Iteração SDD 172) — Session Cookie Flags
    - `test_iteration172_aut06_neon_reeval` (cookie arbitrário `app_c` identificado
      comportamentalmente com `SameSite=None` FAIL; deleção `Max-Age=0` ignorada
      PASS) + regressão `test_iteration111_aut06_guide_tooling` (ZAP 2.17.0 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 42/61: AUT-07 (Iteração SDD 173) — JWT Strong Alg / Confusion / Key Sub
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L931):
+   - Referência: `jwt_tool` (referência; harness Python + PyJWT produz SARIF 2.1.0
+     e HAR 1.2 redigido equivalentes conforme cláusula da L21).
+   - Auditoria de Ferramentas: CONFORME (100% gratuito, zero Burp Suite pago).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Faltava vetor de substituição de chave via header `jwk` embutido
+     (CVE-2018-0114), além da variante case-insensitive `alg: None`.
+   - Regex de detecção de chave HS256 < 256 bits em código-fonte não capturava
+     segredo literal inline em `jwt.sign(payload, "<literal>")`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionados vetores `unsigned_alg_none_mixedcase` e
+     `embedded_jwk_key_substitution` (token ES256 assinado com chave EC P-256
+     efêmera embutida em `header.jwk`).
+   - Expandida regex HS256 para capturar segredos inline em `jwt.sign(...)`.
+4. Validação:
+   - `test_iteration173_aut07_neon_reeval` (`alg:None`, `jwk` embutido, HS256
+     inline fraco) + regressão `test_iteration112_aut07_guide_tooling`.

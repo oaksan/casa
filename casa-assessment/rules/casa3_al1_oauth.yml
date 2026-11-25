@@ -86,3 +86,9 @@ rules:
           - patterns:
               - pattern-regex: '[^\n]*jwt\.verify\([^\n]*publicKey[^\n]*'
               - pattern-not-regex: 'algorithms'
+
+  - id: CASA3-WHK-01-cleartext-webhook-url
+    languages: [typescript, javascript, python, yaml, json]
+    message: "WHK-01: Cleartext HTTP webhook endpoint URL configured instead of HTTPS TLS 1.2+ (CASA v2.1.1 §7.1.1)"
+    severity: ERROR
+    pattern-regex: '(?i)(?:webhook[_-]?url|webhookUrl|callback[_-]?url|callbackUrl|webhookEndpoint)\s*[:=]\s*["'']http://[^"''\s]+["'']'

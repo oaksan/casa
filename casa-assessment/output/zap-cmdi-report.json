@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Wed, 25 Nov 2026 00:33:44",
-	"created": "2026-11-25T03:33:44.096284067Z",
+	"@generated": "Wed, 25 Nov 2026 01:10:01",
+	"created": "2026-11-25T04:10:01.389998518Z",
 	"insights":[
 		{
 			"level": "Low",
@@ -106,7 +106,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.response.slow",
 			"description": "Percentage of slow responses",
-			"statistic": "7"
+			"statistic": "19"
 		}
 	],
 	"site":[ 
@@ -157,7 +157,7 @@
 					"desc": "<p>Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.</p>",
 					"instances":[ 
 						{
-							"id": "12",
+							"id": "10",
 							"uri": "http://localhost:3000",
 							"nodeName": "http:\/\/localhost:3000",
 							"method": "GET",
@@ -167,19 +167,9 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "5",
+							"id": "7",
 							"uri": "http://localhost:3000/rest",
 							"nodeName": "http:\/\/localhost:3000\/rest",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "",
-							"otherinfo": ""
-						},
-						{
-							"id": "19",
-							"uri": "http://localhost:3000/rest/products",
-							"nodeName": "http:\/\/localhost:3000\/rest\/products",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -197,7 +187,17 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "7",
+							"id": "19",
+							"uri": "http://localhost:3000/rest/track-order",
+							"nodeName": "http:\/\/localhost:3000\/rest\/track-order",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "",
+							"otherinfo": ""
+						},
+						{
+							"id": "8",
 							"uri": "http://localhost:3000/rest/user/change-password?current=Casa3Aut04Old%2199&new=Casa3Aut04New%2199&repeat=Casa3Aut04New%2199",
 							"nodeName": "http:\/\/localhost:3000\/rest\/user\/change-password (current,new,repeat)",
 							"method": "GET",
@@ -214,7 +214,7 @@
 					"reference": "<p>https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP</p><p>https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html</p><p>https://www.w3.org/TR/CSP/</p><p>https://w3c.github.io/webappsec-csp/</p><p>https://web.dev/articles/csp</p><p>https://caniuse.com/#feat=contentsecuritypolicy</p><p>https://content-security-policy.com/</p>",
 					"cweid": "693",
 					"wascid": "15",
-					"sourceid": "22"
+					"sourceid": "10"
 				},
 				{
 					"pluginid": "10098",
@@ -227,7 +227,7 @@
 					"desc": "<p>Web browser data loading may be possible, due to a Cross Origin Resource Sharing (CORS) misconfiguration on the web server.</p>",
 					"instances":[ 
 						{
-							"id": "8",
+							"id": "13",
 							"uri": "http://localhost:3000/rest",
 							"nodeName": "http:\/\/localhost:3000\/rest",
 							"method": "GET",
@@ -238,28 +238,8 @@
 						},
 						{
 							"id": "11",
-							"uri": "http://localhost:3000/rest/products/search?q=apple",
+							"uri": "http://localhost:3000/rest/products/search?q=%27))",
 							"nodeName": "http:\/\/localhost:3000\/rest\/products\/search (q)",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "Access-Control-Allow-Origin: *",
-							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
-						},
-						{
-							"id": "1",
-							"uri": "http://localhost:3000/rest/track-order/1",
-							"nodeName": "http:\/\/localhost:3000\/rest\/track-order\/1",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "Access-Control-Allow-Origin: *",
-							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
-						},
-						{
-							"id": "9",
-							"uri": "http://localhost:3000/rest/user/change-password?current=Casa3Aut04Old%2199&new=Casa3Aut04New%2199&repeat=Casa3Aut04New%2199",
-							"nodeName": "http:\/\/localhost:3000\/rest\/user\/change-password (current,new,repeat)",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -267,14 +247,14 @@
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						}
 					],
-					"count": "4",
+					"count": "2",
 					"systemic": true,
 					"solution": "<p>Ensure that sensitive data is not available in an unauthenticated manner (using IP address white-listing, for instance).</p><p>Configure the \"Access-Control-Allow-Origin\" HTTP header to a more restrictive set of domains, or remove all CORS headers entirely, to allow the web browser to enforce the Same Origin Policy (SOP) in a more restrictive manner.</p>",
 					"otherinfo": "<p>The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing.</p>",
 					"reference": "<p>https://vulncat.fortify.com/en/detail?category=HTML5&subcategory=Overly%20Permissive%20CORS%20Policy</p>",
 					"cweid": "264",
 					"wascid": "14",
-					"sourceid": "21"
+					"sourceid": "24"
 				},
 				{
 					"pluginid": "90022",
@@ -287,17 +267,7 @@
 					"desc": "<p>This page contains an error/warning message that may disclose sensitive information like the location of the file that produced the unhandled exception. This information can be used to launch further attacks against the web application. The alert could be a false positive if the error message is found inside a documentation page.</p>",
 					"instances":[ 
 						{
-							"id": "3",
-							"uri": "http://localhost:3000/rest",
-							"nodeName": "http:\/\/localhost:3000\/rest",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "HTTP/1.1 500 Internal Server Error",
-							"otherinfo": ""
-						},
-						{
-							"id": "18",
+							"id": "21",
 							"uri": "http://localhost:3000/rest/products",
 							"nodeName": "http:\/\/localhost:3000\/rest\/products",
 							"method": "GET",
@@ -307,7 +277,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "21",
+							"id": "18",
 							"uri": "http://localhost:3000/rest/track-order",
 							"nodeName": "http:\/\/localhost:3000\/rest\/track-order",
 							"method": "GET",
@@ -317,7 +287,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "24",
+							"id": "27",
 							"uri": "http://localhost:3000/rest/user",
 							"nodeName": "http:\/\/localhost:3000\/rest\/user",
 							"method": "GET",
@@ -327,7 +297,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "4",
+							"id": "2",
 							"uri": "http://localhost:3000/rest/user/change-password?current=Casa3Aut04Old%2199&new=Casa3Aut04New%2199&repeat=Casa3Aut04New%2199",
 							"nodeName": "http:\/\/localhost:3000\/rest\/user\/change-password (current,new,repeat)",
 							"method": "GET",
@@ -337,14 +307,14 @@
 							"otherinfo": ""
 						}
 					],
-					"count": "5",
+					"count": "4",
 					"systemic": false,
 					"solution": "<p>Review the source code of this page. Implement custom error pages. Consider implementing a mechanism to provide a unique error reference/identifier to the client (browser) while logging the details on the server side and not exposing them to the user.</p>",
 					"otherinfo": "",
 					"reference": "",
 					"cweid": "550",
 					"wascid": "13",
-					"sourceid": "21"
+					"sourceid": "32"
 				},
 				{
 					"pluginid": "10027",
@@ -367,7 +337,7 @@
 							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"//`)).test(e)){let[,t]=e.split(/\\/\\/[^\\/]+/);return t}return e}function yv(e){return Oe(e)[le.LocaleId]}function vv(e,n,t){let r\", see evidence field for the suspicious comment/snippet."
 						},
 						{
-							"id": "62",
+							"id": "67",
 							"uri": "http://localhost:3000/chunk-B2J0VXxm.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-B2J0VXxm.js",
 							"method": "GET",
@@ -417,6 +387,16 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
+							"id": "48",
+							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/build/lib/utils.js:239:26",
+							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/lib\/utils.js:239:26",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
+							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
+						},
+						{
 							"id": "42",
 							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/build/routes/angular.js:18:18",
 							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/angular.js:18:18",
@@ -427,9 +407,9 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "46",
-							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/node_modules/express/lib/router/index.js:328:13",
-							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:328:13",
+							"id": "47",
+							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/node_modules/express/lib/router/index.js:346:12",
+							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:346:12",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -437,17 +417,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "48",
-							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/node_modules/express/lib/router/layer.js:95:5",
-							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
-							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
-						},
-						{
-							"id": "37",
+							"id": "36",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",
@@ -464,7 +434,7 @@
 					"reference": "",
 					"cweid": "-1",
 					"wascid": "-1",
-					"sourceid": "22"
+					"sourceid": "17"
 				},
 				{
 					"pluginid": "10104",
@@ -477,7 +447,7 @@
 					"desc": "<p>Check for differences in response based on fuzzed User Agent (eg. mobile sites, access as a Search Engine Crawler). Compares the response statuscode and the hashcode of the response body with the original response.</p>",
 					"instances":[ 
 						{
-							"id": "71",
+							"id": "72",
 							"uri": "http://localhost:3000/assets",
 							"nodeName": "http:\/\/localhost:3000\/assets",
 							"method": "GET",
@@ -487,7 +457,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "74",
+							"id": "73",
 							"uri": "http://localhost:3000/assets/public",
 							"nodeName": "http:\/\/localhost:3000\/assets\/public",
 							"method": "GET",
@@ -497,7 +467,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "72",
+							"id": "71",
 							"uri": "http://localhost:3000/assets/public",
 							"nodeName": "http:\/\/localhost:3000\/assets\/public",
 							"method": "GET",
@@ -514,7 +484,7 @@
 					"reference": "<p>https://owasp.org/wstg</p>",
 					"cweid": "0",
 					"wascid": "0",
-					"sourceid": "113"
+					"sourceid": "114"
 				}
 			]
 		}

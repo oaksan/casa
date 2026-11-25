@@ -1,0 +1,5 @@
+# Spec 129 — WHK-01 Guide-Compliant Tooling
+
+- **Control:** `WHK-01` (59/61, opens Domain 8) — Webhook traffic is delivered exclusively over HTTPS with TLS 1.2+; cleartext endpoints are refused (`CASA v2.1.1 §7.1.1; Standard Webhooks`, Surface: `Web_Application`).
+- **Required Tooling (`CASA 3.0 (AL1) Test Guide.md`):** `testssl.sh`, `scripted harness`.
+- **Goal:** Create `evaluate_whk01_tls_enforcement` in `casa-assessment/casa_audit/scanner.py` orchestrating `discover_webhook_facilities`, `evaluate_whk01_delivery_tls` (preserving its 4-tuple signature), real `testssl.sh` JSON protocol execution via `run_testssl_scan` over HTTPS webhook receiver hosts, `_make_redacted_har_probe` (logging cleartext HTTP attempts incl. `3xx -> https://` denial semantics into redacted `output/whk01-replayed.har`), Semgrep AST check (`CASA3-WHK-01-cleartext-webhook-url` in `casa-assessment/rules/casa3_al1_oauth.yml` or webhook rules), `output/whk01-tls-audit.json`, `output/whk01-testssl.json`, `output/whk01-semgrep.sarif`, and `CASA3-WHK-01` SARIF 2.1.0 entries.

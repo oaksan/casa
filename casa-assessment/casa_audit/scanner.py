@@ -15558,54 +15558,44 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     )
 
     # WHK-01: Cleartext HTTP webhook delivery refusal + TLS 1.2+ enforcement (testssl.sh-compatible TLS matrix, HAR 1.2, SARIF 2.1.0)
-    whk01_verdict, whk01_probes, whk01_findings, whk01_tls_matrices = evaluate_whk01_delivery_tls(
-        whk_receivers,
+    whk01_eval = evaluate_whk01_tls_enforcement(
+        base_url,
+        repo=repo,
+        receivers=whk_receivers,
         webhook_files=whk_files,
-        http_fn=http_probe if base_url else None,
-        tls_matrix_fn=probe_protocol_matrix if host else None,
+        files_scanned=whk_scanned_files,
+        discovery_probes=whk_disc_probes,
+        http_probe_fn=http_probe if base_url else None,
+        tls_matrix_fn=None,
+        run_testssl=True,
+        report_out_path=None,
     )
-    for af_w1 in whk01_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-WHK-01",
-                "level": "error",
-                "message": {"text": af_w1["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af_w1["location"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "WHK-01",
-                    "findingKind": af_w1["kind"],
-                    "cwe": af_w1["cwe"],
-                    "httpStatus": af_w1["status"],
-                },
-            }
-        )
+    whk01_verdict = whk01_eval["verdict"]
+    whk01_probes = whk01_eval["probesRun"]
+    whk01_findings = whk01_eval["findings"]
+    whk01_tls_matrices = whk01_eval["tlsMatrices"]
+    dast_sarif_results.extend(whk01_eval["sarifResults"])
     whk01_lines = [f"[{w1['kind']}] {w1['detail']}" for w1 in whk01_findings]
     results["WHK-01"] = {
         "verdict": whk01_verdict,
         "tool": (
-            f"Webhook Delivery & TLS 1.2+ Verifier (scanned {whk_scanned_files} repo files, {whk_disc_probes} discovery probes, "
-            f"{len(whk_receivers)} receivers, {whk01_probes} cleartext/TLS probes, SARIF 2.1.0 + redacted HAR 1.2 + TLS JSON)"
+            f"Webhook Delivery, testssl.sh & TLS 1.2+ Verifier (scanned {whk_scanned_files} repo files, {whk_disc_probes} discovery probes, "
+            f"{len(whk_receivers)} receivers, {whk01_probes} cleartext/TLS probes, Semgrep hits={whk01_eval['semgrepHits']}, SARIF 2.1.0 + redacted HAR 1.2 + TLS JSON)"
         ),
         "log": (
             f"[FAIL] {len(whk01_findings)} webhook cleartext / legacy-TLS violation(s) detected across {len(whk_receivers)} receiver(s) and {whk01_probes} probe(s):\n  - "
             + "\n  - ".join(whk01_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+            + f"\n\nEvidence Artifacts:\n  - WHK-01 Audit JSON: {whk01_eval['reportPath']}\n  - WHK-01 Redacted HAR 1.2: {whk01_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
             if whk01_verdict == "FAIL"
             else (
                 f"[PASS] Audited {len(whk_receivers)} webhook receiver(s) ({whk01_probes} cleartext/TLS probes, {len(whk01_tls_matrices)} TLS matrices); "
                 f"100% cleartext deliveries denied (or 3xx->HTTPS) and only TLS 1.2/1.3 negotiated.\n"
-                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                f"Evidence Artifacts:\n  - WHK-01 Audit JSON: {whk01_eval['reportPath']}\n  - WHK-01 Redacted HAR 1.2: {whk01_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
                 if whk01_verdict == "PASS"
                 else (
                     f"[Not_Covered] Audited {whk_scanned_files} workspace source/config files and executed {whk_disc_probes} HTTP POST discovery probes "
                     f"(/webhook, /webhooks, /api/webhook, /api/webhooks, /rest/webhook, /hooks/callback); 0 inbound webhook receivers or outbound webhook callback facilities observed.\n"
-                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                    f"Evidence Artifacts:\n  - WHK-01 Audit JSON: {whk01_eval['reportPath']}\n  - WHK-01 Redacted HAR 1.2: {whk01_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
                 )
             )
         ),
@@ -16381,6 +16371,234 @@ def evaluate_whk01_delivery_tls(
 
     verdict = "FAIL" if findings else "PASS"
     return verdict, probes, findings, tls_results
+
+
+def evaluate_whk01_tls_enforcement(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    receivers: list[str] | None = None,
+    webhook_files: dict[str, str] | None = None,
+    files_scanned: int | None = None,
+    discovery_probes: int | None = None,
+    http_probe_fn=None,
+    tls_matrix_fn=None,
+    run_testssl: bool = True,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    testssl_out_path: Path | None = None,
+    semgrep_sarif_out_path: Path | None = None,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate WHK-01 (CASA v2.1.1 §7.1.1) via cleartext denial probes, testssl.sh JSON & Semgrep rules."""
+    base_url = target_url.strip().rstrip("/")
+    whk01_har_entries: list[dict] = []
+
+    def _logged_whk01_http(url_or_path: str, method: str = "POST", headers: dict | None = None, body: bytes | None = None, follow_redirects: bool = False):
+        if http_probe_fn is not None:
+            st_r, hdrs_r, body_r = http_probe_fn(url_or_path, method=method, headers=headers, body=body, follow_redirects=follow_redirects)
+        else:
+            full_u = url_or_path if url_or_path.startswith(("http://", "https://")) else f"{base_url}{url_or_path}"
+            class _NoRedir(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                    return None
+
+            opener = urllib.request.build_opener(_NoRedir) if not follow_redirects else urllib.request.build_opener()
+            req_w = urllib.request.Request(
+                full_u,
+                data=body,
+                headers={"User-Agent": "ADA-CASA-3.0-WHK01/3.0", **(headers or {})},
+                method=method,
+            )
+            try:
+                with opener.open(req_w, timeout=4) as resp_w:
+                    st_r = resp_w.status
+                    hdrs_r = {k.lower(): v for k, v in resp_w.headers.items()}
+                    body_r = resp_w.read(4096).decode("utf-8", errors="ignore")
+            except urllib.error.HTTPError as he:
+                st_r = he.code
+                hdrs_r = {k.lower(): v for k, v in he.headers.items()}
+                body_r = ""
+            except Exception:
+                st_r, hdrs_r, body_r = 0, {}, ""
+
+        redacted_req_hdrs = [
+            {
+                "name": k,
+                "value": "[REDACTED]" if k.lower() in {"authorization", "cookie", "x-api-key", "x-webhook-secret"} else v,
+            }
+            for k, v in (headers or {}).items()
+        ]
+        whk01_har_entries.append(
+            {
+                "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "time": 1.0,
+                "request": {
+                    "method": method,
+                    "url": url_or_path if url_or_path.startswith(("http://", "https://")) else f"{base_url}{url_or_path}",
+                    "httpVersion": "HTTP/1.1",
+                    "headers": redacted_req_hdrs,
+                },
+                "response": {
+                    "status": st_r,
+                    "httpVersion": "HTTP/1.1",
+                    "headers": [{"name": k, "value": v} for k, v in hdrs_r.items()],
+                },
+            }
+        )
+        return st_r, hdrs_r, body_r
+
+    if receivers is None and webhook_files is None and repo is not None:
+        disc_receivers, disc_files, f_sc, d_pr = discover_webhook_facilities(repo, base_url=base_url, http_fn=_logged_whk01_http if base_url else None)
+    else:
+        disc_receivers = list(receivers or [])
+        disc_files = dict(webhook_files or {})
+        f_sc = int(files_scanned or 0)
+        d_pr = int(discovery_probes or 0)
+
+    testssl_file = testssl_out_path or (OUTPUT_DIR / "whk01-testssl.json")
+    testssl_runs: list[dict] = []
+
+    def _whk01_tls_matrix(t_host: str, t_port: int) -> dict[str, str]:
+        if tls_matrix_fn is not None:
+            return tls_matrix_fn(t_host, t_port)
+        mat: dict[str, str] = {}
+        if run_testssl:
+            ts_res = run_testssl_scan(t_host, t_port, raw_json_path=testssl_file, checks=("-p",))
+            testssl_runs.append({"host": t_host, "port": t_port, "executed": ts_res["executed"], "handshakeOk": ts_res["handshakeOk"], "protocolsOffered": ts_res["protocolsOffered"]})
+            if ts_res.get("handshakeOk"):
+                offered_set = set(ts_res.get("protocolsOffered", []))
+                return {
+                    "TLS 1.0": "offered" if any("TLSv1" == p or "TLS1" == p for p in offered_set) else "not offered",
+                    "TLS 1.1": "offered" if any("TLSv1_1" in p or "TLS1_1" in p for p in offered_set) else "not offered",
+                    "TLS 1.2": "offered" if any("TLSv1_2" in p or "TLS1_2" in p for p in offered_set) else "not offered",
+                    "TLS 1.3": "offered" if any("TLSv1_3" in p or "TLS1_3" in p for p in offered_set) else "not offered",
+                }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            for lbl, tv in [
+                ("TLS 1.0", ssl.TLSVersion.TLSv1),
+                ("TLS 1.1", ssl.TLSVersion.TLSv1_1),
+                ("TLS 1.2", ssl.TLSVersion.TLSv1_2),
+                ("TLS 1.3", ssl.TLSVersion.TLSv1_3),
+            ]:
+                offered = False
+                try:
+                    ctx_w = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                    ctx_w.check_hostname = False
+                    ctx_w.verify_mode = ssl.CERT_NONE
+                    ctx_w.set_ciphers("ALL:@SECLEVEL=0")
+                    ctx_w.minimum_version = tv
+                    ctx_w.maximum_version = tv
+                    with socket.create_connection((t_host, t_port), timeout=2.0) as sk:
+                        with ctx_w.wrap_socket(sk, server_hostname=t_host) as ss:
+                            if ss.version():
+                                offered = True
+                except Exception:
+                    pass
+                mat[lbl] = "offered" if offered else "not offered"
+        return mat
+
+    verdict, probes, findings, tls_matrices = evaluate_whk01_delivery_tls(
+        disc_receivers,
+        webhook_files=disc_files,
+        http_fn=_logged_whk01_http,
+        tls_matrix_fn=_whk01_tls_matrix,
+    )
+
+    semgrep_sarif_file = semgrep_sarif_out_path or (OUTPUT_DIR / "whk01-semgrep.sarif")
+    semgrep_ran, sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "CASA3-WHK-01", semgrep_sarif_file) if (run_semgrep and (disc_receivers or disc_files)) else (False, [])
+    )
+    seen_w1 = {(f["location"], f["kind"]) for f in findings}
+    for sh in sg_hits:
+        kw1 = (sh["location"], "Semgrep_WHK01_Cleartext_Webhook_URL")
+        if kw1 not in seen_w1:
+            seen_w1.add(kw1)
+            findings.append(
+                {
+                    "location": sh["location"],
+                    "kind": "Semgrep_WHK01_Cleartext_Webhook_URL",
+                    "cwe": "CWE-319",
+                    "status": 0,
+                    "detail": f"Semgrep rule {sh['ruleId']} flagged {sh['location']} ({sh['message']}).",
+                }
+            )
+    if findings:
+        verdict = "FAIL"
+
+    rep_file = report_out_path or (OUTPUT_DIR / "whk01-tls-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "CASA v2.1.1 §7.1.1 / Standard Webhooks (HTTPS + TLS 1.2+ Only)",
+                "target": base_url,
+                "verdict": verdict,
+                "receivers": disc_receivers,
+                "filesScanned": f_sc,
+                "discoveryProbes": d_pr,
+                "probesRun": probes,
+                "tlsMatrices": tls_matrices,
+                "testsslRuns": testssl_runs,
+                "semgrepHits": len(sg_hits),
+                "findings": findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "whk01-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-whk01-tls-harness", "version": "3.0"},
+                    "entries": whk01_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af_w1 in findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-WHK-01",
+                "level": "error",
+                "message": {"text": af_w1["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af_w1["location"]}}}],
+                "properties": {
+                    "controlId": "WHK-01",
+                    "findingKind": af_w1["kind"],
+                    "cwe": af_w1["cwe"],
+                    "httpStatus": af_w1["status"],
+                },
+            }
+        )
+
+    return {
+        "verdict": verdict,
+        "whk01_fail": verdict == "FAIL",
+        "receivers": disc_receivers,
+        "probesRun": probes,
+        "tlsMatrices": tls_matrices,
+        "testsslRuns": testssl_runs,
+        "testsslJsonPath": str(testssl_file) if testssl_runs else None,
+        "semgrepHits": len(sg_hits),
+        "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+        "findings": findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
 
 
 def evaluate_whk02_hmac_and_timing_safe(

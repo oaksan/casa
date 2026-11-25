@@ -5696,6 +5696,148 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 58/61: OAU-09 (Iteração SDD 128)", just2_txt)
 
+    def test_iteration129_whk01_guide_tooling(self) -> None:
+        import http.server
+        import socketserver
+        import ssl
+        import subprocess
+        import tempfile
+        import threading
+
+        from casa_audit.scanner import evaluate_whk01_tls_enforcement
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            cert_p = tdp / "whk_cert.pem"
+            key_p = tdp / "whk_key.pem"
+            subprocess.run(
+                [
+                    "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                    "-keyout", str(key_p), "-out", str(cert_p),
+                    "-days", "1", "-subj", "/CN=127.0.0.1",
+                ],
+                check=True,
+                capture_output=True,
+            )
+
+            class _WhkTlsHandler(http.server.BaseHTTPRequestHandler):
+                def log_message(self, format, *args) -> None:
+                    return
+
+                def do_POST(self) -> None:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b'{"accepted":true}')
+
+            class _WhkHttpHandler(http.server.BaseHTTPRequestHandler):
+                mode = "redirect_https"
+                https_port = 0
+
+                def log_message(self, format, *args) -> None:
+                    return
+
+                def do_POST(self) -> None:
+                    if _WhkHttpHandler.mode == "redirect_https":
+                        self.send_response(301)
+                        self.send_header("Location", f"https://127.0.0.1:{_WhkHttpHandler.https_port}/webhooks/events")
+                        self.end_headers()
+                        return
+                    self.send_response(202)
+                    self.end_headers()
+                    self.wfile.write(b'{"accepted_cleartext":true}')
+
+            class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+                daemon_threads = True
+
+            https_srv = _ThreadedHTTPServer(("127.0.0.1", 0), _WhkTlsHandler)
+            ctx_srv = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx_srv.minimum_version = ssl.TLSVersion.TLSv1_2
+            ctx_srv.load_cert_chain(certfile=str(cert_p), keyfile=str(key_p))
+            https_srv.socket = ctx_srv.wrap_socket(https_srv.socket, server_side=True)
+            https_port = https_srv.server_address[1]
+            threading.Thread(target=https_srv.serve_forever, daemon=True).start()
+
+            _WhkHttpHandler.https_port = https_port
+            http_srv = _ThreadedHTTPServer(("127.0.0.1", 0), _WhkHttpHandler)
+            http_port = http_srv.server_address[1]
+            threading.Thread(target=http_srv.serve_forever, daemon=True).start()
+
+            try:
+                # 1. Hardened: cleartext 301->https:// + TLS 1.2/1.3 only verified by real testssl.sh -> PASS
+                pass_repo = tdp / "whk_pass"
+                (pass_repo / "routes").mkdir(parents=True)
+                (pass_repo / "routes" / "hook.ts").write_text(
+                    f"app.post('/webhooks/events', (req, res) => res.sendStatus(200));\n"
+                    f"const webhookUrl = 'https://127.0.0.1:{https_port}/webhooks/events';\n",
+                    encoding="utf-8",
+                )
+                r_pass = evaluate_whk01_tls_enforcement(
+                    f"https://127.0.0.1:{https_port}",
+                    repo=pass_repo,
+                    receivers=[f"https://127.0.0.1:{https_port}/webhooks/events"],
+                    webhook_files={"routes/hook.ts": (pass_repo / "routes" / "hook.ts").read_text(encoding="utf-8")},
+                    http_probe_fn=lambda url, **kw: (301, {"location": f"https://127.0.0.1:{https_port}/webhooks/events"}, "") if url.startswith("http://") else (200, {}, "{}"),
+                    run_testssl=True,
+                    report_out_path=tdp / "whk01_pass.json",
+                    har_out_path=tdp / "whk01_pass.har",
+                    testssl_out_path=tdp / "whk01_pass_testssl.json",
+                    semgrep_sarif_out_path=tdp / "whk01_pass_sg.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertTrue(r_pass["testsslRuns"] and r_pass["testsslRuns"][0]["handshakeOk"])
+                mat = r_pass["tlsMatrices"][f"127.0.0.1:{https_port}"]
+                self.assertEqual(mat["TLS 1.0"], "not offered")
+                self.assertEqual(mat["TLS 1.1"], "not offered")
+                self.assertTrue(mat["TLS 1.2"] == "offered" or mat["TLS 1.3"] == "offered")
+
+                # 2. Vulnerable: cleartext HTTP 202 accepted + legacy TLS 1.0 + Semgrep http:// webhookUrl -> FAIL
+                _WhkHttpHandler.mode = "accept"
+                fail_repo = tdp / "whk_fail"
+                (fail_repo / "routes").mkdir(parents=True)
+                (fail_repo / "routes" / "hook.ts").write_text(
+                    f"app.post('/webhooks/events', (req, res) => res.sendStatus(202));\n"
+                    f"const webhookUrl = 'http://hooks.insecure.local/events';\n",
+                    encoding="utf-8",
+                )
+                r_fail = evaluate_whk01_tls_enforcement(
+                    f"http://127.0.0.1:{http_port}",
+                    repo=fail_repo,
+                    receivers=[f"http://127.0.0.1:{http_port}/webhooks/events", f"https://hooks.legacy.local:443/events"],
+                    webhook_files={"routes/hook.ts": (fail_repo / "routes" / "hook.ts").read_text(encoding="utf-8")},
+                    tls_matrix_fn=lambda h, p: {"TLS 1.0": "offered", "TLS 1.1": "not offered", "TLS 1.2": "offered", "TLS 1.3": "not offered"},
+                    report_out_path=tdp / "whk01_fail.json",
+                    har_out_path=tdp / "whk01_fail.har",
+                    semgrep_sarif_out_path=tdp / "whk01_fail_sg.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                kinds = {f["kind"] for f in r_fail["findings"]}
+                self.assertIn("WHK01_Cleartext_Delivery_Accepted", kinds)
+                self.assertIn("WHK01_Legacy_TLS_Offered", kinds)
+                self.assertIn("WHK01_Static_Cleartext_URL", kinds)
+                self.assertIn("Semgrep_WHK01_Cleartext_Webhook_URL", kinds)
+                self.assertTrue(any(s["ruleId"] == "CASA3-WHK-01" for s in r_fail["sarifResults"]))
+
+                # 3. No webhooks discovered -> Not_Covered
+                empty_repo = tdp / "empty_web"
+                empty_repo.mkdir()
+                (empty_repo / "index.ts").write_text("export const ok = true;", encoding="utf-8")
+                r_nc = evaluate_whk01_tls_enforcement(
+                    "",
+                    repo=empty_repo,
+                    report_out_path=tdp / "whk01_nc.json",
+                    har_out_path=tdp / "whk01_nc.har",
+                    semgrep_sarif_out_path=tdp / "whk01_nc_sg.sarif",
+                )
+                self.assertEqual(r_nc["verdict"], "Not_Covered")
+            finally:
+                http_srv.shutdown()
+                http_srv.server_close()
+                https_srv.shutdown()
+                https_srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 59/61: WHK-01 (Iteração SDD 129)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

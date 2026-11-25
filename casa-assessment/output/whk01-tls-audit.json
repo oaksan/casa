@@ -1,0 +1,13 @@
+{
+  "standard": "CASA v2.1.1 §7.1.1 / Standard Webhooks (HTTPS + TLS 1.2+ Only)",
+  "target": "http://localhost:3000",
+  "verdict": "Not_Covered",
+  "receivers": [],
+  "filesScanned": 657,
+  "discoveryProbes": 10,
+  "probesRun": 0,
+  "tlsMatrices": {},
+  "testsslRuns": [],
+  "semgrepHits": 0,
+  "findings": []
+}

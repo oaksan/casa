@@ -1445,3 +1445,26 @@ CONTROLE 47/61: AZI-04 (Iteração SDD 178) — OS Command Handling Verification
 4. Validação:
    - `test_iteration178_azi04_neon_reeval` (DNS pointer + marcador Windows +
      PASS limpo) + regressão `test_iteration117_azi04_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 48/61: AZI-05 (Iteração SDD 179) — File Path & Remote Inclusion Verification
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1062):
+   - Referência: `ZAP, Burp Suite, Schemathesis`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa OWASP ZAP 2.17.0 regras ativas `6`/`7` + matriz de path
+     traversal e listener RFI OOB local com SARIF 2.1.0 e HAR 1.2 redigido).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `lfi_marker_re` não reconhecia marcadores Windows `win.ini` (`[extensions]`,
+     `for 16-bit app support`) nem `/etc/hosts` (`127.0.0.1 localhost`), e
+     `param_targets` omitia forma Windows com barra invertida (`%5c`).
+   - O loop `rfi_targets` reutilizava a lista global `unique_rfi_hits`, podendo
+     atribuir falsamente um callback RFI do primeiro endpoint a endpoints
+     subsequentes seguros que retornassem HTTP 200.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido `lfi_marker_re`, adicionado vetor `win_backslash` em
+     `param_targets`, isolada a atribuição de callbacks RFI por endpoint
+     (`hits_before` / `new_hits`) e exposto parâmetro `run_rfi: bool = True`.
+4. Validação:
+   - `test_iteration179_azi05_neon_reeval` (marcador `win.ini` + isolamento RFI
+     entre `/vuln` e `/safe`) + regressão `test_iteration118_azi05_guide_tooling`.

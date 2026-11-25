@@ -1531,6 +1531,43 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 35/61: CFG-11 (Iteração SDD 166)", just_neon)
 
+    def test_iteration167_aut01_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            har_p = Path(td) / "aut01.har"
+
+            # 1. Dynamic vendor default from CFG-03 (RabbitMQ guest:guest) accepted via 302 + Set-Cookie -> FAIL
+            def _probe_302(ep: str, method: str = "GET", headers=None, body=None):
+                if ep == "/custom/signin" and method == "POST":
+                    d = json.loads((body or b"{}").decode("utf-8"))
+                    u = d.get("username") or d.get("email") or ""
+                    p = d.get("password") or ""
+                    if u == "guest" and p == "guest":
+                        return 302, {"location": "/dashboard", "set-cookie": "sid=rabbit_sess_123; Path=/; HttpOnly"}, ""
+                    return 302, {"location": "/login?error=1"}, ""
+                return 200, {}, "<html><body>Portal</body></html>"
+
+            r_fail = sc.evaluate_aut01_default_credentials(
+                "https://app.example.com",
+                cfg03_findings=[{"token": "RabbitMQ/3.12", "detail": "RabbitMQ banner"}],
+                login_endpoints=["/custom/signin"],
+                http_probe_fn=_probe_302,
+                har_out_path=har_p,
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertTrue(any(f["account"] == "guest" and f["status"] == 302 for f in r_fail["findings"]))
+
+            # 2. All rejected -> PASS
+            r_pass = sc.evaluate_aut01_default_credentials(
+                "https://app.example.com",
+                login_endpoints=["/custom/signin"],
+                http_probe_fn=lambda ep, method="GET", headers=None, body=None: (401, {}, '{"error":"denied"}'),
+                har_out_path=Path(td) / "aut01_ok.har",
+            )
+            self.assertEqual(r_pass["verdict"], "PASS")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 36/61: AUT-01 (Iteração SDD 167)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

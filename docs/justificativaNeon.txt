@@ -1164,3 +1164,29 @@ CONTROLE 35/61: CFG-11 (Iteração SDD 166) — Subdomain & DNS Takeover Prevent
   * `CFG-10`: FAIL (OWASP ZAP 2.17.0 & SecLists Admin Wordlist, 60 auth/unauth probes)
   * `CFG-11`: PASS (dnsx 1.3.1 & Nuclei v3.11.1, 24 providers)
 - Zero uso de Burp Suite pago em todo o Domínio 4.
+
+================================================================================
+DOMÍNIO 5: AUTHENTICATION & SESSION MANAGEMENT (AUT-01 .. AUT-08)
+================================================================================
+
+--------------------------------------------------------------------------------
+CONTROLE 36/61: AUT-01 (Iteração SDD 167) — No Default / Vendor Credentials
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L805):
+   - Referência: `SecLists, scripted replay harness`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa corpus SecLists
+     + credenciais vendor derivadas de `CFG-03` via replay harness Python com
+     HAR 1.2 redigido e SARIF 2.1.0. Zero uso de Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Mapeamento dinâmico de fornecedores a partir de `CFG-03` cobria apenas
+     Tomcat e Jenkins.
+   - Logins server-side que autenticam com `302`/`303` + `Set-Cookie` (sem 2xx)
+     não eram sinalizados, e `login_endpoints` não era parametrizável.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido mapeamento de fornecedores `CFG-03` (Tomcat, Jenkins, Grafana,
+     Kibana/Elasticsearch, RabbitMQ, phpMyAdmin, Spring/Actuator).
+   - Adicionado parâmetro opcional `login_endpoints` e detecção de login
+     bem-sucedido via `302`/`303` + cookie de sessão (excluindo redirect para `/login`).
+4. Validação:
+   - `test_iteration167_aut01_neon_reeval` (RabbitMQ `guest:guest` em `302` +
+     `Set-Cookie` FAIL; rejeição total PASS) + regressão `test_iteration106_aut01_guide_tooling`.

@@ -8055,6 +8055,7 @@ def evaluate_aut01_default_credentials(
     repo: Path | None = None,
     root_body: str = "",
     cfg03_findings: list[dict] | None = None,
+    login_endpoints: list[str] | None = None,
     is_spa_fallback_fn=None,
     har_out_path: Path | None = None,
     http_probe_fn=None,
@@ -8166,30 +8167,41 @@ def evaluate_aut01_default_credentials(
                 ("mc.safesearch@juice-sh.op", "Mr. N00dles"),
             ]
         )
-    if "tomcat" in ver_blob or "apache-coyote" in ver_blob:
-        for tpair in [("tomcat", "tomcat"), ("admin", "tomcat"), ("role1", "tomcat")]:
-            if tpair not in product_default_corpus and tpair not in generic_default_corpus:
-                product_default_corpus.append(tpair)
-    if "jenkins" in ver_blob and ("jenkins", "jenkins") not in product_default_corpus:
-        product_default_corpus.append(("jenkins", "jenkins"))
+    vendor_product_map = [
+        (("tomcat", "apache-coyote"), [("tomcat", "tomcat"), ("admin", "tomcat"), ("role1", "tomcat")]),
+        (("jenkins",), [("jenkins", "jenkins")]),
+        (("grafana",), [("admin", "admin")]),
+        (("kibana", "elasticsearch"), [("elastic", "changeme")]),
+        (("rabbitmq",), [("guest", "guest")]),
+        (("phpmyadmin",), [("root", "")]),
+        (("spring", "actuator"), [("user", "password")]),
+    ]
+    for keywords, vpairs in vendor_product_map:
+        if any(kw in ver_blob for kw in keywords):
+            for vpair in vpairs:
+                if vpair not in product_default_corpus and vpair not in generic_default_corpus:
+                    product_default_corpus.append(vpair)
 
     aut01_corpus: list[tuple[str, str]] = list(product_default_corpus)
     for gpair in generic_default_corpus:
         if gpair not in aut01_corpus:
             aut01_corpus.append(gpair)
 
-    aut01_login_endpoints = ["/rest/user/login", "/api/login", "/auth/login"]
+    aut01_login_endpoints = list(login_endpoints) if login_endpoints is not None else ["/rest/user/login", "/api/login", "/auth/login"]
     active_login_surfaces: list[str] = []
-    for lp in aut01_login_endpoints:
-        st_chk, hdrs_chk, body_chk = probe(
-            lp,
-            method="POST",
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"email": "__casa3_nonexistent__", "password": "__invalid__"}).encode("utf-8"),
-        )
-        ctype_chk = hdrs_chk.get("content-type", "").lower()
-        if lp == "/rest/user/login" or (st_chk in {400, 401, 403, 422} and not _check_spa(body_chk)) or ("application/json" in ctype_chk and st_chk != 404):
-            active_login_surfaces.append(lp)
+    if login_endpoints is not None:
+        active_login_surfaces = list(aut01_login_endpoints)
+    else:
+        for lp in aut01_login_endpoints:
+            st_chk, hdrs_chk, body_chk = probe(
+                lp,
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({"email": "__casa3_nonexistent__", "password": "__invalid__"}).encode("utf-8"),
+            )
+            ctype_chk = hdrs_chk.get("content-type", "").lower()
+            if lp == "/rest/user/login" or (st_chk in {400, 401, 403, 422} and not _check_spa(body_chk)) or ("application/json" in ctype_chk and st_chk != 404):
+                active_login_surfaces.append(lp)
 
     if not active_login_surfaces:
         active_login_surfaces = ["/rest/user/login"]
@@ -8218,7 +8230,12 @@ def evaluate_aut01_default_credentials(
                 l_hdrs = h1
 
             issuance_token = ""
-            if 200 <= st1 < 300 and not _check_spa(b1):
+            is_redirect_login = (
+                st1 in {302, 303}
+                and bool(_extract_session_cookies(h1.get("set-cookie", ""), include_all=False))
+                and "login" not in h1.get("location", "").lower()
+            )
+            if (200 <= st1 < 300 and not _check_spa(b1)) or is_redirect_login:
                 try:
                     parsed_b1 = json.loads(b1)
                     issuance_token = (

@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Tue, 24 Nov 2026 21:52:43",
-	"created": "2026-11-25T00:52:43.480571628Z",
+	"@generated": "Tue, 24 Nov 2026 22:44:17",
+	"created": "2026-11-25T01:44:17.531623097Z",
 	"insights":[
 		{
 			"level": "Low",
@@ -122,7 +122,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.response.slow",
 			"description": "Percentage of slow responses",
-			"statistic": "21"
+			"statistic": "28"
 		}
 	],
 	"site":[ 
@@ -143,7 +143,7 @@
 					"desc": "<p>The Content Security Policy fails to define one of the directives that has no fallback. Missing/excluding them is the same as allowing anything.</p>",
 					"instances":[ 
 						{
-							"id": "29",
+							"id": "25",
 							"uri": "http://localhost:3000/assets",
 							"nodeName": "http:\/\/localhost:3000\/assets",
 							"method": "GET",
@@ -313,7 +313,7 @@
 					"desc": "<p>A timestamp was disclosed by the application/web server. - Unix</p>",
 					"instances":[ 
 						{
-							"id": "75",
+							"id": "74",
 							"uri": "http://localhost:3000/support/logs/access.log.2026-11-23",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/access.log.2026-11-23",
 							"method": "GET",
@@ -323,7 +323,7 @@
 							"otherinfo": "1635377555, which evaluates to: 2021-10-27 20:32:35."
 						},
 						{
-							"id": "73",
+							"id": "72",
 							"uri": "http://localhost:3000/support/logs/access.log.2026-11-23",
 							"nodeName": "http:\/\/localhost:3000\/support\/logs\/access.log.2026-11-23",
 							"method": "GET",
@@ -340,7 +340,7 @@
 					"reference": "<p>https://cwe.mitre.org/data/definitions/200.html</p>",
 					"cweid": "497",
 					"wascid": "13",
-					"sourceid": "116"
+					"sourceid": "121"
 				},
 				{
 					"pluginid": "10027",
@@ -353,7 +353,7 @@
 					"desc": "<p>The response appears to contain suspicious comments which may help an attacker.</p>",
 					"instances":[ 
 						{
-							"id": "71",
+							"id": "70",
 							"uri": "http://localhost:3000/chunk-AkObRTpM.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-AkObRTpM.js",
 							"method": "GET",
@@ -363,7 +363,7 @@
 							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"//`)).test(e)){let[,t]=e.split(/\\/\\/[^\\/]+/);return t}return e}function yv(e){return Oe(e)[le.LocaleId]}function vv(e,n,t){let r\", see evidence field for the suspicious comment/snippet."
 						},
 						{
-							"id": "70",
+							"id": "69",
 							"uri": "http://localhost:3000/chunk-B2J0VXxm.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-B2J0VXxm.js",
 							"method": "GET",
@@ -373,7 +373,7 @@
 							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"//`)}catch(t){return!0}}function On(n){return n.segments.map(t=>ms(t)).join(`/`)}function at(n,t){if(!n.hasChildren())return On(\", see evidence field for the suspicious comment/snippet."
 						},
 						{
-							"id": "72",
+							"id": "71",
 							"uri": "http://localhost:3000/main.js",
 							"nodeName": "http:\/\/localhost:3000\/main.js",
 							"method": "GET",
@@ -390,7 +390,7 @@
 					"reference": "",
 					"cweid": "615",
 					"wascid": "13",
-					"sourceid": "72"
+					"sourceid": "83"
 				},
 				{
 					"pluginid": "10109",
@@ -403,9 +403,9 @@
 					"desc": "<p>The application appears to be a modern web application. If you need to explore it automatically then the Ajax Spider may well be more effective than the standard one.</p>",
 					"instances":[ 
 						{
-							"id": "28",
-							"uri": "http://localhost:3000",
-							"nodeName": "http:\/\/localhost:3000",
+							"id": "20",
+							"uri": "http://localhost:3000/backup",
+							"nodeName": "http:\/\/localhost:3000\/backup",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -413,7 +413,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "25",
+							"id": "19",
 							"uri": "http://localhost:3000/files",
 							"nodeName": "http:\/\/localhost:3000\/files",
 							"method": "GET",
@@ -423,7 +423,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "24",
+							"id": "28",
 							"uri": "http://localhost:3000/logs",
 							"nodeName": "http:\/\/localhost:3000\/logs",
 							"method": "GET",
@@ -433,7 +433,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "26",
+							"id": "23",
 							"uri": "http://localhost:3000/public",
 							"nodeName": "http:\/\/localhost:3000\/public",
 							"method": "GET",
@@ -443,9 +443,9 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "27",
-							"uri": "http://localhost:3000/static",
-							"nodeName": "http:\/\/localhost:3000\/static",
+							"id": "30",
+							"uri": "http://localhost:3000/uploads",
+							"nodeName": "http:\/\/localhost:3000\/uploads",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -460,7 +460,7 @@
 					"reference": "",
 					"cweid": "-1",
 					"wascid": "-1",
-					"sourceid": "15"
+					"sourceid": "14"
 				}
 			]
 		}

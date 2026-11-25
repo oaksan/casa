@@ -7,9 +7,9 @@
   "totalSampled": 200,
   "uniqueTokens": 4,
   "duplicateTokens": 196,
-  "maxCollisionFrequency": 57,
-  "wholeTokenPointBits": 1.81,
-  "wholeTokenUcb99Bits": 1.44,
+  "maxCollisionFrequency": 59,
+  "wholeTokenPointBits": 1.76,
+  "wholeTokenUcb99Bits": 1.4,
   "positionalUcb99Bits": 0.0,
-  "effectiveMinEntropyBits": 1.44
+  "effectiveMinEntropyBits": 1.4
 }

@@ -5224,6 +5224,118 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 54/61: OAU-05 (Iteração SDD 124)", just2_txt)
 
+    def test_iteration125_oau06_guide_tooling(self) -> None:
+        import http.server
+        import json
+        import socketserver
+        import tempfile
+        import threading
+        import urllib.parse
+        import zipfile
+
+        from casa_audit.scanner import evaluate_oau06_client_secrets
+
+        leaked_secret = "GOCSPX-RealSecretLeakedInApk9988"
+
+        class _TokenStub(http.server.BaseHTTPRequestHandler):
+            def log_message(self, format, *args) -> None:
+                return
+
+            def do_POST(self) -> None:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = self.rfile.read(length).decode("utf-8", errors="ignore")
+                form = urllib.parse.parse_qs(body)
+                if form.get("client_secret", [""])[0] == leaked_secret:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"access_token":"eyJ_minted_by_leaked_secret"}')
+                    return
+                self.send_response(401)
+                self.end_headers()
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+
+        srv = _ThreadedHTTPServer(("127.0.0.1", 0), _TokenStub)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                tdp = Path(td)
+                # 1. Hardened public client: PKCE Kotlin + clean zipped APK + no secret -> PASS
+                pass_repo = tdp / "pass_public_client"
+                (pass_repo / "android").mkdir(parents=True)
+                (pass_repo / "android" / "AuthConfig.kt").write_text(
+                    'const val clientId = "mob-public-pkce-125"\n'
+                    'const val placeholderSecret = "replace_me"\n',
+                    encoding="utf-8",
+                )
+                with zipfile.ZipFile(pass_repo / "public-safe.apk", "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("AndroidManifest.xml", "<manifest package='org.safe.public'/>")
+                    zf.writestr("classes.dex", b"client_id=mob-public-pkce-125 pkce S256")
+
+                r_pass = evaluate_oau06_client_secrets(
+                    f"http://127.0.0.1:{port}",
+                    repo=pass_repo,
+                    report_out_path=tdp / "oau06_pass.json",
+                    har_out_path=tdp / "oau06_pass.har",
+                    semgrep_sarif_out_path=tdp / "oau06_pass_sg.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertIn("mob-public-pkce-125", r_pass["clientIds"])
+                self.assertEqual(r_pass["semgrepHits"], 0)
+
+                # 2. Vulnerable: compressed .apk with GOCSPX- + Kotlin literal client_secret + IdP accepts -> FAIL
+                fail_repo = tdp / "fail_public_client"
+                (fail_repo / "android").mkdir(parents=True)
+                (fail_repo / "android" / "LeakedAuth.kt").write_text(
+                    f'const val client_id = "mob-leaked-125"\n'
+                    f'const val client_secret = "{leaked_secret}"\n'
+                    f'const val tokenUrl = "http://127.0.0.1:{port}/oauth/token"\n',
+                    encoding="utf-8",
+                )
+                with zipfile.ZipFile(fail_repo / "app-leaked.apk", "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("classes.dex", f'client_id="mob-leaked-125" client_secret="{leaked_secret}"'.encode("utf-8"))
+
+                r_fail = evaluate_oau06_client_secrets(
+                    f"http://127.0.0.1:{port}",
+                    repo=fail_repo,
+                    report_out_path=tdp / "oau06_fail.json",
+                    har_out_path=tdp / "oau06_fail.har",
+                    semgrep_sarif_out_path=tdp / "oau06_fail_sg.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                kinds = {f["kind"] for f in r_fail["findings"]}
+                self.assertIn("Known_IdP_Client_Secret", kinds)
+                self.assertIn("Embedded_Client_Secret_Key", kinds)
+                self.assertIn("Token_Endpoint_Accepted_Embedded_Secret", kinds)
+                self.assertIn("Semgrep_OAU06_Embedded_Client_Secret", kinds)
+                har_txt = (tdp / "oau06_fail.har").read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn(leaked_secret, har_txt)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-06" for s in r_fail["sarifResults"]))
+
+                # 3. Web-only repo -> Not_Covered
+                web_repo = tdp / "web_only"
+                web_repo.mkdir()
+                (web_repo / "app.ts").write_text("const clientId = 'web-spa-01';", encoding="utf-8")
+                r_nc = evaluate_oau06_client_secrets(
+                    "",
+                    repo=web_repo,
+                    report_out_path=tdp / "oau06_nc.json",
+                    har_out_path=tdp / "oau06_nc.har",
+                    semgrep_sarif_out_path=tdp / "oau06_nc_sg.sarif",
+                )
+                self.assertEqual(r_nc["verdict"], "Not_Covered")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 55/61: OAU-06 (Iteração SDD 125)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

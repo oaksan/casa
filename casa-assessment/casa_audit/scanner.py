@@ -13233,6 +13233,146 @@ def evaluate_oau05_system_browser(
     }
 
 
+def evaluate_oau06_client_secrets(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    har_entries: list[dict] | None = None,
+    bundle_texts: dict[str, str] | None = None,
+    oauth_flow_requests: list[dict] | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    semgrep_sarif_out_path: Path | None = None,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate OAU-06 (RFC 8252 §8.5; CWE-798) via MobSF-style archive unpacking, strings, token probe & Semgrep."""
+    base_url = target_url.strip().rstrip("/")
+    repo_path = repo if repo is not None else Path(".")
+
+    # 1. Intercepting proxy over OAuth token-endpoint traffic
+    captured_flows, proxy_har_entries = _run_oauth_intercepting_proxy(
+        base_url,
+        oauth_flow_requests=oauth_flow_requests,
+        crawled_exchanges=crawled_exchanges,
+        creator_name="casa-audit-oau06-secret-proxy",
+        har_out_path=None,
+    )
+
+    # 2. Archive/source/strings extraction + live loopback IdP token-endpoint presentation
+    token_probe_har: list[dict] = []
+    tested_eps: list[str] = []
+    combined_in_har = [*(har_entries or []), *proxy_har_entries]
+    verdict, files_scanned, bin_count, findings, client_ids = evaluate_oau06_client_secret_scanner(
+        repo_path,
+        har_entries=combined_in_har,
+        bundle_texts=bundle_texts,
+        probe_har_entries_out=token_probe_har,
+        probe_endpoints_out=tested_eps,
+    )
+
+    # 3. Semgrep OAU-06 rule on public-client / mobile / native artifacts (skip server-only backend dirs)
+    semgrep_sarif_file = semgrep_sarif_out_path or (OUTPUT_DIR / "oau06-semgrep.sarif")
+    semgrep_ran, raw_sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "CASA3-OAU-06", semgrep_sarif_file) if run_semgrep else (False, [])
+    )
+    kept_sg_hits: list[dict] = []
+    seen_oau06 = {(f["location"], f["kind"]) for f in findings}
+    client_exts = (".kt", ".java", ".swift", ".m", ".mm", ".cs", ".dart")
+    for sh in raw_sg_hits:
+        rel_part = sh["location"].rsplit(":", 1)[0].replace("\\", "/")
+        is_server_only = rel_part.startswith(("routes/", "lib/", "models/", "data/", "test/"))
+        if is_server_only and not rel_part.endswith(client_exts):
+            continue
+        kept_sg_hits.append(sh)
+        k6 = (sh["location"], "Semgrep_OAU06_Embedded_Client_Secret")
+        if k6 not in seen_oau06:
+            seen_oau06.add(k6)
+            findings.append(
+                {
+                    "location": sh["location"],
+                    "kind": "Semgrep_OAU06_Embedded_Client_Secret",
+                    "cwe": "CWE-798",
+                    "detail": f"Semgrep rule {sh['ruleId']} flagged {sh['location']} ({sh['message']}).",
+                }
+            )
+
+    if findings:
+        verdict = "FAIL"
+
+    all_har_entries = [*combined_in_har, *token_probe_har]
+    rep_file = report_out_path or (OUTPUT_DIR / "oau06-secret-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "RFC 8252 §8.5 / CWE-798 (Public Client Binary/Bundle Client Secret Extraction)",
+                "target": base_url,
+                "verdict": verdict,
+                "filesScanned": files_scanned,
+                "binaryPackages": bin_count,
+                "clientIds": client_ids,
+                "tokenEndpointsTested": tested_eps,
+                "proxiedRequests": captured_flows,
+                "semgrepHits": len(kept_sg_hits),
+                "findings": findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "oau06-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-oau06-secret-harness", "version": "3.0"},
+                    "entries": all_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af_o6 in findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-OAU-06",
+                "level": "error",
+                "message": {"text": af_o6["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af_o6["location"]}}}],
+                "properties": {
+                    "controlId": "OAU-06",
+                    "findingKind": af_o6["kind"],
+                    "cwe": af_o6["cwe"],
+                },
+            }
+        )
+
+    return {
+        "verdict": verdict,
+        "oau06_fail": verdict == "FAIL",
+        "filesScanned": files_scanned,
+        "binCount": bin_count,
+        "clientIds": client_ids,
+        "tokenEndpointsTested": tested_eps,
+        "proxiedRequests": captured_flows,
+        "semgrepHits": len(kept_sg_hits),
+        "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+        "findings": findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -14575,53 +14715,41 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         ),
     }
     # OAU-06: Client Binary & Bundle Embedded Client Secret Scanner (RFC 8252 §8.5; CWE-798, Mobile/Native only; SARIF 2.1.0 + redacted HAR 1.2)
-    oau06_verdict, oau06_files, oau06_bins, oau06_findings, oau06_cids = evaluate_oau06_client_secret_scanner(
-        repo,
+    oau06_eval = evaluate_oau06_client_secrets(
+        base_url,
+        repo=repo,
         har_entries=har_entries,
         bundle_texts=oauth_bundle_texts,
+        crawled_exchanges=crawled_exchanges,
     )
-    for af_o6 in oau06_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-OAU-06",
-                "level": "error",
-                "message": {"text": af_o6["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af_o6["location"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "OAU-06",
-                    "findingKind": af_o6["kind"],
-                    "cwe": af_o6["cwe"],
-                },
-            }
-        )
+    oau06_verdict = oau06_eval["verdict"]
+    oau06_files = oau06_eval["filesScanned"]
+    oau06_bins = oau06_eval["binCount"]
+    oau06_findings = oau06_eval["findings"]
+    oau06_cids = oau06_eval["clientIds"]
+    dast_sarif_results.extend(oau06_eval["sarifResults"])
     oau06_lines = [f"[{o6['kind']}] {o6['detail']}" for o6 in oau06_findings]
     results["OAU-06"] = {
         "verdict": oau06_verdict,
         "tool": (
-            f"Mobile/Native Client Secret & Constant-Pool Scanner ({oau06_files} artifacts, {oau06_bins} binaries, "
-            f"{len(oau06_cids)} client_id(s), SARIF 2.1.0 + redacted HAR 1.2)"
+            f"Mobile/Native Client Secret, ZIP/Strings & Semgrep Scanner ({oau06_files} artifacts, {oau06_bins} binaries, "
+            f"{len(oau06_cids)} client_id(s), Semgrep hits={oau06_eval['semgrepHits']}, SARIF 2.1.0 + redacted HAR 1.2)"
         ),
         "log": (
             f"[FAIL] {len(oau06_findings)} embedded OAuth client secret violation(s) detected across {oau06_files} client artifact(s):\n  - "
             + "\n  - ".join(oau06_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - OAU-06 Audit JSON: {oau06_eval['reportPath']}\n  - OAU-06 Redacted HAR 1.2: {oau06_eval['harPath']}\n  - OAU-06 Semgrep SARIF 2.1.0: {oau06_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if oau06_verdict == "FAIL"
             else (
                 f"[PASS] Extracted strings/resources from {oau06_files} mobile/native artifact(s) ({oau06_bins} binaries, client_ids={oau06_cids}); "
                 f"0 embedded or accepted client_secret values detected.\n"
-                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                f"Evidence Artifacts:\n  - OAU-06 Audit JSON: {oau06_eval['reportPath']}\n  - OAU-06 Redacted HAR 1.2: {oau06_eval['harPath']}\n  - OAU-06 Semgrep SARIF 2.1.0: {oau06_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
                 if oau06_verdict == "PASS"
                 else (
                     f"[Not_Covered] Scanned {oau06_files} workspace artifacts ({oau06_bins} mobile/native binaries/extensions); "
                     f"no Mobile/Native public-client package (.apk/.ipa/.asar/.crx/.xpi or Kotlin/Swift client) present for RFC 8252 §8.5 inspection "
                     f"(0 client_secret leaks observed in client bundles/HAR).\n"
-                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                    f"Evidence Artifacts:\n  - OAU-06 Audit JSON: {oau06_eval['reportPath']}\n  - OAU-06 Redacted HAR 1.2: {oau06_eval['harPath']}\n  - OAU-06 Semgrep SARIF 2.1.0: {oau06_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
                 )
             )
         ),
@@ -15414,6 +15542,9 @@ def evaluate_oau06_client_secret_scanner(
     repo: Path,
     har_entries: list[dict] | None = None,
     bundle_texts: dict[str, str] | None = None,
+    *,
+    probe_har_entries_out: list[dict] | None = None,
+    probe_endpoints_out: list[str] | None = None,
 ) -> tuple[str, int, int, list[dict], list[str]]:
     """
     OAU-06 Public Client Binary/Bundle Secret Scanner (RFC 8252 §8.5; CWE-798).
@@ -15541,7 +15672,7 @@ def evaluate_oau06_client_secret_scanner(
                     has_mobile_native_artifacts = True
                     files_scanned += 1
                     try:
-                        decoded = fpath.read_bytes()[:4_194_304].decode("latin-1", errors="ignore")
+                        decoded = _extract_mobile_binary_text(fpath)
                         _inspect_text(rel_path, decoded)
                     except Exception:
                         pass
@@ -15573,10 +15704,13 @@ def evaluate_oau06_client_secret_scanner(
     # If loopback token endpoint(s) and candidates were both extracted, actively present candidates to token endpoint
     if local_token_endpoints and candidate_secrets and client_ids:
         for tep in local_token_endpoints[:2]:
+            if probe_endpoints_out is not None and tep not in probe_endpoints_out:
+                probe_endpoints_out.append(tep)
             for loc_s, _, sec_cand in candidate_secrets[:10]:
                 post_data = urllib.parse.urlencode(
                     {"grant_type": "client_credentials", "client_id": client_ids[0], "client_secret": sec_cand}
                 ).encode("utf-8")
+                t_status = 0
                 try:
                     t_req = urllib.request.Request(
                         tep,
@@ -15585,14 +15719,35 @@ def evaluate_oau06_client_secret_scanner(
                         method="POST",
                     )
                     with urllib.request.urlopen(t_req, timeout=3) as t_resp:
+                        t_status = t_resp.status
                         if 200 <= t_resp.status < 300:
                             _add_finding(
                                 tep,
                                 "Token_Endpoint_Accepted_Embedded_Secret",
                                 f"Token endpoint {tep} actively accepted extracted client secret candidate from {loc_s} (HTTP {t_resp.status}; RFC 8252 §8.5).",
                             )
+                except urllib.error.HTTPError as he:
+                    t_status = he.code
                 except Exception:
                     pass
+                if probe_har_entries_out is not None:
+                    probe_har_entries_out.append(
+                        {
+                            "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            "time": 1.0,
+                            "request": {
+                                "method": "POST",
+                                "url": tep,
+                                "httpVersion": "HTTP/1.1",
+                                "headers": [{"name": "Content-Type", "value": "application/x-www-form-urlencoded"}],
+                                "postData": {
+                                    "mimeType": "application/x-www-form-urlencoded",
+                                    "text": f"grant_type=client_credentials&client_id={urllib.parse.quote(client_ids[0])}&client_secret=[REDACTED]",
+                                },
+                            },
+                            "response": {"status": t_status, "httpVersion": "HTTP/1.1", "headers": []},
+                        }
+                    )
 
     if findings:
         verdict = "FAIL"
@@ -16498,11 +16653,16 @@ def run_automated_al1_scan(
             ),
         }
 
-        oau06_v, oau06_f, oau06_b, oau06_hits, oau06_cids_st = evaluate_oau06_client_secret_scanner(repo)
+        oau06_eval_st = evaluate_oau06_client_secrets("", repo=repo)
+        oau06_v = oau06_eval_st["verdict"]
+        oau06_f = oau06_eval_st["filesScanned"]
+        oau06_b = oau06_eval_st["binCount"]
+        oau06_hits = oau06_eval_st["findings"]
+        oau06_cids_st = oau06_eval_st["clientIds"]
         oau06_lines_st = [f"[{o6['kind']}] {o6['detail']}" for o6 in oau06_hits]
         merged["OAU-06"] = {
             "verdict": oau06_v,
-            "tool": f"Mobile/Native Client Secret & Constant-Pool Scanner ({oau06_f} artifacts, {oau06_b} binaries, {len(oau06_cids_st)} client_id(s), SARIF 2.1.0)",
+            "tool": f"Mobile/Native Client Secret, ZIP/Strings & Semgrep Scanner ({oau06_f} artifacts, {oau06_b} binaries, {len(oau06_cids_st)} client_id(s), Semgrep hits={oau06_eval_st['semgrepHits']}, SARIF 2.1.0)",
             "log": (
                 f"[FAIL] {len(oau06_hits)} embedded OAuth client secret violation(s) detected across {oau06_f} client artifact(s):\n  - "
                 + "\n  - ".join(oau06_lines_st)

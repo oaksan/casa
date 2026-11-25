@@ -38,9 +38,9 @@
       "store": "sessionStorage",
       "key": "bid",
       "reasons": [
-        "canary(31)"
+        "canary(36)"
       ],
-      "detail": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(31); value='31') at http://localhost:3000/#/search."
+      "detail": "[before_logout] browser sessionStorage['bid'] holds sensitive authentication/canary material (canary(36); value='36') at http://localhost:3000/#/search."
     },
     {
       "phase": "before_logout",

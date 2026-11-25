@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Tue, 24 Nov 2026 21:55:10",
-	"created": "2026-11-25T00:55:10.855073966Z",
+	"@generated": "Tue, 24 Nov 2026 22:46:44",
+	"created": "2026-11-25T01:46:44.533516076Z",
 	"insights":[
 		{
 			"level": "Low",
@@ -106,7 +106,7 @@
 			"site": "http://localhost:3000",
 			"key": "insight.response.slow",
 			"description": "Percentage of slow responses",
-			"statistic": "5"
+			"statistic": "12"
 		}
 	],
 	"site":[ 
@@ -157,7 +157,7 @@
 					"desc": "<p>Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks. These attacks are used for everything from data theft to site defacement or distribution of malware. CSP provides a set of standard HTTP headers that allow website owners to declare approved sources of content that browsers should be allowed to load on that page \u2014 covered types are JavaScript, CSS, HTML frames, fonts, images and embeddable objects such as Java applets, ActiveX, audio and video files.</p>",
 					"instances":[ 
 						{
-							"id": "12",
+							"id": "13",
 							"uri": "http://localhost:3000",
 							"nodeName": "http:\/\/localhost:3000",
 							"method": "GET",
@@ -167,7 +167,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "7",
+							"id": "3",
 							"uri": "http://localhost:3000/profile",
 							"nodeName": "http:\/\/localhost:3000\/profile",
 							"method": "GET",
@@ -177,7 +177,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "8",
+							"id": "6",
 							"uri": "http://localhost:3000/rest",
 							"nodeName": "http:\/\/localhost:3000\/rest",
 							"method": "GET",
@@ -187,7 +187,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "9",
+							"id": "5",
 							"uri": "http://localhost:3000/rest/products",
 							"nodeName": "http:\/\/localhost:3000\/rest\/products",
 							"method": "GET",
@@ -197,7 +197,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "5",
+							"id": "11",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",
@@ -227,9 +227,9 @@
 					"desc": "<p>Web browser data loading may be possible, due to a Cross Origin Resource Sharing (CORS) misconfiguration on the web server.</p>",
 					"instances":[ 
 						{
-							"id": "14",
-							"uri": "http://localhost:3000",
-							"nodeName": "http:\/\/localhost:3000",
+							"id": "8",
+							"uri": "http://localhost:3000/profile",
+							"nodeName": "http:\/\/localhost:3000\/profile",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -247,9 +247,29 @@
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						},
 						{
-							"id": "6",
-							"uri": "http://localhost:3000/sitemap.xml",
-							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
+							"id": "9",
+							"uri": "http://localhost:3000/rest/products",
+							"nodeName": "http:\/\/localhost:3000\/rest\/products",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "Access-Control-Allow-Origin: *",
+							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+						},
+						{
+							"id": "7",
+							"uri": "http://localhost:3000/rest/products/search?q=apple",
+							"nodeName": "http:\/\/localhost:3000\/rest\/products\/search (q)",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "Access-Control-Allow-Origin: *",
+							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+						},
+						{
+							"id": "4",
+							"uri": "http://localhost:3000/robots.txt",
+							"nodeName": "http:\/\/localhost:3000\/robots.txt",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -257,14 +277,14 @@
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						}
 					],
-					"count": "3",
+					"count": "5",
 					"systemic": true,
 					"solution": "<p>Ensure that sensitive data is not available in an unauthenticated manner (using IP address white-listing, for instance).</p><p>Configure the \"Access-Control-Allow-Origin\" HTTP header to a more restrictive set of domains, or remove all CORS headers entirely, to allow the web browser to enforce the Same Origin Policy (SOP) in a more restrictive manner.</p>",
 					"otherinfo": "<p>The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing.</p>",
 					"reference": "<p>https://vulncat.fortify.com/en/detail?category=HTML5&subcategory=Overly%20Permissive%20CORS%20Policy</p>",
 					"cweid": "264",
 					"wascid": "14",
-					"sourceid": "6"
+					"sourceid": "5"
 				},
 				{
 					"pluginid": "90022",
@@ -285,9 +305,29 @@
 							"attack": "",
 							"evidence": "HTTP/1.1 500 Internal Server Error",
 							"otherinfo": ""
+						},
+						{
+							"id": "1",
+							"uri": "http://localhost:3000/rest",
+							"nodeName": "http:\/\/localhost:3000\/rest",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "HTTP/1.1 500 Internal Server Error",
+							"otherinfo": ""
+						},
+						{
+							"id": "2",
+							"uri": "http://localhost:3000/rest/products",
+							"nodeName": "http:\/\/localhost:3000\/rest\/products",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "HTTP/1.1 500 Internal Server Error",
+							"otherinfo": ""
 						}
 					],
-					"count": "1",
+					"count": "3",
 					"systemic": false,
 					"solution": "<p>Review the source code of this page. Implement custom error pages. Consider implementing a mechanism to provide a unique error reference/identifier to the client (browser) while logging the details on the server side and not exposing them to the user.</p>",
 					"otherinfo": "",
@@ -307,7 +347,7 @@
 					"desc": "<p>The response appears to contain suspicious comments which may help an attacker.</p>",
 					"instances":[ 
 						{
-							"id": "57",
+							"id": "56",
 							"uri": "http://localhost:3000/chunk-AkObRTpM.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-AkObRTpM.js",
 							"method": "GET",
@@ -317,7 +357,7 @@
 							"otherinfo": "The following pattern was used: \\bSELECT\\b and was detected in likely comment: \"//`)).test(e)){let[,t]=e.split(/\\/\\/[^\\/]+/);return t}return e}function yv(e){return Oe(e)[le.LocaleId]}function vv(e,n,t){let r\", see evidence field for the suspicious comment/snippet."
 						},
 						{
-							"id": "56",
+							"id": "57",
 							"uri": "http://localhost:3000/chunk-B2J0VXxm.js",
 							"nodeName": "http:\/\/localhost:3000\/chunk-B2J0VXxm.js",
 							"method": "GET",
@@ -344,7 +384,7 @@
 					"reference": "",
 					"cweid": "615",
 					"wascid": "13",
-					"sourceid": "65"
+					"sourceid": "63"
 				},
 				{
 					"pluginid": "10109",
@@ -367,16 +407,6 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "37",
-							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/build/lib/utils.js:239:26",
-							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/lib\/utils.js:239:26",
-							"method": "GET",
-							"param": "",
-							"attack": "",
-							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
-							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
-						},
-						{
 							"id": "35",
 							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/build/routes/angular.js:18:18",
 							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/build\/routes\/angular.js:18:18",
@@ -387,9 +417,9 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "36",
-							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/node_modules/express/lib/router/layer.js:95:5",
-							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/layer.js:95:5",
+							"id": "33",
+							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/node_modules/express/lib/router/index.js:286:9",
+							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:286:9",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -397,7 +427,17 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "17",
+							"id": "38",
+							"uri": "http://localhost:3000/home/user/felipe/speckit/assat/juice-shop/node_modules/express/lib/router/index.js:346:12",
+							"nodeName": "http:\/\/localhost:3000\/home\/user\/felipe\/speckit\/assat\/juice-shop\/node_modules\/express\/lib\/router\/index.js:346:12",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "<script>\n    window.addEventListener(\"load\", function(){\n      window.cookieconsent.initialise({\n        \"palette\": {\n          \"popup\": { \"background\": \"var(--theme-primary)\", \"text\": \"var(--theme-text)\" },\n          \"button\": { \"background\": \"var(--theme-accent)\", \"text\": \"var(--theme-text)\" }\n        },\n        \"theme\": \"classic\",\n        \"position\": \"bottom-right\",\n        \"content\": { \"message\": \"This website uses fruit cookies to ensure you get the juiciest tracking experience.\", \"dismiss\": \"Me want it!\", \"link\": \"But me wait!\", \"href\": \"https://www.youtube.com/watch?v=9PnbKL3wuH4\" }\n      })});\n  </script>",
+							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
+						},
+						{
+							"id": "16",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",

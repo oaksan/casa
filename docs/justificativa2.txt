@@ -2807,3 +2807,59 @@ Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
     em execução forçada em superfícies móveis/nativas, retorna **`Not_Covered`**
     (0 binários móveis/nativos) em vez de falso `PASS`.
 ================================================================================
+
+
+================================================================================
+CONTROLE 55/61: OAU-06 (Iteração SDD 125)
+Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: OAU-06
+- Requisito (CASA 3.0 AL1):
+  "No client secret is embedded in a public client binary, bundle or extension
+  package."
+- Referências: RFC 8252 §8.5; CWE-798 | Superfície: Mobile, Native.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `MobSF`, `apktool`, `strings`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida das requisições ao endpoint de token e
+  `OASIS SARIF 2.1.0` (`CASA3-OAU-06`) para análise de pacotes cliente.
+- Critério Determinístico de Verificação:
+  * PASS: Nenhum candidato a `client_secret` extraído de binário, APK/IPA/CRX/XPI,
+    bundle ou constante cliente é embutido ou aceito pelo endpoint de token do IdP.
+  * FAIL: >= 1 `client_secret` embutido, padrão de provedor (`GOCSPX-`...),
+    alta entropia adjacente a `client_id` ou candidato aceito pelo endpoint de token.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 125`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `evaluate_oau06_client_secret_scanner` lia apenas bytes brutos sem descompactar
+  pacotes ZIP `.apk`/`.ipa`/`.crx`/`.xpi`, testava o endpoint de token sem gravar
+  tráfego em `HAR 1.2` redigida e não integrava Semgrep nem proxy interceptador.
+- O que foi feito e melhorado na Iteração SDD 125:
+  1) Adição da regra AST `CASA3-OAU-06-embedded-client-secret` em
+     `rules/casa3_al1_oauth.yml` (detectando `GOCSPX-`, `gho_`/`ghu_`/`ghs_` e
+     atribuições literais de `client_secret` em artefatos cliente).
+  2) Reaproveitamento de `_extract_mobile_binary_text` (descompactação ZIP estilo
+     `MobSF`/`apktool` + `/usr/bin/strings`) dentro de
+     `evaluate_oau06_client_secret_scanner`, preservando sua 5-tupla compatível, e
+     gravação redigida (`[REDACTED]`) de cada sondagem ao endpoint de token.
+  3) Criação de `evaluate_oau06_client_secrets(...)` integrando proxy interceptador,
+     Semgrep `CASA3-OAU-06`, `output/oau06-secret-audit.json`,
+     `output/oau06-replayed.har` redigido e `output/oau06-semgrep.sarif`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP E FIXTURES (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration125_oau06_guide_tooling`):
+  * **`PASS`** validado em pacote público Kotlin PKCE + `.apk` comprimido limpo.
+  * **`FAIL`** confirmado com `.apk` ZIP + `LeakedAuth.kt` (`GOCSPX-...`),
+    aceitação ativa pelo `/oauth/token` loopback, hit Semgrep `CASA3-OAU-06` e
+    redação `[REDACTED]` do segredo no HAR.
+  * **`Not_Covered`** validado em repositório exclusivamente web.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Escopo `Web_Application`: **`NOT_APPLICABLE`**; sob superfícies móveis/nativas,
+    varre os artefatos do workspace identificando os `client_id` públicos com `0`
+    segredos vazados (`Not_Covered` na ausência de pacote binário móvel/nativo).
+================================================================================

@@ -1815,6 +1815,71 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 42/61: AUT-07 (Iteração SDD 173)", just_neon)
 
+    def test_iteration174_aut08_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            # 1. Hyphenated Luhn-valid PAN + nested JSON refresh_token under benign key + case-insensitive IdP email -> FAIL
+            snap_bad = {
+                "before": {
+                    "href": "https://app.example.com/profile",
+                    "localStorage": {
+                        "checkout_draft": "card=4532-0151-1283-0366",
+                        "redux_state": '{"auth":{"refresh_token":"opaque_rt_99887766"}}',
+                        "ui_cache": "logged in as alice.smith@corp.example",
+                    },
+                    "sessionStorage": {},
+                    "nonHttpOnlyCookies": "",
+                    "indexedDB": [],
+                },
+                "after": {
+                    "href": "https://app.example.com/",
+                    "localStorage": {},
+                    "sessionStorage": {},
+                    "nonHttpOnlyCookies": "",
+                    "indexedDB": [],
+                },
+            }
+            r_bad = sc.evaluate_aut08_client_storage(
+                "https://app.example.com",
+                idp_profile_values=["Alice.Smith@corp.example"],
+                snapshot_override=snap_bad,
+                report_out_path=Path(td) / "aut08_bad.json",
+                har_out_path=Path(td) / "aut08_bad.har",
+            )
+            self.assertEqual(r_bad["verdict"], "FAIL")
+            all_reasons = " ".join(r for f in r_bad["findings"] for r in f["reasons"])
+            self.assertIn("Luhn_PAN", all_reasons)
+            self.assertIn("nested_auth_key(refresh_token)", all_reasons)
+            self.assertIn("idp_profile(", all_reasons)
+
+            # 2. Clean benign preferences before & after logout -> PASS
+            snap_ok = {
+                "before": {
+                    "href": "https://app.example.com/",
+                    "localStorage": {"theme": "dark", "locale": "pt-BR"},
+                    "sessionStorage": {},
+                    "nonHttpOnlyCookies": "language=pt-BR",
+                    "indexedDB": [],
+                },
+                "after": {
+                    "href": "https://app.example.com/",
+                    "localStorage": {"theme": "dark"},
+                    "sessionStorage": {},
+                    "nonHttpOnlyCookies": "language=pt-BR",
+                    "indexedDB": [],
+                },
+            }
+            r_ok = sc.evaluate_aut08_client_storage(
+                "https://app.example.com",
+                idp_profile_values=["Alice.Smith@corp.example"],
+                snapshot_override=snap_ok,
+                report_out_path=Path(td) / "aut08_ok.json",
+                har_out_path=Path(td) / "aut08_ok.har",
+            )
+            self.assertEqual(r_ok["verdict"], "PASS", f"Expected PASS, got {r_ok}")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 43/61: AUT-08 (Iteração SDD 174)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

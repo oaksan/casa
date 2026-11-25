@@ -1317,3 +1317,41 @@ CONTROLE 42/61: AUT-07 (Iteração SDD 173) — JWT Strong Alg / Confusion / Key
 4. Validação:
    - `test_iteration173_aut07_neon_reeval` (`alg:None`, `jwk` embutido, HS256
      inline fraco) + regressão `test_iteration112_aut07_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 43/61: AUT-08 (Iteração SDD 174) — Client-Side Storage Hygiene
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L952):
+   - Referência: `Playwright` (referência; Google Chrome Headless via CDP em
+     Node.js produz dump + SARIF 2.1.0 + HAR 1.2 redigido equivalentes, L21).
+   - Auditoria de Ferramentas: CONFORME (100% gratuito, zero Burp Suite pago).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Regex `pan_re8` não capturava PANs Luhn-válidos formatados com hífens ou
+     espaços (ex.: `4532-0151-1283-0366`).
+   - Material de autenticação opaco aninhado em JSON sob chaves benignas (ex.:
+     `redux_state`) e valores de perfil IdP normalizados em minúsculas podiam
+     passar despercebidos.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido `_scan_storage_snapshot` com detecção de PANs formatados +
+     validação Luhn, varredura recursiva de chaves de auth aninhadas em JSON
+     serializado e correspondência case-insensitive de valores de perfil IdP.
+4. Validação:
+   - `test_iteration174_aut08_neon_reeval` (PAN com hífen + `refresh_token`
+     aninhado + e-mail IdP case-insensitive FAIL; preferências limpas PASS) +
+     regressão `test_iteration113_aut08_guide_tooling` (Chrome Headless real).
+
+--- FECHAMENTO DO DOMÍNIO 5 (AUT-01 .. AUT-08, SDD 167 .. SDD 174) ---
+- Suíte Completa `unittest discover -s casa-assessment/tests -v`:
+  107/107 testes `OK` em 1033.241s (zero falhas, zero flakes).
+- Scan Live Completo contra OWASP Juice Shop (`http://localhost:3000`,
+  `/home/user/felipe/speckit/juice-shop-master`, daemon `casa_audit` porta 8080):
+  TOTAL: 61 controles (`FAIL: 51, PASS: 5, NOT_APPLICABLE: 2, Not_Covered: 3`).
+  * `AUT-01`: FAIL (SecLists + Vendor Replay Harness, 16 attempts across 1 login surface)
+  * `AUT-02`: FAIL (200-Sample NIST SP 800-90B MCV Min-Entropy Estimator, 200 logins in 3.57s; zero Burp Sequencer pago)
+  * `AUT-03`: PASS (Session Fixation & Post-Auth Pre-ID Replay Harness, 2 replays)
+  * `AUT-04`: FAIL (OWASP ZAP 2.17.0 3/10024/10025 & HAR 1.2 URL/Referer/CWE-598, 161 requests)
+  * `AUT-05`: FAIL (Active Post-Logout Session & Refresh Replay Harness, 8 logout probes)
+  * `AUT-06`: FAIL (OWASP ZAP 2.17.0 10010/10011/10054 & Set-Cookie Inspector, 178 HTTP responses)
+  * `AUT-07`: FAIL (PyJWT & Crafted JWT Attack Harness, 7 forged JWT attacks incl. alg:None & embedded JWK)
+  * `AUT-08`: FAIL (Headless Chrome CDP Storage Dump pre/post-logout)
+- Zero uso de Burp Suite / Burp Sequencer pago em todo o Domínio 5.

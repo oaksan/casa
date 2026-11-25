@@ -10254,12 +10254,37 @@ def _scan_storage_snapshot(
     if not snap:
         return hits
     jwt_re8 = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
-    pan_re8 = re.compile(r"\b\d{13,19}\b")
+    pan_re8 = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
     prof_vals = [v for v in (idp_profile_values or []) if isinstance(v, str) and len(v.strip()) >= 4]
+    nested_auth_keys = {"access_token", "accesstoken", "refresh_token", "refreshtoken", "id_token", "idtoken", "password", "session_id", "sessionid", "client_secret"}
+
+    def _find_nested_auth_keys(raw_txt: str) -> list[str]:
+        s = raw_txt.lstrip()
+        if not s.startswith(("{", "[")):
+            return []
+        try:
+            parsed_obj = json.loads(raw_txt)
+        except Exception:
+            return []
+        found_k: list[str] = []
+
+        def _walk(node) -> None:
+            if isinstance(node, dict):
+                for nk, nv in node.items():
+                    if str(nk).strip().lower() in nested_auth_keys and isinstance(nv, str) and nv.strip():
+                        found_k.append(str(nk))
+                    _walk(nv)
+            elif isinstance(node, list):
+                for el in node[:50]:
+                    _walk(el)
+
+        _walk(parsed_obj)
+        return found_k
 
     def inspect_kv(store_name: str, key_s: str, val_s: str) -> None:
         if not val_s:
             return
+        val_low = val_s.lower()
         reasons: list[str] = []
         if jwt_re8.search(val_s) or any(tok and tok in val_s for tok in observed_tokens if len(tok) >= 12):
             reasons.append("JWT/session_token")
@@ -10267,12 +10292,16 @@ def _scan_storage_snapshot(
             if can and len(can) >= 2 and can in val_s:
                 reasons.append(f"canary({can[:12]})")
         for pv in prof_vals:
-            if pv in val_s:
+            if pv in val_s or (len(pv.strip()) >= 6 and pv.strip().lower() in val_low):
                 reasons.append(f"idp_profile({pv[:12]})")
         for m_pan in pan_re8.findall(val_s):
-            if _luhn_check(m_pan):
+            digits_only = re.sub(r"[ -]", "", m_pan)
+            if 13 <= len(digits_only) <= 19 and _luhn_check(digits_only):
                 reasons.append("Luhn_PAN")
                 break
+        nested_hits = _find_nested_auth_keys(val_s)
+        if nested_hits:
+            reasons.append(f"nested_auth_key({','.join(sorted(set(nested_hits))[:3])})")
         if any(k_tok in key_s.lower() for k_tok in ("token", "password", "secret", "auth")) and not reasons:
             reasons.append("auth_material_key")
         if phase == "after_logout" and not reasons and val_s.strip():

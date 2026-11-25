@@ -4322,6 +4322,7 @@ def evaluate_tls01_transport_enforcement(
     tls_port_override: int | None = None,
     cleartext_port_override: int | None = None,
     http_probe_fn=None,
+    endpoints: list[str] | None = None,
 ) -> dict:
     """Evaluate TLS-01 using official testssl.sh + no-redirect HTTP cleartext probes."""
     base_url = target_url.strip().rstrip("/")
@@ -4371,7 +4372,7 @@ def evaluate_tls01_transport_enforcement(
     )
 
     cleartext_base = f"http://{host}:{cleartext_http_port}"
-    cleartext_endpoints = ["/", "/rest/user/login", "/api/Products"]
+    cleartext_endpoints = list(endpoints) if endpoints else ["/", "/rest/user/login", "/api/Products"]
     cleartext_findings: list[str] = []
     cleartext_probe_records: list[dict] = []
 
@@ -4390,7 +4391,7 @@ def evaluate_tls01_transport_enforcement(
         loc = c_headers.get("location", "")
         loc_parsed = urllib.parse.urlparse(loc) if loc else None
         valid_https_redirect = bool(
-            300 <= c_status < 400
+            c_status in {301, 302, 303, 307, 308}
             and loc_parsed is not None
             and loc_parsed.scheme.lower() == "https"
             and (loc_parsed.hostname or "").lower() == (host or "").lower()

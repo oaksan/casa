@@ -736,3 +736,35 @@ Domínio 2: Static Code Analysis & Secrets — FECHAMENTO DO DOMÍNIO 2
   * Validação de regressão: `82` testes (`81/82` + revalidação de `test_iteration99_cfg05_guide_tooling` + todos os 18 testes de `test_neon_reeval.py` em `OK`).
   * Varredura completa ao vivo contra OWASP Juice Shop (`http://localhost:3000` + `juice-shop-master`, 61 controles: `FAIL=51, PASS=5, NOT_APPLICABLE=2, Not_Covered=3`):
     - `SAST-01 [FAIL]` (42 achados — Gitleaks + Entropy/Artifacts), `SAST-02 [FAIL]` (9 achados — Gitleaks + Keystore/Tarball/Zip/PEM), `SAST-03 [PASS]` (0), `SAST-04 [FAIL]` (2), `SAST-05 [FAIL]` (2), `SAST-06 [FAIL]` (2), `SAST-07 [FAIL]` (1 — Semgrep + OWASP ZAP/Probe), `SAST-08 [FAIL]` (4), `SAST-09 [FAIL]` (6), `SAST-10 [FAIL]` (3), `SAST-11 [FAIL]` (10), `SAST-12 [FAIL]` (10 — Semgrep + Trivy + Docker), `SAST-13 [FAIL]` (1 — Semgrep + Canary Harness).
+
+================================================================================
+CONTROLE 19/61: TLS-01 (Iteração SDD 150)
+Domínio 3: Transport Security
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L440):
+  `testssl.sh`, `Qualys SSL Labs`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa o
+  binário oficial gratuito `testssl.sh` (gerando JSON legível por máquina) mais
+  sondas HTTP sem seguimento de redirecionamento na porta cleartext.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 150)
+--------------------------------------------------------------------------------
+1) **Validação estrita de status de redirecionamento HTTPS (`Test Guide` L444)**:
+   - *Antes*: `300 <= c_status < 400` aceitaria códigos não-redirect como `304
+     Not Modified` ou `300 Multiple Choices`.
+   - *Melhoria*: Restrito exclusivamente aos códigos de redirecionamento HTTP
+     `{301, 302, 303, 307, 308}` com `Location` em `https` para o mesmo host.
+2) **Suporte a lista parametrizável de `endpoints`**:
+   - Adicionado parâmetro opcional `endpoints` em
+     `evaluate_tls01_transport_enforcement` para cobrir rotas declaradas do crawl.
+
+3. VALIDAÇÃO (SDD 150)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration150_tls01_neon_reeval` validando rejeição
+  de HTTP 304, rejeição de redirect cross-host e `PASS` quando a porta 80 recusa
+  conexão com TLS válido na 443.
+- Regressão validada: `test_iteration89_tls01_guide_tooling` (`OK`).

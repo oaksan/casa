@@ -837,6 +837,36 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 18/61: SAST-13 (Iteração SDD 149)", just_neon)
 
+    def test_iteration150_tls01_neon_reeval(self) -> None:
+        fake_ok_tls = {"executed": True, "handshakeOk": True, "protocolsOffered": ["TLS 1.3"], "scanProblem": None, "scanResult": []}
+        with mock.patch.object(sc, "run_testssl_scan", return_value=fake_ok_tls):
+            # 1. HTTP 304 with Location is NOT a valid redirect -> FAIL
+            res_304 = sc.evaluate_tls01_transport_enforcement(
+                "https://app.example.com",
+                http_probe_fn=lambda u: (304, {"location": "https://app.example.com/"}, ""),
+                endpoints=["/"],
+            )
+            self.assertEqual(res_304["verdict"], "FAIL")
+
+            # 2. HTTP 301 redirecting to a DIFFERENT host -> FAIL
+            res_cross = sc.evaluate_tls01_transport_enforcement(
+                "https://app.example.com",
+                http_probe_fn=lambda u: (301, {"location": "https://evil.example.com/"}, ""),
+                endpoints=["/"],
+            )
+            self.assertEqual(res_cross["verdict"], "FAIL")
+
+            # 3. Port 80 connection refused (status=0) + valid TLS 443 -> PASS (Test Guide L444)
+            res_refused = sc.evaluate_tls01_transport_enforcement(
+                "https://app.example.com",
+                http_probe_fn=lambda u: (0, {}, "Connection refused"),
+                endpoints=["/", "/api/status"],
+            )
+            self.assertEqual(res_refused["verdict"], "PASS")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 19/61: TLS-01 (Iteração SDD 150)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

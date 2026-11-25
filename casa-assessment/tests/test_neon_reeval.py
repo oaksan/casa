@@ -2526,6 +2526,34 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 59/61: WHK-01 (Iteração SDD 190)", just_neon)
 
+    def test_iteration191_whk02_neon_reeval(self) -> None:
+        """SDD 191 (WHK-02): Standard Webhooks headers, PHP/Ruby/.NET constant-time APIs & L25 JSON denial."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            seen_sw_headers: list[str] = []
+
+            def _http_l25_deny(url, method="POST", headers=None, body=None, follow_redirects=False):
+                if headers and "webhook-signature" in headers:
+                    seen_sw_headers.append(headers["webhook-signature"])
+                return 200, {"content-type": "application/json"}, '{"ok":false,"error":"invalid signature"}'
+
+            r_pass = sc.evaluate_whk02_signature_verification(
+                "https://hooks.example.com",
+                receivers=["https://hooks.example.com/webhook"],
+                webhook_files={"handler.php": "$sig = hash_hmac('sha256', $body, $secret); hash_equals($sig, $hdr);"},
+                http_probe_fn=_http_l25_deny,
+                run_semgrep=False,
+                report_out_path=tdp / "whk02-pass.json",
+                har_out_path=tdp / "whk02-pass.har",
+            )
+            self.assertEqual(r_pass["verdict"], "PASS")
+            self.assertEqual(r_pass["clauses"]["timing_safe_compare"], "PASS")
+            self.assertEqual(len(seen_sw_headers), 3)
+            self.assertTrue(all(h.startswith("v1,") for h in seen_sw_headers))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 60/61: WHK-02 (Iteração SDD 191)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

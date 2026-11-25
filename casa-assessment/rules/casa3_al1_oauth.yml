@@ -101,7 +101,7 @@ rules:
       - pattern-regex: '(?i)(?:createHmac\s*\(\s*["''](?:sha1|md5)["'']|hmac\.new\s*\([^\n]*(?:hashlib\.(?:sha1|md5)|["''](?:sha1|md5)["'']))'
       - patterns:
           - pattern-regex: '[^\n]*(?:\b(?:sig|signature|expected|computed|hmac_val|webhook_sig)\w*\s*(?:===|!==|==|!=)\s*\w+|Buffer\.compare\s*\()[^\n]*'
-          - pattern-not-regex: '(?:timingSafeEqual|compare_digest|MessageDigest\.isEqual|ConstantTimeCompare|ConstantTimeEquals)'
+          - pattern-not-regex: '(?:timingSafeEqual|compare_digest|MessageDigest\.isEqual|ConstantTimeCompare|ConstantTimeEquals|FixedTimeEquals|hash_equals|secure_compare|fixed_length_secure_compare)'
 
   - id: CASA3-WHK-03-hardcoded-signing-secret
     languages: [typescript, javascript, python, yaml, json]

@@ -17797,7 +17797,7 @@ def evaluate_whk02_hmac_and_timing_safe(
         re.IGNORECASE,
     )
     timing_safe_api_re = re.compile(
-        r"\b(?:hmac\.compare_digest|crypto\.timingSafeEqual|timingSafeEqual|MessageDigest\.isEqual|subtle\.ConstantTimeCompare|ConstantTimeEquals)\b"
+        r"\b(?:hmac\.compare_digest|crypto\.timingSafeEqual|timingSafeEqual|MessageDigest\.isEqual|subtle\.ConstantTimeCompare|ConstantTimeEquals|FixedTimeEquals|hash_equals|secure_compare|fixed_length_secure_compare)\b"
     )
     naive_eq_re = re.compile(
         r"""\b(?:sig|signature|expected|computed|digest|hmac_val|mac)\w*\s*(?:===|!==|==|!=)\s*\w+|\w+\s*(?:===|!==|==|!=)\s*\b(?:sig|signature|expected|computed|digest|hmac_val|mac)\w*|Buffer\.compare\s*\(""",
@@ -17838,6 +17838,10 @@ def evaluate_whk02_hmac_and_timing_safe(
     valid_fmt_sig = hmac.new(b"casa3-baseline-key", sample_body, hashlib.sha256).hexdigest()
     mutated_sig = ("0" if valid_fmt_sig[0] != "0" else "1") + valid_fmt_sig[1:]
     foreign_sig = hmac.new(b"foreign-attacker-signing-key-000", sample_body, hashlib.sha256).hexdigest()
+    sw_ts = str(int(time.time()))
+    sw_base_b64 = base64.b64encode(hmac.new(b"casa3-baseline-key", sample_body, hashlib.sha256).digest()).decode("ascii")
+    sw_mut_b64 = ("A" if sw_base_b64[0] != "A" else "B") + sw_base_b64[1:]
+    sw_for_b64 = base64.b64encode(hmac.new(b"foreign-attacker-signing-key-000", sample_body, hashlib.sha256).digest()).decode("ascii")
 
     attack_vectors: list[tuple[str, dict[str, str]]] = [
         ("absent_signature", {"Content-Type": "application/json"}),
@@ -17847,6 +17851,9 @@ def evaluate_whk02_hmac_and_timing_safe(
                 "Content-Type": "application/json",
                 "X-Hub-Signature-256": f"sha256={valid_fmt_sig[:12]}",
                 "X-Webhook-Signature": f"sha256={valid_fmt_sig[:12]}",
+                "webhook-id": "msg_whk02_trunc",
+                "webhook-timestamp": sw_ts,
+                "webhook-signature": f"v1,{sw_base_b64[:8]}",
             },
         ),
         (
@@ -17855,6 +17862,9 @@ def evaluate_whk02_hmac_and_timing_safe(
                 "Content-Type": "application/json",
                 "X-Hub-Signature-256": f"sha256={mutated_sig}",
                 "X-Webhook-Signature": f"sha256={mutated_sig}",
+                "webhook-id": "msg_whk02_mod",
+                "webhook-timestamp": sw_ts,
+                "webhook-signature": f"v1,{sw_mut_b64}",
             },
         ),
         (
@@ -17863,6 +17873,9 @@ def evaluate_whk02_hmac_and_timing_safe(
                 "Content-Type": "application/json",
                 "X-Hub-Signature-256": f"sha256={foreign_sig}",
                 "X-Webhook-Signature": f"sha256={foreign_sig}",
+                "webhook-id": "msg_whk02_foreign",
+                "webhook-timestamp": sw_ts,
+                "webhook-signature": f"v1,{sw_for_b64}",
             },
         ),
     ]
@@ -17880,11 +17893,11 @@ def evaluate_whk02_hmac_and_timing_safe(
     for w_url in receivers:
         for vec_lbl, vec_hdrs in attack_vectors:
             if http_fn:
-                st, r_hdrs, _ = http_fn(w_url, method="POST", headers=vec_hdrs, body=sample_body, follow_redirects=False)
+                st, r_hdrs, r_body = http_fn(w_url, method="POST", headers=vec_hdrs, body=sample_body, follow_redirects=False)
             else:
-                st, r_hdrs, _ = _default_signed_post(w_url, vec_hdrs, sample_body)
+                st, r_hdrs, r_body = _default_signed_post(w_url, vec_hdrs, sample_body)
             probes += 1
-            if 200 <= st < 300:
+            if 200 <= st < 300 and not _is_json_denial(r_body):
                 _add_whk02(
                     w_url,
                     f"WHK02_Accepted_{vec_lbl}",

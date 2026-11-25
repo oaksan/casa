@@ -1756,3 +1756,49 @@ CONTROLE 60/61: WHK-02 (Iteração SDD 191) — Webhook HMAC-SHA256+ & Constant-
    - `semgrep --validate` + `test_iteration191_whk02_neon_reeval` (Standard
      Webhooks `v1,`, `hash_equals` PASS, HTTP 200 JSON denial PASS) + regressão
      `test_iteration130_whk02_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 61/61: WHK-03 (Iteração SDD 192) — Webhook Callback SSRF & Signing Secrets
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1344):
+   - Referência: `scripted harness, interactsh, gitleaks`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — listener OOB HTTP
+     efêmero local com redirecionamento 302 e DNS rebind + `gitleaks` dir/git
+     + `semgrep` `CASA3-WHK-03`, gerando HAR 1.2 redigido e SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - A faixa IPv6 ULA `fc00::/7` (explicitamente listada no Guia L1348) constava
+     em `restricted_nets`, mas faltava um vetor ativo em `ssrf_vectors`; também
+     faltava o bypass clássico IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`).
+   - `assign_sec_re` não incluía `webhook_signing_key`/`x-webhook-secret` e
+     respostas HTTP 2xx com JSON de negação não aplicavam a guarda do Guia L25.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido `ssrf_vectors` de 11 para 13 vetores (`ula_ipv6_fc00` e
+     `ipv4_mapped_ipv6_loopback`), expandido `assign_sec_re` e aplicada guarda
+     `not _is_json_denial(r_body)` no registro de callback.
+4. Validação:
+   - `test_iteration192_whk03_neon_reeval` (13 vetores incluindo `fc00::1` e
+     `::ffff:127.0.0.1`, `webhook_signing_key` FAIL e HTTP 200 JSON denial
+     sem falso positivo) + regressão `test_iteration131_whk03_guide_tooling` +
+     suíte completa final `unittest discover` (125 testes).
+
+=== FECHAMENTO DO DOMÍNIO 8 (WHK-01 .. WHK-03 — SDD 190 .. SDD 192) ===
+- Suíte Completa Final (`unittest discover -s casa-assessment/tests -v`): 125/125 OK em 1036.19s (zero falhas/flakes).
+- Scan Ao Vivo Final Completo (`POST http://127.0.0.1:8080/api/scan` contra OWASP Juice Shop `http://localhost:3000`):
+  - TOTAL: 61 controles (`FAIL: 51, PASS: 5, NOT_APPLICABLE: 2, Not_Covered: 3`).
+  - `WHK-01`: Not_Covered (657 arquivos + 10 probes de descoberta; 0 receivers no Juice Shop; validado com mocks HTTPS/TLS/testssl.sh em `test_iteration129` e `test_iteration190`).
+  - `WHK-02`: Not_Covered (0 handlers no Juice Shop; validado com Standard Webhooks/HMAC/constant-time/Semgrep em `test_iteration130` e `test_iteration191`).
+  - `WHK-03`: Not_Covered (0 endpoints de registro no Juice Shop; validado com 13 vetores SSRF incluindo `fc00::/7` e `::ffff:127.0.0.1`, OOB listener, gitleaks e Semgrep em `test_iteration131` e `test_iteration192`).
+  - Invariante SDD 070 (`non-blocking` / `informational`): 0 violações nos 61 controles.
+
+================================================================================
+CONSOLIDAÇÃO FINAL DA SÉRIE NEON — 61/61 CONTROLES CASA 3.0 AL1 (SDD 132 .. SDD 192)
+================================================================================
+- Total de Controles Reavaliados Individualmente: 61/61 (8 domínios completos).
+- Total de Iterações SDD Separadas, Commitadas, Tagueadas e Enviadas: 61 (`sdd-132` .. `sdd-192`).
+- Conformidade de Ferramentas Gratuitas (`CASA 3.0 (AL1) Test Guide.md`):
+  - ZERO uso de Burp Suite pago, Burp Sequencer ou DOM Invader em todos os 61 controles.
+  - 100% ferramentas gratuitas e aderentes ao Guia (syft, osv-scanner, trivy, semgrep, gitleaks, testssl.sh, OWASP ZAP 2.17.0, nuclei, dnsx, sqlmap, Google Chrome Headless CDP, proxy interceptador local, estimador NIST SP 800-90B e listeners OOB HTTP/UDP DNS locais), gerando evidências nos formatos exigidos (`SARIF 2.1.0`, `CycloneDX 1.5+`/`SPDX 2.3+`, JSON TLS e `HAR 1.2` redigido).
+- Validação Final Empírica:
+  - 125/125 testes unitários e de integração (`unittest discover`) aprovados (`OK`) sem falhas intermitentes.
+  - 8 fechamentos de domínio validados com scan ao vivo completo contra OWASP Juice Shop (`61/61` controles).
+================================================================================

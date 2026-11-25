@@ -2554,6 +2554,45 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 60/61: WHK-02 (Iteração SDD 191)", just_neon)
 
+    def test_iteration192_whk03_neon_reeval(self) -> None:
+        """SDD 192 (WHK-03): fc00::/7 ULA, ::ffff:127.0.0.1 v4-mapped IPv6, webhook_signing_key & L25 guard."""
+        import json as _json
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            seen_urls: list[str] = []
+
+            def _reg_probe(url, method="POST", headers=None, body=None, follow_redirects=False):
+                payload = _json.loads((body or b"{}").decode("utf-8"))
+                u = str(payload.get("url") or "")
+                seen_urls.append(u)
+                if "fc00::1" in u or "::ffff:127.0.0.1" in u:
+                    return 201, {"content-type": "application/json"}, '{"registered":true}'
+                return 200, {"content-type": "application/json"}, '{"ok":false,"error":"forbidden internal address"}'
+
+            r_fail = sc.evaluate_whk03_ssrf_protection(
+                "https://hooks.example.com",
+                callback_endpoints=["https://hooks.example.com/api/webhooks/register"],
+                webhook_files={"cfg.ts": 'const webhook_signing_key = "synthetic_key_value_9988776655";'},
+                http_probe_fn=_reg_probe,
+                run_gitleaks=False,
+                run_semgrep=False,
+                report_out_path=tdp / "whk03-fail.json",
+                har_out_path=tdp / "whk03-fail.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertEqual(r_fail["probesRun"], 13)
+            kinds = {f["kind"] for f in r_fail["findings"]}
+            self.assertIn("WHK03_SSRF_Accepted_Restricted_URL_ula_ipv6_fc00", kinds)
+            self.assertIn("WHK03_SSRF_Accepted_Restricted_URL_ipv4_mapped_ipv6_loopback", kinds)
+            self.assertIn("WHK03_Hardcoded_Signing_Secret", kinds)
+            # Soft JSON denial on HTTP 200 for 10.0.0.1 must NOT false-positive
+            self.assertNotIn("WHK03_SSRF_Accepted_Restricted_URL_private_rfc1918_10", kinds)
+            self.assertTrue(any("[fc00::1]" in u for u in seen_urls))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 61/61: WHK-03 (Iteração SDD 192)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

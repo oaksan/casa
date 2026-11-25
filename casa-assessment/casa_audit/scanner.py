@@ -18118,7 +18118,7 @@ def evaluate_whk03_ssrf_and_signing_secrets(
     # Always scan webhook signing-secret material if webhook_files exist
     whsec_re = re.compile(r"\b(whsec_[A-Za-z0-9+/=_-]{16,})\b")
     assign_sec_re = re.compile(
-        r"""\b(?:signing[_-]?secret|signingSecret|WEBHOOK_SECRET|webhookSecret|hmac[_-]?secret|hmacSecret)\b\s*[:=]\s*['"]([^'"\n]{8,160})['"]""",
+        r"""\b(?:signing[_-]?secret|signingSecret|WEBHOOK_SECRET|webhookSecret|webhook[_-]?signing[_-]?key|webhookSigningKey|x[-_]webhook[-_]secret|hmac[_-]?secret|hmacSecret)\b\s*[:=]\s*['"]([^'"\n]{8,160})['"]""",
         re.IGNORECASE,
     )
     placeholder_words = {"changeme", "placeholder", "example_secret", "test_secret", "dummy", "your_signing_secret"}
@@ -18184,10 +18184,12 @@ def evaluate_whk03_ssrf_and_signing_secrets(
             ssrf_vectors: list[tuple[str, str]] = [
                 ("loopback_ipv4_127", f"http://127.0.0.1:{cb_port}/whk03-ssrf-direct"),
                 ("loopback_ipv6_1", f"http://[::1]:{cb_port}/whk03-ssrf-ipv6"),
+                ("ipv4_mapped_ipv6_loopback", f"http://[::ffff:127.0.0.1]:{cb_port}/whk03-ssrf-v4mapped"),
                 ("private_rfc1918_10", "http://10.0.0.1/whk03-ssrf-10"),
                 ("private_rfc1918_172", "http://172.16.0.1/whk03-ssrf-172"),
                 ("private_rfc1918_192", "http://192.168.1.1/whk03-ssrf-192"),
                 ("cgnat_100_64", "http://100.64.0.1/whk03-ssrf-cgnat"),
+                ("ula_ipv6_fc00", "http://[fc00::1]/whk03-ssrf-ula"),
                 ("aws_metadata_169_254", "http://169.254.169.254/latest/meta-data/"),
                 ("aws_ipv6_metadata", "http://[fd00:ec2::254]/latest/meta-data/"),
                 ("link_local_fe80", "http://[fe80::1]/whk03-ssrf-fe80"),
@@ -18227,9 +18229,9 @@ def evaluate_whk03_ssrf_and_signing_secrets(
                     reg_payload = json.dumps({"url": target_u, "callbackUrl": target_u, "webhookUrl": target_u}).encode("utf-8")
                     before_hits = len(ssrf_hits)
                     if http_fn:
-                        r_st, _, _ = http_fn(cb_ep, method="POST", headers={"Content-Type": "application/json"}, body=reg_payload, follow_redirects=False)
+                        r_st, _, r_body = http_fn(cb_ep, method="POST", headers={"Content-Type": "application/json"}, body=reg_payload, follow_redirects=False)
                     else:
-                        r_st, _, _ = _default_reg_post(cb_ep, reg_payload)
+                        r_st, _, r_body = _default_reg_post(cb_ep, reg_payload)
                     probes += 1
                     time.sleep(0.05)
                     if len(ssrf_hits) > before_hits:
@@ -18240,7 +18242,7 @@ def evaluate_whk03_ssrf_and_signing_secrets(
                             f"Callback facility {cb_ep} issued internal HTTP fetch to listener ({ssrf_hits[-1]}) for '{target_u}' ({matched_cidr}; CWE-918).",
                             status=r_st,
                         )
-                    elif 200 <= r_st < 300:
+                    elif 200 <= r_st < 300 and not _is_json_denial(r_body):
                         _add_whk03(
                             cb_ep,
                             f"WHK03_SSRF_Accepted_Restricted_URL_{vec_lbl}",

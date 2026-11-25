@@ -890,3 +890,37 @@ Domínio 3: Transport Security
   `max-age="31536000"`, `HSTS_time` entre parênteses e diagnóstico de falha de
   conexão.
 - Regressão validada: `test_iteration93_tls05_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 24/61: TLS-06 (Iteração SDD 155)
+Domínio 3: Transport Security — FECHAMENTO DO DOMÍNIO 3
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L545):
+  `testssl.sh`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  `testssl.sh -H -I -T -C` complementado por verificações não-bloqueantes via
+  `openssl s_client` (`secure_renego`, `secure_client_renego`, `ROBOT`),
+  retendo evidência JSON estruturada.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 155)
+--------------------------------------------------------------------------------
+1) **Cobertura explícita de `secure_client_renego` (`Test Guide` L549)**:
+   - Adicionada verificação não-bloqueante de renegociação iniciada pelo cliente
+     (`secure_client_renego`) em `evaluate_tls06_vulnerabilities` quando não
+     retornada pelo `testssl.sh`, respeitando a regra normativa de que apenas
+     achados `HIGH`/`CRITICAL` bloqueiam o veredito (enquanto `LOW`/`MEDIUM`
+     são registrados como informativos).
+
+3. VALIDAÇÃO (SDD 155 + FECHAMENTO DO DOMÍNIO 3 — TLS-01..TLS-06)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration155_tls06_neon_reeval` + regressão
+  `test_iteration94_tls06_guide_tooling`.
+
+- **Consolidação Empírica ao Vivo — Fechamento do Domínio 3 (`SDD 150`–`SDD 155`)**:
+  * Suíte integral `unittest discover`: **88 testes executados em 1029.080s — OK** (zero falhas / zero flakes).
+  * Varredura completa ao vivo contra OWASP Juice Shop (`http://localhost:3000` + `juice-shop-master`, 61 controles: `FAIL=51, PASS=5, NOT_APPLICABLE=2, Not_Covered=3`):
+    - `TLS-01..TLS-06 [FAIL]` — todos executados via `testssl.sh 3.2.2` em JSON estruturado + HAR 1.2, confirmando operação em cleartext HTTP sem TLS, sem certificado X.509, `HSTS_time=0` e ausência de listener TLS para checagens de vulnerabilidades.

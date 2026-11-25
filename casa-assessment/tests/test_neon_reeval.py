@@ -1036,6 +1036,37 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 23/61: TLS-05 (Iteração SDD 154)", just_neon)
 
+    def test_iteration155_tls06_neon_reeval(self) -> None:
+        # 1. LOW/MEDIUM vulnerability entries are informational only -> PASS (Test Guide L549)
+        fake_med = {
+            "executed": True,
+            "scanResult": [
+                {
+                    "vulnerabilities": [
+                        {"id": "heartbleed", "severity": "OK", "finding": "not vulnerable"},
+                        {"id": "ROBOT", "severity": "OK", "finding": "not vulnerable"},
+                        {"id": "secure_renego", "severity": "OK", "finding": "supported"},
+                        {"id": "secure_client_renego", "severity": "MEDIUM", "finding": "client renego advisory"},
+                        {"id": "CRIME_TLS", "severity": "OK", "finding": "not vulnerable"},
+                        {"id": "ticketbleed", "severity": "OK", "finding": "not vulnerable"},
+                    ]
+                }
+            ],
+        }
+        r_pass = sc.evaluate_tls06_vulnerabilities("https://app.example.com", testssl_info=fake_med)
+        self.assertEqual(r_pass["verdict"], "PASS")
+        self.assertEqual(len(r_pass["vulnAudit"]["informationalFindings"]), 1)
+
+        # 2. HIGH entry on secure_client_renego -> FAIL
+        fake_high = json.loads(json.dumps(fake_med))
+        fake_high["scanResult"][0]["vulnerabilities"][3]["severity"] = "HIGH"
+        r_fail = sc.evaluate_tls06_vulnerabilities("https://app.example.com", testssl_info=fake_high)
+        self.assertEqual(r_fail["verdict"], "FAIL")
+        self.assertTrue(any("secure_client_renego" in h for h in r_fail["vulnAudit"]["highOrCriticalFindings"]))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 24/61: TLS-06 (Iteração SDD 155)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

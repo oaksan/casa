@@ -5227,6 +5227,35 @@ def evaluate_tls06_vulnerabilities(
             if renego_insecure:
                 audit["highOrCriticalFindings"].append(f"secure_renego (HIGH): {rec_r['finding']}")
 
+        if "secure_client_renego" not in seen_ids:
+            client_renego_allowed = False
+            try:
+                op_cr = subprocess.run(
+                    ["openssl", "s_client", "-tls1_2", "-connect", f"{host}:{port}", "-servername", host],
+                    input=b"R\nQ\n",
+                    capture_output=True,
+                    timeout=3,
+                )
+                out_cr = (op_cr.stdout + op_cr.stderr).decode("utf-8", errors="ignore")
+                if "RENEGOTIATING" in out_cr and not any(
+                    rej in out_cr.lower() for rej in ("no renegotiation", "renegotiation failure", "alert", "error", "errno")
+                ):
+                    client_renego_allowed = True
+            except Exception:
+                pass
+            rec_cr = {
+                "id": "secure_client_renego",
+                "severity": "MEDIUM" if client_renego_allowed else "OK",
+                "finding": (
+                    "Client-initiated TLS 1.2 renegotiation accepted (advisory MEDIUM)"
+                    if client_renego_allowed
+                    else "Not vulnerable to insecure client-initiated renegotiation"
+                ),
+            }
+            audit["vulnerabilities"].append(rec_cr)
+            if client_renego_allowed:
+                audit["informationalFindings"].append(f"secure_client_renego (MEDIUM): {rec_cr['finding']}")
+
         if "ROBOT" not in seen_ids:
             krsa_list: list[str] = list((cipher_audit or {}).get("nonForwardSecrecyTls12Offered") or [])
             if cipher_audit is None:

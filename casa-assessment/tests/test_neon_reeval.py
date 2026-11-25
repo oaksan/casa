@@ -1993,6 +1993,47 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 46/61: AZI-03 (Iteração SDD 177)", just_neon)
 
+    def test_iteration178_azi04_neon_reeval(self) -> None:
+        """SDD 178 (AZI-04): DNS compression pointer safety, oob_wait_sec & Windows principal marker."""
+        # Standard DNS query header (12 bytes) + label "cb" + compression pointer 0xC0 0x0C
+        pkt_compressed = b"\x00" * 12 + b"\x02cb\xc0\x0c"
+        self.assertEqual(sc._parse_dns_qname(pkt_compressed), "cb")
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            def _probe_win_marker(url, method="GET", headers=None, body=None, timeout=5):
+                return 200, {"content-type": "text/plain"}, "nt authority\\system\r\n"
+
+            r_fail = sc.evaluate_azi04_cmd_injection(
+                "https://app.example.com",
+                param_targets=[("GET", "/api/ping?host={p}", "query:host")],
+                http_probe_fn=_probe_win_marker,
+                run_zap=False,
+                oob_wait_sec=0.0,
+                report_out_path=tdp / "azi04-fail.json",
+                har_out_path=tdp / "azi04-fail.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertTrue(any("nt authority\\system" in f["evidence"].lower() for f in r_fail["findings"]))
+
+            def _probe_safe(url, method="GET", headers=None, body=None, timeout=5):
+                return 200, {"content-type": "application/json"}, '{"status":"ok"}'
+
+            r_pass = sc.evaluate_azi04_cmd_injection(
+                "https://app.example.com",
+                param_targets=[("GET", "/api/ping?host={p}", "query:host")],
+                http_probe_fn=_probe_safe,
+                run_zap=False,
+                oob_wait_sec=0.0,
+                report_out_path=tdp / "azi04-pass.json",
+                har_out_path=tdp / "azi04-pass.har",
+            )
+            self.assertEqual(r_pass["verdict"], "PASS")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 47/61: AZI-04 (Iteração SDD 178)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

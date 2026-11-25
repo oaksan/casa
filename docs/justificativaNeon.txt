@@ -1423,3 +1423,25 @@ CONTROLE 46/61: AZI-03 (Iteração SDD 177) — SQL & NoSQL Query Safety
 4. Validação:
    - `test_iteration177_azi03_neon_reeval` (envelopes REST + diferencial `GET`)
      + regressão `test_iteration116_azi03_guide_tooling` (`sqlmap` + ZAP real).
+
+--------------------------------------------------------------------------------
+CONTROLE 47/61: AZI-04 (Iteração SDD 178) — OS Command Handling Verification
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1041):
+   - Referência: `ZAP, Burp Suite, interactsh, Schemathesis`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa OWASP ZAP 2.17.0 regra ativa `90020` + listener efêmero
+     local HTTP e UDP DNS para callbacks OOB com SARIF 2.1.0 e HAR 1.2 redigido).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `_parse_dns_qname` não tratava ponteiros de compressão DNS (`0xC0`),
+     podendo interpretar bytes de ponteiro como comprimento de label.
+   - `evaluate_azi04_cmd_injection` não expunha `oob_wait_sec` configurável e
+     `cmd_output_re` não reconhecia marcadores Windows `nt authority\system` /
+     `local service` / `network service`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Protegido `_parse_dns_qname` contra ponteiros `0xC0`, adicionado
+     `oob_wait_sec: float = 0.25` e expandido `cmd_output_re` para cobrir
+     principais Windows (`nt authority\system|local service|network service`).
+4. Validação:
+   - `test_iteration178_azi04_neon_reeval` (DNS pointer + marcador Windows +
+     PASS limpo) + regressão `test_iteration117_azi04_guide_tooling`.

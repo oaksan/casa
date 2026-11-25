@@ -12056,7 +12056,7 @@ def _parse_dns_qname(pkt: bytes) -> str:
     idx = 12
     while idx < len(pkt):
         ln = pkt[idx]
-        if ln == 0:
+        if ln == 0 or (ln & 0xC0) == 0xC0:
             break
         idx += 1
         if idx + ln > len(pkt):
@@ -12081,6 +12081,7 @@ def evaluate_azi04_cmd_injection(
     report_out_path: Path | None = None,
     har_out_path: Path | None = None,
     run_zap: bool = True,
+    oob_wait_sec: float = 0.25,
 ) -> dict:
     """Evaluate AZI-04 (ASVS V5.3.8 / CWE-78) via OWASP ZAP 90020 + OOB HTTP/DNS callback harness."""
     base_url = target_url.strip().rstrip("/")
@@ -12200,7 +12201,7 @@ def evaluate_azi04_cmd_injection(
     dns_thread.start()
 
     cmd_output_re = re.compile(
-        r"uid=\d+\([A-Za-z0-9_.-]+\)\s+gid=\d+|root:[x*]:0:0:|Windows IP Configuration|Microsoft Windows \[Version",
+        r"uid=\d+\([A-Za-z0-9_.-]+\)\s+gid=\d+|root:[x*]:0:0:|Windows IP Configuration|Microsoft Windows \[Version|nt authority\\(?:system|local service|network service)",
         re.IGNORECASE,
     )
 
@@ -12279,7 +12280,8 @@ def evaluate_azi04_cmd_injection(
                         confirmed_by="command_output_marker",
                     )
 
-        time.sleep(0.25)
+        if oob_wait_sec > 0:
+            time.sleep(oob_wait_sec)
         with cmd_lock:
             unique_http_cb = sorted(set(cmd_cb_hits))
             unique_dns_cb = sorted(set(dns_cb_hits))

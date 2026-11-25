@@ -1382,3 +1382,23 @@ CONTROLE 44/61: AZI-01 (Iteração SDD 175) — Strong Anti-CSRF Mechanism
    - `test_iteration175_azi01_neon_reeval` (cookie `analytics_id` com
      `SameSite=None` + `sid` com `SameSite=Strict` + CSRF estrito -> PASS) +
      regressão `test_iteration114_azi01_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 45/61: AZI-02 (Iteração SDD 176) — No Cross-Site Scripting (XSS)
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L998):
+   - Referência: `ZAP, Burp Suite, DOM Invader, Schemathesis`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite e DOM Invader
+     pagos NÃO utilizados; substituídos por OWASP ZAP 2.17.0 regras ativas
+     `40012`/`40014` + Google Chrome Headless via CDP com callback OOB local,
+     SARIF 2.1.0 + HAR 1.2 redigido).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_azi02_xss` não registrava `inconclusiveCandidates` estruturado
+     (Guia L1003) nem aceitava lista `reflected_endpoints` ou content-type
+     `application/xhtml+xml`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionados `reflected_endpoints`, `run_zap`, `run_browser`, suporte a
+     `application/xhtml+xml` e registro estruturado `inconclusiveCandidates`.
+4. Validação:
+   - `test_iteration176_azi02_neon_reeval` (reflexão `application/xhtml+xml`
+     FAIL; eco `application/json` PASS) + regressão `test_iteration115_azi02_guide_tooling`.

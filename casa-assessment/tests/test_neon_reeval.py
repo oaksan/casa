@@ -1919,6 +1919,48 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 44/61: AZI-01 (Iteração SDD 175)", just_neon)
 
+    def test_iteration176_azi02_neon_reeval(self) -> None:
+        import urllib.parse
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            # 1. application/xhtml+xml unescaped reflection on custom reflected_endpoints -> FAIL
+            def _probe_xhtml(ep: str, method: str = "GET", headers=None, body=None):
+                q = urllib.parse.unquote(ep.split("q=", 1)[1]) if "q=" in ep else ""
+                if "/xhtml-search" in ep:
+                    return 200, {"content-type": "application/xhtml+xml"}, f"<html><body>{q}</body></html>"
+                return 200, {"content-type": "application/json"}, json.dumps({"echo": q})
+
+            r_xhtml = sc.evaluate_azi02_xss(
+                "https://app.example.com",
+                reflected_endpoints=["/xhtml-search?q={p}", "/json-search?q={p}"],
+                http_probe_fn=_probe_xhtml,
+                run_zap=False,
+                run_browser=False,
+                report_out_path=tdp / "azi02_xhtml.json",
+                har_out_path=tdp / "azi02_xhtml.har",
+            )
+            self.assertEqual(r_xhtml["verdict"], "FAIL")
+            self.assertEqual(len(r_xhtml["findings"]), 1)
+            self.assertIn("/xhtml-search", r_xhtml["findings"][0]["url"])
+            self.assertEqual(r_xhtml["inconclusiveCandidates"], [])
+
+            # 2. JSON-only echo does NOT false-positive as HTML reflection -> PASS
+            r_json = sc.evaluate_azi02_xss(
+                "https://app.example.com",
+                reflected_endpoints=["/json-search?q={p}"],
+                http_probe_fn=_probe_xhtml,
+                run_zap=False,
+                run_browser=False,
+                report_out_path=tdp / "azi02_json.json",
+                har_out_path=tdp / "azi02_json.har",
+            )
+            self.assertEqual(r_json["verdict"], "PASS")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 45/61: AZI-02 (Iteração SDD 176)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

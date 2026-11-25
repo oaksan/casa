@@ -10984,6 +10984,7 @@ def evaluate_azi02_xss(
     auth_headers: dict[str, str] | None = None,
     session_token: str = "",
     browser_urls_fn=None,
+    reflected_endpoints: list[str] | None = None,
     zap_xss_report: dict | None = None,
     zap_seed_urls: list[str] | None = None,
     zap_json_out_path: Path | None = None,
@@ -10991,6 +10992,8 @@ def evaluate_azi02_xss(
     report_out_path: Path | None = None,
     har_out_path: Path | None = None,
     http_probe_fn=None,
+    run_zap: bool = True,
+    run_browser: bool = True,
 ) -> dict:
     """Evaluate AZI-02 (ASVS V5.3.3 / CWE-79) via OWASP ZAP Active XSS (40012/40014) + Headless Chrome OOB callback."""
     base_url = target_url.strip().rstrip("/")
@@ -11088,10 +11091,10 @@ def evaluate_azi02_xss(
 
     # 1. Run focused OWASP ZAP Active XSS Scan (Rules 40012 Reflected + 40014 Persistent)
     seeds_xss = zap_seed_urls or [f"{base_url}/rest/products/search?q=apple", f"{base_url}/profile"]
-    active_zap = (
-        zap_xss_report
-        if (zap_xss_report is not None and zap_xss_report.get("executed"))
-        else run_zap_automation(
+    if zap_xss_report is not None and zap_xss_report.get("executed"):
+        active_zap = zap_xss_report
+    elif run_zap:
+        active_zap = run_zap_automation(
             base_url,
             seed_urls=seeds_xss,
             active_scan_rules=[40012, 40014],
@@ -11099,7 +11102,8 @@ def evaluate_azi02_xss(
             sarif_out_path=zap_sarif_out_path or (OUTPUT_DIR / "zap-xss-findings.sarif"),
             timeout_sec=180,
         )
-    )
+    else:
+        active_zap = {"executed": False, "alerts": [], "sarifPath": str(zap_sarif_out_path or (OUTPUT_DIR / "zap-xss-findings.sarif"))}
 
     azi02_findings: list[dict] = []
     seen_xss_keys: set[tuple[str, str]] = set()
@@ -11132,7 +11136,29 @@ def evaluate_azi02_xss(
     node_bin = shutil.which("node")
     chrome_bin = shutil.which("google-chrome") or ("/usr/bin/google-chrome" if Path("/usr/bin/google-chrome").exists() else None)
 
-    if node_bin and chrome_bin and xss_headless_script.exists():
+    refl_token = "CASA3XSSPROBE9182"
+    refl_payload = f"<{refl_token} onload=1>"
+    refl_targets = list(reflected_endpoints) if reflected_endpoints is not None else ["/rest/products/search?q={p}"]
+    for r_tpl in refl_targets:
+        r_path = r_tpl.format(p=urllib.parse.quote(refl_payload)) if "{p}" in r_tpl else f"{r_tpl}{urllib.parse.quote(refl_payload)}"
+        r_st, r_hdrs, r_body = _probe_logged(r_path, headers=auth_hdrs)
+        xss_probes_run += 1
+        ctype_r = r_hdrs.get("content-type", "").lower()
+        if ("text/html" in ctype_r or "application/xhtml+xml" in ctype_r) and refl_payload in r_body:
+            ep_clean = f"{base_url}{r_path.split('?', 1)[0]}"
+            k_refl = ("reflected_html", ep_clean)
+            if k_refl not in seen_xss_keys:
+                seen_xss_keys.add(k_refl)
+                azi02_findings.append(
+                    {
+                        "url": ep_clean,
+                        "xssType": "reflected_html",
+                        "confirmedBy": "unescaped_html_reflection",
+                        "detail": f"GET {ep_clean} reflected unescaped HTML payload '{refl_payload}' in {ctype_r or 'text/html'} response (CWE-79).",
+                    }
+                )
+
+    if run_browser and node_bin and chrome_bin and xss_headless_script.exists():
         cb_hits: list[str] = []
         cb_lock = threading.Lock()
 
@@ -11193,23 +11219,6 @@ def evaluate_azi02_xss(
                     )
                     xss_probes_run += 1
 
-            refl_token = "CASA3XSSPROBE9182"
-            refl_payload = f"<{refl_token} onload=1>"
-            r_st, r_hdrs, r_body = _probe_logged(f"/rest/products/search?q={urllib.parse.quote(refl_payload)}", headers=auth_hdrs)
-            xss_probes_run += 1
-            if "text/html" in r_hdrs.get("content-type", "").lower() and refl_payload in r_body:
-                k_refl = ("reflected_html", f"{base_url}/rest/products/search")
-                if k_refl not in seen_xss_keys:
-                    seen_xss_keys.add(k_refl)
-                    azi02_findings.append(
-                        {
-                            "url": f"{base_url}/rest/products/search",
-                            "xssType": "reflected_html",
-                            "confirmedBy": "unescaped_html_reflection",
-                            "detail": f"GET {base_url}/rest/products/search reflected unescaped HTML payload '{refl_payload}' in text/html response (CWE-79).",
-                        }
-                    )
-
             with socket.socket() as sx:
                 sx.bind(("127.0.0.1", 0))
                 cdp_port_x = sx.getsockname()[1]
@@ -11263,6 +11272,16 @@ def evaluate_azi02_xss(
             }
         )
 
+    inconclusive_candidates: list[dict] = []
+    if not xss_callbacks and dom_xss_hits:
+        for sink_f in dom_xss_hits:
+            inconclusive_candidates.append(
+                {
+                    "status": "inconclusive",
+                    "source": sink_f,
+                    "reason": "Static DomSanitizer.bypassSecurityTrustHtml() sink without dynamic callback execution",
+                }
+            )
     if not azi02_findings and dom_xss_hits:
         azi02_findings.append(
             {
@@ -11285,6 +11304,7 @@ def evaluate_azi02_xss(
                 "zapPluginsMatched": sorted(zap_matched_plugins),
                 "callbacksReceived": xss_callbacks,
                 "angularBypassSinks": dom_xss_hits,
+                "inconclusiveCandidates": inconclusive_candidates,
                 "findings": azi02_findings,
             },
             indent=2,
@@ -11334,6 +11354,7 @@ def evaluate_azi02_xss(
         "probesRun": xss_probes_run,
         "callbacksReceived": xss_callbacks,
         "angularBypassSinks": dom_xss_hits,
+        "inconclusiveCandidates": inconclusive_candidates,
         "zapPluginsMatched": sorted(zap_matched_plugins),
         "zap": active_zap,
         "findings": azi02_findings,

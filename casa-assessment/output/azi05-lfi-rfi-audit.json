@@ -30,7 +30,7 @@
       "cwe": "CWE-98",
       "status": 200,
       "confirmedBy": "rfi_oob_fetch",
-      "detail": "POST http://localhost:3000/profile/image/url (imageUrl=http://127.0.0.1:39245/casa3_rfi_probe.svg) caused the server to fetch arbitrary remote resource(s) ['/casa3_rfi_probe.svg'] (HTTP 200, RFI/SSRF — CWE-98)."
+      "detail": "POST http://localhost:3000/profile/image/url (imageUrl=http://127.0.0.1:42139/casa3_rfi_probe.svg) caused the server to fetch arbitrary remote resource(s) ['/casa3_rfi_probe.svg'] (HTTP 200, RFI/SSRF — CWE-98)."
     }
   ]
 }

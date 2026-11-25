@@ -2863,3 +2863,60 @@ Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
     varre os artefatos do workspace identificando os `client_id` públicos com `0`
     segredos vazados (`Not_Covered` na ausência de pacote binário móvel/nativo).
 ================================================================================
+
+
+================================================================================
+CONTROLE 56/61: OAU-07 (Iteração SDD 126)
+Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: OAU-07
+- Requisito (CASA 3.0 AL1):
+  "Access and refresh tokens are held in platform secure storage — Keystore,
+  Keychain, or HttpOnly Secure cookie. Never localStorage, SharedPreferences
+  plaintext, or disk cache."
+- Referências: MASA 1.1.1.1 / 2.1.1.1; CWE-922; ASVS V6.4.1 (L2) | Superfície: All.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `Playwright`, `MobSF`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida + `OASIS SARIF 2.1.0` (`CASA3-OAU-07`).
+- Critério Determinístico de Verificação:
+  * PASS: Nenhum token observado aparece fora de Keystore, Keychain ou cookie
+    `HttpOnly; Secure` (0 exposições em `localStorage`, `sessionStorage`,
+    IndexedDB, `document.cookie` ou XML/Plist/`SharedPreferences` em texto claro).
+  * FAIL: >= 1 token persistido fora desses mecanismos ou cookie sem `HttpOnly`/`Secure`.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 126`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `OAU-07` rodava inline em `run_dynamic_and_protocol_checks`, sem
+  inspecionar pacotes binários `.apk`/`.ipa` comprimidos nem arquivos `.xml`/`.plist`
+  de preferências móveis, sem regra Semgrep dedicada e sem artefatos JSON/HAR
+  isolados do controle.
+- O que foi feito e melhorado na Iteração SDD 126:
+  1) Adição da regra AST `CASA3-OAU-07-insecure-token-storage` em
+     `rules/casa3_al1_oauth.yml` (TS/JS `localStorage`/`sessionStorage` + Kotlin/Java/Swift
+     `SharedPreferences`/`NSUserDefaults`).
+  2) Extração de `evaluate_oau07_token_storage(...)` em `casa_audit/scanner.py`
+     reaproveitando o dump ativo do navegador Chrome Headless CDP
+     (`scripts/headless_storage_dump.js`, equivalente Playwright), sondagem HTTP de
+     `Set-Cookie` via `_make_redacted_har_probe`, descompactação ZIP estilo MobSF
+     (`_extract_mobile_binary_text`) e varredura de arquivos `.xml`/`.plist`.
+  3) Emissão de `output/oau07-storage-audit.json`, `output/oau07-replayed.har`
+     redigido, `output/oau07-semgrep.sarif` e `CASA3-OAU-07` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration126_oau07_guide_tooling`):
+  * **`PASS`** validado com cookie `HttpOnly; Secure; SameSite=Strict`, storage
+    vazio e `EncryptedSharedPreferences`.
+  * **`FAIL`** confirmado com token em `localStorage` + `document.cookie`,
+    `Set-Cookie` sem `HttpOnly; Secure`, `prefs.xml`, `.apk` ZIP e hit Semgrep
+    (`CASA3-OAU-07`), preservando `[REDACTED]` no HAR.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Chrome CDP ao vivo (`headless=True`) + Semgrep + bundles confirmando JWT em
+    `localStorage['token']` e `document.cookie` sem `HttpOnly`/`Secure` -> Veredito
+    **`FAIL`** (`CASA3-OAU-07`).
+================================================================================

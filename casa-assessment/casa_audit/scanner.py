@@ -13373,6 +13373,278 @@ def evaluate_oau06_client_secrets(
     }
 
 
+def evaluate_oau07_token_storage(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    storage_snapshot: dict | None = None,
+    observed_token: str = "",
+    cfg06_aut06_findings: list[dict] | None = None,
+    oauth_sources: list[tuple[str, str]] | None = None,
+    local_storage_hits: list[str] | None = None,
+    crawled_exchanges: list[dict] | None = None,
+    http_probe_fn=None,
+    login_paths: list[str] | None = None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    semgrep_sarif_out_path: Path | None = None,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate OAU-07 (MASA 1.1.1.1 / CWE-922) via browser storage dump, Set-Cookie audit, MobSF prefs & Semgrep."""
+    base_url = target_url.strip().rstrip("/")
+    repo_path = repo if repo is not None else Path(".")
+    oau07_findings: list[dict] = []
+    seen_oau07_keys: set[tuple[str, str]] = set()
+    browser_dump_executed = storage_snapshot is not None
+
+    def _add_oau07(location: str, kind: str, detail: str) -> None:
+        key7 = (location, kind)
+        if key7 not in seen_oau07_keys:
+            seen_oau07_keys.add(key7)
+            oau07_findings.append({"location": location, "kind": kind, "cwe": "CWE-922", "detail": detail})
+
+    _probe_logged, _, probe_har_entries = _make_redacted_har_probe(base_url, http_probe_fn=http_probe_fn)
+
+    # 1. Inspect browser storage dump (Playwright-equivalent Chrome CDP localStorage, sessionStorage, IndexedDB, cookies)
+    snap = storage_snapshot or {}
+    if snap:
+        before_s = snap.get("before", {}) or {}
+        for store_k in ("localStorage", "sessionStorage"):
+            store_map = before_s.get(store_k, {}) or {}
+            if isinstance(store_map, dict):
+                for k_name, k_val in store_map.items():
+                    v_str = str(k_val or "")
+                    k_low = str(k_name).lower()
+                    is_tok_key = any(t in k_low for t in ("token", "access_token", "refresh_token", "id_token", "jwt", "auth"))
+                    is_jwt_val = bool(re.match(r"^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$", v_str))
+                    if is_tok_key or is_jwt_val or (observed_token and observed_token[:24] in v_str):
+                        _add_oau07(
+                            f"{base_url or 'browser'}#{store_k}.{k_name}",
+                            f"Browser_{store_k}_Token",
+                            f"Headless Chrome dump found observed/bearer token persisted in plaintext browser {store_k}['{k_name}'] (redacted len={len(v_str)}; violates OAU-07 / MASA 1.1.1.1 / CWE-922).",
+                        )
+
+        for idb_entry in before_s.get("indexedDB", []) or []:
+            idb_name = str(idb_entry.get("name", "") if isinstance(idb_entry, dict) else idb_entry)
+            if any(t in idb_name.lower() for t in ("token", "auth", "oauth", "session")):
+                _add_oau07(
+                    f"{base_url or 'browser'}#indexedDB.{idb_name}",
+                    "Browser_IndexedDB_Token",
+                    f"Headless Chrome dump observed auth/token IndexedDB database '{idb_name}' (prohibited client storage per OAU-07).",
+                )
+
+        doc_cookie_str = str(before_s.get("nonHttpOnlyCookies", "") or "")
+        for ck_pair in [p.strip() for p in doc_cookie_str.split(";") if "=" in p]:
+            ck_name, ck_val = ck_pair.split("=", 1)
+            ck_low = ck_name.strip().lower()
+            if any(t in ck_low for t in ("token", "access_token", "refresh_token", "id_token", "jwt", "session")) or ck_val.strip().startswith("eyJ"):
+                _add_oau07(
+                    f"{base_url or 'browser'}#document.cookie:{ck_name.strip()}",
+                    "NonHttpOnly_Token_Cookie",
+                    f"Headless Chrome document.cookie exposed token-bearing cookie '{ck_name.strip()}' (len={len(ck_val.strip())}) lacking HttpOnly/Secure flags (violates OAU-07 / CWE-922).",
+                )
+
+    # 2. Check crawled Set-Cookie headers & active login/token endpoint Set-Cookie headers
+    for af6 in cfg06_aut06_findings or []:
+        miss = af6.get("missing", [])
+        if any(attr in miss for attr in ("HttpOnly", "Secure", "Server-Issued Set-Cookie")):
+            _add_oau07(
+                af6.get("url", base_url or "cookie"),
+                "Cookie_Missing_HttpOnly_Or_Secure",
+                f"Token-bearing cookie '{af6.get('cookieName', 'token')}' at {af6.get('url', '')} lacks required attributes {miss} (OAU-07).",
+            )
+
+    if base_url and cfg06_aut06_findings is None:
+        for lp in (login_paths or ["/oauth/callback", "/auth/session"]):
+            l_st, l_hdrs, _ = _probe_logged(lp, follow_redirects=False)
+            sc_raw = l_hdrs.get("set-cookie", "")
+            if sc_raw:
+                sc_low = sc_raw.lower()
+                ck_part = sc_raw.split(";", 1)[0]
+                ck_n = ck_part.split("=", 1)[0].strip()
+                if any(t in ck_n.lower() for t in ("token", "access_token", "refresh_token", "id_token", "session")):
+                    miss_attrs = [attr for attr in ("HttpOnly", "Secure") if attr.lower() not in sc_low]
+                    if miss_attrs:
+                        _add_oau07(
+                            f"{base_url}{lp}",
+                            "Cookie_Missing_HttpOnly_Or_Secure",
+                            f"GET {base_url}{lp} (HTTP {l_st}) issued Set-Cookie '{ck_n}' missing {miss_attrs} (OAU-07 / CWE-922).",
+                        )
+
+    # 3. Inspect JS bundles, client sources & mobile plaintext preferences / archives (MobSF-style)
+    for src_name, src_body in oauth_sources or []:
+        if re.search(r"localStorage\.setItem\s*\(\s*['\"`](?:token|access_token|refresh_token|id_token)['\"`]", src_body):
+            _add_oau07(
+                src_name,
+                "Client_LocalStorage_Token_Write",
+                f"{src_name} writes OAuth/authentication token to browser localStorage via localStorage.setItem() (CWE-922).",
+            )
+        if re.search(r"sessionStorage\.setItem\s*\(\s*['\"`](?:token|access_token|refresh_token|id_token)['\"`]", src_body):
+            _add_oau07(
+                src_name,
+                "Client_SessionStorage_Token_Write",
+                f"{src_name} writes OAuth/authentication token to browser sessionStorage via sessionStorage.setItem() (CWE-922).",
+            )
+        if re.search(r"(?:cookieService|this\.[a-zA-Z0-9_$]+)\.put\s*\(\s*['\"`](?:token|access_token|refresh_token)['\"`]", src_body):
+            m_ck = re.search(r"(?:cookieService|this\.[a-zA-Z0-9_$]+)\.put\s*\(\s*['\"`](?:token|access_token|refresh_token)['\"`]", src_body)
+            ck_slice = src_body[max(0, m_ck.start() - 120) : m_ck.end() + 250] if m_ck else ""
+            if "httpOnly" not in ck_slice:
+                _add_oau07(
+                    src_name,
+                    "Client_JS_Cookie_Token_Write",
+                    f"{src_name} stores OAuth/session cookie via client-side JavaScript cookie writer without HttpOnly/Secure enforcement (CWE-922).",
+                )
+
+    for fp_ts in local_storage_hits or []:
+        if fp_ts.endswith(".spec.ts") or (fp_ts, "Client_LocalStorage_Token_Write") in seen_oau07_keys:
+            continue
+        _add_oau07(
+            fp_ts,
+            "Static_LocalStorage_Token_Write",
+            f"{fp_ts} invokes localStorage.setItem('token', ...) for OAuth/access token persistence instead of HttpOnly; Secure cookies (CWE-922).",
+        )
+
+    mobile_store_re = re.compile(r"\b(?:getSharedPreferences|SharedPreferences\.Editor|NSUserDefaults|UserDefaults\.standard)\b")
+    mobile_tok_re = re.compile(r"(?:access_token|refresh_token|id_token|oauth|token)", re.IGNORECASE)
+    mobile_secure_re = re.compile(r"\b(?:EncryptedSharedPreferences|MasterKey|KeyStore|SecItemAdd|kSecClass|Keychain)\b")
+    plist_xml_tok_re = re.compile(
+        r"""<(?:string|key)\b[^>]*(?:name=['"])?(?:access_token|refresh_token|id_token|oauth_token)['"]?[^>]*>[^<]{6,}""",
+        re.IGNORECASE,
+    )
+    if repo_path.exists():
+        for ext7 in ("*.kt", "*.java", "*.swift", "*.m", "*.xml", "*.plist", "*.apk", "*.ipa"):
+            for fp7 in repo_path.rglob(ext7):
+                if any(part in fp7.parts for part in ("node_modules", ".git", "dist", ".angular", "Pods")):
+                    continue
+                rel7 = str(fp7.relative_to(repo_path))
+                suf7 = fp7.suffix.lower()
+                if suf7 in {".apk", ".ipa"}:
+                    dec7 = _extract_mobile_binary_text(fp7)
+                    if mobile_store_re.search(dec7) and mobile_tok_re.search(dec7) and not mobile_secure_re.search(dec7):
+                        _add_oau07(
+                            rel7,
+                            "Mobile_Plaintext_Preference_Token",
+                            f"{rel7} persists token material in plaintext SharedPreferences/UserDefaults instead of Keystore/Keychain (MASA 1.1.1.1 / CWE-922).",
+                        )
+                    continue
+                txt7 = fp7.read_text(encoding="utf-8", errors="ignore")
+                if suf7 in {".xml", ".plist"}:
+                    if plist_xml_tok_re.search(txt7) or ("<map>" in txt7 and mobile_tok_re.search(txt7) and not mobile_secure_re.search(txt7)):
+                        _add_oau07(
+                            rel7,
+                            "Mobile_Plaintext_Preference_File",
+                            f"{rel7} stores OAuth/refresh token inside plaintext XML/Plist preferences instead of Android Keystore/iOS Keychain (CWE-922).",
+                        )
+                elif mobile_store_re.search(txt7) and mobile_tok_re.search(txt7) and not mobile_secure_re.search(txt7):
+                    _add_oau07(
+                        rel7,
+                        "Mobile_Plaintext_Preference_Token",
+                        f"{rel7} persists token material in plaintext SharedPreferences/UserDefaults instead of Keystore/Keychain (MASA 1.1.1.1 / CWE-922).",
+                    )
+
+    # 4. Semgrep AST OAU-07 rule (CASA3-OAU-07) correlated with token context & secure storage exclusions
+    semgrep_sarif_file = semgrep_sarif_out_path or (OUTPUT_DIR / "oau07-semgrep.sarif")
+    semgrep_ran, raw_sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "CASA3-OAU-07", semgrep_sarif_file) if run_semgrep else (False, [])
+    )
+    kept_sg_hits: list[dict] = []
+    for sh in raw_sg_hits:
+        rel_part = sh["location"].rsplit(":", 1)[0]
+        matched_file = repo_path / rel_part if repo is not None else Path(rel_part)
+        if matched_file.exists():
+            f_txt = matched_file.read_text(encoding="utf-8", errors="ignore")
+            if mobile_store_re.search(f_txt) and (not mobile_tok_re.search(f_txt) or mobile_secure_re.search(f_txt)):
+                continue
+        kept_sg_hits.append(sh)
+        _add_oau07(
+            sh["location"],
+            "Semgrep_OAU07_Insecure_Token_Storage",
+            f"Semgrep rule {sh['ruleId']} flagged {sh['location']} ({sh['message']}).",
+        )
+
+    all_har_entries = list(probe_har_entries)
+    for ce in crawled_exchanges or []:
+        if ce.get("url"):
+            all_har_entries.append(
+                {
+                    "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "time": 1.0,
+                    "request": {"method": ce.get("method", "GET"), "url": ce["url"], "httpVersion": "HTTP/1.1", "headers": []},
+                    "response": {
+                        "status": ce.get("status", 0),
+                        "httpVersion": "HTTP/1.1",
+                        "headers": [{"name": "Set-Cookie", "value": "[REDACTED]"}] if ce.get("set_cookie") else [],
+                    },
+                }
+            )
+
+    rep_file = report_out_path or (OUTPUT_DIR / "oau07-storage-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "MASA 1.1.1.1 / CWE-922 / ASVS V6.4.1 (Secure Platform Token Storage)",
+                "target": base_url,
+                "verdict": "FAIL" if oau07_findings else "PASS",
+                "headlessExecuted": browser_dump_executed,
+                "crawledResponses": len(crawled_exchanges or []),
+                "sourcesAudited": len(oauth_sources or []),
+                "semgrepHits": len(kept_sg_hits),
+                "findings": oau07_findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "oau07-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-oau07-storage-harness", "version": "3.0"},
+                    "entries": all_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af_o7 in oau07_findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-OAU-07",
+                "level": "error",
+                "message": {"text": af_o7["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af_o7["location"]}}}],
+                "properties": {
+                    "controlId": "OAU-07",
+                    "findingKind": af_o7["kind"],
+                    "cwe": af_o7["cwe"],
+                },
+            }
+        )
+
+    oau07_fail = len(oau07_findings) > 0
+    return {
+        "verdict": "FAIL" if oau07_fail else "PASS",
+        "oau07_fail": oau07_fail,
+        "headlessExecuted": browser_dump_executed,
+        "semgrepHits": len(kept_sg_hits),
+        "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+        "findings": oau07_findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
+
+
 def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
     results: dict[str, dict] = {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -14754,156 +15026,39 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
             )
         ),
     }
-    # OAU-07: Secure Token Storage Inspector (Browser Storage Dump, HttpOnly; Secure cookies, JS Bundles, Mobile Stores; SARIF 2.1.0 + HAR 1.2)
-    oau07_findings: list[dict] = []
-    seen_oau07_keys: set[tuple[str, str]] = set()
-
-    def _add_oau07(location: str, kind: str, detail: str) -> None:
-        key7 = (location, kind)
-        if key7 not in seen_oau07_keys:
-            seen_oau07_keys.add(key7)
-            oau07_findings.append({"location": location, "kind": kind, "cwe": "CWE-922", "detail": detail})
-
-    # 1. Inspect live Headless Chrome CDP browser storage dump (localStorage, sessionStorage, IndexedDB, non-HttpOnly cookies)
-    if aut08_snap:
-        before_s = aut08_snap.get("before", {}) or {}
-        for store_k in ("localStorage", "sessionStorage"):
-            store_map = before_s.get(store_k, {}) or {}
-            if isinstance(store_map, dict):
-                for k_name, k_val in store_map.items():
-                    v_str = str(k_val or "")
-                    k_low = str(k_name).lower()
-                    is_tok_key = any(t in k_low for t in ("token", "access_token", "refresh_token", "id_token", "jwt", "auth"))
-                    is_jwt_val = bool(re.match(r"^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$", v_str))
-                    if is_tok_key or is_jwt_val or (aut05_token and aut05_token[:24] in v_str):
-                        _add_oau07(
-                            f"{base_url or 'browser'}#{store_k}.{k_name}",
-                            f"Browser_{store_k}_Token",
-                            f"Headless Chrome dump found observed/bearer token persisted in plaintext browser {store_k}['{k_name}'] (redacted len={len(v_str)}; violates OAU-07 / MASA 1.1.1.1 / CWE-922).",
-                        )
-
-        idb_list = before_s.get("indexedDB", []) or []
-        for idb_entry in idb_list:
-            idb_name = str(idb_entry.get("name", "") if isinstance(idb_entry, dict) else idb_entry)
-            if any(t in idb_name.lower() for t in ("token", "auth", "oauth", "session")):
-                _add_oau07(
-                    f"{base_url or 'browser'}#indexedDB.{idb_name}",
-                    "Browser_IndexedDB_Token",
-                    f"Headless Chrome dump observed auth/token IndexedDB database '{idb_name}' (prohibited client storage per OAU-07).",
-                )
-
-        doc_cookie_str = str(before_s.get("nonHttpOnlyCookies", "") or "")
-        for ck_pair in [p.strip() for p in doc_cookie_str.split(";") if "=" in p]:
-            ck_name, ck_val = ck_pair.split("=", 1)
-            ck_low = ck_name.strip().lower()
-            if any(t in ck_low for t in ("token", "access_token", "refresh_token", "id_token", "jwt", "session")) or ck_val.strip().startswith("eyJ"):
-                _add_oau07(
-                    f"{base_url or 'browser'}#document.cookie:{ck_name.strip()}",
-                    "NonHttpOnly_Token_Cookie",
-                    f"Headless Chrome document.cookie exposed token-bearing cookie '{ck_name.strip()}' (len={len(ck_val.strip())}) lacking HttpOnly/Secure flags (violates OAU-07 / CWE-922).",
-                )
-
-    # 2. Check crawled Set-Cookie headers & client-set token cookies from AUT-06
-    for af6 in cfg06_aut06_findings:
-        miss = af6.get("missing", [])
-        if any(attr in miss for attr in ("HttpOnly", "Secure", "Server-Issued Set-Cookie")):
-            _add_oau07(
-                af6.get("url", base_url or "cookie"),
-                "Cookie_Missing_HttpOnly_Or_Secure",
-                f"Token-bearing cookie '{af6.get('cookieName', 'token')}' at {af6.get('url', '')} lacks required attributes {miss} (OAU-07).",
-            )
-
-    # 3. Inspect live served JS bundles (main.js) & OAuth client source files + Mobile plaintext storage sinks
-    for src_name, src_body in combined_oauth_sources:
-        if re.search(r"localStorage\.setItem\s*\(\s*['\"`](?:token|access_token|refresh_token|id_token)['\"`]", src_body):
-            _add_oau07(
-                src_name,
-                "Client_LocalStorage_Token_Write",
-                f"{src_name} writes OAuth/authentication token to browser localStorage via localStorage.setItem() (CWE-922).",
-            )
-        if re.search(r"sessionStorage\.setItem\s*\(\s*['\"`](?:token|access_token|refresh_token|id_token)['\"`]", src_body):
-            _add_oau07(
-                src_name,
-                "Client_SessionStorage_Token_Write",
-                f"{src_name} writes OAuth/authentication token to browser sessionStorage via sessionStorage.setItem() (CWE-922).",
-            )
-        if re.search(r"(?:cookieService|this\.[a-zA-Z0-9_$]+)\.put\s*\(\s*['\"`](?:token|access_token|refresh_token)['\"`]", src_body):
-            m_ck = re.search(r"(?:cookieService|this\.[a-zA-Z0-9_$]+)\.put\s*\(\s*['\"`](?:token|access_token|refresh_token)['\"`]", src_body)
-            ck_slice = src_body[max(0, m_ck.start() - 120) : m_ck.end() + 250] if m_ck else ""
-            if "httpOnly" not in ck_slice:
-                _add_oau07(
-                    src_name,
-                    "Client_JS_Cookie_Token_Write",
-                    f"{src_name} stores OAuth/session cookie via client-side JavaScript cookie writer without HttpOnly/Secure enforcement (CWE-922).",
-                )
-
-    for fp_ts in local_storage_hits:
-        if fp_ts.endswith(".spec.ts"):
-            continue
-        if (fp_ts, "Client_LocalStorage_Token_Write") in seen_oau07_keys:
-            continue
-        _add_oau07(
-            fp_ts,
-            "Static_LocalStorage_Token_Write",
-            f"{fp_ts} invokes localStorage.setItem('token', ...) for OAuth/access token persistence instead of HttpOnly; Secure cookies (CWE-922).",
-        )
-
-    # Mobile plaintext token storage check (SharedPreferences / NSUserDefaults without Keystore/Keychain)
-    mobile_store_re = re.compile(r"\b(?:getSharedPreferences|SharedPreferences\.Editor|NSUserDefaults|UserDefaults\.standard)\b")
-    mobile_tok_re = re.compile(r"(?:access_token|refresh_token|id_token|oauth|token)", re.IGNORECASE)
-    mobile_secure_re = re.compile(r"\b(?:EncryptedSharedPreferences|MasterKey|KeyStore|SecItemAdd|kSecClass|Keychain)\b")
-    if repo.exists():
-        for ext7 in ("*.kt", "*.java", "*.swift", "*.m"):
-            for fp7 in repo.rglob(ext7):
-                if "node_modules" in fp7.parts or ".git" in fp7.parts:
-                    continue
-                txt7 = fp7.read_text(encoding="utf-8", errors="ignore")
-                if mobile_store_re.search(txt7) and mobile_tok_re.search(txt7) and not mobile_secure_re.search(txt7):
-                    _add_oau07(
-                        str(fp7.relative_to(repo)),
-                        "Mobile_Plaintext_Preference_Token",
-                        f"{fp7.relative_to(repo)} persists token material in plaintext SharedPreferences/UserDefaults instead of Keystore/Keychain (MASA 1.1.1.1 / CWE-922).",
-                    )
-
-    for af_o7 in oau07_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-OAU-07",
-                "level": "error",
-                "message": {"text": af_o7["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af_o7["location"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "OAU-07",
-                    "findingKind": af_o7["kind"],
-                    "cwe": af_o7["cwe"],
-                },
-            }
-        )
-
-    oau07_fail = len(oau07_findings) > 0
+    # OAU-07: Secure Token Storage Inspector (Browser Storage Dump, HttpOnly; Secure cookies, JS Bundles, Mobile Stores, Semgrep; SARIF 2.1.0 + HAR 1.2)
+    oau07_eval = evaluate_oau07_token_storage(
+        base_url,
+        repo=repo,
+        storage_snapshot=aut08_snap if headless_executed or aut08_snap else None,
+        observed_token=aut05_token,
+        cfg06_aut06_findings=cfg06_aut06_findings,
+        oauth_sources=combined_oauth_sources,
+        local_storage_hits=local_storage_hits,
+        crawled_exchanges=crawled_exchanges,
+        http_probe_fn=http_probe,
+    )
+    oau07_findings = oau07_eval["findings"]
+    dast_sarif_results.extend(oau07_eval["sarifResults"])
+    oau07_fail = oau07_eval["oau07_fail"]
     oau07_lines = [f"[{o7['kind']}] {o7['detail']}" for o7 in oau07_findings]
     results["OAU-07"] = {
-        "verdict": "FAIL" if oau07_fail else "PASS",
+        "verdict": oau07_eval["verdict"],
         "tool": (
-            f"Headless Browser Storage & Cookie Security Inspector (Chrome CDP headless={headless_executed}, "
-            f"{len(crawled_exchanges)} HTTP Set-Cookie scans, {len(combined_oauth_sources)} bundle/source artifacts, SARIF 2.1.0 + redacted HAR 1.2)"
+            f"Headless Browser Storage, MobSF Prefs & Semgrep Inspector (Chrome CDP headless={headless_executed}, "
+            f"{len(crawled_exchanges)} HTTP Set-Cookie scans, {len(combined_oauth_sources)} bundle/source artifacts, "
+            f"Semgrep hits={oau07_eval['semgrepHits']}, SARIF 2.1.0 + redacted HAR 1.2)"
         ),
         "log": (
             f"[FAIL] {len(oau07_findings)} insecure OAuth/access token storage violation(s) detected (CWE-922 / MASA 1.1.1.1):\n  - "
             + "\n  - ".join(oau07_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+            + f"\n\nEvidence Artifacts:\n  - OAU-07 Storage Audit JSON: {oau07_eval['reportPath']}\n  - OAU-07 Redacted HAR 1.2: {oau07_eval['harPath']}\n  - OAU-07 Semgrep SARIF 2.1.0: {oau07_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             if oau07_fail
             else (
                 f"[PASS] Enumerated browser storage (localStorage, sessionStorage, IndexedDB, document.cookie), "
                 f"Set-Cookie HttpOnly; Secure attributes across {len(crawled_exchanges)} responses, and {len(combined_oauth_sources)} client artifacts; "
                 f"0 tokens persisted outside HttpOnly; Secure cookies / platform Keystore / Keychain.\n"
-                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
+                f"Evidence Artifacts:\n  - OAU-07 Storage Audit JSON: {oau07_eval['reportPath']}\n  - OAU-07 Redacted HAR 1.2: {oau07_eval['harPath']}\n  - OAU-07 Semgrep SARIF 2.1.0: {oau07_eval['semgrepSarifPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}"
             )
         ),
     }

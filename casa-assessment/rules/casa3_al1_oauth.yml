@@ -57,3 +57,11 @@ rules:
           - patterns:
               - pattern-regex: '(?:client[_-]?secret|clientSecret|CLIENT_SECRET|oauth_secret|consumer_secret)\s*[:=]\s*["''][^"''\n]{8,160}["'']'
               - pattern-not-regex: '(?i)(?:replace_me|your_client_secret|changeme|dummy_secret|placeholder|process\.env|\$\{|<client_secret>)'
+
+  - id: CASA3-OAU-07-insecure-token-storage
+    languages: [typescript, javascript, kotlin, java, swift]
+    message: "OAU-07: Authentication/OAuth token persisted in localStorage, sessionStorage, or plaintext mobile preferences instead of Keystore/Keychain/HttpOnly Secure cookie (CWE-922)"
+    severity: ERROR
+    pattern-either:
+      - pattern-regex: '(?:localStorage|sessionStorage)\.setItem\s*\(\s*["''`](?:token|access_token|refresh_token|id_token)["''`]'
+      - pattern-regex: '\b(?:getSharedPreferences|SharedPreferences\.Editor|NSUserDefaults|UserDefaults\.standard)\b'

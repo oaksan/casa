@@ -5336,6 +5336,111 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 55/61: OAU-06 (Iteração SDD 125)", just2_txt)
 
+    def test_iteration126_oau07_guide_tooling(self) -> None:
+        import http.server
+        import socketserver
+        import tempfile
+        import threading
+        import zipfile
+
+        from casa_audit.scanner import evaluate_oau07_token_storage
+
+        class _CookieStub(http.server.BaseHTTPRequestHandler):
+            mode = "hardened"
+
+            def log_message(self, format, *args) -> None:
+                return
+
+            def do_GET(self) -> None:
+                self.send_response(200)
+                if _CookieStub.mode == "hardened":
+                    self.send_header("Set-Cookie", "access_token=secret_http_only_tok; Path=/; HttpOnly; Secure; SameSite=Strict")
+                else:
+                    self.send_header("Set-Cookie", "access_token=secret_exposed_cookie_tok; Path=/")
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+
+        srv = _ThreadedHTTPServer(("127.0.0.1", 0), _CookieStub)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                tdp = Path(td)
+                # 1. Hardened: HttpOnly; Secure cookie, empty browser dump, EncryptedSharedPreferences -> PASS
+                pass_repo = tdp / "pass_storage"
+                (pass_repo / "android").mkdir(parents=True)
+                (pass_repo / "android" / "SecureStore.kt").write_text(
+                    "val prefs = EncryptedSharedPreferences.create(ctx, 'vault', MasterKey.Builder(ctx).build())\n",
+                    encoding="utf-8",
+                )
+                r_pass = evaluate_oau07_token_storage(
+                    f"http://127.0.0.1:{port}",
+                    repo=pass_repo,
+                    storage_snapshot={"before": {"localStorage": {}, "sessionStorage": {}, "indexedDB": [], "nonHttpOnlyCookies": ""}},
+                    login_paths=["/auth/session"],
+                    report_out_path=tdp / "oau07_pass.json",
+                    har_out_path=tdp / "oau07_pass.har",
+                    semgrep_sarif_out_path=tdp / "oau07_pass_sg.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertEqual(r_pass["semgrepHits"], 0)
+
+                # 2. Vulnerable: localStorage snapshot + nonHttpOnly cookie + missing Secure/HttpOnly Set-Cookie + XML prefs + APK + Semgrep -> FAIL
+                _CookieStub.mode = "vulnerable"
+                fail_repo = tdp / "fail_storage"
+                (fail_repo / "android").mkdir(parents=True)
+                (fail_repo / "frontend" / "src" / "app").mkdir(parents=True)
+                (fail_repo / "frontend" / "src" / "app" / "oauth.ts").write_text(
+                    "localStorage.setItem('access_token', tok);\n",
+                    encoding="utf-8",
+                )
+                (fail_repo / "android" / "prefs.xml").write_text(
+                    '<map><string name="access_token">eyJ_plain_xml_token_126</string></map>\n',
+                    encoding="utf-8",
+                )
+                with zipfile.ZipFile(fail_repo / "client.apk", "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("classes.dex", b"getSharedPreferences access_token")
+
+                r_fail = evaluate_oau07_token_storage(
+                    f"http://127.0.0.1:{port}",
+                    repo=fail_repo,
+                    storage_snapshot={
+                        "before": {
+                            "localStorage": {"access_token": "eyJhbGciOiJIUzI1NiJ9.payload.sig"},
+                            "sessionStorage": {},
+                            "indexedDB": [],
+                            "nonHttpOnlyCookies": "access_token=eyJhbGciOiJIUzI1NiJ9.payload.sig",
+                        }
+                    },
+                    oauth_sources=[("frontend/src/app/oauth.ts", "localStorage.setItem('access_token', tok);")],
+                    login_paths=["/auth/session"],
+                    report_out_path=tdp / "oau07_fail.json",
+                    har_out_path=tdp / "oau07_fail.har",
+                    semgrep_sarif_out_path=tdp / "oau07_fail_sg.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                kinds = {f["kind"] for f in r_fail["findings"]}
+                self.assertIn("Browser_localStorage_Token", kinds)
+                self.assertIn("NonHttpOnly_Token_Cookie", kinds)
+                self.assertIn("Cookie_Missing_HttpOnly_Or_Secure", kinds)
+                self.assertIn("Mobile_Plaintext_Preference_File", kinds)
+                self.assertIn("Mobile_Plaintext_Preference_Token", kinds)
+                self.assertIn("Semgrep_OAU07_Insecure_Token_Storage", kinds)
+                har_txt = (tdp / "oau07_fail.har").read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn("secret_exposed_cookie_tok", har_txt)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-07" for s in r_fail["sarifResults"]))
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 56/61: OAU-07 (Iteração SDD 126)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

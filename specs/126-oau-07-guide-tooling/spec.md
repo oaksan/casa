@@ -1,0 +1,5 @@
+# Spec 126 — OAU-07 Guide-Compliant Tooling
+
+- **Control:** `OAU-07` (56/61) — Access and refresh tokens are held in platform secure storage — Keystore, Keychain, or `HttpOnly` `Secure` cookie. Never `localStorage`, `SharedPreferences` plaintext, or disk cache (`MASA 1.1.1.1 / 2.1.1.1; CWE-922; ASVS V6.4.1`).
+- **Required Tooling (`CASA 3.0 (AL1) Test Guide.md`):** `Playwright`, `MobSF`.
+- **Goal:** Extract `evaluate_oau07_token_storage` in `casa-assessment/casa_audit/scanner.py` combining headless browser storage enumeration (`headless_storage_dump.js` / `Playwright`-equivalent Chrome CDP dump for `localStorage`, `sessionStorage`, IndexedDB, `document.cookie`), `Set-Cookie` header audit via `_make_redacted_har_probe`, Semgrep rule `CASA3-OAU-07-insecure-token-storage`, MobSF-style `.apk`/`.ipa`/`.xml`/`.plist` mobile preference & disk-cache inspection (`_extract_mobile_binary_text`), emitting `output/oau07-storage-audit.json`, redacted `output/oau07-replayed.har`, `output/oau07-semgrep.sarif`, and `CASA3-OAU-07` SARIF 2.1.0 results.

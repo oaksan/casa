@@ -5516,11 +5516,16 @@ def parse_directory_index_body(
         keys = [k.strip() for k in re.findall(r"<Key>\s*([^<]+?)\s*</Key>", resp_txt, re.IGNORECASE) if k.strip()]
         return "S3 ListBucketResult XML", keys
 
+    if "<enumerationresults" in low and ("<blobs>" in low or "<blob>" in low or "<blobprefix>" in low or "xml" in ctype):
+        blob_names = [n.strip() for n in re.findall(r"<Name>\s*([^<]+?)\s*</Name>", resp_txt, re.IGNORECASE) if n.strip()]
+        return "Azure Blob EnumerationResults XML", blob_names
+
     is_serveindex = "listing directory" in low or ('id="files"' in low and "view-tiles" in low)
     is_autoindex = (
         "<title>index of /" in low
         or "<h1>index of /" in low
-        or "directory listing for /" in low
+        or "directory listing for " in low
+        or "[to parent directory]" in low
         or ("parent directory" in low and ("last modified" in low or "<pre>" in low))
     )
     if is_serveindex or is_autoindex:

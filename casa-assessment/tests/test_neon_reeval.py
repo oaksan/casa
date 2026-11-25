@@ -1067,6 +1067,44 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 24/61: TLS-06 (Iteração SDD 155)", just_neon)
 
+    def test_iteration156_cfg01_neon_reeval(self) -> None:
+        # 1. Azure Blob EnumerationResults XML detected
+        azure_xml = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<EnumerationResults ContainerName="https://acct.blob.core.windows.net/backups">'
+            "<Blobs><Blob><Name>db-dump.sql</Name></Blob><Blob><Name>keys.json</Name></Blob></Blobs>"
+            "</EnumerationResults>"
+        )
+        fmt_az, items_az = sc.parse_directory_index_body(
+            "/backups", 200, {"content-type": "application/xml"}, azure_xml
+        )
+        self.assertEqual(fmt_az, "Azure Blob EnumerationResults XML")
+        self.assertEqual(items_az, ["db-dump.sql", "keys.json"])
+
+        # 2. IIS [To Parent Directory] listing detected
+        iis_html = (
+            '<html><head><title>srv - /uploads/</title></head><body><pre>'
+            '<a href="/">[To Parent Directory]</a><br>'
+            '<a href="/uploads/report.pdf">report.pdf</a>'
+            "</pre></body></html>"
+        )
+        fmt_iis, items_iis = sc.parse_directory_index_body(
+            "/uploads", 200, {"content-type": "text/html"}, iis_html
+        )
+        self.assertEqual(fmt_iis, "Web Server Autoindex HTML")
+        self.assertIn("report.pdf", items_iis)
+
+        # 3. Normal HTML page does not false-positive
+        normal_html = "<html><body><h1>Welcome</h1><p>No directory listing here.</p></body></html>"
+        fmt_ok, items_ok = sc.parse_directory_index_body(
+            "/", 200, {"content-type": "text/html"}, normal_html
+        )
+        self.assertIsNone(fmt_ok)
+        self.assertEqual(items_ok, [])
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 25/61: CFG-01 (Iteração SDD 156)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

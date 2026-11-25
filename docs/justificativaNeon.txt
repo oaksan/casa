@@ -924,3 +924,29 @@ Domínio 3: Transport Security — FECHAMENTO DO DOMÍNIO 3
   * Suíte integral `unittest discover`: **88 testes executados em 1029.080s — OK** (zero falhas / zero flakes).
   * Varredura completa ao vivo contra OWASP Juice Shop (`http://localhost:3000` + `juice-shop-master`, 61 controles: `FAIL=51, PASS=5, NOT_APPLICABLE=2, Not_Covered=3`):
     - `TLS-01..TLS-06 [FAIL]` — todos executados via `testssl.sh 3.2.2` em JSON estruturado + HAR 1.2, confirmando operação em cleartext HTTP sem TLS, sem certificado X.509, `HSTS_time=0` e ausência de listener TLS para checagens de vulnerabilidades.
+
+================================================================================
+DOMÍNIO 4: SERVER CONFIGURATION & RESPONSE HEADERS (CFG-01 .. CFG-11)
+================================================================================
+
+--------------------------------------------------------------------------------
+CONTROLE 25/61: CFG-01 (Iteração SDD 156) — Directory Browsing Disabled
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L562):
+   - Referência: `OWASP ZAP (spider + directory-browsing passive rule 10033), ffuf`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). O scanner executa OWASP ZAP
+     2.17.0 (Spider + Regra Passiva `10033`) + parser estruturado de respostas de
+     autoindex/storage. Zero uso de Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `parse_directory_index_body` reconhecia apenas AWS S3 `<ListBucketResult>` XML,
+     deixando de cobrir listagens públicas de containers Azure Blob Storage
+     (`<EnumerationResults><Blobs><Blob><Name>...</Name></Blob></Blobs>`).
+   - Autoindex IIS (`[To Parent Directory]`) e Tomcat (`Directory Listing For <dir>`
+     sem barra imediatamente após `for`) não eram cobertos.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionado suporte a `Azure Blob EnumerationResults XML` com extração de `<Name>`.
+   - Expandido `is_autoindex` para cobrir `[to parent directory]` (IIS) e
+     `directory listing for ` (Tomcat/Go/Python).
+4. Validação:
+   - `test_iteration156_cfg01_neon_reeval` (Azure Blob XML, IIS autoindex, HTML limpo)
+     + regressão `test_iteration95_cfg01_guide_tooling` (OWASP ZAP 2.17.0 real).

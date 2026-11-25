@@ -21,7 +21,7 @@
       "url": "http://localhost:3000/#/search",
       "xssType": "DOM_XSS_callback_confirmed",
       "confirmedBy": "out_of_band_http_callback",
-      "detail": "Headless Chrome executed injected JavaScript payload at http://localhost:3000/#/search and triggered live out-of-band HTTP callback GET 127.0.0.1:43487/cb?vec=dom_search (CWE-79 / ASVS V5.3.3)."
+      "detail": "Headless Chrome executed injected JavaScript payload at http://localhost:3000/#/search and triggered live out-of-band HTTP callback GET 127.0.0.1:42685/cb?vec=dom_search (CWE-79 / ASVS V5.3.3)."
     }
   ]
 }

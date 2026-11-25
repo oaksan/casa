@@ -4,7 +4,7 @@
   "verdict": "FAIL",
   "endpointsTested": [
     "/rest/wallet/balance",
-    "/rest/basket/58"
+    "/rest/basket/63"
   ],
   "probesRun": 16,
   "vectorsRejected": [
@@ -56,39 +56,39 @@
       "detail": "GET http://localhost:3000/rest/wallet/balance ACCEPTED crafted token 'insufficient_scope' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
     },
     {
-      "location": "http://localhost:3000/rest/basket/58",
+      "location": "http://localhost:3000/rest/basket/63",
       "vector": "unsigned_alg_none",
       "cwe": "CWE-347",
       "status": 200,
-      "detail": "GET http://localhost:3000/rest/basket/58 ACCEPTED crafted token 'unsigned_alg_none' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
+      "detail": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'unsigned_alg_none' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
     },
     {
-      "location": "http://localhost:3000/rest/basket/58",
+      "location": "http://localhost:3000/rest/basket/63",
       "vector": "alg_confusion_hs256_pubkey",
       "cwe": "CWE-347",
       "status": 200,
-      "detail": "GET http://localhost:3000/rest/basket/58 ACCEPTED crafted token 'alg_confusion_hs256_pubkey' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
+      "detail": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'alg_confusion_hs256_pubkey' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
     },
     {
-      "location": "http://localhost:3000/rest/basket/58",
+      "location": "http://localhost:3000/rest/basket/63",
       "vector": "wrong_audience_aud",
       "cwe": "CWE-347",
       "status": 200,
-      "detail": "GET http://localhost:3000/rest/basket/58 ACCEPTED crafted token 'wrong_audience_aud' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
+      "detail": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'wrong_audience_aud' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
     },
     {
-      "location": "http://localhost:3000/rest/basket/58",
+      "location": "http://localhost:3000/rest/basket/63",
       "vector": "wrong_issuer_iss",
       "cwe": "CWE-347",
       "status": 200,
-      "detail": "GET http://localhost:3000/rest/basket/58 ACCEPTED crafted token 'wrong_issuer_iss' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
+      "detail": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'wrong_issuer_iss' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
     },
     {
-      "location": "http://localhost:3000/rest/basket/58",
+      "location": "http://localhost:3000/rest/basket/63",
       "vector": "insufficient_scope",
       "cwe": "CWE-347",
       "status": 200,
-      "detail": "GET http://localhost:3000/rest/basket/58 ACCEPTED crafted token 'insufficient_scope' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
+      "detail": "GET http://localhost:3000/rest/basket/63 ACCEPTED crafted token 'insufficient_scope' (HTTP 200) without enforcing signature/iss/aud/scope/alg allowlist (RFC 9700 §4.9 / RFC 8725 / CWE-347)."
     },
     {
       "location": "lib/insecurity.ts:52",

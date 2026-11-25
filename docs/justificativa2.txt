@@ -3136,3 +3136,68 @@ Domínio 8: Webhook Security (WHK)
   * Varredura real do repositório + sondas `POST` confirmando `0` receptores ou
     verificadores webhook -> Veredito **`Not_Covered`** fundamentado.
 ================================================================================
+
+
+================================================================================
+CONTROLE 61/61: WHK-03 (Iteração SDD 131) — Encerramento do Domínio 8 e da Série 61/61
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: WHK-03
+- Requisito (CASA 3.0 AL1):
+  "User-supplied callback URLs are SSRF-protected; signing secrets are not
+  hardcoded or committed to version control."
+- Referências: CASA v2.1.1 §7.3.1, §7.3.2; CWE-918 | Superfície: Web_Application.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `scripted harness`, `interactsh`, `gitleaks`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida + `OASIS SARIF 2.1.0` (`CASA3-WHK-03`).
+- Critério Determinístico de Verificação:
+  * PASS: Nenhum fetch OOB ocorre para faixas internas/restritas (`127.0.0.0/8`,
+    `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`,
+    `100.64.0.0/10`, `::1`, `fc00::/7`, `fe80::/10`, `169.254.169.254`,
+    `fd00:ec2::254`, redirect chain, DNS rebind) e nenhum segredo de assinatura
+    (`whsec_...`, `WEBHOOK_SECRET`...) consta em fontes/histórico.
+  * FAIL: >= 1 fetch OOB interno / aceitação de URL restrita ou >= 1 segredo
+    hardcoded/commitado detectado por harness/`gitleaks`/`Semgrep`.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 131`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `evaluate_whk03_ssrf_and_signing_secrets` rodava sem registro `HAR 1.2`, sem
+  executar o binário `gitleaks` (`dir` e `git`) e sem regra `Semgrep` dedicada.
+- O que foi feito e melhorado na Iteração SDD 131:
+  1) Adição da regra AST `CASA3-WHK-03-hardcoded-signing-secret` em
+     `rules/casa3_al1_oauth.yml` (detecção de `whsec_` e literais de assinatura).
+  2) Criação de `evaluate_whk03_ssrf_protection(...)` em `casa_audit/scanner.py`
+     preservando a assinatura 4-tupla de `evaluate_whk03_ssrf_and_signing_secrets`,
+     integrando listener HTTP OOB efêmero (`interactsh`-equivalente com salto `302`),
+     captura HAR 1.2 via `_make_redacted_har_probe`, execução real de `gitleaks`
+     (`dir` + `git` via `_run_gitleaks_sarif`) e Semgrep `CASA3-WHK-03`, emitindo
+     `output/whk03-ssrf-audit.json`, `output/whk03-replayed.har`,
+     `output/whk03-gitleaks.sarif` e `CASA3-WHK-03`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP E FIXTURES (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration131_whk03_guide_tooling`):
+  * **`PASS`** validado sobre **11** vetores SSRF rejeitados (`HTTP 400`, `0`
+    fetches OOB) e `process.env.WEBHOOK_SECRET` (`0` hits `gitleaks`/Semgrep).
+  * **`FAIL`** confirmado com listener OOB recebendo fetches diretos e via
+    cadeia `302`, aceitação de `169.254.169.254`, `whsec_` em código e hits
+    Semgrep/`CASA3-WHK-03`.
+  * **`Not_Covered`** confirmado em alvo sem registro de callbacks.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Varredura real do repositório + **10** sondas HTTP `POST` confirmando `0`
+    facilidades de callback ou handlers de assinatura -> Veredito **`Not_Covered`**
+    fundamentado.
+
+================================================================================
+CONCLUSÃO FINAL DA SÉRIE SDD 071–131 (61/61 CONTROLES CASA 3.0 AL1 ALINHADOS)
+--------------------------------------------------------------------------------
+Com o fechamento de `WHK-03` na Iteração `SDD 131`, todos os **61 controles CASA
+3.0 AL1** (Domínios `SCA`, `SAST`, `TLS`, `CFG`, `AUT`, `AZI`, `OAU` e `WHK`)
+estão alinhados às ferramentas especificadas no `CASA 3.0 (AL1) Test Guide.md`,
+validados por suíte automatizada unitária/integrada e verificados ao vivo contra
+o benchmark OWASP Juice Shop (`http://localhost:3000`).
+================================================================================

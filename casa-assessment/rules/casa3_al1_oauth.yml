@@ -102,3 +102,14 @@ rules:
       - patterns:
           - pattern-regex: '[^\n]*(?:\b(?:sig|signature|expected|computed|hmac_val|webhook_sig)\w*\s*(?:===|!==|==|!=)\s*\w+|Buffer\.compare\s*\()[^\n]*'
           - pattern-not-regex: '(?:timingSafeEqual|compare_digest|MessageDigest\.isEqual|ConstantTimeCompare|ConstantTimeEquals)'
+
+  - id: CASA3-WHK-03-hardcoded-signing-secret
+    languages: [typescript, javascript, python, yaml, json]
+    message: "WHK-03: Webhook signing secret hardcoded in source/config instead of secret manager/env (CASA v2.1.1 §7.3.2; CWE-798)"
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern-regex: '\bwhsec_[A-Za-z0-9+/=_-]{16,}\b'
+          - patterns:
+              - pattern-regex: '(?i)\b(?:signing[_-]?secret|signingSecret|WEBHOOK_SECRET|webhookSecret|hmac[_-]?secret|hmacSecret)\b\s*[:=]\s*["''][^"''\n]{8,160}["'']'
+              - pattern-not-regex: '(?i)(?:\$\{|process\.env|changeme|placeholder|example_secret|test_secret|dummy|your_signing_secret)'

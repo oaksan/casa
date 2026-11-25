@@ -5957,6 +5957,136 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 60/61: WHK-02 (Iteração SDD 130)", just2_txt)
 
+    def test_iteration131_whk03_guide_tooling(self) -> None:
+        import http.server
+        import json
+        import socketserver
+        import subprocess
+        import tempfile
+        import threading
+        import urllib.request
+
+        from casa_audit.scanner import evaluate_whk03_ssrf_protection
+
+        class _RegStub(http.server.BaseHTTPRequestHandler):
+            mode = "hardened"
+
+            def log_message(self, format, *args) -> None:
+                return
+
+            def do_POST(self) -> None:
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length).decode("utf-8", errors="ignore")
+                try:
+                    body = json.loads(raw) if raw else {}
+                except Exception:
+                    body = {}
+                cb_url = str(body.get("url") or body.get("callbackUrl") or "")
+                if _RegStub.mode == "hardened":
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"restricted_ssrf_destination_denied"}')
+                    return
+                if cb_url and ("127.0.0.1:" in cb_url or "ssrf-redir-hop" in cb_url):
+                    try:
+                        with urllib.request.urlopen(cb_url, timeout=2):
+                            pass
+                    except Exception:
+                        pass
+                self.send_response(201)
+                self.end_headers()
+                self.wfile.write(b'{"registered":true}')
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+
+        srv = _ThreadedHTTPServer(("127.0.0.1", 0), _RegStub)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                tdp = Path(td)
+                # 1. Hardened: SSRF CIDRs/redirect/DNS rebind all blocked (400), 0 OOB fetches, env signing secret -> PASS
+                pass_repo = tdp / "whk_ssrf_pass"
+                (pass_repo / "routes").mkdir(parents=True)
+                pass_code = (
+                    "const secret = process.env.WEBHOOK_SECRET;\n"
+                    "app.post('/api/webhooks/register', (req, res) => res.status(400).json({ error: 'denied' }));\n"
+                )
+                (pass_repo / "routes" / "register.ts").write_text(pass_code, encoding="utf-8")
+
+                r_pass = evaluate_whk03_ssrf_protection(
+                    f"http://127.0.0.1:{port}",
+                    repo=pass_repo,
+                    callback_endpoints=[f"http://127.0.0.1:{port}/api/webhooks/register"],
+                    webhook_files={"routes/register.ts": pass_code},
+                    report_out_path=tdp / "whk03_pass.json",
+                    har_out_path=tdp / "whk03_pass.har",
+                    gitleaks_sarif_out_path=tdp / "whk03_pass_gl.sarif",
+                    semgrep_sarif_out_path=tdp / "whk03_pass_sg.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertEqual(r_pass["probesRun"], 11)
+                self.assertEqual(r_pass["oobFetches"], 0)
+                self.assertEqual(r_pass["semgrepHits"], 0)
+
+                # 2. Vulnerable: SSRF OOB fetches (direct + redirect) + committed whsec_ secret (git + Semgrep + gitleaks) -> FAIL
+                _RegStub.mode = "vulnerable"
+                fail_repo = tdp / "whk_ssrf_fail"
+                (fail_repo / "routes").mkdir(parents=True)
+                fail_code = (
+                    'const signing_secret = "whsec_RealWebhookSigningKeyLeak9876543210";\n'
+                    "app.post('/api/webhooks/register', (req, res) => fetch(req.body.url));\n"
+                )
+                (fail_repo / "routes" / "register.ts").write_text(fail_code, encoding="utf-8")
+                subprocess.run(["git", "-C", str(fail_repo), "init", "-q"], check=True)
+                subprocess.run(["git", "-C", str(fail_repo), "config", "user.email", "test@example.com"], check=True)
+                subprocess.run(["git", "-C", str(fail_repo), "config", "user.name", "Test"], check=True)
+                subprocess.run(["git", "-C", str(fail_repo), "add", "."], check=True)
+                subprocess.run(["git", "-C", str(fail_repo), "commit", "-q", "-m", "leak webhook secret"], check=True)
+
+                r_fail = evaluate_whk03_ssrf_protection(
+                    f"http://127.0.0.1:{port}",
+                    repo=fail_repo,
+                    callback_endpoints=[f"http://127.0.0.1:{port}/api/webhooks/register"],
+                    webhook_files={"routes/register.ts": fail_code},
+                    report_out_path=tdp / "whk03_fail.json",
+                    har_out_path=tdp / "whk03_fail.har",
+                    gitleaks_sarif_out_path=tdp / "whk03_fail_gl.sarif",
+                    semgrep_sarif_out_path=tdp / "whk03_fail_sg.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                self.assertGreaterEqual(r_fail["oobFetches"], 2)
+                kinds = {f["kind"] for f in r_fail["findings"]}
+                self.assertIn("WHK03_SSRF_Internal_Fetch_loopback_ipv4_127", kinds)
+                self.assertIn("WHK03_SSRF_Internal_Fetch_redirect_chain_loopback", kinds)
+                self.assertIn("WHK03_SSRF_Accepted_Restricted_URL_aws_metadata_169_254", kinds)
+                self.assertIn("WHK03_Hardcoded_whsec_Secret", kinds)
+                self.assertIn("Semgrep_WHK03_Signing_Secret", kinds)
+                self.assertTrue((tdp / "whk03_fail.har").exists())
+                self.assertTrue(any(s["ruleId"] == "CASA3-WHK-03" for s in r_fail["sarifResults"]))
+
+                # 3. No webhook callback facilities -> Not_Covered
+                empty_repo = tdp / "empty_web"
+                empty_repo.mkdir()
+                (empty_repo / "index.ts").write_text("export const ok = true;", encoding="utf-8")
+                r_nc = evaluate_whk03_ssrf_protection(
+                    "",
+                    repo=empty_repo,
+                    report_out_path=tdp / "whk03_nc.json",
+                    har_out_path=tdp / "whk03_nc.har",
+                    gitleaks_sarif_out_path=tdp / "whk03_nc_gl.sarif",
+                    semgrep_sarif_out_path=tdp / "whk03_nc_sg.sarif",
+                )
+                self.assertEqual(r_nc["verdict"], "Not_Covered")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 61/61: WHK-03 (Iteração SDD 131)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

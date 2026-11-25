@@ -13,7 +13,7 @@
       "cwe": "CWE-601",
       "status": 200,
       "confirmedBy": "owasp_zap_20019",
-      "detail": "[OWASP ZAP 20019] External Redirect detected at http://localhost:3000/redirect (param='to', attack='https://7865728095079450883.owasp.org/?https://github.com/ju') (CWE-601)."
+      "detail": "[OWASP ZAP 20019] External Redirect detected at http://localhost:3000/redirect (param='to', attack='https://3467396821179255259.owasp.org/?https://github.com/ju') (CWE-601)."
     },
     {
       "url": "http://localhost:3000/redirect",

@@ -15643,54 +15643,42 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # WHK-03: Callback URL SSRF Protection (private/loopback/link-local/cloud-metadata/redirect/DNS-rebind) & Signing Secret Detection (SARIF 2.1.0 + HAR 1.2)
-    whk03_verdict, whk03_probes, whk03_findings, whk03_cb_hits = evaluate_whk03_ssrf_and_signing_secrets(
-        whk_receivers,
-        webhook_files=whk_files,
+    whk03_eval = evaluate_whk03_ssrf_protection(
+        base_url,
         repo=repo,
-        http_fn=http_probe if base_url else None,
+        callback_endpoints=whk_receivers,
+        webhook_files=whk_files,
+        files_scanned=whk_scanned_files,
+        discovery_probes=whk_disc_probes,
+        http_probe_fn=http_probe if base_url else None,
     )
-    for af_w3 in whk03_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-WHK-03",
-                "level": "error",
-                "message": {"text": af_w3["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af_w3["location"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "WHK-03",
-                    "findingKind": af_w3["kind"],
-                    "cwe": af_w3["cwe"],
-                    "httpStatus": af_w3["status"],
-                },
-            }
-        )
+    whk03_verdict = whk03_eval["verdict"]
+    whk03_probes = whk03_eval["probesRun"]
+    whk03_findings = whk03_eval["findings"]
+    whk03_cb_hits = whk03_eval["oobFetches"]
+    dast_sarif_results.extend(whk03_eval["sarifResults"])
     whk03_lines = [f"[{w3['cwe']} / {w3['kind']}] {w3['detail']}" for w3 in whk03_findings]
     results["WHK-03"] = {
         "verdict": whk03_verdict,
         "tool": (
-            f"Webhook Callback SSRF Listener & Signing-Secret Scanner ({len(whk_receivers)} callback facilities, "
-            f"{len(whk_files)} handler files, {whk03_probes} SSRF CIDR/redirect/rebind probes, oob_fetches={whk03_cb_hits}, SARIF 2.1.0 + HAR 1.2)"
+            f"Webhook Callback SSRF Listener (interactsh-equiv), gitleaks & Semgrep Scanner ({len(whk_receivers)} callback facilities, "
+            f"{len(whk_files)} handler files, {whk03_probes} SSRF CIDR/redirect/rebind probes, oob_fetches={whk03_cb_hits}, "
+            f"gitleaks={whk03_eval['gitleaksHits']}, Semgrep hits={whk03_eval['semgrepHits']}, SARIF 2.1.0 + HAR 1.2)"
         ),
         "log": (
             f"[FAIL] {len(whk03_findings)} webhook SSRF / hardcoded signing-secret violation(s) detected (oob_fetches={whk03_cb_hits}):\n  - "
             + "\n  - ".join(whk03_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+            + f"\n\nEvidence Artifacts:\n  - WHK-03 SSRF Audit JSON: {whk03_eval['reportPath']}\n  - WHK-03 Redacted HAR 1.2: {whk03_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
             if whk03_verdict == "FAIL"
             else (
                 f"[PASS] Executed {whk03_probes} SSRF probes (loopback 127.0.0.0/8 & ::1, RFC1918, 100.64.0.0/10, 169.254.169.254, fd00:ec2::254, "
                 f"redirect chain, DNS rebind) and audited {len(whk_files)} webhook artifacts; 0 internal fetches and 0 hardcoded signing secrets.\n"
-                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                f"Evidence Artifacts:\n  - WHK-03 SSRF Audit JSON: {whk03_eval['reportPath']}\n  - WHK-03 Redacted HAR 1.2: {whk03_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
                 if whk03_verdict == "PASS"
                 else (
                     f"[Not_Covered] Audited {whk_scanned_files} workspace files and executed {whk_disc_probes} HTTP POST discovery probes "
                     f"(including /api/webhooks/register, /webhooks/register, /api/callback); 0 webhook callback registration facilities or signing-secret handlers discovered.\n"
-                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                    f"Evidence Artifacts:\n  - WHK-03 SSRF Audit JSON: {whk03_eval['reportPath']}\n  - WHK-03 Redacted HAR 1.2: {whk03_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
                 )
             )
         ),
@@ -17074,6 +17062,211 @@ def evaluate_whk03_ssrf_and_signing_secrets(
 
     verdict = "FAIL" if findings else "PASS"
     return verdict, probes, findings, len(ssrf_hits)
+
+
+def evaluate_whk03_ssrf_protection(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    callback_endpoints: list[str] | None = None,
+    webhook_files: dict[str, str] | None = None,
+    files_scanned: int | None = None,
+    discovery_probes: int | None = None,
+    http_probe_fn=None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    gitleaks_sarif_out_path: Path | None = None,
+    semgrep_sarif_out_path: Path | None = None,
+    run_gitleaks: bool = True,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate WHK-03 (CASA v2.1.1 §7.3.1, §7.3.2; CWE-918) via SSRF OOB listener HAR, gitleaks & Semgrep."""
+    base_url = target_url.strip().rstrip("/")
+    _probe_logged, _, probe_har_entries = _make_redacted_har_probe(base_url, http_probe_fn=http_probe_fn)
+
+    if callback_endpoints is None and webhook_files is None and repo is not None:
+        disc_callbacks, disc_files, f_sc, d_pr = discover_webhook_facilities(repo, base_url=base_url, http_fn=_probe_logged if base_url else None)
+    else:
+        disc_callbacks = list(callback_endpoints or [])
+        disc_files = dict(webhook_files or {})
+        f_sc = int(files_scanned or 0)
+        d_pr = int(discovery_probes or 0)
+
+    def _logged_reg_http(url_or_path: str, method: str = "POST", headers: dict | None = None, body: bytes | None = None, follow_redirects: bool = False):
+        if http_probe_fn is not None or not url_or_path.startswith(("http://", "https://")):
+            return _probe_logged(url_or_path, method=method, headers=headers, body=body, follow_redirects=follow_redirects)
+        req_w = urllib.request.Request(url_or_path, data=body, headers={"User-Agent": "ADA-CASA-3.0-WHK03/3.0", **(headers or {})}, method=method)
+        try:
+            with urllib.request.urlopen(req_w, timeout=3) as resp:
+                st_r, hdrs_r, body_r = resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(2048).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            st_r, hdrs_r, body_r = he.code, {k.lower(): v for k, v in he.headers.items()}, ""
+        except Exception:
+            st_r, hdrs_r, body_r = 0, {}, ""
+        probe_har_entries.append(
+            {
+                "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "time": 1.0,
+                "request": {
+                    "method": method,
+                    "url": url_or_path,
+                    "httpVersion": "HTTP/1.1",
+                    "headers": [{"name": k, "value": "[REDACTED]" if k.lower() in {"authorization", "cookie", "x-webhook-secret"} else v} for k, v in (headers or {}).items()],
+                },
+                "response": {"status": st_r, "httpVersion": "HTTP/1.1", "headers": [{"name": k, "value": v} for k, v in hdrs_r.items()]},
+            }
+        )
+        return st_r, hdrs_r, body_r
+
+    verdict, probes, findings, oob_fetches = evaluate_whk03_ssrf_and_signing_secrets(
+        disc_callbacks,
+        webhook_files=disc_files,
+        repo=repo,
+        http_fn=_logged_reg_http if (disc_callbacks and (http_probe_fn is not None or base_url)) else None,
+    )
+
+    seen_w3 = {(f["location"], f["kind"]) for f in findings}
+    wh_file_keys = {k.replace("\\", "/") for k in disc_files}
+    has_webhook_scope = bool(disc_callbacks or disc_files)
+
+    # Run gitleaks (dir + git history if .git exists) over repository with webhook facilities
+    gitleaks_file = gitleaks_sarif_out_path or (OUTPUT_DIR / "whk03-gitleaks.sarif")
+    gl_hits_kept: list[dict] = []
+    gl_ran = False
+    if run_gitleaks and has_webhook_scope and repo is not None and repo.exists():
+        gl_dir_hits, gl_dir_ok = _run_gitleaks_sarif("dir", repo, gitleaks_file, timeout_s=45)
+        gl_ran = gl_dir_ok
+        all_gl = list(gl_dir_hits)
+        if (repo / ".git").exists():
+            git_gl_hits, gl_git_ok = _run_gitleaks_sarif("git", repo, gitleaks_file.with_name("whk03-gitleaks-git.sarif"), timeout_s=45)
+            gl_ran = gl_ran or gl_git_ok
+            all_gl.extend(git_gl_hits)
+        for gh in all_gl:
+            f_path = str(gh.get("File") or "").replace("\\", "/")
+            try:
+                f_rel = str(Path(f_path).resolve().relative_to(repo.resolve())).replace("\\", "/")
+            except Exception:
+                f_rel = f_path
+            rule_s = str(gh.get("RuleID") or "")
+            if (not wh_file_keys or f_rel in wh_file_keys) or any(tok in (f_rel + rule_s).lower() for tok in ("webhook", "whsec", "signing", "hook")):
+                gl_hits_kept.append(gh)
+                loc_gl = f"{f_rel}:{gh.get('StartLine', 1)}"
+                kw3 = (loc_gl, "WHK03_Gitleaks_Signing_Secret")
+                if kw3 not in seen_w3:
+                    seen_w3.add(kw3)
+                    findings.append(
+                        {
+                            "location": loc_gl,
+                            "kind": "WHK03_Gitleaks_Signing_Secret",
+                            "cwe": "CWE-798",
+                            "status": 0,
+                            "detail": f"gitleaks rule {rule_s} detected committed/hardcoded signing secret in {loc_gl}.",
+                        }
+                    )
+
+    semgrep_sarif_file = semgrep_sarif_out_path or (OUTPUT_DIR / "whk03-semgrep.sarif")
+    semgrep_ran, raw_sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "CASA3-WHK-03", semgrep_sarif_file) if (run_semgrep and has_webhook_scope) else (False, [])
+    )
+    kept_sg_hits: list[dict] = []
+    for sh in raw_sg_hits:
+        rel_part = sh["location"].rsplit(":", 1)[0].replace("\\", "/")
+        if wh_file_keys and rel_part not in wh_file_keys:
+            continue
+        kept_sg_hits.append(sh)
+        kw3s = (sh["location"], "Semgrep_WHK03_Signing_Secret")
+        if kw3s not in seen_w3:
+            seen_w3.add(kw3s)
+            findings.append(
+                {
+                    "location": sh["location"],
+                    "kind": "Semgrep_WHK03_Signing_Secret",
+                    "cwe": "CWE-798",
+                    "status": 0,
+                    "detail": f"Semgrep rule {sh['ruleId']} flagged {sh['location']} ({sh['message']}).",
+                }
+            )
+
+    if findings:
+        verdict = "FAIL"
+
+    rep_file = report_out_path or (OUTPUT_DIR / "whk03-ssrf-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "CASA v2.1.1 §7.3.1, §7.3.2 / CWE-918 (Callback SSRF & Signing Secret Hygiene)",
+                "target": base_url,
+                "verdict": verdict,
+                "callbackEndpoints": disc_callbacks,
+                "filesScanned": f_sc,
+                "discoveryProbes": d_pr,
+                "probesRun": probes,
+                "oobFetches": oob_fetches,
+                "restrictedCidrsTested": [
+                    "127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+                    "100.64.0.0/10", "169.254.0.0/16", "fc00::/7", "fe80::/10",
+                    "169.254.169.254", "fd00:ec2::254", "redirect_chain", "dns_rebind",
+                ],
+                "gitleaksHits": len(gl_hits_kept),
+                "semgrepHits": len(kept_sg_hits),
+                "findings": findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "whk03-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-whk03-ssrf-harness", "version": "3.0"},
+                    "entries": probe_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af_w3 in findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-WHK-03",
+                "level": "error",
+                "message": {"text": af_w3["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af_w3["location"]}}}],
+                "properties": {
+                    "controlId": "WHK-03",
+                    "findingKind": af_w3["kind"],
+                    "cwe": af_w3["cwe"],
+                    "httpStatus": af_w3["status"],
+                },
+            }
+        )
+
+    return {
+        "verdict": verdict,
+        "whk03_fail": verdict == "FAIL",
+        "callbackEndpoints": disc_callbacks,
+        "probesRun": probes,
+        "oobFetches": oob_fetches,
+        "gitleaksHits": len(gl_hits_kept),
+        "gitleaksSarifPath": str(gitleaks_file) if gl_ran else None,
+        "semgrepHits": len(kept_sg_hits),
+        "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+        "findings": findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
 
 
 def evaluate_sast07_mass_assignment_probe(

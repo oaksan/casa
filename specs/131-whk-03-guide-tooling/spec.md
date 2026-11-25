@@ -1,0 +1,5 @@
+# Spec 131 — WHK-03 Guide-Compliant Tooling
+
+- **Control:** `WHK-03` (61/61 — closes Domain 8 & all 61 CASA 3.0 AL1 controls) — User-supplied callback URLs are SSRF-protected; signing secrets are not hardcoded or committed to version control (`CASA v2.1.1 §7.3.1, §7.3.2; CWE-918`, Surface: `Web_Application`).
+- **Required Tooling (`CASA 3.0 (AL1) Test Guide.md`):** `scripted harness`, `interactsh`, `gitleaks`.
+- **Goal:** Add Semgrep AST rule `CASA3-WHK-03-hardcoded-signing-secret` in `casa-assessment/rules/casa3_al1_oauth.yml`, add structured `evaluate_whk03_ssrf_protection` in `casa-assessment/casa_audit/scanner.py` (preserving `evaluate_whk03_ssrf_and_signing_secrets` 4-tuple compatibility) combining the ephemeral HTTP OOB listener (`interactsh`-style direct + 302 redirect-chain SSRF probes over all 11 restricted CIDRs/rebind vectors), `_make_redacted_har_probe` HAR 1.2 logging, real `gitleaks` (`_run_gitleaks_sarif` dir + git history), and `_run_oauth_semgrep_sarif`, emitting `output/whk03-ssrf-audit.json`, redacted `output/whk03-replayed.har`, `output/whk03-gitleaks.sarif`, `output/whk03-semgrep.sarif`, and `CASA3-WHK-03` SARIF 2.1.0 entries.

@@ -1250,3 +1250,25 @@ CONTROLE 39/61: AUT-04 (Iteração SDD 170) — No Tokens/Credentials in URL/Ref
 4. Validação:
    - `test_iteration170_aut04_neon_reeval` (token URL-encoded + `client_secret`
      redigido no HAR) + regressão `test_iteration109_aut04_guide_tooling` (ZAP 2.17.0 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 40/61: AUT-05 (Iteração SDD 171) — Logout Server-Side Invalidation
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L889):
+   - Referência: `scripted harness`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Harness Python de
+     logout + replay de sessão e refresh token com HAR 1.2 redigido e SARIF 2.1.0.
+     Zero uso de Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Rotas REST `POST /logout` e `DELETE /api/session` não estavam na lista padrão.
+   - Respostas `200` com payload JSON explícito de negação (`{"authenticated": false}`)
+     podiam violar a semântica `Denied` (Guia L25).
+   - Endpoints `/oauth/token` RFC 6749 §6 que aceitam apenas
+     `application/x-www-form-urlencoded` retornavam 415/400 ao POST JSON.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionados `POST /logout` e `DELETE /api/session`, detector `_is_json_denial`
+     (semântica L25) e fallback `application/x-www-form-urlencoded` no replay
+     de refresh token.
+4. Validação:
+   - `test_iteration171_aut05_neon_reeval` (`DELETE /api/session` + JSON denial
+     200 + replay form-urlencoded `/oauth/token`) + regressão `test_iteration110_aut05_guide_tooling`.

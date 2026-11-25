@@ -1677,6 +1677,43 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 39/61: AUT-04 (Iteração SDD 170)", just_neon)
 
+    def test_iteration171_aut05_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            # 1. Server with DELETE /api/session revoking session (returning JSON denial 200)
+            #    but still accepting RFC 6749 form-urlencoded refresh_token on /oauth/token -> FAIL
+            state = {"logged_out": False}
+
+            def _probe_oauth_ref(ep: str, method: str = "GET", headers=None, body=None):
+                if ep == "/rest/user/login" and method == "POST":
+                    return 200, {}, json.dumps({"token": "sess_tok_a5", "refresh_token": "ref_tok_a5"})
+                if ep == "/api/session" and method == "DELETE":
+                    state["logged_out"] = True
+                    return 204, {}, ""
+                if ep == "/api/me":
+                    return (200, {}, '{"authenticated": false}') if state["logged_out"] else (200, {}, '{"authenticated": true}')
+                if ep == "/oauth/token" and method == "POST":
+                    ct = (headers or {}).get("Content-Type", "")
+                    if "x-www-form-urlencoded" not in ct:
+                        return 415, {}, '{"error":"unsupported_media_type"}'
+                    if b"refresh_token=ref_tok_a5" in (body or b""):
+                        return 200, {}, '{"access_token":"new_tok_after_logout"}'
+                    return 401, {}, '{"error":"invalid_grant"}'
+                return 404, {}, ""
+
+            r_fail = sc.evaluate_aut05_logout_invalidation(
+                "https://app.example.com",
+                protected_endpoints=["/api/me"],
+                refresh_endpoints=["/oauth/token"],
+                http_probe_fn=_probe_oauth_ref,
+                har_out_path=Path(td) / "aut05_ref.har",
+            )
+            self.assertTrue(r_fail["serverLogoutFound"])
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertEqual([f["channel"] for f in r_fail["findings"]], ["post_logout_refresh_replay"])
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 40/61: AUT-05 (Iteração SDD 171)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9340,7 +9340,9 @@ def evaluate_aut05_logout_invalidation(
         ("GET", "/rest/user/logout"),
         ("POST", "/api/logout"),
         ("POST", "/auth/logout"),
+        ("POST", "/logout"),
         ("GET", "/logout"),
+        ("DELETE", "/api/session"),
         ("GET", "/rest/saveLoginIp"),
     ]
     prot_eps = protected_endpoints or ["/rest/wallet/balance", "/rest/user/whoami"]
@@ -9349,6 +9351,18 @@ def evaluate_aut05_logout_invalidation(
     logout_endpoints_tried: list[str] = []
     server_logout_found = False
     aut05_replay_hits: list[dict] = []
+
+    def _is_json_denial(body_txt: str) -> bool:
+        try:
+            obj = json.loads(body_txt)
+        except Exception:
+            return False
+        if not isinstance(obj, dict):
+            return False
+        if obj.get("authenticated") is False or obj.get("loggedIn") is False:
+            return True
+        err_v = str(obj.get("error") or obj.get("message") or "").lower()
+        return bool(err_v and any(k in err_v for k in ("unauthorized", "unauthenticated", "invalid token", "session expired", "forbidden")))
 
     if aut05_token or session_cookies:
         cookie_pairs = list(session_cookies)
@@ -9371,14 +9385,17 @@ def evaluate_aut05_logout_invalidation(
             spa_hit = spa_check(lbody)
             is_real_api = (200 <= lst < 400) and not spa_hit
             logout_endpoints_tried.append(f"{lmth} {lep} -> HTTP {lst}{' (SPA catch-all)' if spa_hit else ''}")
-            if is_real_api and "logout" in lep:
+            if is_real_api and ("logout" in lep or "session" in lep):
                 server_logout_found = True
 
         # Replay session token/cookie after logout against protected routes
         for p_ep in prot_eps:
             pst, _, pbody = _probe_logged(p_ep, headers=aut05_hdrs)
-            accepted = (200 <= pst < 300) and not spa_check(pbody) and (
-                p_ep != "/rest/user/whoami" or '"email"' in pbody.lower()
+            accepted = (
+                (200 <= pst < 300)
+                and not spa_check(pbody)
+                and not _is_json_denial(pbody)
+                and (p_ep != "/rest/user/whoami" or '"email"' in pbody.lower())
             )
             if accepted:
                 aut05_replay_hits.append(
@@ -9393,7 +9410,7 @@ def evaluate_aut05_logout_invalidation(
                     }
                 )
 
-        # Replay refresh token after logout against refresh endpoints
+        # Replay refresh token after logout against refresh endpoints (JSON + RFC 6749 form-urlencoded fallback)
         if aut05_refresh_token:
             for ref_ep in ref_eps:
                 rst, r_hdrs, rbody = _probe_logged(
@@ -9402,8 +9419,18 @@ def evaluate_aut05_logout_invalidation(
                     headers={"Content-Type": "application/json", "Cookie": cookie_hdr},
                     body=json.dumps({"refresh_token": aut05_refresh_token, "refreshToken": aut05_refresh_token}).encode("utf-8"),
                 )
+                if rst in {400, 415}:
+                    form_body = urllib.parse.urlencode(
+                        {"grant_type": "refresh_token", "refresh_token": aut05_refresh_token}
+                    ).encode("utf-8")
+                    rst, r_hdrs, rbody = _probe_logged(
+                        ref_ep,
+                        method="POST",
+                        headers={"Content-Type": "application/x-www-form-urlencoded", "Cookie": cookie_hdr},
+                        body=form_body,
+                    )
                 has_new_tok = ("token" in rbody.lower()) or bool(_extract_session_cookies(r_hdrs.get("set-cookie", "")))
-                if 200 <= rst < 300 and not spa_check(rbody) and has_new_tok:
+                if 200 <= rst < 300 and not spa_check(rbody) and not _is_json_denial(rbody) and has_new_tok:
                     aut05_replay_hits.append(
                         {
                             "url": f"{base_url}{ref_ep}",

@@ -4964,6 +4964,139 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 52/61: OAU-03 (Iteração SDD 122)", just2_txt)
 
+    def test_iteration123_oau04_guide_tooling(self) -> None:
+        import http.server
+        import json
+        import secrets
+        import socketserver
+        import tempfile
+        import threading
+        import urllib.parse
+
+        from casa_audit.scanner import evaluate_oau04_state_nonce
+
+        class _Oau04Server(http.server.BaseHTTPRequestHandler):
+            mode = "hardened"
+            counter = 0
+
+            def log_message(self, format, *args) -> None:
+                return
+
+            def do_GET(self) -> None:
+                p = urllib.parse.urlparse(self.path)
+                qs = urllib.parse.parse_qs(p.query)
+                if p.path == "/oauth/authorize":
+                    _Oau04Server.counter += 1
+                    if _Oau04Server.mode == "hardened":
+                        st = secrets.token_urlsafe(32)
+                        nn = secrets.token_urlsafe(24)
+                    else:
+                        st = f"weak_{_Oau04Server.counter % 5}"
+                        nn = "static_nonce"
+                    self.send_response(302)
+                    self.send_header(
+                        "Location",
+                        f"https://idp.example.com/auth?response_type=code&scope=openid&state={st}&nonce={nn}",
+                    )
+                    self.end_headers()
+                    return
+                if p.path == "/oauth":
+                    if _Oau04Server.mode == "hardened":
+                        self.send_response(403)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(b'{"error":"invalid_state_or_nonce"}')
+                        return
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Set-Cookie", "token=eyJ_accepted_without_state; HttpOnly; Secure")
+                    self.end_headers()
+                    self.wfile.write(b'{"access_token":"eyJ_replayed"}')
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+
+        srv = _ThreadedHTTPServer(("127.0.0.1", 0), _Oau04Server)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            src_dir = tdp / "frontend" / "src" / "app"
+            src_dir.mkdir(parents=True)
+            hardened_ts = src_dir / "login.component.ts"
+            hardened_ts.write_text(
+                "const st = crypto.randomUUID(); const nn = crypto.randomUUID();\n"
+                "const u = `https://idp.example.com/auth?client_id=c1&redirect_uri=https%3A%2F%2Fapp.example.com%2Fcb&scope=openid&state=${st}&nonce=${nn}`;\n",
+                encoding="utf-8",
+            )
+
+            try:
+                # 1. Hardened: 200 distinct CSPRNG states >=128 bits, strict callback rejection -> PASS
+                rep_pass = tdp / "oau04_pass.json"
+                har_pass = tdp / "oau04_pass.har"
+                sg_pass = tdp / "oau04_pass_sg.sarif"
+                r_pass = evaluate_oau04_state_nonce(
+                    f"http://127.0.0.1:{port}",
+                    repo=tdp,
+                    auth_headers={"Authorization": "Bearer secret_oau04_tok_999", "Cookie": "sid=auth_secret_04"},
+                    oauth_sources=[("login.component.ts", hardened_ts.read_text(encoding="utf-8"))],
+                    report_out_path=rep_pass,
+                    har_out_path=har_pass,
+                    semgrep_sarif_out_path=sg_pass,
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertEqual(r_pass["stateSamples"], 200)
+                self.assertEqual(r_pass["distinctStates"], 200)
+                self.assertGreaterEqual(r_pass["minEntropyBits"], 128.0)
+                self.assertTrue(r_pass["oidcNonceChecked"])
+                self.assertEqual(r_pass["semgrepHits"], 0)
+                har_pass_txt = har_pass.read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_pass_txt)
+                self.assertNotIn("secret_oau04_tok_999", har_pass_txt)
+                self.assertNotIn("auth_secret_04", har_pass_txt)
+
+                # 2. Vulnerable: duplicate/low-entropy state + callback accepts replays/nonce omit + Semgrep hits -> FAIL
+                _Oau04Server.mode = "vulnerable"
+                vuln_ts = src_dir / "login.component.ts"
+                vuln_ts.write_text(
+                    "const u = 'https://idp.example.com/auth?client_id=c1&redirect_uri=https://app.example.com/cb&scope=openid';\n",
+                    encoding="utf-8",
+                )
+                rep_vuln = tdp / "oau04_vuln.json"
+                har_vuln = tdp / "oau04_vuln.har"
+                sg_vuln = tdp / "oau04_vuln_sg.sarif"
+                r_vuln = evaluate_oau04_state_nonce(
+                    f"http://127.0.0.1:{port}",
+                    repo=tdp,
+                    auth_headers={"Authorization": "Bearer secret_oau04_tok_999"},
+                    oauth_sources=[("login.component.ts", vuln_ts.read_text(encoding="utf-8"))],
+                    report_out_path=rep_vuln,
+                    har_out_path=har_vuln,
+                    semgrep_sarif_out_path=sg_vuln,
+                )
+                self.assertEqual(r_vuln["verdict"], "FAIL")
+                kinds = {f["kind"] for f in r_vuln["findings"]}
+                self.assertIn("Repeated_OAuth_State", kinds)
+                self.assertIn("Insufficient_State_MinEntropy", kinds)
+                self.assertIn("Callback_Accepted_state_omitted", kinds)
+                self.assertIn("Callback_Accepted_nonce_omitted", kinds)
+                self.assertIn("Missing_OAuth_State_Parameter", kinds)
+                self.assertIn("Missing_OIDC_Nonce_Parameter", kinds)
+                self.assertGreaterEqual(r_vuln["semgrepHits"], 1)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-04" for s in r_vuln["sarifResults"]))
+                rep_data = json.loads(rep_vuln.read_text(encoding="utf-8"))
+                self.assertIn("nonce_omitted:/oauth", rep_data["callbackReplays"])
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 53/61: OAU-04 (Iteração SDD 123)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

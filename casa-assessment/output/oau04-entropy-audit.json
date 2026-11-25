@@ -1,0 +1,54 @@
+{
+  "standard": "RFC 9700 §4.7 / OIDC Core §3.1.2.1 / NIST SP 800-90B",
+  "target": "http://localhost:3000",
+  "verdict": "FAIL",
+  "stateSamples": 0,
+  "distinctStates": 0,
+  "minEntropyBits": null,
+  "oidcNonceChecked": false,
+  "callbackReplays": [
+    "state_omitted:/oauth",
+    "state_replayed:/oauth",
+    "state_modified:/oauth",
+    "state_foreign_session:/oauth"
+  ],
+  "proxiedRequests": [],
+  "semgrepHits": 1,
+  "findings": [
+    {
+      "location": "http://localhost:3000/main.js",
+      "kind": "Missing_OAuth_State_Parameter",
+      "cwe": "CWE-352",
+      "status": 0,
+      "detail": "http://localhost:3000/main.js constructs OAuth 2.0 authorization URL `${Wx}?client_id=${this.clientId}&response_type=token&scope=email&redirect_uri=${this.redirectUri}` without a session-bound CSPRNG 'state=' parameter (0 bits entropy; violates RFC 9700 §4.7 / CWE-352)."
+    },
+    {
+      "location": "http://localhost:3000/main.js",
+      "kind": "Missing_Callback_State_Validation",
+      "cwe": "CWE-352",
+      "status": 0,
+      "detail": "http://localhost:3000/main.js callback handler processes OAuth return parameters (parseRedirectUrlParams().access_token) without validating 'state' against user-agent session storage (accepts omitted, replayed, modified, or cross-session callbacks — CWE-352)."
+    },
+    {
+      "location": "frontend/src/app/login/login.component.ts",
+      "kind": "Missing_OAuth_State_Parameter",
+      "cwe": "CWE-352",
+      "status": 0,
+      "detail": "frontend/src/app/login/login.component.ts constructs OAuth 2.0 authorization URL `${oauthProviderUrl}?client_id=${this.clientId}&response_type=token&scope=email&redirect_uri=${this.redirectUri}` without a session-bound CSPRNG 'state=' parameter (0 bits entropy; violates RFC 9700 §4.7 / CWE-352)."
+    },
+    {
+      "location": "frontend/src/app/oauth/oauth.component.ts",
+      "kind": "Missing_Callback_State_Validation",
+      "cwe": "CWE-352",
+      "status": 0,
+      "detail": "frontend/src/app/oauth/oauth.component.ts callback handler processes OAuth return parameters (parseRedirectUrlParams().access_token) without validating 'state' against user-agent session storage (accepts omitted, replayed, modified, or cross-session callbacks — CWE-352)."
+    },
+    {
+      "location": "frontend/src/app/login/login.component.ts:149",
+      "kind": "Semgrep_OAU04_Weak_Or_Missing_State",
+      "cwe": "CWE-352",
+      "status": 0,
+      "detail": "Semgrep rule casa-assessment.rules.CASA3-OAU-04-missing-state-or-weak-prng flagged frontend/src/app/login/login.component.ts:149 (OAU-04: OAuth 2.0 authorization request omits session-bound CSPRNG state or uses weak non-CSPRNG randomness (RFC 9700 §4.7; CWE-352))."
+    }
+  ]
+}

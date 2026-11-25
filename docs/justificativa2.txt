@@ -2686,3 +2686,61 @@ Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
     confirmando open redirect em `GET /redirect?to=...` -> Veredito **`FAIL`**
     (`CASA3-OAU-03`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 53/61: OAU-04 (Iteração SDD 123)
+Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: OAU-04
+- Requisito (CASA 3.0 AL1):
+  "`state` and OIDC `nonce` are CSPRNG-generated, bound to the user agent
+  session, and validated on return."
+- Referências: RFC 9700 §4.7; OIDC Core §3.1.2.1; CWE-352.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `mitmproxy`, `Burp Suite`, `SP 800-90B entropy estimator`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida das requisições de autorização e callbacks
+  reproduzidos + `OASIS SARIF 2.1.0` (`CASA3-OAU-04`).
+- Critério Determinístico de Verificação:
+  * PASS: Todos os 200 valores de `state` distintos, min-entropia SP 800-90B
+    `>= 128` bits, nenhuma manipulação de callback (`omitted`, `replayed`,
+    `modified`, `foreign_session`) gera sessão e nenhum ID token é aceito com
+    `nonce` omitido ou estrangeiro.
+  * FAIL: Entropia < 128 bits, repetição de `state`, sessão autenticada em
+    qualquer replay ou aceitação de `nonce` omitido/estrangeiro.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 123`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `OAU-04` rodava inline em `run_dynamic_and_protocol_checks`, sem
+  passar o fluxo pelo proxy interceptador HTTP, sem replay ativo de `nonce`
+  quando há escopo/tráfego OIDC, sem cabeçalho de sessão estrangeira, sem
+  regra Semgrep dedicada e sem artefatos JSON/HAR isolados do controle.
+- O que foi feito e melhorado na Iteração SDD 123:
+  1) Adição da regra AST `CASA3-OAU-04-missing-state-or-weak-prng` em
+     `casa-assessment/rules/casa3_al1_oauth.yml` (detectando URLs OAuth sem
+     `state=` e geração de `state` baseada em `Math.random()`).
+  2) Extração de `evaluate_oau04_state_nonce(...)` em `casa_audit/scanner.py`
+     reaproveitando `_run_oauth_intercepting_proxy`, `_make_redacted_har_probe` e
+     `_run_oauth_semgrep_sarif`, coletando **200 amostras** com estimador MCV
+     SP 800-90B (`>= 128` bits), replays (`state_omitted`, `state_replayed`,
+     `state_modified`, `state_foreign_session` + `nonce_omitted`/`nonce_foreign`),
+     emitindo `output/oau04-entropy-audit.json`, `output/oau04-replayed.har`,
+     `output/oau04-semgrep.sarif` e `CASA3-OAU-04`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration123_oau04_guide_tooling`):
+  * **`PASS`** validado sobre **200 amostras CSPRNG** distintas com min-entropia
+    SP 800-90B `>= 128` bits, `nonce` OIDC checado e HAR `[REDACTED]`.
+  * **`FAIL`** confirmado com estados repetidos / baixa entropia, callbacks
+    aceitando `state_omitted` e `nonce_omitted`, e regra Semgrep `CASA3-OAU-04`.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Análise híbrida (Semgrep + `main.js` + `login.component.ts` +
+    `oauth.component.ts` + replays em `/oauth`) confirmando omissão completa de
+    `state=` e validação ausente em callback -> Veredito **`FAIL`** (`CASA3-OAU-04`).
+================================================================================

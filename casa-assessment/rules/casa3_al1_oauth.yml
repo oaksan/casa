@@ -24,3 +24,16 @@ rules:
           - patterns:
               - pattern-regex: '[^\n]*\?client_id=[^\n]*redirect_uri=[^\n]*'
               - pattern-not-regex: 'code_challenge_method\s*=\s*S256\b'
+
+  - id: CASA3-OAU-04-missing-state-or-weak-prng
+    languages: [typescript, javascript, python]
+    message: "OAU-04: OAuth 2.0 authorization request omits session-bound CSPRNG state or uses weak non-CSPRNG randomness (RFC 9700 §4.7; CWE-352)"
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-regex: '[^\n]*\?client_id=[^\n]*redirect_uri=[^\n]*'
+              - pattern-not-regex: 'state='
+          - patterns:
+              - pattern-regex: '[^\n]*(?:state[^\n]*Math\.random\(|Math\.random\([^\n]*state)[^\n]*'
+              - pattern-not-regex: 'crypto\.(?:getRandomValues|randomUUID|randomBytes)'

@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Tue, 24 Nov 2026 20:24:27",
-	"created": "2026-11-24T23:24:27.228199215Z",
+	"@generated": "Tue, 24 Nov 2026 21:14:34",
+	"created": "2026-11-25T00:14:34.435440513Z",
 	"insights":[
 		{
 			"level": "Low",
@@ -120,12 +120,12 @@
 					"instances":[ 
 						{
 							"id": "28",
-							"uri": "http://localhost:3000/redirect?to=https%3A%2F%2F4193628835244886282.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop",
+							"uri": "http://localhost:3000/redirect?to=https%3A%2F%2F5652202318319891941.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop",
 							"nodeName": "http:\/\/localhost:3000\/redirect (to)",
 							"method": "GET",
 							"param": "to",
-							"attack": "https://4193628835244886282.owasp.org/?https://github.com/juice-shop/juice-shop",
-							"evidence": "https://4193628835244886282.owasp.org/?@@@original@@@",
+							"attack": "https://5652202318319891941.owasp.org/?https://github.com/juice-shop/juice-shop",
+							"evidence": "https://5652202318319891941.owasp.org/?@@@original@@@",
 							"otherinfo": "The response contains a redirect in its Location header which allows an external Url to be set."
 						}
 					],
@@ -149,7 +149,7 @@
 					"desc": "<p>Open redirects are one of the OWASP 2010 Top Ten vulnerabilities. This check looks at user-supplied input in query string parameters and POST data to identify where open redirects might be possible. Open redirects occur when an application allows user-supplied input (e.g. https://nottrusted.com) to control an off-site destination. This is generally a pretty accurate way to find where 301 or 302 redirects could be exploited by spammers or phishing attacks.</p><p></p><p>For example an attacker could supply a user with the following link: https://example.com/example.php?url=https://malicious.example.com.</p><p></p><p>NOTE: For the purposes of the passive check the authority portion of the origin and destination were compared. Manual testing may be required to validate the impact of this finding.</p>",
 					"instances":[ 
 						{
-							"id": "9",
+							"id": "8",
 							"uri": "http://localhost:3000/redirect?to=https://github.com/juice-shop/juice-shop",
 							"nodeName": "http:\/\/localhost:3000\/redirect (to)",
 							"method": "GET",
@@ -166,7 +166,7 @@
 					"reference": "<p>https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html</p><p>https://cwe.mitre.org/data/definitions/601.html</p>",
 					"cweid": "601",
 					"wascid": "38",
-					"sourceid": "1"
+					"sourceid": "10"
 				},
 				{
 					"pluginid": "10038",
@@ -199,7 +199,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "10",
+							"id": "7",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",
@@ -216,7 +216,7 @@
 					"reference": "<p>https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP</p><p>https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html</p><p>https://www.w3.org/TR/CSP/</p><p>https://w3c.github.io/webappsec-csp/</p><p>https://web.dev/articles/csp</p><p>https://caniuse.com/#feat=contentsecuritypolicy</p><p>https://content-security-policy.com/</p>",
 					"cweid": "693",
 					"wascid": "15",
-					"sourceid": "3"
+					"sourceid": "11"
 				},
 				{
 					"pluginid": "10098",
@@ -229,7 +229,17 @@
 					"desc": "<p>Web browser data loading may be possible, due to a Cross Origin Resource Sharing (CORS) misconfiguration on the web server.</p>",
 					"instances":[ 
 						{
-							"id": "0",
+							"id": "3",
+							"uri": "http://localhost:3000/chunk-CE5v8pBj.js",
+							"nodeName": "http:\/\/localhost:3000\/chunk-CE5v8pBj.js",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "Access-Control-Allow-Origin: *",
+							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
+						},
+						{
+							"id": "4",
 							"uri": "http://localhost:3000/redirect?to=https://github.com/juice-shop/juice-shop",
 							"nodeName": "http:\/\/localhost:3000\/redirect (to)",
 							"method": "GET",
@@ -239,9 +249,9 @@
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						},
 						{
-							"id": "4",
-							"uri": "http://localhost:3000/styles.css",
-							"nodeName": "http:\/\/localhost:3000\/styles.css",
+							"id": "2",
+							"uri": "http://localhost:3000/robots.txt",
+							"nodeName": "http:\/\/localhost:3000\/robots.txt",
 							"method": "GET",
 							"param": "",
 							"attack": "",
@@ -249,14 +259,14 @@
 							"otherinfo": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
 						}
 					],
-					"count": "2",
+					"count": "3",
 					"systemic": true,
 					"solution": "<p>Ensure that sensitive data is not available in an unauthenticated manner (using IP address white-listing, for instance).</p><p>Configure the \"Access-Control-Allow-Origin\" HTTP header to a more restrictive set of domains, or remove all CORS headers entirely, to allow the web browser to enforce the Same Origin Policy (SOP) in a more restrictive manner.</p>",
 					"otherinfo": "<p>The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing.</p>",
 					"reference": "<p>https://vulncat.fortify.com/en/detail?category=HTML5&subcategory=Overly%20Permissive%20CORS%20Policy</p>",
 					"cweid": "264",
 					"wascid": "14",
-					"sourceid": "1"
+					"sourceid": "21"
 				},
 				{
 					"pluginid": "10027",
@@ -329,7 +339,7 @@
 							"otherinfo": "No links have been found while there are scripts, which is an indication that this is a modern web application."
 						},
 						{
-							"id": "15",
+							"id": "14",
 							"uri": "http://localhost:3000/sitemap.xml",
 							"nodeName": "http:\/\/localhost:3000\/sitemap.xml",
 							"method": "GET",

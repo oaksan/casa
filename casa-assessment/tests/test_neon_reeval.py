@@ -698,6 +698,27 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 14/61: SAST-09 (Iteração SDD 145)", just_neon)
 
+    def test_iteration146_sast10_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            (src / "dyn.ts").write_text(
+                "import { spawn } from 'child_process';\nexport const run = (req: any) => spawn(req.query.cmd, [], { shell: true });\n",
+                encoding="utf-8",
+            )
+            (src / "dyn.php").write_text("<?php shell_exec($_GET['cmd']);\n", encoding="utf-8")
+            (src / "Dyn.cs").write_text("class C { void F() { var m = Request.Query[\"asm\"]; Assembly.Load(m); } }\n", encoding="utf-8")
+            v_fail, f_fail, sarifs, _ = sc.evaluate_sast10_dynamic_execution(repo)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fn in ("dyn.ts", "dyn.php", "Dyn.cs"):
+                self.assertIn(fn, joined, f"Missing SAST-10 hit for {fn} in:\n{joined}")
+            self.assertGreaterEqual(len(sarifs), 3)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 15/61: SAST-10 (Iteração SDD 146)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

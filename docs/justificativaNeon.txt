@@ -603,3 +603,31 @@ Domínio 2: Static Code Analysis & Secrets
   `hmac.compare_digest` em função distinta não suprime `pickle.loads` e que
   `Marshal.load` em Ruby falha `SAST-09`.
 - Regressão validada: `test_iteration84_sast09_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 15/61: SAST-10 (Iteração SDD 146)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L351):
+  `semgrep`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `semgrep` em modo `taint` (SARIF 2.1.0, nível `ERROR`).
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 146)
+--------------------------------------------------------------------------------
+1) **Ampliação de sinks de execução dinâmica/comando/reflexão (`casa3_al1_sast.yml`)**:
+   - Adicionados `spawn(..., { shell: true })`, `child_process.spawn(..., { shell: true })`
+     e carregamento reflexivo dinâmico `import($MOD)` em JS/TS.
+   - Adicionadas regras `CASA3-SAST-10-dynamic-code-execution-php` (`eval`,
+     `system`, `shell_exec`, `exec`, `passthru`) e
+     `CASA3-SAST-10-dynamic-code-execution-csharp` (`Assembly.Load`, `Process.Start`).
+
+3. VALIDAÇÃO (SDD 146)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration146_sast10_neon_reeval` validando
+  `spawn(..., { shell: true })` em TS, `shell_exec` em PHP e `Assembly.Load` em C#.
+- Regressão validada: `test_iteration85_sast10_guide_tooling` (`OK`).

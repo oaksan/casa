@@ -850,7 +850,10 @@ rules:
       - pattern: child_process.execSync($CMD, ...)
       - pattern: exec($CMD, ...)
       - pattern: execSync($CMD, ...)
+      - pattern: "child_process.spawn($CMD, ..., { ..., shell: true, ... })"
+      - pattern: "spawn($CMD, ..., { ..., shell: true, ... })"
       - pattern: require($MOD)
+      - pattern: "import($MOD)"
 
   - id: CASA3-SAST-10-dynamic-code-execution-python
     mode: taint
@@ -898,6 +901,34 @@ rules:
       - pattern: "$CTX.Param(...)"
     pattern-sinks:
       - pattern: "exec.Command($CMD, ...)"
+
+  - id: CASA3-SAST-10-dynamic-code-execution-php
+    mode: taint
+    languages: [php]
+    message: "SAST-10: Untrusted HTTP input flows into dynamic code or shell execution sink in PHP (CWE-95)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+    pattern-sinks:
+      - pattern: eval($CODE)
+      - pattern: system($CMD, ...)
+      - pattern: shell_exec($CMD)
+      - pattern: exec($CMD, ...)
+      - pattern: passthru($CMD, ...)
+
+  - id: CASA3-SAST-10-dynamic-code-execution-csharp
+    mode: taint
+    languages: [csharp]
+    message: "SAST-10: Untrusted HTTP input flows into reflective Assembly.Load or Process.Start in C# (CWE-95)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: Request.Query[$K]
+      - pattern: Request.Form[$K]
+    pattern-sinks:
+      - pattern: Assembly.Load($MOD)
+      - pattern: Process.Start($CMD, ...)
 
   - id: CASA3-SAST-11-path-traversal
     mode: taint

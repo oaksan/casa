@@ -952,11 +952,15 @@ rules:
       - pattern: "res.download($SINK, ...)"
       - pattern: "fs.readFile($SINK, ...)"
       - pattern: "fs.readFileSync($SINK, ...)"
+      - pattern: "fs.createReadStream($SINK, ...)"
       - pattern: "fs.createWriteStream($SINK, ...)"
       - pattern: "fs.writeFile($SINK, ...)"
       - pattern: "fs.writeFileSync($SINK, ...)"
+      - pattern: "fs.unlink($SINK, ...)"
+      - pattern: "fs.unlinkSync($SINK)"
       - pattern: "fs.promises.readFile($SINK, ...)"
       - pattern: "fs.promises.writeFile($SINK, ...)"
+      - pattern: "fs.promises.unlink($SINK)"
       - pattern: "path.resolve($SINK)"
       - pattern: "res.render($VIEW, { ...$SINK, ... })"
 
@@ -1021,6 +1025,39 @@ rules:
       - pattern: "os.ReadFile($SINK)"
       - pattern: "os.Create($SINK)"
       - pattern: "os.WriteFile($SINK, ...)"
+
+  - id: CASA3-SAST-11-path-traversal-php
+    mode: taint
+    languages: [php]
+    message: "SAST-11: File path constructed from unvalidated HTTP input or uploaded filename in PHP (CWE-22)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_FILES
+    pattern-sanitizers:
+      - pattern: basename(...)
+    pattern-sinks:
+      - pattern: file_get_contents($SINK, ...)
+      - pattern: fopen($SINK, ...)
+      - pattern: readfile($SINK, ...)
+      - pattern: unlink($SINK, ...)
+
+  - id: CASA3-SAST-11-path-traversal-csharp
+    mode: taint
+    languages: [csharp]
+    message: "SAST-11: File path constructed from unvalidated HTTP input in C# (CWE-22)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: Request.Query[$K]
+      - pattern: Request.Form[$K]
+    pattern-sanitizers:
+      - pattern: Path.GetFileName(...)
+    pattern-sinks:
+      - pattern: File.ReadAllText($SINK, ...)
+      - pattern: File.OpenRead($SINK)
+      - pattern: File.WriteAllBytes($SINK, ...)
+      - pattern: File.Delete($SINK)
 
   - id: CASA3-SAST-12-hardcoded-config-secrets
     languages: [typescript, javascript, terraform, python]

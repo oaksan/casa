@@ -631,3 +631,34 @@ Domínio 2: Static Code Analysis & Secrets
 - Novo teste unitário: `test_iteration146_sast10_neon_reeval` validando
   `spawn(..., { shell: true })` em TS, `shell_exec` em PHP e `Assembly.Load` em C#.
 - Regressão validada: `test_iteration85_sast10_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 16/61: SAST-11 (Iteração SDD 147)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L372):
+  `semgrep`, `CodeQL`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `semgrep` em modo `taint` com sanitizadores (`path.basename`,
+  `os.path.basename`, `secure_filename`, `FilenameUtils.getName`,
+  `filepath.Base`, `basename`, `Path.GetFileName`) em SARIF 2.1.0.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 147)
+--------------------------------------------------------------------------------
+1) **Ampliação de sinks de sistema de arquivos e cobertura multilíngue**:
+   - Adicionados `fs.createReadStream`, `fs.unlink`, `fs.unlinkSync` e
+     `fs.promises.unlink` em `CASA3-SAST-11-path-traversal`.
+   - Adicionadas regras `CASA3-SAST-11-path-traversal-php` e
+     `CASA3-SAST-11-path-traversal-csharp` com sanitizadores `basename` e
+     `Path.GetFileName`.
+
+3. VALIDAÇÃO (SDD 147)
+--------------------------------------------------------------------------------
+- Validação de sintaxe Semgrep (`semgrep --validate`, 0 erros) + novo teste
+  unitário `test_iteration147_sast11_neon_reeval` cobrindo TS (`createReadStream`),
+  PHP e C#.
+- Regressão validada: `test_iteration86_sast11_guide_tooling` (`OK`).

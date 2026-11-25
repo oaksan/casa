@@ -719,6 +719,27 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 15/61: SAST-10 (Iteração SDD 146)", just_neon)
 
+    def test_iteration147_sast11_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            (src / "bad_stream.ts").write_text(
+                "import fs from 'fs';\nexport const rd = (req: any) => fs.createReadStream('/var/data/' + req.query.f);\n",
+                encoding="utf-8",
+            )
+            (src / "bad.php").write_text("<?php echo file_get_contents('/srv/' . $_GET['f']);\n", encoding="utf-8")
+            (src / "Bad.cs").write_text("class C { void F() { var p = Request.Query[\"f\"]; File.ReadAllText(\"/srv/\" + p); } }\n", encoding="utf-8")
+            v_fail, f_fail, sarifs, _ = sc.evaluate_sast11_path_traversal(repo)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fn in ("bad_stream.ts", "bad.php", "Bad.cs"):
+                self.assertIn(fn, joined, f"Missing SAST-11 hit for {fn} in:\n{joined}")
+            self.assertGreaterEqual(len(sarifs), 3)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 16/61: SAST-11 (Iteração SDD 147)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

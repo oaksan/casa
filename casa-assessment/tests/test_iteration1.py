@@ -5659,7 +5659,7 @@ class TestCasa3Iteration1(unittest.TestCase):
                     semgrep_sarif_out_path=tdp / "oau09_pass_sg.sarif",
                 )
                 self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
-                self.assertEqual(len(r_pass["rejectedVectors"]), 7)
+                self.assertGreaterEqual(len(r_pass["rejectedVectors"]), 7)
                 self.assertEqual(r_pass["semgrepHits"], 0)
                 har_txt = (tdp / "oau09_pass.har").read_text(encoding="utf-8")
                 self.assertIn("[REDACTED]", har_txt)

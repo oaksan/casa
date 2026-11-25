@@ -15002,6 +15002,36 @@ def _b64url_decode_json(seg_str: str) -> dict:
     return json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8", errors="ignore"))
 
 
+def _is_json_denial(body_txt: str) -> bool:
+    """Detect Test Guide L25 HTTP 2xx JSON denial envelopes (unauthenticated/unauthorized/invalid signature)."""
+    try:
+        obj = json.loads(body_txt)
+    except Exception:
+        return False
+    if not isinstance(obj, dict):
+        return False
+    if obj.get("authenticated") is False or obj.get("loggedIn") is False or obj.get("ok") is False or obj.get("verified") is False:
+        return True
+    err_v = str(obj.get("error") or obj.get("message") or "").lower()
+    return bool(
+        err_v
+        and any(
+            k in err_v
+            for k in (
+                "unauthorized",
+                "unauthenticated",
+                "invalid token",
+                "invalid signature",
+                "signature mismatch",
+                "session expired",
+                "token expired",
+                "forbidden",
+                "denied",
+            )
+        )
+    )
+
+
 def evaluate_oau09_token_validation(
     target_url: str,
     *,
@@ -15059,6 +15089,7 @@ def evaluate_oau09_token_validation(
             oau09_pub_key = (repo / "encryptionkeys" / "jwt.pub").read_bytes()
 
         none9_hdr = _b64url_encode(json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+        none9_mixed_hdr = _b64url_encode(json.dumps({"alg": "None", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
         foreign9_hdr = _b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
         foreign9_sig = _b64url_encode(
             hmac.new(b"foreign-attacker-signing-key-999", f"{foreign9_hdr}.{pay9_b64}".encode("utf-8"), hashlib.sha256).digest()
@@ -15077,9 +15108,11 @@ def evaluate_oau09_token_validation(
 
         oau09_vectors: list[tuple[str, str]] = [
             ("unsigned_alg_none", f"{none9_hdr}.{pay9_b64}."),
+            ("unsigned_alg_none_mixedcase", f"{none9_mixed_hdr}.{pay9_b64}."),
             ("foreign_signing_key", f"{foreign9_hdr}.{pay9_b64}.{foreign9_sig}"),
             ("alg_confusion_hs256_pubkey", _sign_oau09({})),
             ("expired_exp_claim", _sign_oau09({"exp": 1577836800})),
+            ("nbf_future_claim", _sign_oau09({"nbf": 4102444800})),
             ("wrong_audience_aud", _sign_oau09({"aud": "https://wrong-audience.example.com"})),
             ("wrong_issuer_iss", _sign_oau09({"iss": "https://wrong-issuer.example.com"})),
             ("insufficient_scope", _sign_oau09({"scope": "minimal:none"})),
@@ -15091,9 +15124,9 @@ def evaluate_oau09_token_validation(
             if not (200 <= base9_st < 300):
                 continue
             for vec9_name, vec9_tok in oau09_vectors:
-                v9_st, _, _ = _probe_logged(ep9, headers={"Authorization": f"Bearer {vec9_tok}"})
+                v9_st, _, v9_body = _probe_logged(ep9, headers={"Authorization": f"Bearer {vec9_tok}"})
                 oau09_probes += 1
-                if 200 <= v9_st < 300:
+                if 200 <= v9_st < 300 and not _is_json_denial(v9_body):
                     oau09_accepted_vectors.add(vec9_name)
                     _add_oau09(
                         f"{base_url}{ep9}",

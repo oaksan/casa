@@ -2450,6 +2450,44 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 57/61: OAU-08 (Iteração SDD 188)", just_neon)
 
+    def test_iteration189_oau09_neon_reeval(self) -> None:
+        """SDD 189 (OAU-09): Mixed-case alg:None, future nbf claim & L25 HTTP 200 JSON denial guard."""
+        import base64, json as _json
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            valid_tok = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1MSIsImV4cCI6NDAwMDAwMDAwMH0.sigvalid"
+
+            def _probe_oau09(url, method="GET", headers=None, body=None, timeout=5, follow_redirects=False):
+                auth = (headers or {}).get("Authorization", "")
+                tok = auth.replace("Bearer ", "").strip()
+                if not tok or "." not in tok:
+                    return 404, {}, ""
+                if tok == valid_tok:
+                    return 200, {"content-type": "application/json"}, '{"balance":100}'
+                hdr_b64 = tok.split(".")[0]
+                hdr_obj = _json.loads(base64.urlsafe_b64decode(hdr_b64 + "=" * (-len(hdr_b64) % 4)).decode())
+                if hdr_obj.get("alg") == "None":
+                    return 200, {"content-type": "application/json"}, '{"balance":100}'
+                # Soft JSON denial envelope on HTTP 200 (must count as DENIED per Test Guide L25)
+                return 200, {"content-type": "application/json"}, '{"error":"unauthorized","message":"invalid token"}'
+
+            r_fail = sc.evaluate_oau09_token_validation(
+                "https://api.example.com",
+                observed_token=valid_tok,
+                endpoints=["/api/balance"],
+                http_probe_fn=_probe_oau09,
+                run_semgrep=False,
+                report_out_path=tdp / "oau09.json",
+                har_out_path=tdp / "oau09.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertEqual(r_fail["acceptedVectors"], ["unsigned_alg_none_mixedcase"])
+            self.assertIn("nbf_future_claim", r_fail["rejectedVectors"])
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 58/61: OAU-09 (Iteração SDD 189)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

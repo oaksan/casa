@@ -1676,3 +1676,40 @@ CONTROLE 57/61: OAU-08 (Iteração SDD 188) — Authorization Header Token Trans
 4. Validação:
    - `test_iteration188_oau08_neon_reeval` (fragmento opaco + corpo POST FAIL;
      `Authorization: DPoP` PASS) + regressão `test_iteration127_oau08_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 58/61: OAU-09 (Iteração SDD 189) — Backend IdP Token Validation
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1276):
+   - Referência: `jwt_tool, scripted harness`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — harness de replay
+     multi-vetor equivalente a `jwt_tool` + `semgrep` `CASA3-OAU-09` gerando
+     HAR 1.2 redigido e SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `oau09_vectors` não testava variante case-sensitivity `alg: None` nem
+     claim `nbf` no futuro (RFC 7519 §4.1.5).
+   - Respostas HTTP 2xx contendo envelope JSON de negação (`{"error":"unauthorized"}`)
+     eram classificadas como aceitas em desacordo com a definição `Denied` do Guia (L25).
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido `oau09_vectors` para 9 vetores (`unsigned_alg_none_mixedcase`,
+     `nbf_future_claim`) e aplicada guarda `not _is_json_denial(v9_body)` em
+     `evaluate_oau09_token_validation`.
+4. Validação:
+   - `test_iteration189_oau09_neon_reeval` (`alg: None` FAIL; HTTP 200 JSON
+     denial tratado como rejeitado em `nbf_future_claim` e demais vetores) +
+     suíte completa `unittest discover` (fechamento do Domínio 7).
+
+=== FECHAMENTO DO DOMÍNIO 7 (OAU-01 .. OAU-09 — SDD 181 .. SDD 189) ===
+- Suíte Completa (`unittest discover -s casa-assessment/tests -v`): 122/122 OK em 1060.43s (zero falhas/flakes).
+- Scan Ao Vivo Completo (`POST http://127.0.0.1:8080/api/scan` contra OWASP Juice Shop `http://localhost:3000`):
+  - TOTAL: 61 controles (`FAIL: 51, PASS: 5, NOT_APPLICABLE: 2, Not_Covered: 3`).
+  - `OAU-01`: FAIL (8 violações de grant via proxy + Semgrep + bundles).
+  - `OAU-02`: FAIL (3 violações PKCE S256).
+  - `OAU-03`: FAIL (6 violações de redirect URI / callback fuzz em 17 URIs e 33 probes).
+  - `OAU-04`: FAIL (5 violações de state/nonce CSRF e entropia).
+  - `OAU-05`: NOT_APPLICABLE (escopo de superfície `Mobile`/`Native` vs `Web_Application`).
+  - `OAU-06`: NOT_APPLICABLE (escopo de superfície `Mobile`/`Native` vs `Web_Application`).
+  - `OAU-07`: FAIL (15 violações de armazenamento via Chrome Headless CDP + Set-Cookie + Semgrep).
+  - `OAU-08`: FAIL (7 violações de transporte em 323 requisições HAR e 174 Bearer headers).
+  - `OAU-09`: FAIL (17 violações de validação JWT em 20 probes sobre 2 endpoints protegidos).
+- Auditoria de Ferramentas do Domínio 7: 100% gratuito (Burp Suite pago ausente em todos os 9 controles).

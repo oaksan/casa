@@ -16881,7 +16881,8 @@ def evaluate_oau05_system_browser_policy(
         ("iOS_WKWebView", re.compile(r"\b(?:WKWebView|UIWebView)\b|\.load\(\s*URLRequest", re.IGNORECASE), "iOS embedded WKWebView/UIWebView"),
         ("iOS_SFSafariViewController", re.compile(r"\bSFSafariViewController\b", re.IGNORECASE), "iOS SFSafariViewController (prohibited per OAU-05; must use ASWebAuthenticationSession)"),
         ("Electron_BrowserWindow", re.compile(r"\bnew\s+BrowserWindow\b|<webview\b", re.IGNORECASE), "Electron embedded BrowserWindow/<webview>"),
-        ("Hybrid_InAppBrowser", re.compile(r"\bInAppBrowser\b|react-native-webview|flutter_webview_plugin", re.IGNORECASE), "Hybrid/cross-platform embedded InAppBrowser/WebView"),
+        ("Windows_WebView2", re.compile(r"\b(?:Microsoft\.Web\.WebView2|CoreWebView2|WebView2)\b", re.IGNORECASE), "Windows native embedded WebView2"),
+        ("Hybrid_InAppBrowser", re.compile(r"\bInAppBrowser\b|react-native-webview|flutter_webview_plugin|flutter_inappwebview|webview_flutter", re.IGNORECASE), "Hybrid/cross-platform embedded InAppBrowser/WebView"),
     ]
     approved_browser_re = re.compile(
         r"\b(?:CustomTabsIntent|androidx\.browser\.customtabs|ASWebAuthenticationSession|AuthorizationService|AppAuth|FlutterAppAuth|openAuthSessionAsync|shell\.openExternal)\b"
@@ -16969,7 +16970,7 @@ def evaluate_oau05_system_browser_policy(
         for hdr in h_ent.get("request", {}).get("headers", []):
             if hdr.get("name", "").lower() == "user-agent":
                 ua_val = hdr.get("value", "")
-                if "; wv)" in ua_val or (re.search(r"Version/\d+\.\d+\s+Chrome/", ua_val)) or (
+                if "; wv)" in ua_val or "Electron/" in ua_val or (re.search(r"Version/\d+\.\d+\s+Chrome/", ua_val)) or (
                     "AppleWebKit/" in ua_val and "Mobile/" in ua_val and "Safari/" not in ua_val
                 ):
                     _add_finding(

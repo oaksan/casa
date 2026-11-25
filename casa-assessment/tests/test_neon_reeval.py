@@ -2293,6 +2293,43 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 53/61: OAU-04 (Iteração SDD 184)", just_neon)
 
+    def test_iteration185_oau05_neon_reeval(self) -> None:
+        """SDD 185 (OAU-05): Windows WebView2, modern Flutter webview packages & Electron HAR UA detection."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            (tdp / "AuthWindow.cs").write_text(
+                "using Microsoft.Web.WebView2;\nvar url = \"https://idp.example.com/authorize?client_id=1&response_type=code\";\n",
+                encoding="utf-8",
+            )
+            (tdp / "login_screen.dart").write_text(
+                "import 'package:webview_flutter/webview_flutter.dart';\nfinal authUrl = 'https://idp.example.com/oauth2/authorize';\n",
+                encoding="utf-8",
+            )
+            har_electron = [
+                {
+                    "request": {
+                        "url": "https://idp.example.com/oauth2/authorize?client_id=desk&response_type=code",
+                        "headers": [{"name": "User-Agent", "value": "Mozilla/5.0 MyApp/1.0 Chrome/120.0 Electron/28.1 Safari/537.36"}],
+                    }
+                }
+            ]
+            r_fail = sc.evaluate_oau05_system_browser(
+                "https://app.example.com",
+                repo=tdp,
+                har_entries=har_electron,
+                run_semgrep=False,
+                report_out_path=tdp / "oau05.json",
+                har_out_path=tdp / "oau05.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            kinds = {f["kind"] for f in r_fail["findings"]}
+            self.assertIn("Windows_WebView2", kinds)
+            self.assertIn("Hybrid_InAppBrowser", kinds)
+            self.assertIn("HAR_Embedded_WebView_UserAgent", kinds)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 54/61: OAU-05 (Iteração SDD 185)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

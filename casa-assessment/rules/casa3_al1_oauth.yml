@@ -39,13 +39,13 @@ rules:
               - pattern-not-regex: 'crypto\.(?:getRandomValues|randomUUID|randomBytes)'
 
   - id: CASA3-OAU-05-embedded-webview-oauth
-    languages: [kotlin, java, swift, typescript, javascript]
+    languages: [kotlin, java, swift, typescript, javascript, csharp]
     message: "OAU-05: Embedded WebView or prohibited SFSafariViewController used for OAuth authorization instead of system browser (RFC 8252 §8.12)"
     severity: ERROR
     pattern-either:
-      - pattern-regex: '\b(?:WKWebView|UIWebView|SFSafariViewController|InAppBrowser)\b'
+      - pattern-regex: '\b(?:WKWebView|UIWebView|SFSafariViewController|InAppBrowser|WebView2|CoreWebView2)\b'
       - pattern-regex: '(?:android\.webkit\.WebView|\bWebView\b)'
-      - pattern-regex: '\bnew\s+BrowserWindow\b|react-native-webview|<webview\b'
+      - pattern-regex: '\bnew\s+BrowserWindow\b|react-native-webview|flutter_inappwebview|webview_flutter|<webview\b'
 
   - id: CASA3-OAU-06-embedded-client-secret
     languages: [kotlin, java, swift, typescript, javascript, json, yaml]

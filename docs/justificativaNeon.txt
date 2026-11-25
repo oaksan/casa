@@ -1589,3 +1589,26 @@ CONTROLE 53/61: OAU-04 (Iteração SDD 184) — State & OIDC Nonce Entropy & Bin
 4. Validação:
    - `test_iteration184_oau04_neon_reeval` (prefixo fixo + cookie `connect.sid`
      em `state_omitted` ambos FAIL) + regressão `test_iteration123_oau04_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 54/61: OAU-05 (Iteração SDD 185) — System Browser Only (No WebView)
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1192):
+   - Referência: `mitmproxy, MobSF, semgrep`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — proxy interceptador
+     HTTP local + extrator de binários APK/IPA/ASAR + `semgrep` `CASA3-OAU-05`
+     gerando HAR 1.2 redigido e SARIF 2.1.0; sem ferramentas pagas).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_oau05_system_browser_policy` e `casa3_al1_oauth.yml` não cobriam
+     Windows `WebView2`/`CoreWebView2` nem pacotes Flutter modernos
+     (`webview_flutter`, `flutter_inappwebview`).
+   - A inspeção de `User-Agent` em HAR 1.2 não sinalizava requisições OAuth
+     originadas de `Electron/` embarcado.
+3. Melhorias Executadas (`scanner.py` e `casa-assessment/rules/casa3_al1_oauth.yml`):
+   - Adicionadas detecções de `WebView2`/`CoreWebView2`, `flutter_inappwebview`,
+     `webview_flutter` e `Electron/` no User-Agent HAR; YAML validado com
+     `semgrep --validate`.
+4. Validação:
+   - `semgrep --validate` + `test_iteration185_oau05_neon_reeval` (`WebView2`,
+     `webview_flutter` e HAR `Electron/` FAIL) + regressão
+     `test_iteration124_oau05_guide_tooling`.

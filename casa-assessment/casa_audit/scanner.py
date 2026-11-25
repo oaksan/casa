@@ -111,14 +111,17 @@ def compute_cvss3_base_score(vector: str) -> float | None:
 
 
 def fetch_cisa_kev_set() -> set[str]:
-    """Fetch CISA Known Exploited Vulnerabilities (KEV) CVE catalog (with local cache)."""
+    """Fetch CISA Known Exploited Vulnerabilities (KEV) CVE catalog (with stale-cache fallback)."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     cache_file = OUTPUT_DIR / "cisa_kev_cache.json"
-    if cache_file.exists() and (time.time() - cache_file.stat().st_mtime < 86400):
+    cached_cves: set[str] = set()
+    if cache_file.exists():
         try:
-            return set(json.loads(cache_file.read_text(encoding="utf-8")))
+            cached_cves = set(json.loads(cache_file.read_text(encoding="utf-8")))
+            if cached_cves and (time.time() - cache_file.stat().st_mtime < 86400):
+                return cached_cves
         except Exception:
-            pass
+            cached_cves = set()
     try:
         with urllib.request.urlopen(
             "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
@@ -129,7 +132,7 @@ def fetch_cisa_kev_set() -> set[str]:
             cache_file.write_text(json.dumps(cves), encoding="utf-8")
             return set(cves)
     except Exception:
-        return set()
+        return cached_cves
 
 
 def fetch_osv_vuln_detail(vuln_id: str) -> dict:
@@ -1675,6 +1678,107 @@ def trace_package_reachability(
     return False, []
 
 
+def extract_osv_vuln_symbols(vuln_entry: dict) -> list[str]:
+    """Extract vulnerable symbol names from OSV affected[].ecosystem_specific.imports[].symbols."""
+    syms: list[str] = []
+    for aff in vuln_entry.get("affected", []) or []:
+        eco_spec = aff.get("ecosystem_specific") or {}
+        for imp in eco_spec.get("imports", []) or []:
+            for sym in imp.get("symbols", []) or []:
+                s = str(sym).strip()
+                if s and s not in syms:
+                    syms.append(s)
+        for sym in eco_spec.get("symbols", []) or []:
+            s = str(sym).strip()
+            if s and s not in syms:
+                syms.append(s)
+    return syms
+
+
+def check_vulnerable_symbol_reachability(
+    repo: Path,
+    pkg_name: str,
+    vuln_symbols: list[str],
+    pkg_reachable: bool,
+    pkg_traces: list[str],
+    is_direct: bool,
+    osv_called_flag: bool | None = None,
+) -> tuple[bool, list[str]]:
+    """Refine package-level reachability down to OSV vulnerable symbols when metadata is available."""
+    if osv_called_flag is False:
+        return False, []
+    if not pkg_reachable:
+        return False, []
+    if not vuln_symbols or not is_direct:
+        return True, pkg_traces
+
+    escaped_pkg = re.escape(pkg_name)
+    destruct_js_re = re.compile(
+        rf"(?:import\s*\{{([^}}]+)\}}\s*from\s*['\"]{escaped_pkg}['\"]|"
+        rf"(?:const|let|var)\s*\{{([^}}]+)\}}\s*=\s*require\(\s*['\"]{escaped_pkg}['\"]\s*\))"
+    )
+    py_from_re = re.compile(rf"from\s+{escaped_pkg}(?:\.[A-Za-z0-9_]+)?\s+import\s+([^\n#]+)")
+    default_or_ns_re = re.compile(
+        rf"(?:import\s+(?:\*\s+as\s+)?[A-Za-z0-9_$]+\s+from\s*['\"]{escaped_pkg}['\"]|"
+        rf"(?:const|let|var)\s+[A-Za-z0-9_$]+\s*=\s*require\(\s*['\"]{escaped_pkg}['\"]\s*\)|"
+        rf"^\s*import\s+{escaped_pkg}\b)",
+        re.MULTILINE,
+    )
+
+    vuln_leaf_names = {s.rsplit(".", 1)[-1].lstrip("*") for s in vuln_symbols if s}
+    matched_traces: list[str] = []
+    saw_only_named_imports = False
+    saw_default_or_ns = False
+
+    candidate_files: list[Path] = []
+    for t in pkg_traces:
+        rel_part = t.split(":L", 1)[0].strip()
+        cand = repo / rel_part
+        if cand.is_file() and cand not in candidate_files:
+            candidate_files.append(cand)
+
+    for fpath in candidate_files:
+        try:
+            content = fpath.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        rel = str(fpath.relative_to(repo))
+        if default_or_ns_re.search(content):
+            saw_default_or_ns = True
+            for sym in vuln_leaf_names:
+                if re.search(rf"\b{re.escape(sym)}\b", content):
+                    matched_traces.append(f"{rel} (symbol {sym})")
+            continue
+
+        named_syms: set[str] = set()
+        for m in destruct_js_re.finditer(content):
+            raw_list = m.group(1) or m.group(2) or ""
+            for item in raw_list.split(","):
+                tok = item.strip().split(" as ")[0].split(":")[0].strip()
+                if tok:
+                    named_syms.add(tok)
+        for m in py_from_re.finditer(content):
+            raw_list = m.group(1).strip().strip("()")
+            for item in raw_list.split(","):
+                tok = item.strip().split(" as ")[0].strip()
+                if tok == "*":
+                    saw_default_or_ns = True
+                elif tok:
+                    named_syms.add(tok)
+
+        if named_syms:
+            saw_only_named_imports = True
+            hits = sorted(named_syms & vuln_leaf_names)
+            if hits:
+                matched_traces.append(f"{rel} (imported vulnerable symbol: {', '.join(hits)})")
+
+    if matched_traces:
+        return True, matched_traces
+    if saw_only_named_imports and not saw_default_or_ns:
+        return False, []
+    return True, pkg_traces
+
+
 def generate_sbom_with_syft(
     repo: Path,
     sbom_path: Path,
@@ -1758,6 +1862,7 @@ def run_osv_scanner_for_sca01(repo: Path, osv_json_path: Path, osv_sarif_path: P
         "-r",
         "--no-ignore",
         "--allow-no-lockfiles",
+        "--all-vulns",
         "--x-disable-plugins",
         "sbom",
         "--x-exclude",
@@ -1769,6 +1874,8 @@ def run_osv_scanner_for_sca01(repo: Path, osv_json_path: Path, osv_sarif_path: P
         "--x-exclude",
         "g:**/samples/**",
     ]
+    if (repo / "go.mod").exists():
+        base_args.extend(["--call-analysis", "go"])
     scanned_pkgs = 0
     osv_data: dict | None = None
     try:
@@ -1878,30 +1985,43 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                 if not name:
                     continue
 
+                is_direct, direct_traces = direct_reach_cache.setdefault(
+                    name.lower(), analyze_package_reachability(repo, name)
+                )
                 is_reachable, traces = trace_package_reachability(
                     repo, name, reverse_dep_graph, direct_reach_cache
                 )
-                reach_str = (
-                    f"REACHABLE via {'; '.join(traces)}"
-                    if is_reachable
-                    else "NOT REACHABLE in source call-graph"
-                )
 
-                # Index group metadata (groups carry canonical CVE aliases & max_severity)
+                # Index group metadata (groups carry canonical CVE aliases, max_severity, and call-analysis)
                 vid_group_score: dict[str, float] = {}
                 vid_group_cves: dict[str, list[str]] = {}
+                vid_group_called: dict[str, bool | None] = {}
                 for grp in pkg_entry.get("groups", []):
                     g_cves = [a for a in grp.get("aliases", []) if str(a).startswith("CVE-")]
                     try:
                         g_max = float(grp.get("max_severity") or 0.0)
                     except Exception:
                         g_max = 0.0
+                    exp_ana = grp.get("experimental_analysis") or {}
+                    g_called: bool | None = None
+                    if isinstance(exp_ana, dict) and exp_ana:
+                        called_vals = [
+                            bool(val.get("called"))
+                            for val in exp_ana.values()
+                            if isinstance(val, dict) and "called" in val
+                        ]
+                        if called_vals:
+                            g_called = any(called_vals)
                     for gid in grp.get("ids", []):
                         vid_group_score[gid] = max(vid_group_score.get(gid, 0.0), g_max)
                         vid_group_cves.setdefault(gid, []).extend(g_cves)
+                        if g_called is not None:
+                            vid_group_called[gid] = bool(vid_group_called.get(gid) or g_called)
 
-                pkg_high_crit_advisories: list[str] = []
+                pkg_blocking_advisories: list[str] = []
+                pkg_note_advisories: list[str] = []
                 pkg_kev_hits: list[str] = []
+                effective_traces: list[str] = list(traces)
                 for v in pkg_entry.get("vulnerabilities", []):
                     vid = str(v.get("id", "")).strip()
                     if vid.startswith("MAL-"):
@@ -1932,26 +2052,63 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                     if kev_matched:
                         pkg_kev_hits.extend(kev_matched)
 
+                    vuln_symbols = extract_osv_vuln_symbols(v)
+                    sym_reachable, sym_traces = check_vulnerable_symbol_reachability(
+                        repo,
+                        name,
+                        vuln_symbols,
+                        is_reachable,
+                        direct_traces if is_direct else traces,
+                        is_direct,
+                        osv_called_flag=vid_group_called.get(vid),
+                    )
+
                     cve_str = f" / {', '.join(cves)}" if cves else ""
                     kev_str = " [CISA KEV!]" if kev_matched else ""
                     adv_label = f"{vid}{cve_str} (CVSS {cvss_score:.1f}{f' {db_sev}' if db_sev else ''}{kev_str})"
 
-                    if cvss_score >= 7.0 or db_sev in {"HIGH", "CRITICAL"} or kev_matched:
-                        pkg_high_crit_advisories.append(adv_label)
+                    if kev_matched or (cvss_score >= 7.0 and sym_reachable):
+                        pkg_blocking_advisories.append(adv_label)
+                        if sym_traces:
+                            effective_traces = sym_traces
+                    else:
+                        pkg_note_advisories.append(adv_label)
 
-                if (pkg_high_crit_advisories and is_reachable) or pkg_kev_hits:
+                reach_str = (
+                    f"REACHABLE via {'; '.join(effective_traces)}"
+                    if (effective_traces and is_reachable)
+                    else "NOT REACHABLE in source call-graph"
+                )
+                if pkg_blocking_advisories or pkg_kev_hits:
                     if (name, ver) in seen_blocking_keys:
                         continue
                     seen_blocking_keys.add((name, ver))
                     blocking_sca01_findings.append(
-                        f"{name}@{ver} [BLOCKING]: {', '.join(pkg_high_crit_advisories)} | {reach_str}"
+                        f"{name}@{ver} [BLOCKING]: {', '.join(pkg_blocking_advisories)} | {reach_str}"
                     )
                     sarif_results.append(
                         {
                             "ruleId": "CASA3-SCA-01",
                             "level": "error",
                             "message": {
-                                "text": f"SCA-01 blocking vulnerability in {name}@{ver}: {', '.join(pkg_high_crit_advisories)} ({reach_str})"
+                                "text": f"SCA-01 blocking vulnerability in {name}@{ver}: {', '.join(pkg_blocking_advisories)} ({reach_str})"
+                            },
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": src_uri},
+                                    }
+                                }
+                            ],
+                        }
+                    )
+                elif pkg_note_advisories:
+                    sarif_results.append(
+                        {
+                            "ruleId": "CASA3-SCA-01",
+                            "level": "note",
+                            "message": {
+                                "text": f"SCA-01 triaged finding in {name}@{ver}: {', '.join(pkg_note_advisories)} ({reach_str})"
                             },
                             "locations": [
                                 {
@@ -2000,11 +2157,16 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                             vuln_details_map[vid] = {"id": vid}
 
             for eco, name, ver, ids in pkg_vuln_ids:
+                is_direct, direct_traces = direct_reach_cache.setdefault(
+                    name.lower(), analyze_package_reachability(repo, name)
+                )
                 is_reachable, traces = trace_package_reachability(
                     repo, name, reverse_dep_graph, direct_reach_cache
                 )
-                pkg_high_crit_advisories = []
+                pkg_blocking_advisories = []
+                pkg_note_advisories = []
                 pkg_kev_hits = []
+                effective_traces = list(traces)
 
                 for vid in ids:
                     if vid.startswith("MAL-"):
@@ -2023,35 +2185,66 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
                             cvss_score = sc
                     if cvss_score is None:
                         cvss_score = {"CRITICAL": 9.5, "HIGH": 7.5, "MODERATE": 5.3, "MEDIUM": 5.3, "LOW": 3.1}.get(
-                            db_sev, 7.5
+                            db_sev, 0.0
                         )
 
                     kev_matched = [c for c in cves if c in kev_set]
                     if kev_matched:
                         pkg_kev_hits.extend(kev_matched)
 
+                    vuln_symbols = extract_osv_vuln_symbols(detail)
+                    sym_reachable, sym_traces = check_vulnerable_symbol_reachability(
+                        repo,
+                        name,
+                        vuln_symbols,
+                        is_reachable,
+                        direct_traces if is_direct else traces,
+                        is_direct,
+                    )
+
                     cve_str = f" / {', '.join(cves)}" if cves else ""
                     kev_str = " [CISA KEV!]" if kev_matched else ""
                     adv_label = f"{vid}{cve_str} (CVSS {cvss_score:.1f}{f' {db_sev}' if db_sev else ''}{kev_str})"
 
-                    if cvss_score >= 7.0 or db_sev in {"HIGH", "CRITICAL"} or kev_matched:
-                        pkg_high_crit_advisories.append(adv_label)
+                    if kev_matched or (cvss_score >= 7.0 and sym_reachable):
+                        pkg_blocking_advisories.append(adv_label)
+                        if sym_traces:
+                            effective_traces = sym_traces
+                    else:
+                        pkg_note_advisories.append(adv_label)
 
                 reach_str = (
-                    f"REACHABLE via {'; '.join(traces)}"
-                    if is_reachable
+                    f"REACHABLE via {'; '.join(effective_traces)}"
+                    if (effective_traces and is_reachable)
                     else "NOT REACHABLE in source call-graph"
                 )
-                if (pkg_high_crit_advisories and is_reachable) or pkg_kev_hits:
+                if pkg_blocking_advisories or pkg_kev_hits:
                     blocking_sca01_findings.append(
-                        f"{name}@{ver} [BLOCKING]: {', '.join(pkg_high_crit_advisories)} | {reach_str}"
+                        f"{name}@{ver} [BLOCKING]: {', '.join(pkg_blocking_advisories)} | {reach_str}"
                     )
                     sarif_results.append(
                         {
                             "ruleId": "CASA3-SCA-01",
                             "level": "error",
                             "message": {
-                                "text": f"SCA-01 blocking vulnerability in {name}@{ver}: {', '.join(pkg_high_crit_advisories)} ({reach_str})"
+                                "text": f"SCA-01 blocking vulnerability in {name}@{ver}: {', '.join(pkg_blocking_advisories)} ({reach_str})"
+                            },
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": "package.json"},
+                                    }
+                                }
+                            ],
+                        }
+                    )
+                elif pkg_note_advisories:
+                    sarif_results.append(
+                        {
+                            "ruleId": "CASA3-SCA-01",
+                            "level": "note",
+                            "message": {
+                                "text": f"SCA-01 triaged finding in {name}@{ver}: {', '.join(pkg_note_advisories)} ({reach_str})"
                             },
                             "locations": [
                                 {
@@ -2079,6 +2272,32 @@ def run_sca_checks(repo: Path) -> dict[str, dict]:
         sca03_meta,
     ) = evaluate_sca03_container_os(repo)
     sarif_results.extend(sca03_sarif)
+    # SCA-01 container-layer CISA KEV cross-check (Test Guide L52/L58: any KEV component blocks)
+    if kev_set and (sca03_blocking or sca03_non_blocking):
+        seen_container_kevs: set[str] = set()
+        for c_entry in [*sca03_blocking, *sca03_non_blocking]:
+            for cve_id in re.findall(r"CVE-\d{4}-\d{4,7}", str(c_entry)):
+                if cve_id in kev_set and cve_id not in seen_container_kevs:
+                    seen_container_kevs.add(cve_id)
+                    blocking_sca01_findings.append(
+                        f"container-os [BLOCKING]: {cve_id} [CISA KEV!] ({c_entry})"
+                    )
+                    sarif_results.append(
+                        {
+                            "ruleId": "CASA3-SCA-01",
+                            "level": "error",
+                            "message": {
+                                "text": f"SCA-01 CISA KEV match in container OS component: {cve_id} ({c_entry})"
+                            },
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": "Dockerfile"},
+                                    }
+                                }
+                            ],
+                        }
+                    )
     if os_sbom_comps:
         cdx_components.extend(os_sbom_comps)
         sbom_payload["components"] = cdx_components

@@ -1,0 +1,96 @@
+================================================================================
+JUSTIFICATIVA TÉCNICA E CIENTÍFICA — REAVALIAÇÃO GEMINI 4 NEON (61 CONTROLES)
+ADA CASA 3.0 (AL1) — SÉRIE DE ITERAÇÕES SDD 132–192
+Projeto de Mestrado: Avaliação Automatizada de Segurança em Aplicações Web
+Repositório: https://github.com/oaksan/casa
+Documento Normativo de Referência: CASA/CASA 3.0 (AL1) Test Guide.md (Version 3.0)
+Aplicação Alvo de Validação (Benchmark): OWASP Juice Shop
+================================================================================
+
+INTRODUÇÃO METODOLÓGICA (SÉRIE SDD 132–192 — REAVALIAÇÃO GEMINI 4 NEON)
+--------------------------------------------------------------------------------
+Após a conclusão integral da série SDD 071–131 (documentada em
+`docs/justificativa2.txt`), executou-se uma reavaliação sistemática controle a
+controle — uma iteração SDD independente para cada um dos 61 controles do
+`CASA/CASA 3.0 (AL1) Test Guide.md` (`SDD 132` = Controle `01/61` `SCA-01` até
+`SDD 192` = Controle `61/61` `WHK-03`) — orientada por dois pilares rigorosos:
+1) **Pureza de Ferramental Gratuito do Test Guide**: assegurar que cada controle
+   utilize exclusivamente as ferramentas previstas em `CASA 3.0 (AL1) Test Guide.md`,
+   jamais empregando ferramentas pagas (como Burp Suite comercial), substituindo-as
+   por equivalentes abertos e gratuitos (como OWASP ZAP, Playwright/Chrome headless,
+   testssl.sh, nuclei, sqlmap e harnesses em Python conforme a cláusula de
+   equivalência da linha 21 do guia) e removendo dependências estáticas fora do
+   escopo normativo onde introduziam falsos positivos.
+2) **Fidelidade aos Critérios de Verificação, Evidências e Vereditos**: verificar
+   e aprimorar procedimentos de teste, formatos de evidência (`SARIF 2.1.0`,
+   `CycloneDX 1.5+`/`SPDX 2.3+`, JSON TLS, `HAR 1.2` redigido), semântica de
+   `Denied`/`Accepted` (linha 25), severidade SARIF (`error` vs `note`/`warning`,
+   linha 23) e vereditos (`PASS`, `FAIL`, `NOT_APPLICABLE`, `Not_Covered`, linha 27).
+
+================================================================================
+CONTROLE 01/61: SCA-01 (Iteração SDD 132)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L53):
+  `syft`, `osv-scanner`, `NVD / OSV.dev / CISA KEV feeds`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle utiliza
+  exclusivamente os binários oficiais `syft` e `osv-scanner`, os feeds oficiais
+  NVD/OSV.dev e CISA KEV, além da análise determinística de alcançabilidade em
+  grafo de dependências/chamadas em Python. Nenhuma ferramenta paga ou externa ao
+  guia é utilizada.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 132)
+--------------------------------------------------------------------------------
+1) **Alcançabilidade no nível de símbolo vulnerável + `--call-analysis` nativo
+   (`Test Guide` L39, L52 e L57)**:
+   - *Antes*: `trace_package_reachability` verificava apenas se o pacote era
+     importado direta ou transitivamente, ignorando os símbolos vulneráveis
+     declarados pelo OSV (`affected[].ecosystem_specific.imports[].symbols`) e
+     não ativava `--call-analysis` nem `--all-vulns` no `osv-scanner`.
+   - *Melhoria*: Criadas as funções `extract_osv_vuln_symbols()` e
+     `check_vulnerable_symbol_reachability()` em `casa_audit/scanner.py`. Quando
+     o aviso OSV declara símbolos vulneráveis e o módulo é importado diretamente
+     por desestruturação nomeada (`import { fn } from 'pkg'` / `const { fn } =
+     require('pkg')` / `from pkg import fn`), o avaliador verifica se ao menos
+     um símbolo vulnerável é de fato importado/invocado; além disso,
+     `run_osv_scanner_for_sca01()` passa `--all-vulns` (evitando ocultação de
+     KEVs não chamados) e `--call-analysis go` quando `go.mod` existe, lendo
+     `groups[].experimental_analysis[].called`.
+2) **Gate estrito CVSS v3.1 base >= 7.0 (`Test Guide` L57)**:
+   - *Antes*: A expressão `if cvss_score >= 7.0 or db_sev in {"HIGH", "CRITICAL"}
+     or kev_matched` podia bloquear um pacote cujo vetor CVSS v3.1 computado era
+     `< 7.0` apenas por divergência de rótulo textual `db_sev`, e o fallback
+     OSV.dev assumia `7.5` quando `db_sev` estava ausente.
+   - *Melhoria*: Gate unificado para `if kev_matched or (cvss_score >= 7.0 and
+     sym_reachable)`, utilizando `db_sev` apenas como fallback quando não há
+     vetor CVSS v3.1 nem `max_severity` no grupo (com default `0.0`).
+3) **Severidade SARIF 2.1.0 `level: "note"` para achados triados (`Test Guide` L23)**:
+   - *Antes*: Achados com CVSS < 7.0 ou inalcançáveis (fora do KEV) eram
+     descartados do artefato `sca-findings.sarif`.
+   - *Melhoria*: Achados triados que não bloqueiam o veredito passam a ser
+     registrados no `sca-findings.sarif` com `level: "note"`, mantendo o `log`
+     humano focado apenas nos bloqueantes (preservando a invariante do SDD 070).
+4) **Resiliência do feed CISA KEV (`fetch_cisa_kev_set`)**:
+   - *Antes*: Se `cisa_kev_cache.json` expirasse (>24h) e a consulta remota
+     falhasse, retornava conjunto vazio (`set()`), gerando risco de falso negativo.
+   - *Melhoria*: Fallback automático para o último `cisa_kev_cache.json` válido
+     em caso de falha de rede.
+5) **Cruzamento CISA KEV para componentes OS/contêiner (`Test Guide` L52/L58)**:
+   - *Antes*: CVEs oriundos da camada OS do contêiner (`SCA-03`) não eram
+     cruzados com o catálogo CISA KEV em `SCA-01`.
+   - *Melhoria*: Todos os `CVE-*` coletados de imagens de contêiner em `SCA-03`
+     passam a ser verificados contra `kev_set`, bloqueando `SCA-01` (e gerando
+     `level: "error"` em `CASA3-SCA-01`) sempre que houver correspondência KEV.
+
+3. VALIDAÇÃO (SDD 132)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration132_sca01_neon_reeval` em
+  `casa-assessment/tests/test_neon_reeval.py` validando extração de símbolos
+  OSV, distinção de import seguro vs símbolo vulnerável, flag `called=False` do
+  `osv-scanner`, fallback de cache expirado CISA KEV, gate estrito CVSS >= 7.0,
+  emissão SARIF `note`/`error` e cruzamento KEV em pacotes de contêiner.
+- Regressão validada: `test_iteration71_sca01_guide_tooling` (`OK`).

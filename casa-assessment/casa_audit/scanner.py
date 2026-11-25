@@ -13917,6 +13917,7 @@ def evaluate_oau04_state_nonce(
     report_out_path: Path | None = None,
     har_out_path: Path | None = None,
     semgrep_sarif_out_path: Path | None = None,
+    run_semgrep: bool = True,
 ) -> dict:
     """Evaluate OAU-04 (RFC 9700 §4.7; OIDC Core §3.1.2.1) via SP 800-90B min-entropy & callback replay."""
     base_url = target_url.strip().rstrip("/")
@@ -14019,7 +14020,19 @@ def evaluate_oau04_state_nonce(
                 cb_replays.append(f"{lbl4}:{path4.split('?', 1)[0]}")
                 c_st, c_hdrs, c_body = _probe_logged(path4, headers=hdrs4, follow_redirects=False)
                 oau04_probes += 1
-                issued_session = ("token=" in c_hdrs.get("set-cookie", "").lower()) or bool(
+                sc_hdr = c_hdrs.get("set-cookie", "")
+                has_session_cookie = False
+                for sc_item in _split_set_cookie_headers(sc_hdr):
+                    sc_pair = sc_item.split(";", 1)[0]
+                    if "=" not in sc_pair:
+                        continue
+                    ck_nm, ck_vl = sc_pair.split("=", 1)
+                    if not ck_vl.strip() or re.search(r"max-age\s*=\s*0\b", sc_item, re.IGNORECASE):
+                        continue
+                    if "token" in ck_nm.lower() or _is_session_cookie_name(ck_nm.strip()):
+                        has_session_cookie = True
+                        break
+                issued_session = has_session_cookie or bool(
                     re.search(r'"(?:token|access_token|id_token)"\s*:\s*"eyJ', c_body)
                 )
                 if c_st in {200, 302} and issued_session:
@@ -14040,10 +14053,16 @@ def evaluate_oau04_state_nonce(
                 f"{sample_loc} produced duplicate state values ({distinct_states}/{len(oau04_states_collected)} unique).",
             )
         min_len = min(len(sv) for sv in oau04_states_collected)
+        varying_cols = (
+            sum(1 for col in zip(*(sv[:min_len] for sv in oau04_states_collected)) if len(set(col)) > 1)
+            if len(oau04_states_collected) >= 2
+            else min_len
+        )
+        effective_len = min(min_len, varying_cols)
         char_counts = Counter("".join(oau04_states_collected))
         total_chars = sum(char_counts.values())
         per_char_min_entropy = -math.log2(max(char_counts.values()) / total_chars) if total_chars > 0 else 0.0
-        est_min_entropy = round(per_char_min_entropy * min_len, 2)
+        est_min_entropy = round(per_char_min_entropy * effective_len, 2)
         if est_min_entropy < 128.0:
             _add_oau04(
                 sample_loc,
@@ -14092,7 +14111,9 @@ def evaluate_oau04_state_nonce(
 
     # 4. Semgrep custom OAuth state/PRNG rule check (CASA3-OAU-04)
     semgrep_sarif_file = semgrep_sarif_out_path or (OUTPUT_DIR / "oau04-semgrep.sarif")
-    semgrep_ran, sg_hits = _run_oauth_semgrep_sarif(repo, "CASA3-OAU-04", semgrep_sarif_file)
+    semgrep_ran, sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "CASA3-OAU-04", semgrep_sarif_file) if run_semgrep else (False, [])
+    )
     for sh in sg_hits:
         _add_oau04(
             sh["location"],

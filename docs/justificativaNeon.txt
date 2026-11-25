@@ -1567,3 +1567,25 @@ CONTROLE 52/61: OAU-03 (Iteração SDD 183) — Exact Redirect URIs & Callback S
 4. Validação:
    - `test_iteration183_oau03_neon_reeval` (Web loopback HTTP FAIL + `/\` FAIL;
      Mobile loopback HTTP PASS) + regressão `test_iteration122_oau03_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 53/61: OAU-04 (Iteração SDD 184) — State & OIDC Nonce Entropy & Binding
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1171):
+   - Referência: `mitmproxy, Burp Suite, SP 800-90B entropy estimator`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa proxy interceptador HTTP local + estimador NIST SP 800-90B
+     + harness de replay de `state`/`nonce` + `semgrep` `CASA3-OAU-04`).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Um prefixo longo constante + sufixo sequencial curto em `state` podia
+     inflar `per_char_min_entropy * min_len` acima de 128 bits, mascarando baixa
+     entropia efetiva.
+   - `issued_session` no replay de callback verificava apenas `"token="` em
+     `Set-Cookie`, perdendo cookies de sessão como `connect.sid`/`JSESSIONID`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Aplicado desconto de colunas fixas (`varying_cols`) na min-entropia de
+     `state`, ampliada detecção de cookies de sessão via `_split_set_cookie_headers`
+     e `_is_session_cookie_name` (filtrando `Max-Age=0`), e exposto `run_semgrep`.
+4. Validação:
+   - `test_iteration184_oau04_neon_reeval` (prefixo fixo + cookie `connect.sid`
+     em `state_omitted` ambos FAIL) + regressão `test_iteration123_oau04_guide_tooling`.

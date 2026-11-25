@@ -2259,6 +2259,40 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 52/61: OAU-03 (Iteração SDD 183)", just_neon)
 
+    def test_iteration184_oau04_neon_reeval(self) -> None:
+        """SDD 184 (OAU-04): Constant-prefix state entropy guard & generic session cookie callback detection."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            idx_box = {"n": 0}
+            fixed_prefix = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+            def _probe_oau04(url, method="GET", headers=None, body=None, timeout=5, follow_redirects=False):
+                if url.endswith("/oauth/authorize"):
+                    idx_box["n"] += 1
+                    st_val = f"{fixed_prefix}_{idx_box['n']:04d}"
+                    return 302, {"location": f"https://idp.example.com/auth?state={st_val}"}, ""
+                if "/cb?" in url and "state=" not in url:
+                    return 302, {"set-cookie": "connect.sid=live_sess_123; HttpOnly; Secure", "location": "/home"}, ""
+                return 403, {}, "denied"
+
+            r_fail = sc.evaluate_oau04_state_nonce(
+                "https://app.example.com",
+                authorize_paths=["/oauth/authorize"],
+                callback_paths=["/cb"],
+                sample_count=20,
+                http_probe_fn=_probe_oau04,
+                run_semgrep=False,
+                report_out_path=tdp / "oau04.json",
+                har_out_path=tdp / "oau04.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            kinds = {f["kind"] for f in r_fail["findings"]}
+            self.assertIn("Insufficient_State_MinEntropy", kinds)
+            self.assertIn("Callback_Accepted_state_omitted", kinds)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 53/61: OAU-04 (Iteração SDD 184)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

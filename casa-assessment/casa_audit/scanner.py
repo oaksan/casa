@@ -7482,6 +7482,8 @@ def evaluate_cfg10_admin_reachability(
     target_url: str,
     *,
     auth_headers: dict[str, str] | None = None,
+    auth_routes: list[str] | None = None,
+    admin_wordlist: list[str] | None = None,
     auth_uid: int | str = 1,
     auth_bid: int | str = 1,
     is_spa_fallback_fn=None,
@@ -7532,15 +7534,27 @@ def evaluate_cfg10_admin_reachability(
     else:
         _check_spa = is_spa_fallback_fn
 
-    cfg10_auth_routes = [
-        f"/rest/basket/{auth_bid}",
-        f"/api/Users/{auth_uid}",
-        "/rest/wallet/balance",
-        "/api/Cards",
-        "/rest/2fa/status",
-        "/rest/user/whoami",
-    ]
-    cfg10_admin_wordlist = _load_seclists_admin_wordlist()
+    cfg10_auth_routes = (
+        list(auth_routes)
+        if auth_routes is not None
+        else [
+            f"/rest/basket/{auth_bid}",
+            f"/api/Users/{auth_uid}",
+            "/rest/wallet/balance",
+            "/api/Cards",
+            "/rest/2fa/status",
+            "/rest/user/whoami",
+        ]
+    )
+    cfg10_admin_wordlist = list(admin_wordlist) if admin_wordlist is not None else _load_seclists_admin_wordlist()
+
+    def _norm_volatile(txt: str) -> str:
+        t = re.sub(r"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\b", "<TS>", txt)
+        t = re.sub(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", "<UUID>", t, flags=re.IGNORECASE)
+        return t
+
+    def _effective_lcs_sim(txt_a: str, txt_b: str) -> float:
+        return max(_lcs_line_similarity(txt_a, txt_b), _lcs_line_similarity(_norm_volatile(txt_a), _norm_volatile(txt_b)))
 
     active_zap = (
         zap_report
@@ -7574,7 +7588,7 @@ def evaluate_cfg10_admin_reachability(
         st_unauth, _, body_unauth = probe(ar_ep)
         cfg10_probed_count += 2
         if 200 <= st_auth < 300 and 200 <= st_unauth < 300:
-            sim_auth = _lcs_line_similarity(body_auth, body_unauth)
+            sim_auth = _effective_lcs_sim(body_auth, body_unauth)
             if sim_auth >= 0.90 and body_unauth.strip() not in {"{}", '{"user":{}}', "[]"}:
                 full_u = f"{base_url}{ar_ep}"
                 if full_u not in seen_urls:
@@ -7600,8 +7614,15 @@ def evaluate_cfg10_admin_reachability(
         st_unauth, _, body_unauth = probe(adm_ep)
         cfg10_probed_count += 2
         if 200 <= st_unauth < 300 and not _check_spa(body_unauth):
-            sim_adm = _lcs_line_similarity(body_auth, body_unauth) if (200 <= st_auth < 300) else 0.0
-            if sim_adm >= 0.90:
+            sim_adm = _effective_lcs_sim(body_auth, body_unauth) if (200 <= st_auth < 300) else 0.0
+            is_login_gate = bool(re.search(r'<input[^>]+type=["\']password["\']', body_unauth, re.IGNORECASE))
+            unauth_only_exposed = (
+                not auth_hdrs
+                and not is_login_gate
+                and len(body_unauth.strip()) >= 16
+                and body_unauth.strip() not in {"{}", '{"user":{}}', "[]"}
+            )
+            if (sim_adm >= 0.90 or unauth_only_exposed) and not is_login_gate:
                 full_u = f"{base_url}{adm_ep}"
                 if full_u not in seen_urls:
                     seen_urls.add(full_u)

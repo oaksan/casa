@@ -1101,3 +1101,23 @@ CONTROLE 33/61: CFG-09 (Iteração SDD 164) — Error Handling Without Info Disc
 4. Validação:
    - `test_iteration164_cfg09_neon_reeval` (detecção multi-linguagem + sonda JSON
      malformado) + regressão `test_iteration103_cfg09_guide_tooling` (ZAP 2.17.0 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 34/61: CFG-10 (Iteração SDD 165) — Administrative Interfaces Protected
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L749):
+   - Referência: `OWASP ZAP, ffuf + SecLists/Discovery/Web-Content/common.txt`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa OWASP ZAP 2.17.0
+     + wordlist SecLists + análise diferencial LCS >= 0.90. Zero Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_cfg10_admin_reachability` não aceitava `auth_routes` e `admin_wordlist`
+     customizados.
+   - Campos voláteis por requisição (timestamps ISO-8601 / UUIDs) podiam reduzir
+     artificialmente a similaridade LCS linha-a-linha abaixo de 0.90.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionados parâmetros opcionais `auth_routes` e `admin_wordlist`.
+   - Adicionado `_effective_lcs_sim` com normalização de timestamps/UUIDs e
+     tratamento seguro de portões de login (`type="password"`) sem `auth_headers`.
+4. Validação:
+   - `test_iteration165_cfg10_neon_reeval` (normalização de timestamps/UUIDs +
+     portão de login) + regressão `test_iteration104_cfg10_guide_tooling` (ZAP 2.17.0 real).

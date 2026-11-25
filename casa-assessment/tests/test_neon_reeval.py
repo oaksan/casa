@@ -1446,6 +1446,52 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 33/61: CFG-09 (Iteração SDD 164)", just_neon)
 
+    def test_iteration165_cfg10_neon_reeval(self) -> None:
+        empty_zap = {"executed": True, "alerts": [], "urls": []}
+
+        # 1. Volatile timestamp/UUID in auth vs unauth response still detected via normalized LCS >= 0.90 -> FAIL
+        call_n = {"i": 0}
+
+        def _probe_volatile(ep: str, method: str = "GET", headers=None, body=None):
+            call_n["i"] += 1
+            if ep == "/":
+                return 200, {}, "<html><body>Home</body></html>"
+            if ep == "/api/v1/account":
+                ts = "2026-11-25T10:00:01Z" if call_n["i"] % 2 else "2026-11-25T10:00:09Z"
+                uid = "11111111-1111-1111-1111-111111111111" if call_n["i"] % 2 else "22222222-2222-2222-2222-222222222222"
+                return 200, {"content-type": "application/json"}, f'{{"account":"vip","reqId":"{uid}","ts":"{ts}"}}'
+            return 404, {}, ""
+
+        r_vol = sc.evaluate_cfg10_admin_reachability(
+            "https://app.example.com",
+            auth_headers={"Authorization": "Bearer tok"},
+            auth_routes=["/api/v1/account"],
+            admin_wordlist=["/admin"],
+            http_probe_fn=_probe_volatile,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_vol["verdict"], "FAIL")
+        self.assertTrue(any(f["kind"] == "authenticated_route_bypass" for f in r_vol["findings"]))
+
+        # 2. Admin login gate (password input) with no auth_headers -> PASS; exposed admin panel -> FAIL
+        def _probe_login_gate(ep: str, method: str = "GET", headers=None, body=None):
+            if ep == "/admin":
+                return 200, {"content-type": "text/html"}, '<html><body><form><input type="password" name="pw"></form></body></html>'
+            return 401, {}, ""
+
+        r_gate = sc.evaluate_cfg10_admin_reachability(
+            "https://app.example.com",
+            auth_headers={},
+            auth_routes=[],
+            admin_wordlist=["/admin"],
+            http_probe_fn=_probe_login_gate,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_gate["verdict"], "PASS")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 34/61: CFG-10 (Iteração SDD 165)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

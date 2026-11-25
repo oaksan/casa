@@ -6378,12 +6378,16 @@ def evaluate_cfg04_csp(
             continue
 
         dirs = _parse_csp_directives(enforcing_csp)
-        eff_source_name = "script-src" if "script-src" in dirs else ("default-src" if "default-src" in dirs else None)
+        eff_source_name = (
+            "script-src"
+            if "script-src" in dirs
+            else ("script-src-elem" if "script-src-elem" in dirs else ("default-src" if "default-src" in dirs else None))
+        )
         pol_findings = eval_results_map.get(enforcing_csp, [])
         missing_script_eval = [
             f for f in pol_findings if f.get("type") == 300 and f.get("directive") in {"script-src", "default-src", ""}
         ]
-        if not eff_source_name or missing_script_eval:
+        if not eff_source_name or not dirs.get(eff_source_name) or missing_script_eval:
             cfg04_findings.append(
                 {
                     "url": ex.get("url", base_url),
@@ -6391,19 +6395,26 @@ def evaluate_cfg04_csp(
                     "status": ex.get("status", 0),
                     "issue": "no_effective_script_src",
                     "cspEvaluatorTypes": [f.get("type") for f in missing_script_eval],
-                    "detail": f"{key_url} Content-Security-Policy defines neither script-src nor default-src fallback ('{enforcing_csp}')",
+                    "detail": f"{key_url} Content-Security-Policy defines neither non-empty script-src nor default-src fallback ('{enforcing_csp}')",
                 }
             )
             continue
 
-        eff_tokens = dirs[eff_source_name]
-        bad_tokens = [
-            tok for tok in eff_tokens
-            if tok.strip("'\"") in unsafe_csp_tokens or tok in {"*", "data:"}
-        ]
+        checked_script_dirs = [eff_source_name]
+        for extra_sd in ("script-src-elem", "script-src-attr"):
+            if extra_sd in dirs and extra_sd not in checked_script_dirs:
+                checked_script_dirs.append(extra_sd)
+
+        bad_tokens: list[str] = []
+        for sd_name in checked_script_dirs:
+            for tok in dirs.get(sd_name, []):
+                if tok.strip("'\"") in unsafe_csp_tokens or tok in {"*", "data:"}:
+                    tok_label = tok if sd_name == eff_source_name else f"{sd_name}:{tok}"
+                    if tok_label not in bad_tokens:
+                        bad_tokens.append(tok_label)
         matched_eval_findings: list[dict] = []
         for f in pol_findings:
-            if f.get("directive") != eff_source_name:
+            if f.get("directive") not in checked_script_dirs:
                 continue
             ftype = f.get("type")
             fval = str(f.get("value") or "").strip().lower()

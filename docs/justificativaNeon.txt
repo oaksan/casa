@@ -989,3 +989,23 @@ CONTROLE 27/61: CFG-03 (Iteração SDD 158) — Version Disclosure Removed
 4. Validação:
    - `test_iteration158_cfg03_neon_reeval` (protocolos limpos vs `nginx/1.24.0`) +
      regressão `test_iteration97_cfg03_guide_tooling` (OWASP ZAP 2.17.0 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 28/61: CFG-04 (Iteração SDD 159) — Content-Security-Policy Enforced
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L621):
+   - Referência: `csp-evaluator, OWASP ZAP`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa Google
+     `csp-evaluator` 1.1.8 (Node.js) + OWASP ZAP 2.17.0 (`10038`/`10055`).
+     Zero uso de Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_cfg04_csp` não inspecionava diretivas CSP Level 3 (`script-src-elem`,
+     `script-src-attr`), permitindo bypass com `script-src 'self'; script-src-elem
+     'unsafe-inline'`.
+   - Diretiva vazia (`script-src ;`) não era rejeitada como `no_effective_script_src`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido `evaluate_cfg04_csp` para validar também `script-src-elem` e
+     `script-src-attr` (quando declaradas) e rejeitar diretivas efetivas vazias.
+4. Validação:
+   - `test_iteration159_cfg04_neon_reeval` (bypass `script-src-elem`, diretiva
+     vazia e CSP3 estrita com `csp-evaluator`) + regressão `test_iteration98_cfg04_guide_tooling`.

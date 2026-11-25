@@ -1184,6 +1184,71 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 27/61: CFG-03 (Iteração SDD 158)", just_neon)
 
+    def test_iteration159_cfg04_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            csp_json = Path(td) / "csp.json"
+            # 1. CSP3 bypass via script-src-elem 'unsafe-inline' -> FAIL
+            r_elem = sc.evaluate_cfg04_csp(
+                "https://app.example.com",
+                crawled_exchanges=[
+                    {
+                        "method": "GET",
+                        "url": "https://app.example.com/",
+                        "status": 200,
+                        "headers": {
+                            "content-type": "text/html",
+                            "content-security-policy": "default-src 'self'; script-src 'self'; script-src-elem 'unsafe-inline'",
+                        },
+                        "body": "<html><body>App</body></html>",
+                    }
+                ],
+                csp_out_path=csp_json,
+            )
+            self.assertEqual(r_elem["verdict"], "FAIL")
+            self.assertTrue(any("script-src-elem" in t for f in r_elem["findings"] for t in f.get("tokens", [])))
+
+            # 2. Empty script-src directive -> FAIL
+            r_empty = sc.evaluate_cfg04_csp(
+                "https://app.example.com",
+                crawled_exchanges=[
+                    {
+                        "method": "GET",
+                        "url": "https://app.example.com/",
+                        "status": 200,
+                        "headers": {
+                            "content-type": "text/html",
+                            "content-security-policy": "default-src 'self'; script-src ;",
+                        },
+                        "body": "<html><body>App</body></html>",
+                    }
+                ],
+                csp_out_path=csp_json,
+            )
+            self.assertEqual(r_empty["verdict"], "FAIL")
+            self.assertEqual(r_empty["findings"][0]["issue"], "no_effective_script_src")
+
+            # 3. Strict CSP3 with safe script-src-elem -> PASS
+            r_ok = sc.evaluate_cfg04_csp(
+                "https://app.example.com",
+                crawled_exchanges=[
+                    {
+                        "method": "GET",
+                        "url": "https://app.example.com/",
+                        "status": 200,
+                        "headers": {
+                            "content-type": "text/html",
+                            "content-security-policy": "default-src 'self'; script-src 'self' 'nonce-rAnd0m123'; script-src-elem 'self' 'nonce-rAnd0m123'",
+                        },
+                        "body": "<html><body>App</body></html>",
+                    }
+                ],
+                csp_out_path=csp_json,
+            )
+            self.assertEqual(r_ok["verdict"], "PASS", f"Expected PASS, got {r_ok}")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 28/61: CFG-04 (Iteração SDD 159)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

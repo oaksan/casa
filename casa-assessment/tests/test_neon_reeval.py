@@ -2085,6 +2085,46 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 48/61: AZI-05 (Iteração SDD 179)", just_neon)
 
+    def test_iteration180_azi06_neon_reeval(self) -> None:
+        """SDD 180 (AZI-06): Backslash URL normalization, quoted meta-refresh & unsafe redirect schemes."""
+        self.assertEqual(sc._parse_redirect_scheme_host("/\\evil.example.com/path"), ("", "evil.example.com"))
+        self.assertEqual(sc._parse_redirect_scheme_host("\\\\evil.example.com"), ("", "evil.example.com"))
+        self.assertEqual(sc._parse_redirect_scheme_host("javascript:alert(1)"), ("javascript", ""))
+        self.assertEqual(
+            sc._extract_redirect_target(200, {}, "<meta http-equiv='refresh' content=\"0; url='https://evil.example.com/p'\">"),
+            "https://evil.example.com/p",
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            def _probe_backslash_redir(url, method="GET", headers=None, body=None, timeout=5, follow_redirects=False):
+                if "backslash" in url:
+                    return 302, {"location": "/\\evil.example.com/login"}, ""
+                if "jsscheme" in url:
+                    return 302, {"location": "javascript:void(0)"}, ""
+                return 302, {"location": "/dashboard"}, ""
+
+            r_fail = sc.evaluate_azi06_open_redirect_hpp(
+                "https://app.example.com",
+                redirect_targets=[
+                    ("backslash_case", "/go?to=backslash"),
+                    ("js_case", "/go?to=jsscheme"),
+                ],
+                hpp_targets=[],
+                http_probe_fn=_probe_backslash_redir,
+                run_zap=False,
+                report_out_path=tdp / "azi06.json",
+                har_out_path=tdp / "azi06.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            kinds = {f["kind"] for f in r_fail["findings"]}
+            self.assertIn("OpenRedirect_backslash_case", kinds)
+            self.assertIn("OpenRedirect_js_case_unsafe_scheme", kinds)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 49/61: AZI-06 (Iteração SDD 180)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1468,3 +1468,38 @@ CONTROLE 48/61: AZI-05 (Iteração SDD 179) — File Path & Remote Inclusion Ver
 4. Validação:
    - `test_iteration179_azi05_neon_reeval` (marcador `win.ini` + isolamento RFI
      entre `/vuln` e `/safe`) + regressão `test_iteration118_azi05_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 49/61: AZI-06 (Iteração SDD 180) — Open Redirect & HTTP Parameter Pollution
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1083):
+   - Referência: `ZAP, Burp Suite`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa OWASP ZAP 2.17.0 regras ativas `20019`/`20014` + verificador
+     NoRedirect e diferencial HPP com SARIF 2.1.0 e HAR 1.2 redigido).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `urllib.parse.urlparse("/\\evil.example.com").hostname` retorna `None` em
+     Python, embora browsers normalizem `/\` e `\\` para `//` (host externo).
+   - Redirecionamentos com pseudo-esquemas inseguros (`javascript:`, `data:`)
+     não eram sinalizados por não possuírem `hostname`.
+   - Regex de `<meta http-equiv="refresh">` não aceitava aspas em torno de `url=`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Criado `_parse_redirect_scheme_host` normalizando `/\`, `\\` e `scheme:\`,
+     adicionada detecção de esquemas `javascript:`/`data:`, atualizado
+     `_extract_redirect_target` para `url=` com aspas e adicionado vetor
+     `backslash_bypass` em `redir_vectors`.
+4. Validação:
+   - `test_iteration180_azi06_neon_reeval` (normalização `/\`, `\\`, meta-refresh
+     com aspas e `javascript:`) + regressão `test_iteration119_azi06_guide_tooling`.
+
+=== FECHAMENTO DO DOMÍNIO 6 (AZI-01 .. AZI-06 — SDD 175 .. SDD 180) ===
+- Suíte Completa (`unittest discover -s casa-assessment/tests -v`): 113/113 OK em 1080.77s (zero falhas/flakes).
+- Scan Ao Vivo Completo (`POST http://127.0.0.1:8080/api/scan` contra OWASP Juice Shop `http://localhost:3000`):
+  - TOTAL: 61 controles (`FAIL: 51, PASS: 5, NOT_APPLICABLE: 2, Not_Covered: 3`).
+  - `AZI-01`: FAIL (3 violações anti-CSRF confirmadas por replay + re-read).
+  - `AZI-02`: FAIL (1 callback JS ao vivo em Chrome Headless + 7 sinks Angular + ZAP 40012/40014).
+  - `AZI-03`: FAIL (6 achados SQL/NoSQL via sqlmap 1.10.11 + OWASP ZAP 40018 + diferencial).
+  - `AZI-04`: PASS (OWASP ZAP 90020 + 36 probes + listeners OOB HTTP e UDP DNS locais).
+  - `AZI-05`: FAIL (3 achados LFI/Path Traversal/RFI via ZAP 6/7 + matriz).
+  - `AZI-06`: FAIL (3 achados Open Redirect/HPP via ZAP 20019 + diferencial NoRedirect/HPP).
+- Auditoria de Ferramentas do Domínio 6: 100% gratuito (Burp Suite / DOM Invader pagos ausentes em todos os 6 controles).

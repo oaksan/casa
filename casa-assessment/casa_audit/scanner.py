@@ -12649,7 +12649,7 @@ def _extract_redirect_target(st_code: int, hdrs_map: dict[str, str], body_txt: s
     """Extract redirect URL target from 3xx Location, meta-refresh, or inline JavaScript redirects."""
     if 300 <= st_code < 400 and hdrs_map.get("location"):
         return hdrs_map["location"].strip()
-    m_meta = re.search(r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+url=([^"\'>;\s]+)', body_txt, re.IGNORECASE)
+    m_meta = re.search(r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+url\s*=\s*["\']?([^"\'>;\s]+)', body_txt, re.IGNORECASE)
     if m_meta:
         return m_meta.group(1).strip()
     m_js = re.search(
@@ -12660,6 +12660,17 @@ def _extract_redirect_target(st_code: int, hdrs_map: dict[str, str], body_txt: s
     if m_js:
         return (m_js.group(1) or m_js.group(2) or "").strip()
     return ""
+
+
+def _parse_redirect_scheme_host(loc_target: str) -> tuple[str, str]:
+    """Normalize browser-accepted redirect URL forms (e.g. /\\host, \\\\host) and return (scheme, hostname)."""
+    cleaned = re.sub(r"[\x00-\x1f\x7f]", "", loc_target or "").strip()
+    if cleaned.startswith(("/\\", "\\\\", "\\/")):
+        cleaned = "//" + cleaned[2:].lstrip("/\\")
+    elif re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:[\\/]+", cleaned):
+        cleaned = re.sub(r"^([a-zA-Z][a-zA-Z0-9+.-]*:)[\\/]+", r"\1//", cleaned)
+    parsed = urllib.parse.urlparse(cleaned)
+    return (parsed.scheme or "").lower(), (parsed.hostname or "").lower()
 
 
 def evaluate_azi06_open_redirect_hpp(
@@ -12772,6 +12783,7 @@ def evaluate_azi06_open_redirect_hpp(
     redir_vectors = list(redirect_targets) if redirect_targets is not None else [
         ("direct_off_allowlist", "/redirect?to=https://evil.example.com"),
         ("protocol_relative", "/redirect?to=//evil.example.com"),
+        ("backslash_bypass", "/redirect?to=/\\evil.example.com"),
         ("query_substring_bypass", "/redirect?to=https://evil.example.com?https://github.com/juice-shop/juice-shop"),
         ("userinfo_at_bypass", "/redirect?to=https://github.com/juice-shop/juice-shop@evil.example.com"),
     ]
@@ -12795,8 +12807,17 @@ def evaluate_azi06_open_redirect_hpp(
         azi06_probes += 1
         loc_target = _extract_redirect_target(r_st, r_hdrs, r_body)
         if loc_target:
-            loc_host = (urllib.parse.urlparse(loc_target).hostname or "").lower()
-            if loc_host and loc_host not in allow_hosts:
+            loc_scheme, loc_host = _parse_redirect_scheme_host(loc_target)
+            if loc_scheme in {"javascript", "data"}:
+                _add_finding(
+                    f"{base_url}{r_path.split('?', 1)[0]}",
+                    f"OpenRedirect_{r_lbl}_unsafe_scheme",
+                    "CWE-601",
+                    r_st,
+                    f"GET {base_url}{r_path} returned HTTP {r_st} redirect target '{loc_target}' using unsafe scheme '{loc_scheme}:' (CWE-601).",
+                    confirmed_by="noredirect_open_redirect",
+                )
+            elif loc_host and loc_host not in allow_hosts:
                 _add_finding(
                     f"{base_url}{r_path.split('?', 1)[0]}",
                     f"OpenRedirect_{r_lbl}",

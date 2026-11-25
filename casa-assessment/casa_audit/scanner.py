@@ -3450,19 +3450,31 @@ def evaluate_sast05_password_kdf(
                     if pn_val is None or pn_val < 32768:
                         _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK SCRYPT] Python hashlib.scrypt n={pn_val} below 32768")
 
-                # 4. Argon2id variant check + memoryCost (>= 19456 KiB) / timeCost (>= 2)
+                # 4. Argon2id variant check + memoryCost (>= 19456 KiB) / timeCost (>= 2) + explicit salt provenance
                 if "argon2.hash(" in line or "PasswordHasher(" in line:
+                    is_js_argon = "argon2.hash(" in line
                     m_type = argon_type_re.search(line)
                     if m_type and m_type.group(1).lower() not in {"argon2.argon2id", "argon2id", "type.id"}:
                         _add_s5(rel, lno, "CASA3-SAST-05-argon2-variant", f"{rel}:{lno} — [UNAPPROVED ARGON2 VARIANT] type='{m_type.group(1)}' must be Argon2id")
+                    elif is_js_argon and not m_type:
+                        _add_s5(rel, lno, "CASA3-SAST-05-argon2-variant", f"{rel}:{lno} — [UNPROVABLE ARGON2 VARIANT] argon2.hash() omits explicit type: argon2.argon2id")
                     mm = argon_m_re.search(line)
                     mt = argon_t_re.search(line)
                     m_val = _resolve_int_param(mm.group(1), file_text) if mm else None
                     t_val = _resolve_int_param(mt.group(1), file_text) if mt else None
                     if mm and (m_val is None or m_val < 19456):
                         _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK ARGON2ID] memoryCost={m_val} below NIST SP 800-63B floor (m >= 19456 KiB)")
+                    elif is_js_argon and not mm:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-provenance", f"{rel}:{lno} — [UNPROVABLE ARGON2ID COST] argon2.hash() omits statically verifiable memoryCost (>= 19456 KiB)")
                     if mt and (t_val is None or t_val < 2):
                         _add_s5(rel, lno, "CASA3-SAST-05-kdf-floor", f"{rel}:{lno} — [WEAK ARGON2ID] timeCost={t_val} below NIST SP 800-63B floor (t >= 2)")
+                    elif is_js_argon and not mt:
+                        _add_s5(rel, lno, "CASA3-SAST-05-kdf-provenance", f"{rel}:{lno} — [UNPROVABLE ARGON2ID COST] argon2.hash() omits statically verifiable timeCost (>= 2)")
+                    m_asalt = re.search(r"\bsalt\s*[:=]\s*([^,}\)]+)", line)
+                    if m_asalt:
+                        a_salt_ok, a_salt_reason = _salt_has_csprng_provenance(m_asalt.group(1), local_text)
+                        if not a_salt_ok:
+                            _add_s5(rel, lno, "CASA3-SAST-05-non-csprng-salt", f"{rel}:{lno} — [NON-CSPRNG ARGON2 SALT] {a_salt_reason}")
 
     return sast05_findings, sast05_sarif
 

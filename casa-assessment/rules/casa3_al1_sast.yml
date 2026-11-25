@@ -318,8 +318,13 @@ rules:
     pattern-either:
       - pattern: |
           export const hash = ($DATA) => crypto.createHash('md5').update($DATA).digest('hex')
-      - pattern: |
-          this.setDataValue('password', $HASH_FN($PWD))
+      - patterns:
+          - pattern: this.setDataValue('password', $HASH_FN($PWD))
+          - pattern-not: this.setDataValue('password', bcrypt.hashSync(...))
+          - pattern-not: this.setDataValue('password', bcrypt.hash(...))
+          - pattern-not: this.setDataValue('password', argon2.hash(...))
+          - pattern-not: this.setDataValue('password', crypto.scryptSync(...))
+          - pattern-not: this.setDataValue('password', crypto.pbkdf2Sync(...))
       - pattern: |
           crypto.pbkdf2Sync($PWD, "...", ...)
       - pattern: |

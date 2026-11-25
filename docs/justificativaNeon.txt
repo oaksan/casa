@@ -442,3 +442,40 @@ Domínio 2: Static Code Analysis & Secrets
   para `security.hash()` seguro (SHA-256) e `FAIL` para fluxos taint MD5/SHA-1
   em PHP e C#.
 - Regressão validada: `test_iteration79_sast04_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 10/61: SAST-05 (Iteração SDD 141)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L246):
+  `semgrep`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  `semgrep` em nível `ERROR` aliado ao inspetor estático de parâmetros NIST SP
+  800-63B §5.1.1.2 e proveniência de salt CSPRNG em SARIF 2.1.0.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 141)
+--------------------------------------------------------------------------------
+1) **Eliminação de falso positivo em `this.setDataValue('password', ...)`**:
+   - *Antes*: `CASA3-SAST-05-weak-password-kdf` disparava sobre qualquer
+     `$HASH_FN($PWD)` em `setDataValue('password', ...)`, mesmo quando o KDF era
+     `bcrypt.hashSync`, `argon2.hash`, `crypto.scryptSync` ou `crypto.pbkdf2Sync`.
+   - *Melhoria*: Adicionados `pattern-not` para os KDFs aprovados no Test Guide.
+2) **Exigência de verificabilidade estática de parâmetros e salt em `argon2.hash`
+   (`Test Guide` L250–251)**:
+   - *Antes*: `argon2.hash(pw)` sem `type`/`memoryCost`/`timeCost` explícitos ou
+     com `salt` literal não gerava falha.
+   - *Melhoria*: `evaluate_sast05_password_kdf` agora exige declaração explícita
+     e estaticamente determinável de `type: argon2.argon2id`, `memoryCost >=
+     19456`, `timeCost >= 2` e valida proveniência CSPRNG quando `salt` explícito
+     é informado.
+
+3. VALIDAÇÃO (SDD 141)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration141_sast05_neon_reeval` validando `PASS`
+  para `setDataValue('password', bcrypt.hashSync(pw, 12))` e `FAIL` para
+  `argon2.hash(pw)` sem parâmetros e com salt literal.
+- Regressão validada: `test_iteration80_sast05_guide_tooling` (`OK`).

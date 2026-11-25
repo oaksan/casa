@@ -520,6 +520,35 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 09/61: SAST-04 (Iteração SDD 140)", just_neon)
 
+    def test_iteration141_sast05_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            # 1. Sequelize setDataValue using bcrypt.hashSync(pw, 12) must NOT false-positive
+            (src / "model_ok.ts").write_text(
+                "import bcrypt from 'bcrypt';\nclass U { setPassword(pw: string) { this.setDataValue('password', bcrypt.hashSync(pw, 12)); } }\n",
+                encoding="utf-8",
+            )
+            f_ok, _ = sc.evaluate_sast05_password_kdf(repo)
+            self.assertEqual(f_ok, [], f"Approved bcrypt in setDataValue must PASS, got {f_ok}")
+
+            # 2. argon2.hash() omitting memoryCost/timeCost/type or passing static salt must FAIL
+            (src / "argon_bad.ts").write_text(
+                "import argon2 from 'argon2';\n"
+                "export const h1 = (pw: string) => argon2.hash(pw);\n"
+                "export const h2 = (pw: string) => argon2.hash(pw, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, salt: 'fixed-salt' });\n",
+                encoding="utf-8",
+            )
+            f_bad, s_bad = sc.evaluate_sast05_password_kdf(repo)
+            joined = "\n".join(f_bad)
+            self.assertIn("UNPROVABLE ARGON2 VARIANT", joined)
+            self.assertIn("NON-CSPRNG ARGON2 SALT", joined)
+            self.assertGreaterEqual(len(s_bad), 2)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 10/61: SAST-05 (Iteração SDD 141)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

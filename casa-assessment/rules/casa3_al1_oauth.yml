@@ -92,3 +92,13 @@ rules:
     message: "WHK-01: Cleartext HTTP webhook endpoint URL configured instead of HTTPS TLS 1.2+ (CASA v2.1.1 §7.1.1)"
     severity: ERROR
     pattern-regex: '(?i)(?:webhook[_-]?url|webhookUrl|callback[_-]?url|callbackUrl|webhookEndpoint)\s*[:=]\s*["'']http://[^"''\s]+["'']'
+
+  - id: CASA3-WHK-02-weak-hmac-or-timing
+    languages: [typescript, javascript, python]
+    message: "WHK-02: Webhook handler uses weak HMAC (< SHA-256) or variable-time signature comparison (CASA v2.1.1 §7.2.1; CWE-208)"
+    severity: ERROR
+    pattern-either:
+      - pattern-regex: '(?i)(?:createHmac\s*\(\s*["''](?:sha1|md5)["'']|hmac\.new\s*\([^\n]*(?:hashlib\.(?:sha1|md5)|["''](?:sha1|md5)["'']))'
+      - patterns:
+          - pattern-regex: '[^\n]*(?:\b(?:sig|signature|expected|computed|hmac_val|webhook_sig)\w*\s*(?:===|!==|==|!=)\s*\w+|Buffer\.compare\s*\()[^\n]*'
+          - pattern-not-regex: '(?:timingSafeEqual|compare_digest|MessageDigest\.isEqual|ConstantTimeCompare|ConstantTimeEquals)'

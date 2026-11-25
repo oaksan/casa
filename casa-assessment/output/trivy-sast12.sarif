@@ -596,33 +596,6 @@
                   "uriBaseId": "ROOTPATH"
                 },
                 "region": {
-                  "startLine": 68,
-                  "startColumn": 1,
-                  "endLine": 73,
-                  "endColumn": 1
-                }
-              },
-              "message": {
-                "text": "infrastructure/terraform/networking.tf"
-              }
-            }
-          ]
-        },
-        {
-          "ruleId": "AWS-0124",
-          "ruleIndex": 7,
-          "level": "note",
-          "message": {
-            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "infrastructure/terraform/networking.tf",
-                  "uriBaseId": "ROOTPATH"
-                },
-                "region": {
                   "startLine": 75,
                   "startColumn": 1,
                   "endLine": 80,
@@ -677,9 +650,9 @@
                   "uriBaseId": "ROOTPATH"
                 },
                 "region": {
-                  "startLine": 101,
+                  "startLine": 68,
                   "startColumn": 1,
-                  "endLine": 106,
+                  "endLine": 73,
                   "endColumn": 1
                 }
               },
@@ -731,9 +704,9 @@
                   "uriBaseId": "ROOTPATH"
                 },
                 "region": {
-                  "startLine": 228,
+                  "startLine": 101,
                   "startColumn": 1,
-                  "endLine": 233,
+                  "endLine": 106,
                   "endColumn": 1
                 }
               },
@@ -761,6 +734,33 @@
                   "startLine": 235,
                   "startColumn": 1,
                   "endLine": 240,
+                  "endColumn": 1
+                }
+              },
+              "message": {
+                "text": "infrastructure/terraform/networking.tf"
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "AWS-0124",
+          "ruleIndex": 7,
+          "level": "note",
+          "message": {
+            "text": "Artifact: infrastructure/terraform/networking.tf\nType: terraform\nVulnerability AWS-0124\nSeverity: LOW\nMessage: Security group rule does not have a description.\nLink: [AWS-0124](https://avd.aquasec.com/misconfig/aws-0124)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "infrastructure/terraform/networking.tf",
+                  "uriBaseId": "ROOTPATH"
+                },
+                "region": {
+                  "startLine": 228,
+                  "startColumn": 1,
+                  "endLine": 233,
                   "endColumn": 1
                 }
               },

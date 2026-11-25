@@ -15602,53 +15602,41 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # WHK-02: HMAC-SHA256+ Payload Authentication & Constant-Time Signature Verification (absent, truncated, modified, foreign-key) (SARIF 2.1.0 + HAR 1.2)
-    whk02_verdict, whk02_probes, whk02_findings, whk02_clauses = evaluate_whk02_hmac_and_timing_safe(
-        whk_receivers,
+    whk02_eval = evaluate_whk02_signature_verification(
+        base_url,
+        repo=repo,
+        receivers=whk_receivers,
         webhook_files=whk_files,
-        http_fn=http_probe if base_url else None,
+        files_scanned=whk_scanned_files,
+        discovery_probes=whk_disc_probes,
+        http_probe_fn=http_probe if base_url else None,
     )
-    for af_w2 in whk02_findings:
-        dast_sarif_results.append(
-            {
-                "ruleId": "CASA3-WHK-02",
-                "level": "error",
-                "message": {"text": af_w2["detail"]},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": af_w2["location"]},
-                        }
-                    }
-                ],
-                "properties": {
-                    "controlId": "WHK-02",
-                    "findingKind": af_w2["kind"],
-                    "cwe": af_w2["cwe"],
-                    "httpStatus": af_w2["status"],
-                },
-            }
-        )
+    whk02_verdict = whk02_eval["verdict"]
+    whk02_probes = whk02_eval["probesRun"]
+    whk02_findings = whk02_eval["findings"]
+    whk02_clauses = whk02_eval["clauses"]
+    dast_sarif_results.extend(whk02_eval["sarifResults"])
     whk02_lines = [f"[{w2['cwe']} / {w2['kind']}] {w2['detail']}" for w2 in whk02_findings]
     results["WHK-02"] = {
         "verdict": whk02_verdict,
         "tool": (
-            f"Webhook HMAC-SHA256+ & Constant-Time Signature Verifier ({len(whk_receivers)} receivers, "
-            f"{len(whk_files)} handler files, {whk02_probes} invalid-signature probes, clauses={whk02_clauses}, SARIF 2.1.0 + HAR 1.2)"
+            f"Webhook HMAC-SHA256+, Semgrep & Constant-Time Signature Verifier ({len(whk_receivers)} receivers, "
+            f"{len(whk_files)} handler files, {whk02_probes} invalid-signature probes, Semgrep hits={whk02_eval['semgrepHits']}, clauses={whk02_clauses}, SARIF 2.1.0 + HAR 1.2)"
         ),
         "log": (
             f"[FAIL] {len(whk02_findings)} webhook signature / timing-safe comparison violation(s) detected across {whk02_probes} probe(s):\n  - "
             + "\n  - ".join(whk02_lines)
-            + f"\n\nEvidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+            + f"\n\nEvidence Artifacts:\n  - WHK-02 HMAC Audit JSON: {whk02_eval['reportPath']}\n  - WHK-02 Redacted HAR 1.2: {whk02_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
             if whk02_verdict == "FAIL"
             else (
                 f"[PASS] Audited {len(whk_receivers)} webhook receiver(s) across {whk02_probes} invalid-signature replay probes "
                 f"(absent, truncated, modified, foreign-key); all invalid signatures denied and HMAC-SHA256+ / constant-time verification clauses={whk02_clauses}.\n"
-                f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                f"Evidence Artifacts:\n  - WHK-02 HMAC Audit JSON: {whk02_eval['reportPath']}\n  - WHK-02 Redacted HAR 1.2: {whk02_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
                 if whk02_verdict == "PASS"
                 else (
                     f"[Not_Covered] Audited {whk_scanned_files} workspace files and executed {whk_disc_probes} HTTP POST discovery probes; "
                     f"0 webhook receivers or HMAC verification handlers declared/discovered.\n"
-                    f"Evidence Artifacts:\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
+                    f"Evidence Artifacts:\n  - WHK-02 HMAC Audit JSON: {whk02_eval['reportPath']}\n  - WHK-02 Redacted HAR 1.2: {whk02_eval['harPath']}\n  - DAST SARIF 2.1.0: {dast_sarif_path}\n  - Redacted HTTP HAR 1.2: {har_path}\n  - TLS Assessment JSON: {tls_json_path}"
                 )
             )
         ),
@@ -16749,6 +16737,162 @@ def evaluate_whk02_hmac_and_timing_safe(
 
     verdict = "FAIL" if findings else "PASS"
     return verdict, probes, findings, clauses
+
+
+def evaluate_whk02_signature_verification(
+    target_url: str,
+    *,
+    repo: Path | None = None,
+    receivers: list[str] | None = None,
+    webhook_files: dict[str, str] | None = None,
+    files_scanned: int | None = None,
+    discovery_probes: int | None = None,
+    http_probe_fn=None,
+    report_out_path: Path | None = None,
+    har_out_path: Path | None = None,
+    semgrep_sarif_out_path: Path | None = None,
+    run_semgrep: bool = True,
+) -> dict:
+    """Evaluate WHK-02 (CASA v2.1.1 §7.2.1, §7.2.2; CWE-208) via 4-vector invalid signature replay HAR + Semgrep."""
+    base_url = target_url.strip().rstrip("/")
+    _probe_logged, _, probe_har_entries = _make_redacted_har_probe(base_url, http_probe_fn=http_probe_fn)
+
+    if receivers is None and webhook_files is None and repo is not None:
+        disc_receivers, disc_files, f_sc, d_pr = discover_webhook_facilities(repo, base_url=base_url, http_fn=_probe_logged if base_url else None)
+    else:
+        disc_receivers = list(receivers or [])
+        disc_files = dict(webhook_files or {})
+        f_sc = int(files_scanned or 0)
+        d_pr = int(discovery_probes or 0)
+
+    def _logged_signed_http(url_or_path: str, method: str = "POST", headers: dict | None = None, body: bytes | None = None, follow_redirects: bool = False):
+        if http_probe_fn is not None or not url_or_path.startswith(("http://", "https://")):
+            return _probe_logged(url_or_path, method=method, headers=headers, body=body, follow_redirects=follow_redirects)
+        req_w = urllib.request.Request(url_or_path, data=body, headers={"User-Agent": "ADA-CASA-3.0-WHK02/3.0", **(headers or {})}, method=method)
+        try:
+            with urllib.request.urlopen(req_w, timeout=3) as resp:
+                st_r, hdrs_r, body_r = resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(2048).decode("utf-8", errors="ignore")
+        except urllib.error.HTTPError as he:
+            st_r, hdrs_r, body_r = he.code, {k.lower(): v for k, v in he.headers.items()}, ""
+        except Exception:
+            st_r, hdrs_r, body_r = 0, {}, ""
+        probe_har_entries.append(
+            {
+                "startedDateTime": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "time": 1.0,
+                "request": {
+                    "method": method,
+                    "url": url_or_path,
+                    "httpVersion": "HTTP/1.1",
+                    "headers": [{"name": k, "value": "[REDACTED]" if "sig" in k.lower() else v} for k, v in (headers or {}).items()],
+                },
+                "response": {"status": st_r, "httpVersion": "HTTP/1.1", "headers": [{"name": k, "value": v} for k, v in hdrs_r.items()]},
+            }
+        )
+        return st_r, hdrs_r, body_r
+
+    verdict, probes, findings, clauses = evaluate_whk02_hmac_and_timing_safe(
+        disc_receivers,
+        webhook_files=disc_files,
+        http_fn=_logged_signed_http,
+    )
+
+    semgrep_sarif_file = semgrep_sarif_out_path or (OUTPUT_DIR / "whk02-semgrep.sarif")
+    semgrep_ran, raw_sg_hits = (
+        _run_oauth_semgrep_sarif(repo, "CASA3-WHK-02", semgrep_sarif_file) if (run_semgrep and (disc_receivers or disc_files)) else (False, [])
+    )
+    kept_sg_hits: list[dict] = []
+    wh_file_keys = {k.replace("\\", "/") for k in disc_files}
+    seen_w2 = {(f["location"], f["kind"]) for f in findings}
+    for sh in raw_sg_hits:
+        rel_part = sh["location"].rsplit(":", 1)[0].replace("\\", "/")
+        if wh_file_keys and rel_part not in wh_file_keys:
+            continue
+        kept_sg_hits.append(sh)
+        kw2 = (sh["location"], "Semgrep_WHK02_Signature_Or_Timing")
+        if kw2 not in seen_w2:
+            seen_w2.add(kw2)
+            findings.append(
+                {
+                    "location": sh["location"],
+                    "kind": "Semgrep_WHK02_Signature_Or_Timing",
+                    "cwe": "CWE-208",
+                    "status": 0,
+                    "detail": f"Semgrep rule {sh['ruleId']} flagged {sh['location']} ({sh['message']}).",
+                }
+            )
+    if findings:
+        verdict = "FAIL"
+
+    rep_file = report_out_path or (OUTPUT_DIR / "whk02-hmac-audit.json")
+    rep_file.parent.mkdir(parents=True, exist_ok=True)
+    rep_file.write_text(
+        json.dumps(
+            {
+                "standard": "CASA v2.1.1 §7.2.1, §7.2.2 / CWE-208 (HMAC-SHA256+ & Constant-Time Verification)",
+                "target": base_url,
+                "verdict": verdict,
+                "receivers": disc_receivers,
+                "filesScanned": f_sc,
+                "discoveryProbes": d_pr,
+                "probesRun": probes,
+                "clauses": clauses,
+                "semgrepHits": len(kept_sg_hits),
+                "findings": findings,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    har_file = har_out_path or (OUTPUT_DIR / "whk02-replayed.har")
+    har_file.parent.mkdir(parents=True, exist_ok=True)
+    har_file.write_text(
+        json.dumps(
+            {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "casa-audit-whk02-hmac-harness", "version": "3.0"},
+                    "entries": probe_har_entries,
+                }
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    sarif_items: list[dict] = []
+    for af_w2 in findings:
+        sarif_items.append(
+            {
+                "ruleId": "CASA3-WHK-02",
+                "level": "error",
+                "message": {"text": af_w2["detail"]},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": af_w2["location"]}}}],
+                "properties": {
+                    "controlId": "WHK-02",
+                    "findingKind": af_w2["kind"],
+                    "cwe": af_w2["cwe"],
+                    "httpStatus": af_w2["status"],
+                },
+            }
+        )
+
+    return {
+        "verdict": verdict,
+        "whk02_fail": verdict == "FAIL",
+        "receivers": disc_receivers,
+        "probesRun": probes,
+        "clauses": clauses,
+        "semgrepHits": len(kept_sg_hits),
+        "semgrepSarifPath": str(semgrep_sarif_file) if semgrep_ran else None,
+        "findings": findings,
+        "reportPath": str(rep_file),
+        "harPath": str(har_file),
+        "sarifResults": sarif_items,
+    }
 
 
 def evaluate_whk03_ssrf_and_signing_secrets(

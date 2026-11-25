@@ -1,0 +1,14 @@
+{
+  "standard": "CASA v2.1.1 §7.2.1, §7.2.2 / CWE-208 (HMAC-SHA256+ & Constant-Time Verification)",
+  "target": "http://localhost:3000",
+  "verdict": "Not_Covered",
+  "receivers": [],
+  "filesScanned": 657,
+  "discoveryProbes": 10,
+  "probesRun": 0,
+  "clauses": {
+    "source_clause": "Not_Covered"
+  },
+  "semgrepHits": 0,
+  "findings": []
+}

@@ -3083,3 +3083,56 @@ CONTROLE 59/61: WHK-01 (Iteração SDD 129) — Abertura do Domínio 8: WHK
     ausência de receptores/disparadores webhook -> Veredito **`Not_Covered`**
     fundamentado (nunca falso `PASS`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 60/61: WHK-02 (Iteração SDD 130)
+Domínio 8: Webhook Security (WHK)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: WHK-02
+- Requisito (CASA 3.0 AL1):
+  "Payloads are authenticated with HMAC-SHA256 or stronger, verified using a
+  timing-safe comparison."
+- Referências: CASA v2.1.1 §7.2.1, §7.2.2; CWE-208 | Superfície: Web_Application.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `scripted harness`, `semgrep`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida + `OASIS SARIF 2.1.0` (`CASA3-WHK-02`).
+- Critério Determinístico de Verificação:
+  * PASS: Todos os 4 vetores inválidos (`absent_signature`,
+    `truncated_signature`, `modified_signature`, `foreign_key_signature`) são
+    recusados, MAC é HMAC-SHA256+ e comparação em tempo constante (`timingSafeEqual`,
+    `hmac.compare_digest`, `MessageDigest.isEqual`).
+  * FAIL: >= 1 payload inválido aceito, MAC < SHA-256 ou comparação em tempo
+    variável / hit Semgrep `CASA3-WHK-02`.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 130`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  `evaluate_whk02_hmac_and_timing_safe` executava apenas regexes Python estáticas
+  + requisições HTTP brutas fora do gerador HAR dedicado e sem regra Semgrep AST.
+- O que foi feito e melhorado na Iteração SDD 130:
+  1) Adição da regra AST `CASA3-WHK-02-weak-hmac-or-timing` em
+     `rules/casa3_al1_oauth.yml` (detectando `sha1`/`md5` e comparações
+     `===`/`==`/`Buffer.compare` na ausência de APIs tempo-constante).
+  2) Criação de `evaluate_whk02_signature_verification(...)` em `casa_audit/scanner.py`
+     preservando a assinatura 4-tupla de `evaluate_whk02_hmac_and_timing_safe`,
+     integrando `_make_redacted_har_probe` (com redação `[REDACTED]` nos cabeçalhos
+     de assinatura), `_run_oauth_semgrep_sarif`, `output/whk02-hmac-audit.json` e
+     `output/whk02-replayed.har`.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP E FIXTURES (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration130_whk02_guide_tooling`):
+  * **`PASS`** validado sobre `crypto.createHmac('sha256')` +
+    `crypto.timingSafeEqual` + recusa `HTTP 401` dos 4 vetores e HAR `[REDACTED]`.
+  * **`FAIL`** confirmado com `sha1` + `===` + HTTP 200 aceitando todos os 4
+    vetores + hits Semgrep `CASA3-WHK-02`.
+  * **`Not_Covered`** validado quando não existem webhooks.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Varredura real do repositório + sondas `POST` confirmando `0` receptores ou
+    verificadores webhook -> Veredito **`Not_Covered`** fundamentado.
+================================================================================

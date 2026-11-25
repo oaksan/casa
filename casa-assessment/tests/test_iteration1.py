@@ -5838,6 +5838,125 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 59/61: WHK-01 (Iteração SDD 129)", just2_txt)
 
+    def test_iteration130_whk02_guide_tooling(self) -> None:
+        import http.server
+        import socketserver
+        import tempfile
+        import threading
+
+        from casa_audit.scanner import evaluate_whk02_signature_verification
+
+        class _WhkHmacStub(http.server.BaseHTTPRequestHandler):
+            mode = "hardened"
+
+            def log_message(self, format, *args) -> None:
+                return
+
+            def do_POST(self) -> None:
+                if _WhkHmacStub.mode == "hardened":
+                    self.send_response(401)
+                    self.end_headers()
+                    self.wfile.write(b'{"error":"invalid_hmac_signature"}')
+                    return
+                self.send_response(200)
+                self.send_header("X-Webhook-Signature-Alg", "hmac-sha1")
+                self.end_headers()
+                self.wfile.write(b'{"accepted":true}')
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+
+        srv = _ThreadedHTTPServer(("127.0.0.1", 0), _WhkHmacStub)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                tdp = Path(td)
+                # 1. Hardened: HMAC-SHA256 + timingSafeEqual + HTTP 401 denial across 4 invalid vectors -> PASS
+                pass_repo = tdp / "whk_hmac_pass"
+                (pass_repo / "routes").mkdir(parents=True)
+                pass_code = (
+                    "import crypto from 'crypto';\n"
+                    "app.post('/webhooks/pay', (req, res) => {\n"
+                    "  const expected = crypto.createHmac('sha256', secret).update(req.rawBody).digest('hex');\n"
+                    "  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return res.sendStatus(401);\n"
+                    "  res.sendStatus(200);\n"
+                    "});\n"
+                )
+                (pass_repo / "routes" / "pay.ts").write_text(pass_code, encoding="utf-8")
+
+                r_pass = evaluate_whk02_signature_verification(
+                    f"http://127.0.0.1:{port}",
+                    repo=pass_repo,
+                    receivers=[f"http://127.0.0.1:{port}/webhooks/pay"],
+                    webhook_files={"routes/pay.ts": pass_code},
+                    report_out_path=tdp / "whk02_pass.json",
+                    har_out_path=tdp / "whk02_pass.har",
+                    semgrep_sarif_out_path=tdp / "whk02_pass_sg.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertEqual(r_pass["clauses"]["mac_algorithm"], "PASS")
+                self.assertEqual(r_pass["clauses"]["timing_safe_compare"], "PASS")
+                self.assertEqual(r_pass["probesRun"], 4)
+                self.assertEqual(r_pass["semgrepHits"], 0)
+                har_txt = (tdp / "whk02_pass.har").read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+
+                # 2. Vulnerable: SHA-1 + '===' + accepts absent/truncated/modified/foreign_key + Semgrep -> FAIL
+                _WhkHmacStub.mode = "vulnerable"
+                fail_repo = tdp / "whk_hmac_fail"
+                (fail_repo / "routes").mkdir(parents=True)
+                fail_code = (
+                    "import crypto from 'crypto';\n"
+                    "app.post('/webhooks/pay', (req, res) => {\n"
+                    "  const expected = crypto.createHmac('sha1', secret).update(req.rawBody).digest('hex');\n"
+                    "  if (sig === expected) return res.sendStatus(200);\n"
+                    "  res.sendStatus(200);\n"
+                    "});\n"
+                )
+                (fail_repo / "routes" / "pay.ts").write_text(fail_code, encoding="utf-8")
+
+                r_fail = evaluate_whk02_signature_verification(
+                    f"http://127.0.0.1:{port}",
+                    repo=fail_repo,
+                    receivers=[f"http://127.0.0.1:{port}/webhooks/pay"],
+                    webhook_files={"routes/pay.ts": fail_code},
+                    report_out_path=tdp / "whk02_fail.json",
+                    har_out_path=tdp / "whk02_fail.har",
+                    semgrep_sarif_out_path=tdp / "whk02_fail_sg.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                kinds = {f["kind"] for f in r_fail["findings"]}
+                self.assertIn("WHK02_Weak_MAC_Algorithm", kinds)
+                self.assertIn("WHK02_NonConstantTime_Comparison", kinds)
+                self.assertIn("WHK02_Accepted_absent_signature", kinds)
+                self.assertIn("WHK02_Accepted_truncated_signature", kinds)
+                self.assertIn("WHK02_Accepted_modified_signature", kinds)
+                self.assertIn("WHK02_Accepted_foreign_key_signature", kinds)
+                self.assertIn("Semgrep_WHK02_Signature_Or_Timing", kinds)
+                self.assertGreaterEqual(r_fail["semgrepHits"], 2)
+                self.assertTrue(any(s["ruleId"] == "CASA3-WHK-02" for s in r_fail["sarifResults"]))
+
+                # 3. No webhooks discovered -> Not_Covered
+                empty_repo = tdp / "empty_web"
+                empty_repo.mkdir()
+                (empty_repo / "index.ts").write_text("export const ok = true;", encoding="utf-8")
+                r_nc = evaluate_whk02_signature_verification(
+                    "",
+                    repo=empty_repo,
+                    report_out_path=tdp / "whk02_nc.json",
+                    har_out_path=tdp / "whk02_nc.har",
+                    semgrep_sarif_out_path=tdp / "whk02_nc_sg.sarif",
+                )
+                self.assertEqual(r_nc["verdict"], "Not_Covered")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 60/61: WHK-02 (Iteração SDD 130)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

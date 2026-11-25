@@ -7288,6 +7288,7 @@ def evaluate_cfg09_error_disclosure(
         ("GET", "/ftp/nonexistent_cfg09_probe.md", None, None, "Missing file ENOENT path leak probe"),
         ("GET", "/rest/basket/not_an_id", None, None, "Malformed type / unauthenticated 401 probe"),
         ("POST", "/api/Feedbacks", {"Content-Type": "application/json"}, b'{"comment":"cfg09","rating":"not_an_int"}', "Malformed parameter type & schema error probe"),
+        ("POST", "/rest/user/login", {"Content-Type": "application/json"}, b"{invalid-json", "Malformed JSON syntax error probe"),
         ("POST", "/rest/user/login", {"Content-Type": "application/json"}, oversize_body, "Oversize JSON payload (413) probe"),
     ]
     for m9, p9, h9, b9, _ in cfg09_probes:
@@ -7313,9 +7314,26 @@ def evaluate_cfg09_error_disclosure(
     )
 
     error_leak_patterns = [
-        ("stack_frame", re.compile(r'<ul\s+id=["\']stacktrace["\']|\bat\s+[^\s(]+\s+\([^)]+:\d+:\d+\)|Traceback \(most recent call last\):|\.java:\d+|\.cs:line\s+\d+', re.IGNORECASE)),
+        (
+            "stack_frame",
+            re.compile(
+                r'<ul\s+id=["\']stacktrace["\']|\bat\s+[^\s(]+\s+\([^)]+:\d+:\d+\)|Traceback \(most recent call last\):|'
+                r'File\s+"[^"]+\.py",\s*line\s+\d+|(?:Fatal error|Parse error|Uncaught\s+\w+Exception):.+on line\s+\d+|'
+                r'Stack trace:\s*#0\s+|\.rb:\d+:in\s+[\'`]|goroutine\s+\d+\s+\[running\]:|\.go:\d+\s+\+0x|'
+                r'\.java:\d+|\.cs:line\s+\d+',
+                re.IGNORECASE,
+            ),
+        ),
         ("filesystem_path", re.compile(r'(?:ENOENT:\s*no such file|/(?:home|Users|var|opt|srv|app|usr|etc)/[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+|[A-Za-z]:\\[A-Za-z0-9_.\\-]+)', re.IGNORECASE)),
-        ("sql_fragment", re.compile(r'SQLITE_ERROR|SequelizeDatabaseError|PG::SyntaxError|ORA-\d{5}|You have an error in your SQL syntax|WHERE parameter .* has invalid|\bSELECT\b.+\bFROM\b.+\bWHERE\b', re.IGNORECASE)),
+        (
+            "sql_fragment",
+            re.compile(
+                r'SQLITE_ERROR|SequelizeDatabaseError|PG::SyntaxError|ORA-\d{5}|You have an error in your SQL syntax|'
+                r'SQLSTATE\[[0-9A-Z]{5}\]|System\.Data\.SqlClient|psycopg2\.\w*Error|ActiveRecord::StatementInvalid|'
+                r'WHERE parameter .* has invalid|\bSELECT\b.+\bFROM\b.+\bWHERE\b',
+                re.IGNORECASE,
+            ),
+        ),
         ("internal_routing_or_module", re.compile(r'node_modules[/\\][a-z0-9@._-]+|handle_request|UnauthorizedError|PayloadTooLargeError', re.IGNORECASE)),
     ]
 

@@ -1083,3 +1083,21 @@ CONTROLE 32/61: CFG-08 (Iteração SDD 163) — CORS Policy Restrictive
 4. Validação:
    - `test_iteration163_cfg08_neon_reeval` (bypass `startsWith` FAIL; allowlist
      exata PASS) + regressão `test_iteration102_cfg08_guide_tooling` (ZAP 2.17.0 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 33/61: CFG-09 (Iteração SDD 164) — Error Handling Without Info Disclosure
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L729):
+   - Referência: `OWASP ZAP (rule 90022 Application Error Disclosure)`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa OWASP ZAP 2.17.0
+     (Regra Passiva `90022`) + sondas ativas 4xx/5xx. Zero Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `error_leak_patterns` não cobria stack traces isolados de Python, PHP, Ruby e
+     Go, nem erros SQL PDO/ODBC/psycopg2/MSSQL (`SQLSTATE[...]`, `System.Data.SqlClient`).
+   - Faltava sonda com JSON sintaticamente malformado (`{invalid-json`).
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido `error_leak_patterns` para cobrir Python/PHP/Ruby/Go/SQLSTATE/SqlClient.
+   - Adicionada sonda `POST` com JSON malformado em `cfg09_probes`.
+4. Validação:
+   - `test_iteration164_cfg09_neon_reeval` (detecção multi-linguagem + sonda JSON
+     malformado) + regressão `test_iteration103_cfg09_guide_tooling` (ZAP 2.17.0 real).

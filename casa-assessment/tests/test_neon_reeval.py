@@ -1406,6 +1406,46 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 32/61: CFG-08 (Iteração SDD 163)", just_neon)
 
+    def test_iteration164_cfg09_neon_reeval(self) -> None:
+        empty_zap = {"executed": True, "alerts": []}
+
+        # 1. Multi-language leaks (PHP fatal + SQLSTATE, Go panic, Ruby backtrace, Python frame) -> FAIL
+        leaks = [
+            {"method": "GET", "url": "https://app.example.com/php", "status": 500, "headers": {}, "body": "Fatal error: Uncaught PDOException: SQLSTATE[42S02]: Table not found on line 42"},
+            {"method": "GET", "url": "https://app.example.com/go", "status": 500, "headers": {}, "body": "panic: runtime error\ngoroutine 19 [running]:\nmain.handler() server.go:88 +0x1a"},
+            {"method": "GET", "url": "https://app.example.com/rb", "status": 500, "headers": {}, "body": "app/controllers/orders.rb:17:in `create'"},
+            {"method": "GET", "url": "https://app.example.com/py", "status": 500, "headers": {}, "body": '  File "views.py", line 91, in get_profile'},
+        ]
+        r_leak = sc.evaluate_cfg09_error_disclosure(
+            "https://app.example.com",
+            crawled_exchanges=leaks,
+            http_probe_fn=lambda ep, method="GET", headers=None, body=None: (400, {}, '{"error":"Bad request"}'),
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_leak["verdict"], "FAIL")
+        self.assertEqual(len(r_leak["findings"]), 4)
+        all_cls = {c for f in r_leak["findings"] for c in f["classes"]}
+        self.assertTrue({"stack_frame", "sql_fragment"}.issubset(all_cls))
+
+        # 2. Malformed JSON probe is sent and generic 400 passes cleanly
+        seen_bodies: list[bytes | None] = []
+
+        def _capture_probe(ep, method="GET", headers=None, body=None):
+            seen_bodies.append(body)
+            return 400, {"content-type": "application/json"}, '{"error":"Invalid request"}'
+
+        r_ok = sc.evaluate_cfg09_error_disclosure(
+            "https://app.example.com",
+            crawled_exchanges=[],
+            http_probe_fn=_capture_probe,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_ok["verdict"], "PASS")
+        self.assertIn(b"{invalid-json", seen_bodies)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 33/61: CFG-09 (Iteração SDD 164)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

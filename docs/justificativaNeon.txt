@@ -572,3 +572,34 @@ Domínio 2: Static Code Analysis & Secrets
 - Novo teste unitário: `test_iteration144_sast08_neon_reeval` validando captura
   de concatenação com array de parâmetros, PHP e C#.
 - Regressão validada: `test_iteration83_sast08_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 14/61: SAST-09 (Iteração SDD 145)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L330):
+  `semgrep`, `CodeQL`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `semgrep` em nível `ERROR` (SARIF 2.1.0).
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 145)
+--------------------------------------------------------------------------------
+1) **Restrição do escopo da isenção HMAC em Python (`casa3_al1_sast.yml`)**:
+   - *Antes*: `pattern-not-inside: ... hmac.compare_digest(...) ...` em escopo
+     de arquivo permitia que um `hmac.compare_digest` em outra função do mesmo
+     módulo suprimisse um `pickle.loads()` desprotegido.
+   - *Melhoria*: Isenção restrita ao escopo da própria função (`def $FN(...)`)
+     ou condicional `if hmac.compare_digest(...)`.
+2) **Cobertura Ruby (`Marshal.load`, `Marshal.restore`, `YAML.load`)**:
+   - Adicionada regra `CASA3-SAST-09-unsafe-deserialization-ruby`.
+
+3. VALIDAÇÃO (SDD 145)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration145_sast09_neon_reeval` validando que
+  `hmac.compare_digest` em função distinta não suprime `pickle.loads` e que
+  `Marshal.load` em Ruby falha `SAST-09`.
+- Regressão validada: `test_iteration84_sast09_guide_tooling` (`OK`).

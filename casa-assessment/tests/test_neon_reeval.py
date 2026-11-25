@@ -671,6 +671,33 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 13/61: SAST-08 (Iteração SDD 144)", just_neon)
 
+    def test_iteration145_sast09_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            # 1. Unrelated hmac.compare_digest in helper_fn must NOT suppress unguarded pickle.loads in bad_fn
+            (src / "mixed.py").write_text(
+                "import hmac, pickle\n"
+                "def helper_fn(a, b): return hmac.compare_digest(a, b)\n"
+                "def bad_fn(blob): return pickle.loads(blob)\n",
+                encoding="utf-8",
+            )
+            # 2. Ruby Marshal.load & YAML.load must FAIL
+            (src / "bad.rb").write_text(
+                "def load_obj(raw)\n  Marshal.load(raw)\nend\n",
+                encoding="utf-8",
+            )
+            v_fail, f_fail, sarifs, _ = sc.evaluate_sast09_deserialization(repo)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            self.assertIn("mixed.py", joined)
+            self.assertIn("bad.rb", joined)
+            self.assertGreaterEqual(len(sarifs), 2)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 14/61: SAST-09 (Iteração SDD 145)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

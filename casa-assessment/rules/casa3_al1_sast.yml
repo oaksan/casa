@@ -759,9 +759,10 @@ rules:
               if hmac.compare_digest(...):
                 ...
           - pattern-not-inside: |
-              ...
-              hmac.compare_digest(...)
-              ...
+              def $FN(...):
+                ...
+                hmac.compare_digest(...)
+                ...
       - patterns:
           - pattern: "yaml.load($DATA, ...)"
           - pattern-not: "yaml.load($DATA, Loader=yaml.SafeLoader)"
@@ -771,9 +772,10 @@ rules:
               if hmac.compare_digest(...):
                 ...
           - pattern-not-inside: |
-              ...
-              hmac.compare_digest(...)
-              ...
+              def $FN(...):
+                ...
+                hmac.compare_digest(...)
+                ...
 
   - id: CASA3-SAST-09-unsafe-deserialization-java
     languages: [java]
@@ -815,6 +817,15 @@ rules:
       - pattern: "new ObjectStateFormatter()"
       - pattern: "new LosFormatter()"
       - pattern-regex: "TypeNameHandling\\.(?:All|Auto|Objects|Arrays)\\b"
+
+  - id: CASA3-SAST-09-unsafe-deserialization-ruby
+    languages: [ruby]
+    message: "SAST-09: Unsafe Ruby deserialization (Marshal.load/restore or YAML.load instead of YAML.safe_load) (CWE-502)"
+    severity: ERROR
+    pattern-either:
+      - pattern: Marshal.load(...)
+      - pattern: Marshal.restore(...)
+      - pattern: YAML.load(...)
 
   - id: CASA3-SAST-10-dynamic-code-execution
     mode: taint

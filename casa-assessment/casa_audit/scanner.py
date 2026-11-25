@@ -13299,8 +13299,12 @@ def evaluate_oau01_grant_type(
         )
 
     for src_name, src_body in sources_list:
-        for m_rt in re.finditer(r"response_type\s*=\s*([A-Za-z0-9_%+\s]+?)(?:[&\"'`\s]|$)", src_body):
-            rt_val = urllib.parse.unquote(m_rt.group(1)).strip()
+        for m_rt in re.finditer(
+            r"""(?:response_type\s*=\s*([A-Za-z0-9_%+ -]+?)(?:[&"'`#\n]|$)|["']?response_?[Tt]ype["']?\s*:\s*["']([A-Za-z0-9_%+ -]+)["'])""",
+            src_body,
+        ):
+            raw_rt = m_rt.group(1) if m_rt.group(1) is not None else m_rt.group(2)
+            rt_val = urllib.parse.unquote(raw_rt or "").strip()
             if rt_val and rt_val != "code":
                 lno1 = src_body[: m_rt.start()].count("\n") + 1 if not src_name.startswith("http") else 1
                 _add_finding(
@@ -13309,7 +13313,7 @@ def evaluate_oau01_grant_type(
                     f"{src_name}:{lno1} configures OAuth 2.0 authorization request with prohibited grant parameter 'response_type={rt_val}' (Implicit/Hybrid flow prohibited under RFC 9700 §2.1.2; must strictly equal 'code').",
                     confirmed_by="bundle_or_source",
                 )
-        if re.search(r"grant_type\s*[:=]\s*['\"]?password\b", src_body, re.IGNORECASE):
+        if re.search(r"""(?:grant_type|grantType)["']?\s*[:=]\s*['"]?password\b""", src_body, re.IGNORECASE):
             _add_finding(
                 src_name,
                 "grant_type=password",

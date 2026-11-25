@@ -1503,3 +1503,25 @@ CONTROLE 49/61: AZI-06 (Iteração SDD 180) — Open Redirect & HTTP Parameter P
   - `AZI-05`: FAIL (3 achados LFI/Path Traversal/RFI via ZAP 6/7 + matriz).
   - `AZI-06`: FAIL (3 achados Open Redirect/HPP via ZAP 20019 + diferencial NoRedirect/HPP).
 - Auditoria de Ferramentas do Domínio 6: 100% gratuito (Burp Suite / DOM Invader pagos ausentes em todos os 6 controles).
+
+--------------------------------------------------------------------------------
+CONTROLE 50/61: OAU-01 (Iteração SDD 181) — Authorization Code Flow Only
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1108):
+   - Referência: `mitmproxy, Burp Suite, semgrep`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa proxy interceptador HTTP local equivalente a mitmproxy
+     gerando HAR 1.2 redigido + `semgrep` com regras `CASA3-OAU-01` -> SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - A regex de `response_type=` em `evaluate_oau01_grant_type` terminava no
+     primeiro espaço (`\s`), truncando fluxos híbridos literais como
+     `response_type=code id_token` para `code` (falso negativo).
+   - Configurações em objetos JSON/JS (`responseType: "token"`, `grantType: "password"`)
+     não eram detectadas na varredura de bundle/fonte.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Corrigida regex de `response_type` para preservar fluxos híbridos separados
+     por espaço e adicionada detecção de literais `responseType`/`grantType`.
+4. Validação:
+   - `test_iteration181_oau01_neon_reeval` (híbrido `code id_token`, objeto
+     `responseType`/`grantType` e PASS para `response_type=code`) + regressão
+     `test_iteration120_oau01_guide_tooling`.

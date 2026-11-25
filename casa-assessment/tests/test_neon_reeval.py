@@ -2125,6 +2125,38 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 49/61: AZI-06 (Iteração SDD 180)", just_neon)
 
+    def test_iteration181_oau01_neon_reeval(self) -> None:
+        """SDD 181 (OAU-01): Space-separated hybrid response_type & JS/JSON responseType/grantType."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            r_hybrid = sc.evaluate_oau01_grant_type(
+                "https://app.example.com",
+                oauth_sources=[
+                    ("auth.ts", "const url = 'https://idp.example.com/authorize?response_type=code id_token&client_id=abc';"),
+                    ("cfg.ts", 'const cfg = { responseType: "token", grantType: "password" };'),
+                ],
+                run_semgrep=False,
+                report_out_path=tdp / "oau01-fail.json",
+                har_out_path=tdp / "oau01-fail.har",
+            )
+            self.assertEqual(r_hybrid["verdict"], "FAIL")
+            viols = {f["grantViolation"] for f in r_hybrid["findings"]}
+            self.assertIn("response_type=code id_token", viols)
+            self.assertIn("response_type=token", viols)
+            self.assertIn("grant_type=password", viols)
+
+            r_pass = sc.evaluate_oau01_grant_type(
+                "https://app.example.com",
+                oauth_sources=[("auth.ts", "const url = 'https://idp.example.com/authorize?response_type=code&client_id=abc';")],
+                run_semgrep=False,
+                report_out_path=tdp / "oau01-pass.json",
+                har_out_path=tdp / "oau01-pass.har",
+            )
+            self.assertEqual(r_pass["verdict"], "PASS")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 50/61: OAU-01 (Iteração SDD 181)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

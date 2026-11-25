@@ -5441,6 +5441,113 @@ class TestCasa3Iteration1(unittest.TestCase):
         just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 56/61: OAU-07 (Iteração SDD 126)", just2_txt)
 
+    def test_iteration127_oau08_guide_tooling(self) -> None:
+        import http.server
+        import socketserver
+        import tempfile
+        import threading
+
+        from casa_audit.scanner import evaluate_oau08_token_transport
+
+        test_jwt = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyMSJ9.sigvalue123"
+
+        class _ResourceStub(http.server.BaseHTTPRequestHandler):
+            mode = "hardened"
+
+            def log_message(self, format, *args) -> None:
+                return
+
+            def do_GET(self) -> None:
+                auth_h = self.headers.get("Authorization", "")
+                if _ResourceStub.mode == "hardened":
+                    if auth_h.startswith(("Bearer ", "DPoP ")) and "?" not in self.path:
+                        self.send_response(200)
+                        self.end_headers()
+                        self.wfile.write(b'{"status":"ok"}')
+                    else:
+                        self.send_response(401)
+                        self.end_headers()
+                    return
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok","Products":[]}')
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+
+        srv = _ThreadedHTTPServer(("127.0.0.1", 0), _ResourceStub)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                tdp = Path(td)
+                src_dir = tdp / "frontend" / "src" / "app"
+                src_dir.mkdir(parents=True)
+                (src_dir / "user.service.ts").write_text(
+                    "fetchProfile(hdrs) { return this.http.get('https://api.example.com/me', { headers: { Authorization: `Bearer ${hdrs}` } }); }\n",
+                    encoding="utf-8",
+                )
+
+                # 1. Hardened: Bearer/DPoP over proxy, query-token rejected -> PASS
+                r_pass = evaluate_oau08_token_transport(
+                    f"http://127.0.0.1:{port}",
+                    repo=tdp,
+                    observed_token=test_jwt,
+                    oauth_sources=[("user.service.ts", (src_dir / "user.service.ts").read_text(encoding="utf-8"))],
+                    oauth_flow_requests=[
+                        {"url": f"http://127.0.0.1:{port}/api/me", "method": "GET", "headers": {"Authorization": f"Bearer {test_jwt}"}},
+                        {"url": f"http://127.0.0.1:{port}/api/me", "method": "GET", "headers": {"Authorization": f"DPoP {test_jwt}"}},
+                    ],
+                    resource_probe_paths=["/api/me"],
+                    report_out_path=tdp / "oau08_pass.json",
+                    har_out_path=tdp / "oau08_pass.har",
+                    semgrep_sarif_out_path=tdp / "oau08_pass_sg.sarif",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS", r_pass["findings"])
+                self.assertGreaterEqual(r_pass["bearerHeaderRequests"], 2)
+                self.assertEqual(r_pass["semgrepHits"], 0)
+                har_txt = (tdp / "oau08_pass.har").read_text(encoding="utf-8")
+                self.assertIn("[REDACTED]", har_txt)
+                self.assertNotIn(test_jwt, har_txt)
+
+                # 2. Vulnerable: resource accepts ?access_token=, proxy captures Basic + ?access_token=, Semgrep URL transport -> FAIL
+                _ResourceStub.mode = "vulnerable"
+                (src_dir / "user.service.ts").write_text(
+                    "whoAmI(tok: string) { return this.http.get('https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=' + tok); }\n",
+                    encoding="utf-8",
+                )
+                r_fail = evaluate_oau08_token_transport(
+                    f"http://127.0.0.1:{port}",
+                    repo=tdp,
+                    observed_token=test_jwt,
+                    oauth_sources=[("user.service.ts", (src_dir / "user.service.ts").read_text(encoding="utf-8"))],
+                    oauth_flow_requests=[
+                        {"url": f"http://127.0.0.1:{port}/api/me", "method": "GET", "headers": {"Authorization": "Basic dXNlcjpwYXNz"}},
+                        {"url": f"http://127.0.0.1:{port}/api/me?access_token={test_jwt}", "method": "GET"},
+                    ],
+                    resource_probe_paths=["/api/me"],
+                    report_out_path=tdp / "oau08_fail.json",
+                    har_out_path=tdp / "oau08_fail.har",
+                    semgrep_sarif_out_path=tdp / "oau08_fail_sg.sarif",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                kinds = {f["kind"] for f in r_fail["findings"]}
+                self.assertIn("Query_String_Bearer_Accepted", kinds)
+                self.assertIn("Authorization_NonBearer_Scheme", kinds)
+                self.assertIn("HAR_Query_Access_Token", kinds)
+                self.assertIn("Resource_Query_Access_Token_Transport", kinds)
+                self.assertIn("Semgrep_OAU08_URL_Token_Transport", kinds)
+                har_fail_txt = (tdp / "oau08_fail.har").read_text(encoding="utf-8")
+                self.assertNotIn(test_jwt, har_fail_txt)
+                self.assertTrue(any(s["ruleId"] == "CASA3-OAU-08" for s in r_fail["sarifResults"]))
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        just2_txt = (ROOT_DIR / "docs" / "justificativa2.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 57/61: OAU-08 (Iteração SDD 127)", just2_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -65,3 +65,11 @@ rules:
     pattern-either:
       - pattern-regex: '(?:localStorage|sessionStorage)\.setItem\s*\(\s*["''`](?:token|access_token|refresh_token|id_token)["''`]'
       - pattern-regex: '\b(?:getSharedPreferences|SharedPreferences\.Editor|NSUserDefaults|UserDefaults\.standard)\b'
+
+  - id: CASA3-OAU-08-token-in-url-transport
+    languages: [typescript, javascript]
+    message: "OAU-08: Access token transmitted or parsed in URL query string or fragment instead of Authorization Bearer/DPoP header (RFC 6750 §2.3)"
+    severity: ERROR
+    pattern-either:
+      - pattern-regex: '(?:https?://[^\s''"`]+|\$\{[^}]+\})[^\n''"`]*\?(?:[^\n''"`]*&)?access_token='
+      - pattern-regex: '#access_token=|parseRedirectUrlParams\(\)\.access_token'

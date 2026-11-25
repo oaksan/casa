@@ -2920,3 +2920,57 @@ Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
     `localStorage['token']` e `document.cookie` sem `HttpOnly`/`Secure` -> Veredito
     **`FAIL`** (`CASA3-OAU-07`).
 ================================================================================
+
+
+================================================================================
+CONTROLE 57/61: OAU-08 (Iteração SDD 127)
+Domínio 7: Application Use of OAuth 2.0 / OpenID Connect (OAU)
+================================================================================
+
+1. BASE NORMATIVA E FERRAMENTAS EXIGIDAS NO TEST GUIDE
+--------------------------------------------------------------------------------
+- ID do Controle: OAU-08
+- Requisito (CASA 3.0 AL1):
+  "Access tokens are transmitted only in the Authorization header; never in
+  query strings or URL fragments."
+- Referências: RFC 6750 §2.3; ASVS V3.1.1 (L1) | Superfície: All.
+- Ferramentas de Referência no `CASA 3.0 (AL1) Test Guide.md`:
+  `mitmproxy`, `Burp Suite`.
+- Formatos de Evidência Exigidos:
+  Captura `HAR 1.2` redigida + `OASIS SARIF 2.1.0` (`CASA3-OAU-08`).
+- Critério Determinístico de Verificação:
+  * PASS: Todo access token apresentado a endpoint de recurso trafega no
+    cabeçalho `Authorization: Bearer|DPoP` (0 ocorrências em query string,
+    fragmento `#access_token=` ou esquema não-Bearer/DPoP).
+  * FAIL: >= 1 access token apresentado em query string, fragmento ou esquema
+    fora de `Authorization: Bearer|DPoP`.
+
+2. ANÁLISE DO QUE EXISTIA E EVOLUÇÃO IMPLEMENTADA (`SDD 127`)
+--------------------------------------------------------------------------------
+- Estado anterior:
+  A verificação `OAU-08` rodava inline em `run_dynamic_and_protocol_checks`, sem
+  roteamento via proxy interceptador HTTP para o controle, sem regra Semgrep AST e
+  sem relatório JSON e captura `HAR 1.2` redigida dedicados ao controle.
+- O que foi feito e melhorado na Iteração SDD 127:
+  1) Adição da regra AST `CASA3-OAU-08-token-in-url-transport` em
+     `rules/casa3_al1_oauth.yml` (query strings `access_token=` e fragmentos
+     `#access_token=` / `parseRedirectUrlParams().access_token`).
+  2) Extração de `evaluate_oau08_token_transport(...)` em `casa_audit/scanner.py`
+     reaproveitando `_run_oauth_intercepting_proxy`, `_make_redacted_har_probe`
+     (com redação explícita de `access_token`/`id_token`/`token` na query do
+     HAR) e `_run_oauth_semgrep_sarif`.
+  3) Emissão de `output/oau08-transport-audit.json`, `output/oau08-replayed.har`
+     redigido, `output/oau08-semgrep.sarif` e `CASA3-OAU-08` em SARIF 2.1.0.
+
+3. RESULTADO EMPÍRICO NO OWASP JUICE SHOP (PÓS-IMPLEMENTAÇÃO)
+--------------------------------------------------------------------------------
+- Validação unitária (`test_iteration127_oau08_guide_tooling`):
+  * **`PASS`** validado sobre proxy `Authorization: Bearer`/`DPoP` com recusa
+    `HTTP 401` a `?access_token=` e redação `[REDACTED]` do token no HAR.
+  * **`FAIL`** confirmado para aceitação de `?access_token=`, esquema `Basic`,
+    URL `?access_token=` no proxy, cliente `userinfo?access_token=` e Semgrep AST.
+- Execução completa contra OWASP Juice Shop (`http://localhost:3000`):
+  * Inspeção HAR 1.2 + `main.js` + `user.service.ts:68` + `app.routing.ts` +
+    Semgrep confirmando `?alt=json&access_token=` e `#access_token=` -> Veredito
+    **`FAIL`** (`CASA3-OAU-08`).
+================================================================================

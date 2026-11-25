@@ -34,10 +34,7 @@
                    "target": "http:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop",
                    "method": "GET",
                    "headers": {
-                       "cache-control" : "no-cache",
-                       "host" : "localhost:3000",
-                       "pragma" : "no-cache",
-                       "user-agent" : ""
+                       "host" : "localhost:3000"
                    },
                    "body": {
                        
@@ -53,7 +50,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "62",
                        "Content-Type" : "text\/plain; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Location" : "https:\/\/github.com\/juice-shop\/juice-shop",
@@ -74,7 +71,7 @@
                   {
                      "physicalLocation": {
                         "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F3055521704466168341.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop"
+                           "uri": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F3212401056838207788.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop"
                         },
                         
                         "region": {
@@ -84,12 +81,12 @@
                                "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
                             }, 
                            "snippet": {
-                               "text": "https:\/\/3055521704466168341.owasp.org\/?@@@original@@@"
+                               "text": "https:\/\/3212401056838207788.owasp.org\/?@@@original@@@"
                            }
                         }
                      },
                      "properties": {
-                         "attack": "https:\/\/3055521704466168341.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
+                         "attack": "https:\/\/3212401056838207788.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
                      }
                   }
                ],
@@ -100,7 +97,7 @@
                "webRequest": {
                    "protocol": "HTTP",
                    "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F3055521704466168341.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop",
+                   "target": "http:\/\/localhost:3000\/redirect?to=https%3A%2F%2F3212401056838207788.owasp.org%2F%3Fhttps%3A%2F%2Fgithub.com%2Fjuice-shop%2Fjuice-shop",
                    "method": "GET",
                    "headers": {
                        "cache-control" : "no-cache",
@@ -122,17 +119,17 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "101",
                        "Content-Type" : "text\/plain; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:55 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:32 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Location" : "https:\/\/3055521704466168341.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop",
+                       "Location" : "https:\/\/3212401056838207788.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop",
                        "Vary" : "Accept, Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
                        "X-Recruiting" : "\/#\/jobs"
                    },
                    "body": {
-                       "text": "Found. Redirecting to https:\/\/3055521704466168341.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
+                       "text": "Found. Redirecting to https:\/\/3212401056838207788.owasp.org\/?https:\/\/github.com\/juice-shop\/juice-shop"
                    },
                    "noResponseReceived": false
                }
@@ -190,7 +187,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:40 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -258,7 +255,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "11308",
                        "Content-Type" : "text\/html; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
                        "Vary" : "Accept-Encoding",
@@ -325,7 +322,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -397,7 +394,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:40 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -419,7 +416,7 @@
                   {
                      "physicalLocation": {
                         "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/robots.txt"
+                           "uri": "http:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop"
                         },
                         
                         "region": {
@@ -445,7 +442,7 @@
                "webRequest": {
                    "protocol": "HTTP",
                    "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/robots.txt",
+                   "target": "http:\/\/localhost:3000\/redirect?to=https:\/\/github.com\/juice-shop\/juice-shop",
                    "method": "GET",
                    "headers": {
                        "cache-control" : "no-cache",
@@ -458,99 +455,26 @@
                    }
                },
                "webResponse": {
-                   "statusCode": 200,
-                   "reasonPhrase": "OK",
+                   "statusCode": 302,
+                   "reasonPhrase": "Found",
                    "protocol": "HTTP",
                    "version": "1.1",
                    "headers": {
                        "Access-Control-Allow-Origin" : "*",
                        "Connection" : "keep-alive",
-                       "Content-Length" : "28",
+                       "Content-Length" : "62",
                        "Content-Type" : "text\/plain; charset=utf-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
-                       "ETag" : "W\/\"1c-8HgF6mNyhsSFK0pascC9uB0wjX0\"",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
-                       "Vary" : "Accept-Encoding",
+                       "Location" : "https:\/\/github.com\/juice-shop\/juice-shop",
+                       "Vary" : "Accept, Accept-Encoding",
                        "X-Content-Type-Options" : "nosniff",
                        "X-Frame-Options" : "SAMEORIGIN",
                        "X-Recruiting" : "\/#\/jobs"
                    },
                    "body": {
-                       "text": "User-agent: *\nDisallow: \/ftp"
-                   },
-                   "noResponseReceived": false
-               }
-            },
-            {
-               "level": "warning",
-               "locations": [
-                  {
-                     "physicalLocation": {
-                        "artifactLocation": {
-                           "uri": "http:\/\/localhost:3000\/styles.css"
-                        },
-                        
-                        "region": {
-                           "startLine": 1,
-                           
-                           "properties" : { 
-                               "startLineFailure" : "Resolved invalid start line: 0 - used fallback value instead."
-                            }, 
-                           "snippet": {
-                               "text": "Access-Control-Allow-Origin: *"
-                           }
-                        }
-                     },
-                     "properties": {
-                         "attack": ""
-                     }
-                  }
-               ],
-               "message": {
-                  "text": "The CORS misconfiguration on the web server permits cross-domain read requests from arbitrary third party domains, using unauthenticated APIs on this domain. Web browser implementations do not permit arbitrary third parties to read the response from authenticated APIs, however. This reduces the risk somewhat. This misconfiguration could be used by an attacker to access data that is available in an unauthenticated manner, but which uses some other form of security, such as IP address white-listing."
-               },
-               "ruleId": "10098",
-               "webRequest": {
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "target": "http:\/\/localhost:3000\/styles.css",
-                   "method": "GET",
-                   "headers": {
-                       "cache-control" : "no-cache",
-                       "host" : "localhost:3000",
-                       "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
-                       "user-agent" : ""
-                   },
-                   "body": {
-                       
-                   }
-               },
-               "webResponse": {
-                   "statusCode": 200,
-                   "reasonPhrase": "OK",
-                   "protocol": "HTTP",
-                   "version": "1.1",
-                   "headers": {
-                       "Accept-Ranges" : "bytes",
-                       "Access-Control-Allow-Origin" : "*",
-                       "Cache-Control" : "public, max-age=0",
-                       "Connection" : "keep-alive",
-                       "Content-Length" : "157528",
-                       "Content-Type" : "text\/css; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
-                       "ETag" : "W\/\"26758-1a19f2fe209\"",
-                       "Feature-Policy" : "payment 'self'",
-                       "Keep-Alive" : "timeout=5",
-                       "Last-Modified" : "Tue, 03 Nov 2026 02:14:37 GMT",
-                       "Vary" : "Accept-Encoding",
-                       "X-Content-Type-Options" : "nosniff",
-                       "X-Frame-Options" : "SAMEORIGIN",
-                       "X-Recruiting" : "\/#\/jobs"
-                   },
-                   "body": {
-                       "text": ".mat-elevation-z0,.mat-mdc-elevation-specific.mat-elevation-z0{box-shadow:var(--mat-app-elevation-shadow-level-0, 0px 0px 0px 0px --mat-sys-shadow, 0px 0px 0px 0px --mat-sys-shadow, 0px 0px 0px 0px --mat-sys-shadow)}.mat-elevation-z1,.mat-mdc-elevation-specific.mat-elevation-z1{box-shadow:var(--mat-app-elevation-shadow-level-1, 0px 2px 1px -1px --mat-sys-shadow, 0px 1px 1px 0px --mat-sys-shadow, 0px 1px 3px 0px --mat-sys-shadow)}.mat-elevation-z2,.mat-mdc-elevation-specific.mat-elevation-z2{box-shadow:var(--mat-app-elevation-shadow-level-2, 0px 3px 1px -2px --mat-sys-shadow, 0px 2px 2px 0px --mat-sys-shadow, 0px 1px 5px 0px --mat-sys-shadow)}.mat-elevation-z3,.mat-mdc-elevation-specific.mat-elevation-z3{box-shadow:var(--mat-app-elevation-shadow-level-3, 0px 3px 3px -2px --mat-sys-shadow, 0px 3px 4px 0px --mat-sys-shadow, 0px 1px 8px 0px --mat-sys-shadow)}.mat-elevation-z4,.mat-mdc-elevation-specific.mat-elevation-z4{box-shadow:var(--mat-app-elevation-shadow-level-4, 0px 2px 4px -1px --mat-sys-shadow, 0px 4px 5px 0px --mat-sys-shadow, 0px 1px 10px 0px --mat-sys-shadow)}.mat-elevation-z5,.mat-mdc-elevation-specific.mat-elevation-z5{box-shadow:var(--mat-app-elevation-shadow-level-5, 0px 3px 5px -1px --mat-sys-shadow, 0px 5px 8px 0px --mat-sys-shadow, 0px 1px 14px 0px --mat-sys-shadow)}.mat-elevation-z6,.mat-mdc-elevation-specific.mat-elevation-z6{box-shadow:var(--mat-app-elevation-shadow-level-6, 0px 3px 5px -1px --mat-sys-shadow, 0px 6px 10px 0px --mat-sys-shadow, 0px 1px 18px 0px --mat-sys-shadow)}.mat-elevation-z7,.mat-mdc-elevation-specific.mat-elevation-z7{box-shadow:var(--mat-app-elevation-shadow-level-7, 0px 4px 5px -2px --mat-sys-shadow, 0px 7px 10px 1px --mat-sys-shadow, 0px 2px 16px 1px --mat-sys-shadow)}.mat-elevation-z8,.mat-mdc-elevation-specific.mat-elevation-z8{box-shadow:var(--mat-app-elevation-shadow-level-8, 0px 5px 5px -3px --mat-sys-shadow, 0px 8px 10px 1px --mat-sys-shadow, 0px 3px 14px 2px --mat-sys-shadow)}.mat-elevation-z9,.mat-mdc-elevation-specific.mat-elevation-z9{box-shadow:var(--mat-app-elevation-shadow-level-9, 0px 5px 6px -3px --mat-sys-shadow, 0px 9px 12px 1px --mat-sys-shadow, 0px 3px 16px 2px --mat-sys-shadow)}.mat-elevation-z10,.mat-mdc-elevation-specific.mat-elevation-z10{box-shadow:var(--mat-app-elevation-shadow-level-10, 0px 6px 6px -3px --mat-sys-shadow, 0px 10px 14px 1px --mat-sys-shadow, 0px 4px 18px 3px --mat-sys-shadow)}.mat-elevation-z11,.mat-mdc-elevation-specific.mat-elevation-z11{box-shadow:var(--mat-app-elevation-shadow-level-11, 0px 6px 7px -4px --mat-sys-shadow, 0px 11px 15px 1px --mat-sys-shadow, 0px 4px 20px 3px --mat-sys-shadow)}.mat-elevation-z12,.mat-mdc-elevation-specific.mat-elevation-z12{box-shadow:var(--mat-app-elevation-shadow-level-12, 0px 7px 8px -4px --mat-sys-shadow, 0px 12px 17px 2px --mat-sys-shadow, 0px 5px 22px 4px --mat-sys-shadow)}.mat-elevation-z13,.mat-mdc-elevation-specific.mat-elevation-z13{box-shadow:var(--mat-app-elevation-shadow-level-13, 0px 7px 8px -4px --mat-sys-shadow, 0px 13px 19px 2px --mat-sys-shadow, 0px 5px 24px 4px --mat-sys-shadow)}.mat-elevation-z14,.mat-mdc-elevation-specific.mat-elevation-z14{box-shadow:var(--mat-app-elevation-shadow-level-14, 0px 7px 9px -4px --mat-sys-shadow, 0px 14px 21px 2px --mat-sys-shadow, 0px 5px 26px 4px --mat-sys-shadow)}.mat-elevation-z15,.mat-mdc-elevation-specific.mat-elevation-z15{box-shadow:var(--mat-app-elevation-shadow-level-15, 0px 8px 9px -5px --mat-sys-shadow, 0px 15px 22px 2px --mat-sys-shadow, 0px 6px 28px 5px --mat-sys-shadow)}.mat-elevation-z16,.mat-mdc-elevation-specific.mat-elevation-z16{box-shadow:var(--mat-app-elevation-shadow-level-16, 0px 8px 10px -5px --mat-sys-shadow, 0px 16px 24px 2px --mat-sys-shadow, 0px 6px 30px 5px --mat-sys-shadow)}.mat-elevation-z17,.mat-mdc-elevation-specific.mat-elevation-z17{box-shadow:var(--mat-app-elevation-shadow-level-17, 0px 8px 11px -5px --mat-sys-shadow, 0px 17px 26px 2px --mat-sys-shadow, 0px 6px 32px 5px --mat-sys-shadow)}.mat-elevation-z18,.mat-mdc-elevation-specific.mat-elevation-z18{box-shadow:var(--mat-app-elevation-shadow-level-18, 0px 9px 11px -5px --mat-sys-shadow, 0px 18px 28px 2px --mat-sys-shadow, 0px 7px 34px 6px --mat-sys-shadow)}.mat-elevation-z19,.mat-mdc-elevation-specific.mat-elevation-z19{box-shadow:var(--mat-app-elevation-shadow-level-19, 0px 9px 12px -6px --mat-sys-shadow, 0px 19px 29px 2px --mat-sys-shadow, 0px 7px 36px 6px --mat-sys-shadow)}.mat-elevation-z20,.mat-mdc-elevation-specific.mat-elevation-z20{box-shadow:var(--mat-app-elevation-shadow-level-20, 0px 10px 13px -6px --mat-sys-shadow, 0px 20px 31px 3px --mat-sys-shadow, 0px 8px 38px 7px --mat-sys-shadow)}.mat-elevation-z21,.mat-mdc-elevation-specific.mat-elevation-z21{box-shadow:var(--mat-app-elevation-shadow-level-21, 0px 10px 13px -6px --mat-sys-shadow, 0px 21px 33px 3px --mat-sys-shadow, 0px 8px 40px 7px --mat-sys-shadow)}.mat-elevation-z22,.mat-mdc-elevation-specific.mat-elevation-z22{box-shadow:var(--mat-app-elevation-shadow-level-22, 0px 10px 14px -6px --mat-sys-shadow, 0px 22px 35px 3px --mat-sys-shadow, 0px 8px 42px 7px --mat-sys-shadow)}.mat-elevation-z23,.mat-mdc-elevation-specific.mat-elevation-z23{box-shadow:var(--mat-app-elevation-shadow-level-23, 0px 11px 14px -7px --mat-sys-shadow, 0px 23px 36px 3px --mat-sys-shadow, 0px 9px 44px 8px --mat-sys-shadow)}.mat-elevation-z24,.mat-mdc-elevation-specific.mat-elevation-z24{box-shadow:var(--mat-app-elevation-shadow-level-24, 0px 11px 15px -7px --mat-sys-shadow, 0px 24px 38px 3px --mat-sys-shadow, 0px 9px 46px 8px --mat-sys-shadow)}.deeppurple-amber-theme{--mat-sys-background: #fef8fc;--mat-sys-error: #ba1a1a;--mat-sys-error-container: #ffdad6;--mat-sys-inverse-on-surface: #f5eff4;--mat-sys-inverse-primary: #d5baff;--mat-sys-inverse-surface: #323033;--mat-sys-on-background: #1d1b1e;--mat-sys-on-error: #ffffff;--mat-sys-on-error-container: #93000a;--mat-sys-on-primary: #ffffff;--mat-sys-on-primary-container: #5f00c0;--mat-sys-on-primary-fixed: #270057;--mat-sys-on-primary-fixed-variant: #5f00c0;--mat-sys-on-secondary: #ffffff;--mat-sys-on-secondary-container: #4b4357;--mat-sys-on-secondary-fixed: #1f182a;--mat-sys-on-secondary-fixed-variant: #4b4357;--mat-sys-on-surface: #1d1b1e;--mat-sys-on-surface-variant: #49454e;--mat-sys-on-tertiary: #ffffff;--mat-sys-on-tertiary-container: #494900;--mat-sys-on-tertiary-fixed: #1d1d00;--mat-sys-on-tertiary-fixed-variant: #494900;--mat-sys-outline: #7b757f;--mat-sys-outline-variant: #cbc4cf;--mat-sys-primary: #7d00fa;--mat-sys-primary-container: #ecdcff;--mat-sys-primary-fixed: #ecdcff;--mat-sys-primary-fixed-dim: #d5baff;--mat-sys-scrim: #000000;--mat-sys-secondary: #645b70;--mat-sys-secondary-container: #eadef7;--mat-sys-secondary-fixed: #eadef7;--mat-sys-secondary-fixed-dim: #cec2db;--mat-sys-shadow: #000000;--mat-sys-surface: #fef8fc;--mat-sys-surface-bright: #fef8fc;--mat-sys-surface-container: #f2ecf1;--mat-sys-surface-container-high: #ede6eb;--mat-sys-surface-container-highest: #e6e1e6;--mat-sys-surface-container-low: #f8f2f6;--mat-sys-surface-container-lowest: #ffffff;--mat-sys-surface-dim: #ded8dd;--mat-sys-surface-tint: #7d00fa;--mat-sys-surface-variant: #e8e0eb;--mat-sys-tertiary: #626200;--mat-sys-tertiary-container: #eaea00;--mat-sys-tertiary-fixed: #eaea00;--mat-sys-tertiary-fixed-dim: #cdcd00;--mat-sys-neutral-variant20: #332f37;--mat-sys-neutral10: #1d1b1e;--mat-sys-level0: 0px 0px 0px 0px rgba(0, 0, 0, .2), 0px 0px 0px 0px rgba(0, 0, 0, .14), 0px 0px 0px 0px rgba(0, 0, 0, .12);--mat-sys-level1: 0px 2px 1px -1px rgba(0, 0, 0, .2), 0px 1px 1px 0px rgba(0, 0, 0, .14), 0px 1px 3px 0px rgba(0, 0, 0, .12);--mat-sys-level2: 0px 3px 3px -2px rgba(0, 0, 0, .2), 0px 3px 4px 0px rgba(0, 0, 0, .14), 0px 1px 8px 0px rgba(0, 0, 0, .12);--mat-sys-level3: 0px 3px 5px -1px rgba(0, 0, 0, .2), 0px 6px 10px 0px rgba(0, 0, 0, .14), 0px 1px 18px 0px rgba(0, 0, 0, .12);--mat-sys-level4: 0px 5px 5px -3px rgba(0, 0, 0, .2), 0px 8px 10px 1px rgba(0, 0, 0, .14), 0px 3px 14px 2px rgba(0, 0, 0, .12);--mat-sys-level5: 0px 7px 8px -4px rgba(0, 0, 0, .2), 0px 12px 17px 2px rgba(0, 0, 0, .14), 0px 5px 22px 4px rgba(0, 0, 0, .12);--mat-sys-corner-extra-large: 28px;--mat-sys-corner-extra-large-top: 28px 28px 0 0;--m[...]"
+                       "text": "Found. Redirecting to https:\/\/github.com\/juice-shop\/juice-shop"
                    },
                    "noResponseReceived": false
                }
@@ -609,7 +533,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "368823",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "ETag" : "W\/\"5a0b7-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -679,7 +603,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "190614",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "ETag" : "W\/\"2e896-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -730,7 +654,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
                        "user-agent" : ""
                    },
                    "body": {
@@ -749,7 +673,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "1200618",
                        "Content-Type" : "application\/javascript; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "ETag" : "W\/\"1251ea-1a19f2fe20a\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -800,7 +724,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
                        "user-agent" : "Mozilla\/4.0 (compatible; MSIE 7.0; Windows NT 6.0)"
                    },
                    "body": {
@@ -819,7 +743,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:28:17 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:54 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -870,7 +794,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
                        "user-agent" : "Mozilla\/4.0 (compatible; MSIE 8.0; Windows NT 6.1)"
                    },
                    "body": {
@@ -889,7 +813,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:28:17 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:54 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -940,7 +864,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "referer" : "http:\/\/localhost:3000",
+                       "referer" : "http:\/\/localhost:3000\/sitemap.xml",
                        "user-agent" : "Mozilla\/4.0 (compatible; MSIE 8.0; Windows NT 6.1)"
                    },
                    "body": {
@@ -959,7 +883,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:28:17 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:54 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1013,7 +937,7 @@
                        "cache-control" : "no-cache",
                        "host" : "localhost:3000",
                        "pragma" : "no-cache",
-                       "user-agent" : ""
+                       "user-agent" : "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/141.0.0.0 Safari\/537.36"
                    },
                    "body": {
                        
@@ -1031,7 +955,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",
@@ -1103,7 +1027,7 @@
                        "Connection" : "keep-alive",
                        "Content-Length" : "9984",
                        "Content-Type" : "text\/html; charset=UTF-8",
-                       "Date" : "Wed, 25 Nov 2026 02:27:41 GMT",
+                       "Date" : "Wed, 25 Nov 2026 03:01:17 GMT",
                        "ETag" : "W\/\"2700-1a20f774e82\"",
                        "Feature-Policy" : "payment 'self'",
                        "Keep-Alive" : "timeout=5",

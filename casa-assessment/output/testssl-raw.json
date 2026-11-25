@@ -1,9 +1,9 @@
 {
           "Invocation"  : "testssl.sh --quiet --warnings batch --color 0 --ip one --connect-timeout 2 --openssl-timeout 2 -p --jsonfile-pretty /home/user/felipe/speckit/casa/casa-assessment/output/testssl-raw.json localhost:443",
           "at"          : "aut-poc-elk01:/home/user/.local/share/testssl.sh/bin/openssl.Linux.x86_64",
-          "version"     : "3.2.2 e26842e",
+          "version"     : "3.2.2 c7eb23f",
           "openssl"     : "OpenSSL 1.0.2-bad from Fri Mar 28 16:54:51 2025",
-          "startTime"   : "1795572990",
+          "startTime"   : "1795575000",
           "scanResult"  : [
           {
                     "targetHost"      : "localhost",

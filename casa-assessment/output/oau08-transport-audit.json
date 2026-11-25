@@ -1,0 +1,76 @@
+{
+  "standard": "RFC 6750 §2.3 / ASVS V3.1.1 (Access Token Transport Enforcement)",
+  "target": "http://localhost:3000",
+  "verdict": "FAIL",
+  "harRequestsInspected": 308,
+  "bearerHeaderRequests": 165,
+  "probesRun": 2,
+  "sourcesAudited": 6,
+  "proxiedRequests": [
+    {
+      "method": "GET",
+      "url": "http://localhost:3000/oauth/authorize",
+      "status": 200,
+      "response_type": null,
+      "grant_type": null,
+      "code_challenge": null,
+      "code_challenge_method": null,
+      "code_verifier": null,
+      "redirect_uri": null,
+      "state": null,
+      "nonce": null
+    }
+  ],
+  "semgrepHits": 3,
+  "findings": [
+    {
+      "location": "http://localhost:3000/main.js",
+      "kind": "Resource_Query_Access_Token_Transport",
+      "cwe": "CWE-598",
+      "status": 0,
+      "detail": "http://localhost:3000/main.js transmits OAuth access_token to a resource endpoint in the URL query string (https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=`+e)}saveLastLoginIp(){return this.http.get(t) instead of an Authorization: Bearer header (RFC 6750 §2.3 / ASVS V3.1.1)."
+    },
+    {
+      "location": "http://localhost:3000/main.js",
+      "kind": "URL_Fragment_Access_Token_Transport",
+      "cwe": "CWE-598",
+      "status": 0,
+      "detail": "http://localhost:3000/main.js transports OAuth access_token via URL fragment (#access_token=), exposing token in browser history/routing instead of backend code exchange + Authorization header."
+    },
+    {
+      "location": "frontend/src/app/Services/user.service.ts:68",
+      "kind": "Resource_Query_Access_Token_Transport",
+      "cwe": "CWE-598",
+      "status": 0,
+      "detail": "frontend/src/app/Services/user.service.ts:68 transmits OAuth access_token to a resource endpoint in the URL query string (https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=' + accessToken)   }    saveLastLoginIp () {) instead of an Authorization: Bearer header (RFC 6750 §2.3 / ASVS V3.1.1)."
+    },
+    {
+      "location": "frontend/src/app/app.routing.ts",
+      "kind": "URL_Fragment_Access_Token_Transport",
+      "cwe": "CWE-598",
+      "status": 0,
+      "detail": "frontend/src/app/app.routing.ts transports OAuth access_token via URL fragment (#access_token=), exposing token in browser history/routing instead of backend code exchange + Authorization header."
+    },
+    {
+      "location": "frontend/src/app/Services/user.service.ts:68",
+      "kind": "Semgrep_OAU08_URL_Token_Transport",
+      "cwe": "CWE-598",
+      "status": 0,
+      "detail": "Semgrep rule casa-assessment.rules.CASA3-OAU-08-token-in-url-transport flagged frontend/src/app/Services/user.service.ts:68 (OAU-08: Access token transmitted or parsed in URL query string or fragment instead of Authorization Bearer/DPoP header (RFC 6750 §2.3))."
+    },
+    {
+      "location": "frontend/src/app/app.routing.ts:286",
+      "kind": "Semgrep_OAU08_URL_Token_Transport",
+      "cwe": "CWE-598",
+      "status": 0,
+      "detail": "Semgrep rule casa-assessment.rules.CASA3-OAU-08-token-in-url-transport flagged frontend/src/app/app.routing.ts:286 (OAU-08: Access token transmitted or parsed in URL query string or fragment instead of Authorization Bearer/DPoP header (RFC 6750 §2.3))."
+    },
+    {
+      "location": "frontend/src/app/oauth/oauth.component.ts:29",
+      "kind": "Semgrep_OAU08_URL_Token_Transport",
+      "cwe": "CWE-598",
+      "status": 0,
+      "detail": "Semgrep rule casa-assessment.rules.CASA3-OAU-08-token-in-url-transport flagged frontend/src/app/oauth/oauth.component.ts:29 (OAU-08: Access token transmitted or parsed in URL query string or fragment instead of Authorization Bearer/DPoP header (RFC 6750 §2.3))."
+    }
+  ]
+}

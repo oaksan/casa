@@ -1402,3 +1402,24 @@ CONTROLE 45/61: AZI-02 (Iteração SDD 176) — No Cross-Site Scripting (XSS)
 4. Validação:
    - `test_iteration176_azi02_neon_reeval` (reflexão `application/xhtml+xml`
      FAIL; eco `application/json` PASS) + regressão `test_iteration115_azi02_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 46/61: AZI-03 (Iteração SDD 177) — SQL & NoSQL Query Safety
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1020):
+   - Referência: `sqlmap, ZAP, Burp Suite, Schemathesis`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa `sqlmap` oficial + OWASP ZAP 2.17.0 regras `40018`/`40024`
+     + verificador diferencial com SARIF 2.1.0 e HAR 1.2 redigido).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `_count_json_records` reconhecia apenas envelopes `data` e `items`.
+   - Assinaturas de erro 5xx não cobriam PostgreSQL (`pg_query`, `syntax error
+     at or near`) nem MSSQL (`unclosed quotation mark`, `microsoft ole db`).
+   - `nosql_query_targets` não suportava targets com `method: "GET"`.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Expandido `_count_json_records` (`data`, `items`, `results`, `records`,
+     `rows`, `users`), adicionados marcadores PostgreSQL/MSSQL e suporte `GET`
+     em `nosql_query_targets`.
+4. Validação:
+   - `test_iteration177_azi03_neon_reeval` (envelopes REST + diferencial `GET`)
+     + regressão `test_iteration116_azi03_guide_tooling` (`sqlmap` + ZAP real).

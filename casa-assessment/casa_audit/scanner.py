@@ -11686,10 +11686,9 @@ def _count_json_records(status_code: int, body_text: str) -> int:
     try:
         parsed = json.loads(body_text)
         if isinstance(parsed, dict):
-            if isinstance(parsed.get("data"), list):
-                return len(parsed["data"])
-            if isinstance(parsed.get("items"), list):
-                return len(parsed["items"])
+            for coll_k in ("data", "items", "results", "records", "rows", "users"):
+                if isinstance(parsed.get(coll_k), list):
+                    return len(parsed[coll_k])
         elif isinstance(parsed, list):
             return len(parsed)
     except Exception:
@@ -11866,7 +11865,21 @@ def evaluate_azi03_sqli_nosql(
             confirmed_by="differential_boolean",
         )
     err_low = body_err.lower()
-    if st_err >= 500 and any(tok in err_low for tok in ("sqlite_error", "syntax error", "sqlstate", "unterminated quoted string", "ora-", "mysql")):
+    if st_err >= 500 and any(
+        tok in err_low
+        for tok in (
+            "sqlite_error",
+            "syntax error",
+            "sqlstate",
+            "unterminated quoted string",
+            "ora-",
+            "mysql",
+            "pg_query",
+            "syntax error at or near",
+            "unclosed quotation mark",
+            "microsoft ole db",
+        )
+    ):
         _add_finding(
             f"{base_url}/rest/products/search",
             "SQLi_Error_Based",
@@ -11922,7 +11935,31 @@ def evaluate_azi03_sqli_nosql(
     for nqt in nosql_query_targets or []:
         nq_path = str(nqt.get("path") or "").strip()
         nq_param = str(nqt.get("param") or "q")
+        nq_method = str(nqt.get("method") or "POST").upper()
         if not nq_path:
+            continue
+        if nq_method == "GET":
+            sep = "&" if "?" in nq_path else "?"
+            qb_st, _, qb_body = _probe_logged(f"{nq_path}{sep}{nq_param}=casa3_nomatch_zz99", headers=auth_hdrs)
+            azi03_probes += 1
+            qb_cnt = _count_json_records(qb_st, qb_body)
+            for op_lbl, op_qs in [("$ne", f"{nq_param}[$ne]=__none__"), ("$gt", f"{nq_param}[$gt]=")]:
+                qo_st, _, qo_body = _probe_logged(
+                    f"{nq_path}{sep}{urllib.parse.quote(op_qs, safe='=')}",
+                    headers=auth_hdrs,
+                )
+                azi03_probes += 1
+                qo_cnt = _count_json_records(qo_st, qo_body)
+                if qb_cnt >= 0 and qo_cnt > qb_cnt:
+                    _add_finding(
+                        f"{base_url}{nq_path}" if nq_path.startswith("/") else nq_path,
+                        f"NoSQL_Operator_Result_Altered_{op_lbl}",
+                        "CWE-943",
+                        qo_st,
+                        f"GET {nq_path} query parameter '{nq_param}' with operator {op_lbl} altered result set from {qb_cnt} to {qo_cnt} record(s) (HTTP {qo_st}).",
+                        param=nq_param,
+                        confirmed_by="nosql_operator_differential",
+                    )
             continue
         qb_st, _, qb_body = _probe_logged(
             nq_path,

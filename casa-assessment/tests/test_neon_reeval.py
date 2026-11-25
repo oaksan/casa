@@ -1961,6 +1961,38 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 45/61: AZI-02 (Iteração SDD 176)", just_neon)
 
+    def test_iteration177_azi03_neon_reeval(self) -> None:
+        # 1. _count_json_records handles standard REST envelopes (results, records, rows, users)
+        self.assertEqual(sc._count_json_records(200, '{"results":[1,2,3]}'), 3)
+        self.assertEqual(sc._count_json_records(200, '{"records":[{"id":1},{"id":2}]}'), 2)
+        self.assertEqual(sc._count_json_records(200, '{"rows":[]}'), 0)
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            # 2. GET query-string filter alteration detected via differential record count -> FAIL
+            def _probe_get_nosql(ep: str, method: str = "GET", headers=None, body=None, follow_redirects=True):
+                if ep.startswith("/api/items"):
+                    if "%5B%24ne%5D" in ep or "[$ne]" in ep:
+                        return 200, {"content-type": "application/json"}, '{"results":[{"id":1},{"id":2}]}'
+                    return 200, {"content-type": "application/json"}, '{"results":[]}'
+                return 404, {}, '{"error":"not found"}'
+
+            r_fail = sc.evaluate_azi03_sqli_nosql(
+                "https://app.example.com",
+                nosql_query_targets=[{"path": "/api/items", "param": "filter", "method": "GET"}],
+                http_probe_fn=_probe_get_nosql,
+                run_sqlmap=False,
+                run_zap=False,
+                report_out_path=tdp / "azi03.json",
+                har_out_path=tdp / "azi03.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            self.assertTrue(any(f["vulnType"] == "NoSQL_Operator_Result_Altered_$ne" for f in r_fail["findings"]))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 46/61: AZI-03 (Iteração SDD 177)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

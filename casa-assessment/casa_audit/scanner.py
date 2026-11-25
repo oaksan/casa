@@ -6049,6 +6049,10 @@ def evaluate_cfg03_version_disclosure(
     )
 
     product_ver_re = re.compile(r"\b([A-Za-z-]+/[0-9]+\.[0-9]+(?:\.[0-9]+)?)\b")
+    non_product_prefixes = {
+        "HTTP/", "TLS/", "SSL/", "OAUTH/", "OPENAPI/", "MIME/", "SPDX/",
+        "JSON/", "XML/", "UTF/", "HTML/", "CSS/", "SVG/", "REST/", "GRAPHQL/", "GRPC/",
+    }
     stack_banner_headers = ("x-powered-by", "x-aspnet-version", "x-aspnetmvc-version", "x-generator", "x-runtime")
     cfg03_findings: list[dict] = []
     seen_cfg03_keys: set[tuple[str, str]] = set()
@@ -6096,7 +6100,7 @@ def evaluate_cfg03_version_disclosure(
         for hk, hv in ex_hdrs.items():
             hk_l = hk.lower()
             for m_tok in product_ver_re.findall(hv):
-                if m_tok.upper().startswith("HTTP/"):
+                if any(m_tok.upper().startswith(pfx) for pfx in non_product_prefixes):
                     continue
                 record_cfg03(
                     ex_url,
@@ -6126,7 +6130,7 @@ def evaluate_cfg03_version_disclosure(
         if ex_body:
             body_no_urls = re.sub(r"https?://[^\s\"'<>]+", " ", ex_body)
             for m_tok in product_ver_re.findall(body_no_urls):
-                if m_tok.upper().startswith("HTTP/"):
+                if any(m_tok.upper().startswith(pfx) for pfx in non_product_prefixes):
                     continue
                 record_cfg03(
                     ex_url,

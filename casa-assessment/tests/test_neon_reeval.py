@@ -1145,6 +1145,45 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 26/61: CFG-02 (Iteração SDD 157)", just_neon)
 
+    def test_iteration158_cfg03_neon_reeval(self) -> None:
+        empty_zap = {"executed": True, "alerts": []}
+
+        # 1. Protocol/standard tokens (TLS/1.3, OAuth/2.0, OpenAPI/3.0, SPDX/2.3) must NOT false-positive
+        r_clean = sc.evaluate_cfg03_version_disclosure(
+            "https://app.example.com",
+            crawled_exchanges=[
+                {
+                    "method": "GET",
+                    "url": "https://app.example.com/",
+                    "status": 200,
+                    "headers": {"content-type": "text/html", "x-spec": "OpenAPI/3.0"},
+                    "body": "<html><body>Supports TLS/1.3, OAuth/2.0, MIME/1.0 and SPDX/2.3 formats.</body></html>",
+                }
+            ],
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_clean["verdict"], "PASS", f"Expected PASS, got {r_clean}")
+
+        # 2. Real product/version token in body or header still fails
+        r_leak = sc.evaluate_cfg03_version_disclosure(
+            "https://app.example.com",
+            crawled_exchanges=[
+                {
+                    "method": "GET",
+                    "url": "https://app.example.com/error",
+                    "status": 502,
+                    "headers": {"content-type": "text/html"},
+                    "body": "<html><body><hr><center>nginx/1.24.0</center></body></html>",
+                }
+            ],
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_leak["verdict"], "FAIL")
+        self.assertTrue(any(f["token"] == "nginx/1.24.0" for f in r_leak["findings"]))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 27/61: CFG-03 (Iteração SDD 158)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

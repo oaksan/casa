@@ -971,3 +971,21 @@ CONTROLE 26/61: CFG-02 (Iteração SDD 157) — Debug Modes Disabled
 4. Validação:
    - `test_iteration157_cfg02_neon_reeval` (produção limpa vs Django DEBUG=True +
      Werkzeug Debugger) + regressão `test_iteration96_cfg02_guide_tooling` (Nuclei 3.11.1 real).
+
+--------------------------------------------------------------------------------
+CONTROLE 27/61: CFG-03 (Iteração SDD 158) — Version Disclosure Removed
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L602):
+   - Referência: `OWASP ZAP (rules 10036 Server Leaks Version, 10037 X-Powered-By), curl`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa OWASP ZAP 2.17.0
+     (`10036`/`10037`) + analisador de cabeçalhos/corpos HTTP. Zero Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `product_ver_re` filtrava apenas `HTTP/`, gerando falsos positivos em tokens
+     de protocolos/especificações (`TLS/1.3`, `OAuth/2.0`, `OpenAPI/3.0`, `MIME/1.0`,
+     `SPDX/2.3`, `XML/1.0`) que não divulgam versão de servidor/framework.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionada lista explícita `non_product_prefixes` em `evaluate_cfg03_version_disclosure`
+     para excluir tokens de protocolos/padrões sem afetar banners reais (`nginx/1.24.0`, etc.).
+4. Validação:
+   - `test_iteration158_cfg03_neon_reeval` (protocolos limpos vs `nginx/1.24.0`) +
+     regressão `test_iteration97_cfg03_guide_tooling` (OWASP ZAP 2.17.0 real).

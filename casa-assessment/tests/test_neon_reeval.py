@@ -396,6 +396,34 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 05/61: SCA-05 (Iteração SDD 136)", just_neon)
 
+    def test_iteration137_sast01_neon_reeval(self) -> None:
+        import zipfile
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            # 1. Shipped archive (.zip) with hardcoded API key must be caught
+            (repo / "releases").mkdir()
+            with zipfile.ZipFile(repo / "releases" / "bundle.zip", "w") as zf:
+                zf.writestr("config/app.yml", "api_key: 'demo_secret_99887766554433221100AABBCC'\n")
+            # 2. Unverified Gitleaks hit must NOT claim verified=true; verified hit MUST claim verified=true
+            gl_hits = [
+                {"File": str(repo / "app.ts"), "StartLine": 5, "RuleID": "generic-api-key", "Description": "Generic Key", "Entropy": 4.2, "Verified": False},
+                {"File": str(repo / "live.ts"), "StartLine": 9, "RuleID": "aws-access-token", "Description": "Live AWS Key", "Entropy": 4.5, "Verified": True},
+            ]
+            findings, sarifs = sc.evaluate_sast01_secrets_and_entropy(repo, gitleaks_hits=gl_hits)
+            joined = "\n".join(findings)
+            self.assertIn("releases/bundle.zip!config/app.yml", joined)
+            self.assertTrue(any("app.ts:5" in f and "verified=false; triaged=error" in f for f in findings))
+            self.assertTrue(any("live.ts:9" in f and "verified=true" in f for f in findings))
+            self.assertTrue(all(s["level"] == "error" for s in sarifs))
+
+        # 3. Verify Juice Shop hardcoded literal removed from Semgrep SAST-01 rule
+        rules_txt = (ROOT_DIR / "casa-assessment" / "rules" / "casa3_al1_sast.yml").read_text(encoding="utf-8")
+        self.assertNotIn("6PPi37DBxP4lDwlriuaxP15HaDJpsUXY5TspVmie", rules_txt)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 06/61: SAST-01 (Iteração SDD 137)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

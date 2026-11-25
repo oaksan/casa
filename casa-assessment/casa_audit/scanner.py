@@ -2807,8 +2807,10 @@ def evaluate_sast01_secrets_and_entropy(
         seen_gl_loc.add((rel, lno, rule_id))
         ent = float(item.get("Entropy") or 0.0)
         desc_txt = str(item.get("Description") or rule_id).strip()
+        is_verified = bool(item.get("Verified") is True)
         ent_note = f", Shannon entropy={ent:.2f} bits/char" if ent > 0 else ""
-        desc = f"{rel}:{lno} — [GITLEAKS {rule_id}] {desc_txt} (verified=true{ent_note})"
+        ver_note = "verified=true" if is_verified else "verified=false; triaged=error"
+        desc = f"{rel}:{lno} — [GITLEAKS {rule_id}] {desc_txt} ({ver_note}{ent_note})"
         sast01_findings.append(desc)
         sast01_sarif.append(
             {
@@ -2841,13 +2843,21 @@ def evaluate_sast01_secrets_and_entropy(
         if p.exists() and p.is_file():
             target_files.append(p)
 
-    # Also scan any additional .yml / .env / .ts files in config/ or lib/
-    for dname in ("config", "lib"):
+    # Also scan .yml / .env / .ts / .js / .py / .json files in config/, lib/, src/, app/, data/
+    for dname in ("config", "lib", "src", "app", "data"):
         dp = repo / dname
         if dp.is_dir():
             for fp in dp.rglob("*"):
-                if fp.is_file() and fp.suffix in {".ts", ".js", ".yml", ".yaml", ".env", ".json"} and fp not in target_files:
+                if (
+                    fp.is_file()
+                    and fp.suffix in {".ts", ".js", ".py", ".yml", ".yaml", ".env", ".json"}
+                    and not any(part in {"node_modules", ".git", "codefixes", "test", "tests"} for part in fp.parts)
+                    and fp not in target_files
+                ):
                     target_files.append(fp)
+    for env_fp in repo.glob(".env*"):
+        if env_fp.is_file() and not env_fp.name.endswith((".example", ".sample", ".template")) and env_fp not in target_files:
+            target_files.append(env_fp)
 
     secret_assign_re = re.compile(
         r"""(?ix)
@@ -2871,15 +2881,7 @@ def evaluate_sast01_secrets_and_entropy(
         "password_valid_needs_second_factor_token",
     }
 
-    for fpath in target_files:
-        rel = str(fpath.relative_to(repo))
-        if ".spec." in rel or "test/" in rel:
-            continue
-        try:
-            lines = fpath.read_text(encoding="utf-8", errors="ignore").splitlines()
-        except Exception:
-            continue
-
+    def _scan_lines_for_sast01(rel: str, lines: list[str]) -> None:
         for line_no, line in enumerate(lines, start=1):
             stripped = line.strip()
             if not stripped or stripped.startswith("#") or stripped.startswith("//"):
@@ -2891,8 +2893,8 @@ def evaluate_sast01_secrets_and_entropy(
                 secret_val = m_hmac.group("val")
                 ent = compute_shannon_entropy(secret_val)
                 desc = (
-                    f"{rel}:{line_no} — [LIVE CREDENTIAL / HIGH-ENTROPY HMAC SECRET] Hardcoded HMAC-SHA256 secret "
-                    f"('{secret_val[:8]}...{secret_val[-4:]}', len={len(secret_val)}, Shannon entropy={ent} bits/char, verified=true)"
+                    f"{rel}:{line_no} — [HIGH-ENTROPY HMAC SECRET] Hardcoded HMAC secret "
+                    f"('{secret_val[:8]}...{secret_val[-4:]}', len={len(secret_val)}, Shannon entropy={ent} bits/char, triaged=error)"
                 )
                 sast01_findings.append(desc)
                 sast01_sarif.append(
@@ -2912,7 +2914,7 @@ def evaluate_sast01_secrets_and_entropy(
                 )
                 continue
 
-            # 2. Check hardcoded leaked API key in [Op.like]
+            # 2. Check hardcoded high-entropy API token in [Op.like]
             m_like = like_token_re.search(line)
             if m_like:
                 secret_val = m_like.group("val")
@@ -2920,7 +2922,7 @@ def evaluate_sast01_secrets_and_entropy(
                 if ent >= 4.0:
                     desc = (
                         f"{rel}:{line_no} — [HIGH-ENTROPY API KEY] Hardcoded API key token "
-                        f"('{secret_val[:8]}...{secret_val[-4:]}', len={len(secret_val)}, Shannon entropy={ent} bits/char, verified=true)"
+                        f"('{secret_val[:8]}...{secret_val[-4:]}', len={len(secret_val)}, Shannon entropy={ent} bits/char, triaged=error)"
                     )
                     sast01_findings.append(desc)
                     sast01_sarif.append(
@@ -2940,7 +2942,7 @@ def evaluate_sast01_secrets_and_entropy(
                     )
                 continue
 
-            # 3. Check key/value credential assignments (e.g. users.yml, insecurity.ts)
+            # 3. Check key/value credential assignments (e.g. users.yml, config, .env)
             m_sec = secret_assign_re.search(line)
             if m_sec:
                 kname = m_sec.group("key")
@@ -2950,13 +2952,13 @@ def evaluate_sast01_secrets_and_entropy(
                 ent = compute_shannon_entropy(sval)
                 if sval.startswith("-----BEGIN"):
                     desc = (
-                        f"{rel}:{line_no} — [HARDCODED RSA PRIVATE KEY SIGNING CREDENTIAL] Inline PEM key assigned to '{kname}' "
-                        f"(len={len(sval)}, Shannon entropy={ent} bits/char, verified=true)"
+                        f"{rel}:{line_no} — [HARDCODED PRIVATE KEY SIGNING CREDENTIAL] Inline PEM key assigned to '{kname}' "
+                        f"(len={len(sval)}, Shannon entropy={ent} bits/char, triaged=error)"
                     )
                 else:
                     desc = (
                         f"{rel}:{line_no} — [HARDCODED CREDENTIAL IN RESOURCE/SOURCE] '{kname}' hardcoded literal "
-                        f"('{sval[:6]}***', len={len(sval)}, Shannon entropy={ent} bits/char, verified=true)"
+                        f"('{sval[:6]}***', len={len(sval)}, Shannon entropy={ent} bits/char, triaged=error)"
                     )
                 sast01_findings.append(desc)
                 sast01_sarif.append(
@@ -2974,6 +2976,56 @@ def evaluate_sast01_secrets_and_entropy(
                         ],
                     }
                 )
+
+    for fpath in target_files:
+        rel = str(fpath.relative_to(repo))
+        if ".spec." in rel or "test/" in rel or "tests/" in rel:
+            continue
+        try:
+            lines = fpath.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            continue
+        _scan_lines_for_sast01(rel, lines)
+
+    # 4. Walk shipped archive artifacts (.zip/.jar/.war/.whl/.tar.gz/.tgz) per Test Guide L161/L166
+    import tarfile
+
+    archive_exts = {".zip", ".jar", ".war", ".whl"}
+    ignored_arch_dirs = {"node_modules", ".git", "dist", "build", "coverage", "samples", "test", "tests"}
+    for fpath in sorted(repo.rglob("*")):
+        if not fpath.is_file() or any(part in ignored_arch_dirs for part in fpath.parts):
+            continue
+        ext = fpath.suffix.lower()
+        name_l = fpath.name.lower()
+        if fpath.stat().st_size > 20 * 1024 * 1024:
+            continue
+        rel_arch = str(fpath.relative_to(repo))
+        if ext in archive_exts:
+            try:
+                with zipfile.ZipFile(fpath, "r") as zf:
+                    for info in zf.infolist():
+                        if info.is_dir() or info.file_size > 256 * 1024:
+                            continue
+                        if Path(info.filename).suffix.lower() not in {".env", ".yml", ".yaml", ".json", ".properties", ".ini", ".cfg", ".ts", ".js", ".py"}:
+                            continue
+                        raw_txt = zf.read(info.filename).decode("utf-8", errors="ignore")
+                        _scan_lines_for_sast01(f"{rel_arch}!{info.filename}", raw_txt.splitlines())
+            except Exception:
+                pass
+        elif name_l.endswith((".tar.gz", ".tgz", ".tar")):
+            try:
+                with tarfile.open(fpath, "r:*") as tf:
+                    for member in tf.getmembers():
+                        if not member.isfile() or member.size > 256 * 1024:
+                            continue
+                        if Path(member.name).suffix.lower() not in {".env", ".yml", ".yaml", ".json", ".properties", ".ini", ".cfg", ".ts", ".js", ".py"}:
+                            continue
+                        extracted = tf.extractfile(member)
+                        if extracted:
+                            raw_txt = extracted.read().decode("utf-8", errors="ignore")
+                            _scan_lines_for_sast01(f"{rel_arch}!{member.name}", raw_txt.splitlines())
+            except Exception:
+                pass
 
     return sast01_findings, sast01_sarif
 
@@ -3977,7 +4029,7 @@ def run_sast_checks(repo: Path) -> dict[str, dict]:
         f_list = findings_by_sast_id.get(sid, [])
         if sid == "SAST-01":
             gl_tag = "Gitleaks v8.30.1 + " if gitleaks_ran else ""
-            tool_label = f"{gl_tag}Semgrep AST 1.180.0 + Shannon Entropy Secret Detector ({semgrep_duration}s, SARIF 2.1.0)"
+            tool_label = f"{gl_tag}Pattern & Shannon Entropy Secret Detector (Source + Config + Shipped Artifacts, SARIF 2.1.0)"
             extra_sarif_ref = f"\nGitleaks SARIF Evidence: {gl_sarif_out}" if gl_sarif_out.exists() else ""
         elif sid == "SAST-02":
             gl_mode = "dir + git history" if gitleaks_git_ran else "dir"

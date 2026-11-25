@@ -299,3 +299,46 @@ Domínio 1: Software Composition & Supply Chain — FECHAMENTO DO DOMÍNIO 1
     - `SCA-03 [FAIL]`: 3 achados bloqueantes via `Trivy` sobre `bkimminich/juice-shop` (`Debian:13.7`, 14 pacotes OS, `libssl3t64` + `zlib1g` + tags sem `@sha256`).
     - `SCA-04 [FAIL]`: 2 falhas reais em `container:bkimminich/juice-shop:latest:/juice-shop/bom.json` (`CycloneDX 1.6`, `NTIA gaps=66/537`, `SetDiff=220`, sem falso erro de ausência no repo).
     - `SCA-05 [FAIL]`: 6 violações maliciosas/typosquatting sobre `1125` dependências (manifestos + transitivas do lockfile) via `osv-scanner + OpenSSF malicious-packages`.
+
+================================================================================
+CONTROLE 06/61: SAST-01 (Iteração SDD 137)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L162):
+  `gitleaks`, `trufflehog`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle utiliza o
+  binário oficial gratuito `gitleaks` (`gitleaks dir --report-format sarif`)
+  combinado com detecção determinística por padrões e entropia de Shannon sobre
+  código-fonte, configurações e artefatos empacotados. Removida a referência ao
+  Semgrep no rótulo de ferramenta de `SAST-01` e removido o literal específico
+  do Juice Shop (`6PPi37DBxP4lDwlriuaxP15HaDJpsUXY5TspVmie`) de `casa3_al1_sast.yml`.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 137)
+--------------------------------------------------------------------------------
+1) **Fidelidade da flag `verified: true` (`Test Guide` L166)**:
+   - *Antes*: `evaluate_sast01_secrets_and_entropy` imprimia `verified=true` em
+     todos os achados estáticos do Gitleaks e de regex/entropia mesmo sem
+     verificação ativa contra serviço emissor.
+   - *Melhoria*: Achados estáticos triados são rotulados como
+     `verified=false; triaged=error` (nível SARIF `error`), reservando
+     `verified=true` estritamente a achados com verificação ativa confirmada
+     (`Verified=True`).
+2) **Cobertura de artefatos distribuídos empacotados (`Test Guide` L161/L166)**:
+   - *Antes*: Apenas caminhos fixos de código/config eram percorridos pelo
+     detector de entropia/padrões.
+   - *Melhoria*: Adicionada varredura automática de artefatos distribuídos
+     (`.zip`, `.jar`, `.war`, `.whl`, `.tar.gz`, `.tgz`, `.tar`) e arquivos
+     `.env*` / `src/` / `app/` / `data/` / `config/` com filtro de exclusão de
+     testes e exemplos.
+
+3. VALIDAÇÃO (SDD 137)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration137_sast01_neon_reeval` validando
+  detecção dentro de artefato `.zip`, diferenciação honesta entre
+  `verified=false; triaged=error` e `verified=true`, e remoção do literal do
+  Juice Shop no ruleset.
+- Regressão validada: `test_iteration76_sast01_guide_tooling` (`OK`).

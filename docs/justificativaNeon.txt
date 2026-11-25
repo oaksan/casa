@@ -1047,3 +1047,22 @@ CONTROLE 30/61: CFG-06 (Iteração SDD 161) — X-Content-Type-Options: nosniff
 4. Validação:
    - `test_iteration161_cfg06_neon_reeval` (404 sem `nosniff` falha; 100% com
      `extra_endpoints` incluindo 404 passa) + regressão `test_iteration100_cfg06_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 31/61: CFG-07 (Iteração SDD 162) — Anti-Caching Headers on Sensitive Responses
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L687):
+   - Referência: `OWASP ZAP (rules 10049 Storable and Cacheable Content, 10015 Re-examine Cache-Control Directives)`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa OWASP ZAP 2.17.0
+     (`10049`/`10015`) + inspetor autenticado de `Cache-Control: no-store`. Zero Burp pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_cfg07_anti_caching` acoplava autenticação e lista de endpoints ao
+     perfil padrão sem permitir `auth_headers` e `endpoints` customizados.
+   - A diretiva contraditória `Cache-Control: public, no-store` não era rejeitada.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionados parâmetros `auth_headers` e `endpoints` em `evaluate_cfg07_anti_caching`.
+   - Rejeitada combinação contraditória `public` + `no-store` (exigindo `no-store`
+     sem diretiva `public`).
+4. Validação:
+   - `test_iteration162_cfg07_neon_reeval` (sessão/rotas customizadas PASS;
+     `public, no-store` FAIL) + regressão `test_iteration101_cfg07_guide_tooling`.

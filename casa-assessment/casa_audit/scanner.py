@@ -6811,6 +6811,8 @@ def evaluate_cfg06_xcto(
 def evaluate_cfg07_anti_caching(
     target_url: str,
     *,
+    auth_headers: dict[str, str] | None = None,
+    endpoints: list[str] | None = None,
     zap_report: dict | None = None,
     json_out_path: Path | None = None,
     sarif_out_path: Path | None = None,
@@ -6851,46 +6853,56 @@ def evaluate_cfg07_anti_caching(
     auth_token = ""
     auth_bid = 1
     auth_uid = 1
-    try:
-        sess_email = f"casa3_dast_cfg07_{int(time.time())}@juice-sh.op"
-        reg_payload = json.dumps(
-            {
-                "email": sess_email,
-                "password": "Casa3Cfg07Session!99",
-                "passwordRepeat": "Casa3Cfg07Session!99",
-            }
-        ).encode("utf-8")
-        reg_st, _, reg_body = probe("/api/Users/", method="POST", headers={"Content-Type": "application/json"}, body=reg_payload)
-        if 200 <= reg_st < 300 and reg_body:
-            try:
-                auth_uid = json.loads(reg_body).get("data", {}).get("id", 1) or 1
-            except Exception:
-                auth_uid = 1
-        login_payload = json.dumps({"email": sess_email, "password": "Casa3Cfg07Session!99"}).encode("utf-8")
-        login_st, _, login_body = probe("/rest/user/login", method="POST", headers={"Content-Type": "application/json"}, body=login_payload)
-        if 200 <= login_st < 300 and login_body:
-            auth_obj = json.loads(login_body).get("authentication", {})
-            auth_token = auth_obj.get("token", "")
-            auth_bid = auth_obj.get("bid", 1) or 1
-    except Exception:
-        auth_token = ""
+    if auth_headers is not None:
+        auth_req_headers = dict(auth_headers)
+        is_authenticated = bool(auth_req_headers)
+    else:
+        try:
+            sess_email = f"casa3_dast_cfg07_{int(time.time())}@juice-sh.op"
+            reg_payload = json.dumps(
+                {
+                    "email": sess_email,
+                    "password": "Casa3Cfg07Session!99",
+                    "passwordRepeat": "Casa3Cfg07Session!99",
+                }
+            ).encode("utf-8")
+            reg_st, _, reg_body = probe("/api/Users/", method="POST", headers={"Content-Type": "application/json"}, body=reg_payload)
+            if 200 <= reg_st < 300 and reg_body:
+                try:
+                    auth_uid = json.loads(reg_body).get("data", {}).get("id", 1) or 1
+                except Exception:
+                    auth_uid = 1
+            login_payload = json.dumps({"email": sess_email, "password": "Casa3Cfg07Session!99"}).encode("utf-8")
+            login_st, _, login_body = probe("/rest/user/login", method="POST", headers={"Content-Type": "application/json"}, body=login_payload)
+            if 200 <= login_st < 300 and login_body:
+                auth_obj = json.loads(login_body).get("authentication", {})
+                auth_token = auth_obj.get("token", "")
+                auth_bid = auth_obj.get("bid", 1) or 1
+        except Exception:
+            auth_token = ""
 
-    auth_req_headers = (
-        {"Authorization": f"Bearer {auth_token}", "Cookie": f"token={auth_token}"}
-        if auth_token
-        else {}
+        auth_req_headers = (
+            {"Authorization": f"Bearer {auth_token}", "Cookie": f"token={auth_token}"}
+            if auth_token
+            else {}
+        )
+        is_authenticated = bool(auth_token)
+
+    cfg07_targets = (
+        list(endpoints)
+        if endpoints is not None
+        else [
+            "/rest/user/whoami",
+            f"/rest/basket/{auth_bid}",
+            f"/api/Users/{auth_uid}",
+            "/rest/wallet/balance",
+            "/api/Cards",
+            "/rest/2fa/status",
+            "/rest/admin/application-configuration",
+            "/support/logs",
+            "/encryptionkeys",
+        ]
     )
-    cfg07_targets = [
-        "/rest/user/whoami",
-        f"/rest/basket/{auth_bid}",
-        f"/api/Users/{auth_uid}",
-        "/rest/wallet/balance",
-        "/api/Cards",
-        "/rest/2fa/status",
-        "/rest/admin/application-configuration",
-        "/support/logs",
-        "/encryptionkeys",
-    ]
     active_zap = (
         zap_report
         if (zap_report is not None and zap_report.get("executed"))
@@ -6918,19 +6930,24 @@ def evaluate_cfg07_anti_caching(
         norm_u7 = full_u7.rstrip("/")
         raw_cc = hdrs7.get("cache-control", "").strip()
         cc_directives = {d.strip().lower().split("=", 1)[0] for d in raw_cc.split(",") if d.strip()}
-        if "no-store" in cc_directives:
+        if "no-store" in cc_directives and "public" not in cc_directives:
             compliant_urls.add(norm_u7)
         else:
             etag_note = f", ETag={hdrs7['etag']}" if hdrs7.get("etag") else ""
+            reason_cc = (
+                "contradicts anti-caching with 'public' alongside 'no-store'"
+                if ("no-store" in cc_directives and "public" in cc_directives)
+                else "lacks required 'no-store' directive"
+            )
             item = {
                 "url": full_u7,
                 "status": st7,
                 "cacheControl": raw_cc or "<missing>",
-                "authenticated": bool(auth_token),
+                "authenticated": is_authenticated,
                 "source": "Header",
                 "detail": (
-                    f"GET {full_u7} (HTTP {st7}, authenticated={bool(auth_token)}) "
-                    f"Cache-Control='{raw_cc or '<missing>'}'{etag_note} lacks required 'no-store' directive"
+                    f"GET {full_u7} (HTTP {st7}, authenticated={is_authenticated}) "
+                    f"Cache-Control='{raw_cc or '<missing>'}'{etag_note} {reason_cc}"
                 ),
             }
             cfg07_findings.append(item)
@@ -6991,7 +7008,7 @@ def evaluate_cfg07_anti_caching(
         "verdict": "PASS" if cc_ok else "FAIL",
         "cc_ok": cc_ok,
         "checkedCount": cfg07_checked,
-        "authenticated": bool(auth_token),
+        "authenticated": is_authenticated,
         "authToken": auth_token,
         "authUid": auth_uid,
         "authBid": auth_bid,

@@ -1331,6 +1331,43 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 30/61: CFG-06 (Iteração SDD 161)", just_neon)
 
+    def test_iteration162_cfg07_neon_reeval(self) -> None:
+        empty_zap = {"executed": True, "alerts": []}
+
+        # 1. Custom auth_headers & endpoints with Cache-Control: no-store, private -> PASS
+        def _probe_ok(ep: str, method: str = "GET", headers=None, body=None):
+            if (headers or {}).get("Authorization") == "Bearer custom-tok":
+                return 200, {"cache-control": "no-store, private"}, '{"balance":100}'
+            return 401, {}, ""
+
+        r_ok = sc.evaluate_cfg07_anti_caching(
+            "https://app.example.com",
+            auth_headers={"Authorization": "Bearer custom-tok"},
+            endpoints=["/api/v1/profile", "/api/v1/billing"],
+            http_probe_fn=_probe_ok,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_ok["verdict"], "PASS")
+        self.assertTrue(r_ok["authenticated"])
+        self.assertEqual(r_ok["checkedCount"], 2)
+
+        # 2. Contradictory Cache-Control: public, no-store -> FAIL
+        def _probe_pub(ep: str, method: str = "GET", headers=None, body=None):
+            return 200, {"cache-control": "public, no-store"}, '{"balance":100}'
+
+        r_pub = sc.evaluate_cfg07_anti_caching(
+            "https://app.example.com",
+            auth_headers={"Authorization": "Bearer custom-tok"},
+            endpoints=["/api/v1/profile"],
+            http_probe_fn=_probe_pub,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_pub["verdict"], "FAIL")
+        self.assertTrue(any("public" in f["detail"] for f in r_pub["findings"]))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 31/61: CFG-07 (Iteração SDD 162)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

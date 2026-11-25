@@ -2488,6 +2488,44 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 58/61: OAU-09 (Iteração SDD 189)", just_neon)
 
+    def test_iteration190_whk01_neon_reeval(self) -> None:
+        """SDD 190 (WHK-01): SSLv3 legacy detection & malformed HTTPS redirect rejection."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            def _http_bad_redir(url, method="POST", headers=None, body=None, follow_redirects=False):
+                return 301, {"location": "https:///relative-no-host"}, ""
+
+            r_fail = sc.evaluate_whk01_tls_enforcement(
+                "https://hooks.example.com",
+                receivers=["https://hooks.example.com/webhook"],
+                http_probe_fn=_http_bad_redir,
+                tls_matrix_fn=lambda h, p: {"SSLv3": "offered", "TLS 1.0": "not offered", "TLS 1.1": "not offered", "TLS 1.2": "offered", "TLS 1.3": "offered"},
+                run_testssl=False,
+                run_semgrep=False,
+                report_out_path=tdp / "whk01-fail.json",
+                har_out_path=tdp / "whk01-fail.har",
+            )
+            self.assertEqual(r_fail["verdict"], "FAIL")
+            kinds = {f["kind"] for f in r_fail["findings"]}
+            self.assertIn("WHK01_NonHTTPS_Redirect", kinds)
+            self.assertIn("WHK01_Legacy_TLS_Offered", kinds)
+
+            r_pass = sc.evaluate_whk01_tls_enforcement(
+                "https://hooks.example.com",
+                receivers=["https://hooks.example.com/webhook"],
+                http_probe_fn=lambda *a, **kw: (308, {"location": "https://hooks.example.com/webhook"}, ""),
+                tls_matrix_fn=lambda h, p: {"SSLv2": "not offered", "SSLv3": "not offered", "TLS 1.0": "not offered", "TLS 1.1": "not offered", "TLS 1.2": "offered", "TLS 1.3": "offered"},
+                run_testssl=False,
+                run_semgrep=False,
+                report_out_path=tdp / "whk01-pass.json",
+                har_out_path=tdp / "whk01-pass.har",
+            )
+            self.assertEqual(r_pass["verdict"], "PASS")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 59/61: WHK-01 (Iteração SDD 190)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

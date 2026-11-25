@@ -17484,7 +17484,8 @@ def evaluate_whk01_delivery_tls(
             )
         elif 300 <= c_st < 400:
             loc_h = c_hdrs.get("location", "").strip()
-            if not loc_h.lower().startswith("https://"):
+            p_loc = urllib.parse.urlparse(loc_h)
+            if p_loc.scheme.lower() != "https" or not p_loc.hostname:
                 _add_whk01(
                     http_url,
                     "WHK01_NonHTTPS_Redirect",
@@ -17492,13 +17493,13 @@ def evaluate_whk01_delivery_tls(
                     status=c_st,
                 )
 
-        # 2. Assess TLS versions (TLS 1.0/1.1 refused, TLS 1.2 or 1.3 offered) on receiver HTTPS port
+        # 2. Assess TLS versions (SSLv2/v3, TLS 1.0/1.1 refused; TLS 1.2 or 1.3 offered) on receiver HTTPS port
         if pw.scheme == "https" or pw.port == 443:
             tls_port = pw.port or 443
             mat_w = matrix_probe(whost, tls_port)
             tls_results[f"{whost}:{tls_port}"] = mat_w
             probes += 4
-            legacy_w = [v for v in ("TLS 1.0", "TLS 1.1") if mat_w.get(v) == "offered"]
+            legacy_w = [v for v in ("SSLv2", "SSLv3", "TLS 1.0", "TLS 1.1") if mat_w.get(v) == "offered"]
             modern_w = [v for v in ("TLS 1.2", "TLS 1.3") if mat_w.get(v) == "offered"]
             if legacy_w:
                 _add_whk01(
@@ -17619,12 +17620,14 @@ def evaluate_whk01_tls_enforcement(
             ts_res = run_testssl_scan(t_host, t_port, raw_json_path=testssl_file, checks=("-p",))
             testssl_runs.append({"host": t_host, "port": t_port, "executed": ts_res["executed"], "handshakeOk": ts_res["handshakeOk"], "protocolsOffered": ts_res["protocolsOffered"]})
             if ts_res.get("handshakeOk"):
-                offered_set = set(ts_res.get("protocolsOffered", []))
+                norm_offered = {re.sub(r"[\s_.-]+", "", str(p)).lower() for p in ts_res.get("protocolsOffered", [])}
                 return {
-                    "TLS 1.0": "offered" if any("TLSv1" == p or "TLS1" == p for p in offered_set) else "not offered",
-                    "TLS 1.1": "offered" if any("TLSv1_1" in p or "TLS1_1" in p for p in offered_set) else "not offered",
-                    "TLS 1.2": "offered" if any("TLSv1_2" in p or "TLS1_2" in p for p in offered_set) else "not offered",
-                    "TLS 1.3": "offered" if any("TLSv1_3" in p or "TLS1_3" in p for p in offered_set) else "not offered",
+                    "SSLv2": "offered" if "sslv2" in norm_offered or "ssl2" in norm_offered else "not offered",
+                    "SSLv3": "offered" if "sslv3" in norm_offered or "ssl3" in norm_offered else "not offered",
+                    "TLS 1.0": "offered" if any(k in norm_offered for k in ("tlsv1", "tlsv10", "tls1", "tls10")) else "not offered",
+                    "TLS 1.1": "offered" if any(k in norm_offered for k in ("tlsv11", "tls11")) else "not offered",
+                    "TLS 1.2": "offered" if any(k in norm_offered for k in ("tlsv12", "tls12")) else "not offered",
+                    "TLS 1.3": "offered" if any(k in norm_offered for k in ("tlsv13", "tls13")) else "not offered",
                 }
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)

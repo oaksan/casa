@@ -378,3 +378,32 @@ Domínio 2: Static Code Analysis & Secrets
 - Novo teste unitário: `test_iteration138_sast02_neon_reeval` validando detecção
   de `.p12` e bloco PEM dentro de `.tar.gz` e bloco PEM em `main.go` na raiz.
 - Regressão validada: `test_iteration77_sast02_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 08/61: SAST-03 (Iteração SDD 139)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L204):
+  `semgrep`, `CodeQL`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle utiliza
+  exclusivamente `semgrep` com regras AST em nível `ERROR` (SARIF 2.1.0).
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 139)
+--------------------------------------------------------------------------------
+1) **Ampliação da cobertura multilíngue para cifras banidas (`Test Guide` L208)**:
+   - Adicionadas regras `CASA3-SAST-03-weak-cipher-php` (`openssl_encrypt`/
+     `openssl_decrypt` com DES/3DES/RC4/BF/ECB e `mcrypt_encrypt`) e
+     `CASA3-SAST-03-weak-cipher-ruby` (`OpenSSL::Cipher.new` com algoritmos
+     banidos ou ECB) em `casa-assessment/rules/casa3_al1_sast.yml`.
+   - Adicionados padrões de importação direta Python (`DES.new`, `DES3.new`,
+     `ARC4.new`, `Blowfish.new`) além dos nomes totalmente qualificados.
+
+3. VALIDAÇÃO (SDD 139)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration139_sast03_neon_reeval` validando PHP
+  (`aes-128-ecb`), Ruby (`des-ede3-cbc`) e Python (`from Crypto.Cipher import DES`).
+- Regressão validada: `test_iteration78_sast03_guide_tooling` (`OK`).

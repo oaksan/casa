@@ -56,6 +56,10 @@ rules:
       - pattern: Cryptodome.Cipher.DES3.new(...)
       - pattern: Cryptodome.Cipher.ARC4.new(...)
       - pattern: Cryptodome.Cipher.Blowfish.new(...)
+      - pattern: DES.new(...)
+      - pattern: DES3.new(...)
+      - pattern: ARC4.new(...)
+      - pattern: Blowfish.new(...)
       - pattern: AES.new($KEY, AES.MODE_ECB, ...)
       - pattern: cryptography.hazmat.primitives.ciphers.modes.ECB()
       - pattern: cryptography.hazmat.primitives.ciphers.algorithms.TripleDES(...)
@@ -94,6 +98,20 @@ rules:
       - pattern: DES.Create(...)
       - pattern: TripleDES.Create(...)
       - pattern-regex: "\\bCipherMode\\.ECB\\b"
+
+  - id: CASA3-SAST-03-weak-cipher-php
+    languages: [php]
+    message: "SAST-03: Deprecated or broken cipher algorithm (DES, 3DES, RC4, Blowfish) or insecure ECB mode in PHP (CWE-327)"
+    severity: ERROR
+    pattern-either:
+      - pattern-regex: "(?i)openssl_(?:encrypt|decrypt)\\s*\\([^,]+,\\s*['\"](?:des|des3|des-ede|des-ede3|rc4|rc2|bf|blowfish|[a-z0-9-]+-ecb)[^'\"]*['\"]"
+      - pattern-regex: "(?i)mcrypt_(?:encrypt|decrypt)\\s*\\(\\s*MCRYPT_(?:DES|3DES|TRIPLEDES|BLOWFISH|ARCFOUR|RC4|RC2)"
+
+  - id: CASA3-SAST-03-weak-cipher-ruby
+    languages: [ruby]
+    message: "SAST-03: Deprecated or broken cipher algorithm (DES, 3DES, RC4, Blowfish) or insecure ECB mode in Ruby (CWE-327)"
+    severity: ERROR
+    pattern-regex: "(?i)OpenSSL::Cipher(?:\\.new|::(?:DES|RC4|BF))\\s*\\(?\\s*['\"]?(?:des|des3|des-ede|rc4|bf|blowfish|[a-z0-9-]+-ecb)"
 
   - id: CASA3-SAST-04-weak-hash-taint-js
     languages: [typescript, javascript]

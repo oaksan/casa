@@ -461,6 +461,33 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 07/61: SAST-02 (Iteração SDD 138)", just_neon)
 
+    def test_iteration139_sast03_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            (src / "bad.php").write_text(
+                "<?php $ct = openssl_encrypt($msg, 'aes-128-ecb', $key);\n",
+                encoding="utf-8",
+            )
+            (src / "bad.rb").write_text(
+                "require 'openssl'\nc = OpenSSL::Cipher.new('des-ede3-cbc')\n",
+                encoding="utf-8",
+            )
+            (src / "bad_imp.py").write_text(
+                "from Crypto.Cipher import DES\nc = DES.new(b'12345678', DES.MODE_CBC)\n",
+                encoding="utf-8",
+            )
+            verdict, findings, sarifs, _ = sc.evaluate_sast03_banned_ciphers(repo)
+            self.assertEqual(verdict, "FAIL")
+            joined = "\n".join(findings)
+            for fn in ("bad.php", "bad.rb", "bad_imp.py"):
+                self.assertIn(fn, joined, f"Missing SAST-03 hit for {fn} in:\n{joined}")
+            self.assertGreaterEqual(len(sarifs), 3)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 08/61: SAST-03 (Iteração SDD 139)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

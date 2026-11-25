@@ -8753,6 +8753,8 @@ def evaluate_aut03_session_fixation(
         ("token", fixed_probe_sid),
         ("connect.sid", fixed_probe_sid),
         ("JSESSIONID", fixed_probe_sid),
+        ("PHPSESSID", fixed_probe_sid),
+        ("ASP.NET_SessionId", fixed_probe_sid),
     ]
     fixation_cookie_hdr = "; ".join(f"{k}={v}" for k, v in fixation_cookie_pairs)
 
@@ -8772,20 +8774,21 @@ def evaluate_aut03_session_fixation(
     )
     post_token3 = ""
     post_tokens_all: list[str] = []
-    if 200 <= post_st3 < 300:
-        try:
-            j3 = json.loads(post_body3)
-            json_tok = (
-                j3.get("authentication", {}).get("token", "")
-                or j3.get("token", "")
-                or j3.get("access_token", "")
-                or j3.get("sessionId", "")
-                or j3.get("sid", "")
-            )
-            if isinstance(json_tok, str) and json_tok:
-                post_tokens_all.append(json_tok)
-        except Exception:
-            pass
+    if (200 <= post_st3 < 300) or post_st3 in {302, 303}:
+        if 200 <= post_st3 < 300:
+            try:
+                j3 = json.loads(post_body3)
+                json_tok = (
+                    j3.get("authentication", {}).get("token", "")
+                    or j3.get("token", "")
+                    or j3.get("access_token", "")
+                    or j3.get("sessionId", "")
+                    or j3.get("sid", "")
+                )
+                if isinstance(json_tok, str) and json_tok:
+                    post_tokens_all.append(json_tok)
+            except Exception:
+                pass
         for _, ck_v in _extract_session_cookies(post_hdrs3.get("set-cookie", ""), include_all=False):
             if ck_v not in post_tokens_all:
                 post_tokens_all.append(ck_v)
@@ -8811,10 +8814,13 @@ def evaluate_aut03_session_fixation(
     prot_eps = protected_endpoints if protected_endpoints is not None else ["/rest/wallet/balance"]
     replayed_checks = 0
     for id_label, id_val in pre_identifiers_to_replay:
+        replay_ck = f"token={id_val}; {id_label}={id_val}"
+        if id_label == "injected_fixation_sid":
+            replay_ck = f"token={id_val}; connect.sid={id_val}; JSESSIONID={id_val}; PHPSESSID={id_val}; ASP.NET_SessionId={id_val}"
         for prot_ep in prot_eps:
             rep_st, _, _ = _probe_logged(
                 prot_ep,
-                headers={"Authorization": f"Bearer {id_val}", "Cookie": f"token={id_val}; {id_label}={id_val}"},
+                headers={"Authorization": f"Bearer {id_val}", "Cookie": replay_ck},
             )
             replayed_checks += 1
             if 200 <= rep_st < 300:

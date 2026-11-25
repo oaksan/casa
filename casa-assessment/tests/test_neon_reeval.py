@@ -1593,6 +1593,55 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 37/61: AUT-02 (Iteração SDD 168)", just_neon)
 
+    def test_iteration169_aut03_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            # 1. Server rotating PHPSESSID on 302 redirect login and rejecting pre-auth ID -> PASS
+            def _probe_302_rot(ep: str, method: str = "GET", headers=None, body=None):
+                if ep == "/":
+                    return 200, {"set-cookie": "PHPSESSID=pre_php_sid_001; Path=/; HttpOnly"}, "<html></html>"
+                if ep == "/login" and method == "POST":
+                    return 302, {"location": "/app", "set-cookie": "PHPSESSID=post_php_sid_rotated_999; Path=/; HttpOnly"}, ""
+                if ep == "/app":
+                    ck = (headers or {}).get("Cookie", "")
+                    if "post_php_sid_rotated_999" in ck:
+                        return 200, {}, '{"ok":true}'
+                    return 401, {}, '{"error":"unauthorized"}'
+                return 404, {}, ""
+
+            r_ok = sc.evaluate_aut03_session_fixation(
+                "https://app.example.com",
+                login_endpoint="/login",
+                pre_auth_endpoints=["/"],
+                protected_endpoints=["/app"],
+                http_probe_fn=_probe_302_rot,
+                har_out_path=Path(td) / "aut03_302.har",
+            )
+            self.assertEqual(r_ok["verdict"], "PASS", f"Expected PASS, got {r_ok}")
+            self.assertEqual(r_ok["postToken"], "post_php_sid_rotated_999")
+
+            # 2. Server adopting injected PHPSESSID fixation cookie -> FAIL
+            def _probe_php_fix(ep: str, method: str = "GET", headers=None, body=None):
+                if ep == "/login" and method == "POST":
+                    return 302, {"location": "/app", "set-cookie": "PHPSESSID=new_tok_1; Path=/"}, ""
+                if ep == "/app":
+                    if "PHPSESSID=casa3_preauth_fixation_probe_deadbeef" in (headers or {}).get("Cookie", ""):
+                        return 200, {}, '{"pwned":true}'
+                    return 401, {}, ""
+                return 200, {}, ""
+
+            r_fix = sc.evaluate_aut03_session_fixation(
+                "https://app.example.com",
+                login_endpoint="/login",
+                pre_auth_endpoints=["/"],
+                protected_endpoints=["/app"],
+                http_probe_fn=_probe_php_fix,
+                har_out_path=Path(td) / "aut03_fix.har",
+            )
+            self.assertEqual(r_fix["verdict"], "FAIL")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 38/61: AUT-03 (Iteração SDD 169)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1009,3 +1009,24 @@ CONTROLE 28/61: CFG-04 (Iteração SDD 159) — Content-Security-Policy Enforced
 4. Validação:
    - `test_iteration159_cfg04_neon_reeval` (bypass `script-src-elem`, diretiva
      vazia e CSP3 estrita com `csp-evaluator`) + regressão `test_iteration98_cfg04_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 29/61: CFG-05 (Iteração SDD 160) — Clickjacking Protection
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L645):
+   - Referência: `OWASP ZAP (rule 10020 Anti-clickjacking Header), curl`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa OWASP ZAP 2.17.0
+     (Regra Passiva `10020`) + inspetor multi-rota de `X-Frame-Options` e CSP
+     `frame-ancestors`. Zero uso de Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - Bug em `_has_valid_frame_ancestors`: a regex genérica aceitava wildcards de
+     esquema (`https:`, `http:`, `data:`) e wildcards abertos (`https://*`, `*.*`,
+     `*.com`), permitindo clickjacking a partir de qualquer domínio externo.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Endurecido `_has_valid_frame_ancestors` para aceitar exclusivamente `'none'`,
+     `'self'`, `localhost` ou origens explícitas com domínio completo (ex.:
+     `https://partner.example.com`, `https://*.trusted.example.com:8443`).
+4. Validação:
+   - `test_iteration160_cfg05_neon_reeval` (rejeição de `https:`, `https://*`,
+     `*.*`, `*.com`; aceitação de origens explícitas) + regressão
+     `test_iteration99_cfg05_guide_tooling` (OWASP ZAP 2.17.0 real).

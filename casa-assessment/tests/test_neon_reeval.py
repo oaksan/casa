@@ -1249,6 +1249,52 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 28/61: CFG-04 (Iteração SDD 159)", just_neon)
 
+    def test_iteration160_cfg05_neon_reeval(self) -> None:
+        # 1. Scheme-only wildcards and bare host wildcards must be rejected
+        for bad_csp in [
+            "frame-ancestors https:",
+            "frame-ancestors http:",
+            "frame-ancestors data:",
+            "frame-ancestors https://*",
+            "frame-ancestors *.*",
+            "frame-ancestors *.com",
+            "frame-ancestors 'self' https:",
+        ]:
+            ok, _ = sc._has_valid_frame_ancestors(bad_csp)
+            self.assertFalse(ok, f"Expected '{bad_csp}' to be rejected")
+
+        # 2. Explicit allowlisted origins and 'none'/'self' must be accepted
+        for good_csp in [
+            "frame-ancestors 'none'",
+            "frame-ancestors 'self'",
+            "frame-ancestors 'self' https://partner.example.com",
+            "frame-ancestors https://*.trusted.example.com:8443",
+        ]:
+            ok, _ = sc._has_valid_frame_ancestors(good_csp)
+            self.assertTrue(ok, f"Expected '{good_csp}' to be accepted")
+
+        # 3. End-to-end evaluate_cfg05_clickjacking fails on frame-ancestors https:
+        r_bad = sc.evaluate_cfg05_clickjacking(
+            "https://app.example.com",
+            crawled_exchanges=[
+                {
+                    "method": "GET",
+                    "url": "https://app.example.com/",
+                    "status": 200,
+                    "headers": {
+                        "content-type": "text/html",
+                        "content-security-policy": "frame-ancestors https:",
+                    },
+                    "body": "<html><body>App</body></html>",
+                }
+            ],
+            zap_report={"executed": True, "alerts": []},
+        )
+        self.assertEqual(r_bad["verdict"], "FAIL")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 29/61: CFG-05 (Iteração SDD 160)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

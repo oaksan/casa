@@ -5327,8 +5327,8 @@ def run_zap_automation(
         }
 
     req_block = ""
-    unique_seeds: list[str] = []
-    seen_s: set[str] = set()
+    unique_seeds: list[str] = [f"{base_url}/"]
+    seen_s: set[str] = {f"{base_url}/"}
     for su in seed_urls or []:
         s_clean = su.strip()
         if s_clean and s_clean not in seen_s:
@@ -6490,10 +6490,22 @@ def _has_valid_frame_ancestors(csp_str: str) -> tuple[bool, list[str]]:
         return False, []
     if "*" in fa:
         return False, fa
-    valid_tokens = [
-        tok for tok in fa
-        if tok in {"'none'", "'self'"} or (tok != "*" and re.match(r"^(?:https?://)?[a-z0-9.*:-]+$", tok))
-    ]
+    explicit_origin_re = re.compile(
+        r"^(?:https?://)?(?:\*\.)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?::\d{1,5})?$"
+    )
+    localhost_re = re.compile(r"^(?:https?://)?localhost(?::\d{1,5})?$")
+    valid_tokens: list[str] = []
+    for tok in fa:
+        if tok in {"'none'", "'self'"}:
+            valid_tokens.append(tok)
+            continue
+        if tok.endswith(":") or tok.endswith("://*"):
+            continue
+        host_part = re.sub(r"^https?://", "", tok).split(":", 1)[0]
+        if host_part in {"*", "*.*"} or (host_part.startswith("*.") and host_part.count(".") < 2):
+            continue
+        if explicit_origin_re.match(tok) or localhost_re.match(tok):
+            valid_tokens.append(tok)
     return len(valid_tokens) == len(fa) and len(fa) > 0, fa
 
 

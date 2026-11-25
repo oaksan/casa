@@ -1525,3 +1525,23 @@ CONTROLE 50/61: OAU-01 (Iteração SDD 181) — Authorization Code Flow Only
    - `test_iteration181_oau01_neon_reeval` (híbrido `code id_token`, objeto
      `responseType`/`grantType` e PASS para `response_type=code`) + regressão
      `test_iteration120_oau01_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 51/61: OAU-02 (Iteração SDD 182) — PKCE S256 Enforcement
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L1129):
+   - Referência: `mitmproxy, Burp Suite, semgrep`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito — Burp Suite pago NÃO
+     utilizado; usa proxy interceptador HTTP local + prova criptográfica
+     SHA-256 + `semgrep` `CASA3-OAU-02` gerando HAR 1.2 redigido e SARIF 2.1.0).
+2. Lacunas Encontradas na Reavaliação Neon:
+   - `evaluate_oau02_pkce` verificava `len(code_challenge) < 43`, mas não
+     validava o limite superior (`<= 128`) nem o charset base64url sem padding
+     da RFC 7636 §4.2, tampouco os limites `43..128` e charset unreserved da
+     RFC 7636 §4.1 para `code_verifier` na troca de token.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionada validação RFC 7636 §4.1–§4.2 completa de comprimento (`43..128`)
+     e conjunto de caracteres em `code_challenge` e `code_verifier`.
+4. Validação:
+   - `test_iteration182_oau02_neon_reeval` (`code_verifier` curto < 43 FAIL;
+     par S256 válido PASS) + regressão `test_iteration121_oau02_guide_tooling`.

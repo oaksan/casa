@@ -2157,6 +2157,69 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 50/61: OAU-01 (Iteração SDD 181)", just_neon)
 
+    def test_iteration182_oau02_neon_reeval(self) -> None:
+        """SDD 182 (OAU-02): RFC 7636 code_verifier length/charset & code_challenge base64url bounds."""
+        import base64, hashlib, http.server, threading
+
+        class _IdpHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", "https://app.example.com/cb?code=ok")
+                self.end_headers()
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                if length:
+                    self.rfile.read(length)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"access_token":"ok"}')
+
+            def log_message(self, *args):
+                pass
+
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _IdpHandler)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                tdp = Path(td)
+                short_ver = "short_verifier_under_43_chars"
+                derived_cc = base64.urlsafe_b64encode(hashlib.sha256(short_ver.encode()).digest()).decode().rstrip("=")
+                r_fail = sc.evaluate_oau02_pkce(
+                    f"http://127.0.0.1:{port}",
+                    oauth_flow_requests=[
+                        {"method": "GET", "url": f"http://127.0.0.1:{port}/authorize?response_type=code&code_challenge={derived_cc}&code_challenge_method=S256"},
+                        {"method": "POST", "url": f"http://127.0.0.1:{port}/token", "headers": {"Content-Type": "application/x-www-form-urlencoded"}, "body": f"grant_type=authorization_code&code=ok&code_verifier={short_ver}"},
+                    ],
+                    run_semgrep=False,
+                    report_out_path=tdp / "oau02-fail.json",
+                    har_out_path=tdp / "oau02-fail.har",
+                )
+                self.assertEqual(r_fail["verdict"], "FAIL")
+                self.assertTrue(any("RFC 7636 §4.1" in f["detail"] for f in r_fail["findings"]))
+
+                valid_ver = "A" * 64
+                valid_cc = base64.urlsafe_b64encode(hashlib.sha256(valid_ver.encode()).digest()).decode().rstrip("=")
+                r_pass = sc.evaluate_oau02_pkce(
+                    f"http://127.0.0.1:{port}",
+                    oauth_flow_requests=[
+                        {"method": "GET", "url": f"http://127.0.0.1:{port}/authorize?response_type=code&code_challenge={valid_cc}&code_challenge_method=S256"},
+                        {"method": "POST", "url": f"http://127.0.0.1:{port}/token", "headers": {"Content-Type": "application/x-www-form-urlencoded"}, "body": f"grant_type=authorization_code&code=ok&code_verifier={valid_ver}"},
+                    ],
+                    run_semgrep=False,
+                    report_out_path=tdp / "oau02-pass.json",
+                    har_out_path=tdp / "oau02-pass.har",
+                )
+                self.assertEqual(r_pass["verdict"], "PASS")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 51/61: OAU-02 (Iteração SDD 182)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13446,6 +13446,8 @@ def evaluate_oau02_pkce(
                 missing_p.append("code_challenge absent")
             elif len(cc) < 43:
                 missing_p.append(f"code_challenge length {len(cc)} < 43")
+            elif len(cc) > 128 or not re.fullmatch(r"[A-Za-z0-9_-]+", cc):
+                missing_p.append("code_challenge violates RFC 7636 §4.2 base64url/length bounds (43..128)")
             if not ccm:
                 missing_p.append("code_challenge_method=S256 absent")
             elif ccm != "S256":
@@ -13469,15 +13471,23 @@ def evaluate_oau02_pkce(
                     f"Intercepting proxy captured token exchange at {loc_u} without required 'code_verifier' (RFC 7636 §4.5).",
                     confirmed_by="intercepting_proxy",
                 )
-            elif observed_challenges:
-                derived_s256 = base64.urlsafe_b64encode(hashlib.sha256(cv.encode("ascii", errors="ignore")).digest()).decode("ascii").rstrip("=")
-                if derived_s256 not in observed_challenges:
+            else:
+                if len(cv) < 43 or len(cv) > 128 or not re.fullmatch(r"[A-Za-z0-9\-._~]+", cv):
                     _add_pkce_finding(
                         loc_u,
-                        ["code_verifier S256 mismatch against code_challenge"],
-                        f"Intercepting proxy token exchange 'code_verifier' at {loc_u} does not match SHA-256 code_challenge (RFC 7636 §4.6).",
+                        ["code_verifier violates RFC 7636 §4.1 length/charset (43..128 unreserved)"],
+                        f"Intercepting proxy captured token exchange at {loc_u} with non-compliant 'code_verifier' (len={len(cv)}; RFC 7636 §4.1).",
                         confirmed_by="intercepting_proxy_pkce_crypto",
                     )
+                if observed_challenges:
+                    derived_s256 = base64.urlsafe_b64encode(hashlib.sha256(cv.encode("ascii", errors="ignore")).digest()).decode("ascii").rstrip("=")
+                    if derived_s256 not in observed_challenges:
+                        _add_pkce_finding(
+                            loc_u,
+                            ["code_verifier S256 mismatch against code_challenge"],
+                            f"Intercepting proxy token exchange 'code_verifier' at {loc_u} does not match SHA-256 code_challenge (RFC 7636 §4.6).",
+                            confirmed_by="intercepting_proxy_pkce_crypto",
+                        )
 
     for nf in negative_flows:
         if 200 <= int(nf.get("status") or 0) < 300:

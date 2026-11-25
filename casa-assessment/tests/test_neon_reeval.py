@@ -957,6 +957,50 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 21/61: TLS-03 (Iteração SDD 152)", just_neon)
 
+    def test_iteration153_tls04_neon_reeval(self) -> None:
+        # 1. Certificate with future notBefore must FAIL
+        future_cert = {
+            "executed": True,
+            "scanResult": [
+                {
+                    "serverDefaults": [
+                        {"id": "cert_commonName", "finding": "app.example.com"},
+                        {"id": "cert_chain_of_trust", "severity": "OK", "finding": "passed"},
+                        {"id": "cert_trust", "severity": "OK", "finding": "Ok via SAN and CN"},
+                        {"id": "cert_notBefore", "finding": "2099-01-01 00:00"},
+                        {"id": "cert_notAfter", "finding": "2099-12-31 00:00"},
+                        {"id": "cert_expirationStatus", "severity": "OK", "finding": "365 days"},
+                    ]
+                }
+            ],
+        }
+        r_fut = sc.evaluate_tls04_certificate_validation("https://app.example.com", testssl_info=future_cert)
+        self.assertEqual(r_fut["verdict"], "FAIL")
+        self.assertFalse(r_fut["certAudit"]["notExpired"])
+
+        # 2. Short-lived cert (< 30d) emits clean advisory warning without 'informational'
+        short_cert = {
+            "executed": True,
+            "scanResult": [
+                {
+                    "serverDefaults": [
+                        {"id": "cert_commonName", "finding": "app.example.com"},
+                        {"id": "cert_chain_of_trust", "severity": "OK", "finding": "passed"},
+                        {"id": "cert_trust", "severity": "OK", "finding": "Ok via SAN and CN"},
+                        {"id": "cert_notBefore", "finding": "2020-01-01 00:00"},
+                        {"id": "cert_expirationStatus", "severity": "WARN", "finding": "10 days"},
+                    ]
+                }
+            ],
+        }
+        r_sh = sc.evaluate_tls04_certificate_validation("https://app.example.com", testssl_info=short_cert)
+        self.assertEqual(r_sh["verdict"], "PASS")
+        self.assertTrue(any("< 30 days" in w for w in r_sh["certAudit"]["warnings"]))
+        self.assertFalse(any("informational" in w.lower() for w in r_sh["certAudit"]["warnings"]))
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 22/61: TLS-04 (Iteração SDD 153)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

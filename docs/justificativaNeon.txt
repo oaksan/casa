@@ -829,3 +829,33 @@ Domínio 3: Transport Security
 - Novo teste unitário: `test_iteration152_tls03_neon_reeval` validando `FAIL`
   para `ECDHE-RSA-AES128-SHA` e `cipherlist_AVERAGE` e `PASS` para AEAD FS.
 - Regressão validada: `test_iteration91_tls03_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 22/61: TLS-04 (Iteração SDD 153)
+Domínio 3: Transport Security
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L503):
+  `testssl.sh`, `Qualys SSL Labs`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `testssl.sh --ssl-native -S` em JSON estruturado.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 153)
+--------------------------------------------------------------------------------
+1) **Verificação de `notBefore` (certificado ainda não válido) e negações
+   explícitas de confiança/hostname (`parse_testssl_certificate`)**:
+   - Adicionada rejeição de certificados cujo `notBefore` é posterior ao instante
+     da varredura e verificação explícita contra `"not ok"`, `"self-signed"`,
+     `"untrusted"`, `"mismatch"` e `"does not match"`.
+2) **Higiene textual SDD 070 em avisos de expiração próxima (`< 30 days`)**:
+   - Prefixo `"Informational:"` substituído por `"Advisory (< 30 days):"`.
+
+3. VALIDAÇÃO (SDD 153)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration153_tls04_neon_reeval` validando `FAIL`
+  para certificado futuro (`notBefore=2099-01-01`) e `PASS` com aviso limpo
+  (`< 30 days`, sem `"informational"`).
+- Regressão validada: `test_iteration92_tls04_guide_tooling` (`OK`).

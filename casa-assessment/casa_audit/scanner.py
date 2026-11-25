@@ -4775,7 +4775,10 @@ def parse_testssl_certificate(scan_result: list[dict], target_port: int) -> dict
     chain_item = fields.get("cert_chain_of_trust", {})
     chain_sev = str(chain_item.get("severity") or "").upper()
     chain_find = str(chain_item.get("finding") or "")
-    if chain_sev == "OK" or chain_find.lower().startswith("ok"):
+    chain_low = chain_find.lower()
+    if (chain_sev == "OK" or chain_low.startswith("ok")) and not any(
+        bad in chain_low for bad in ("not ok", "self-signed", "untrusted", "not trusted", "fail")
+    ):
         info["chainTrustedToPublicRoot"] = True
     else:
         info["errors"].append(f"Chain of trust failed ({chain_find or chain_sev or 'untrusted'})")
@@ -4783,10 +4786,23 @@ def parse_testssl_certificate(scan_result: list[dict], target_port: int) -> dict
     trust_item = fields.get("cert_trust", {})
     trust_sev = str(trust_item.get("severity") or "").upper()
     trust_find = str(trust_item.get("finding") or "")
-    if trust_sev == "OK" or trust_find.lower().startswith("ok"):
+    trust_low = trust_find.lower()
+    if (trust_sev == "OK" or trust_low.startswith("ok")) and not any(
+        bad in trust_low for bad in ("does not match", "mismatch", "not ok", "fail")
+    ):
         info["hostnameMatches"] = True
     else:
         info["errors"].append(f"Hostname / SAN validation failed ({trust_find or trust_sev or 'mismatch'})")
+
+    not_yet_valid = False
+    if info["notBefore"]:
+        try:
+            dt_nb = datetime.datetime.strptime(str(info["notBefore"]).strip(), "%Y-%m-%d %H:%M").replace(tzinfo=datetime.timezone.utc)
+            if dt_nb > datetime.datetime.now(datetime.timezone.utc):
+                not_yet_valid = True
+                info["errors"].append(f"Certificate not yet valid (notBefore={info['notBefore']})")
+        except Exception:
+            pass
 
     exp_item = fields.get("cert_expirationStatus", {})
     exp_find = str(exp_item.get("finding") or "")
@@ -4807,7 +4823,9 @@ def parse_testssl_certificate(scan_result: list[dict], target_port: int) -> dict
                 pass
     info["remainingDays"] = rem_days
 
-    if "expired" in exp_low and "expires" not in exp_low:
+    if not_yet_valid:
+        info["notExpired"] = False
+    elif "expired" in exp_low and "expires" not in exp_low:
         info["errors"].append(f"Certificate expired ({exp_find}; notAfter={info['notAfter']})")
     elif rem_days is not None and rem_days < 0:
         info["errors"].append(f"Certificate expired {abs(rem_days)} day(s) ago (notAfter={info['notAfter']})")
@@ -4815,7 +4833,7 @@ def parse_testssl_certificate(scan_result: list[dict], target_port: int) -> dict
         info["notExpired"] = True
         if rem_days is not None and rem_days < 30:
             info["warnings"].append(
-                f"Informational: certificate expires in {rem_days} day(s) (< 30 days threshold; {exp_find})"
+                f"Advisory (< 30 days): certificate expires in {rem_days} day(s) ({exp_find})"
             )
     else:
         info["errors"].append(f"Certificate expiration status unknown ({exp_find or 'missing'})")

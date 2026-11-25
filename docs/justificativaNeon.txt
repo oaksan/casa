@@ -144,3 +144,53 @@ Domínio 1: Software Composition & Supply Chain
   HTTPS com digest em `yarn.lock` e `requirements.txt`, rejeição de mirrors sem
   digest, ausência de falso positivo `Legacy 0.x` e emissão SARIF `note`.
 - Regressão validada: `test_iteration72_sca02_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 03/61: SCA-03 (Iteração SDD 134)
+Domínio 1: Software Composition & Supply Chain
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L95):
+  `trivy`, `grype`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O avaliador utiliza
+  exclusivamente o binário oficial gratuito `trivy` (`trivy image --scanners
+  vuln --pkg-types os --list-all-pkgs`), gerando evidência nativa em JSON e
+  SARIF 2.1.0 + componentes OS para o SBOM CycloneDX 1.5.
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 134)
+--------------------------------------------------------------------------------
+1) **Remoção do fallback hardcoded de pacotes Debian 13 (`Test Guide` L8/L94)**:
+   - *Antes*: Quando Docker/Trivy não conseguia inspecionar a imagem localmente,
+     `evaluate_sca03_container_os` fabricava uma lista fixa de 10 pacotes Debian
+     13 em código Python e consultava a API OSV.dev (fora do ferramental
+     `trivy`/`grype` do controle).
+   - *Melhoria*: Removida integralmente a lista hardcoded e o fallback OSV.dev.
+     Quando não há imagem local no Docker, o scanner tenta invocar `trivy image`
+     diretamente sobre a imagem declarada (incluindo referências em
+     `docker-compose*.yml`); se nenhuma imagem puder ser obtida e não houver
+     violação de tag sem `@sha256`, retorna `Not_Covered` honesto em vez de
+     inventar evidência.
+2) **Exigência de mitigação documentada para `will_not_fix` e bloqueio de
+   `end_of_life` (`Test Guide` L29, L99–100)**:
+   - *Antes*: `parse_trivy_os_report` excluía automaticamente qualquer CVE
+     marcado como `will_not_fix` ou `end_of_life` sem exigir mitigação
+     documentada/verificada pelo laboratório.
+   - *Melhoria*: `parse_trivy_os_report(trivy_data, documented_mitigations=...)`
+     passou a aceitar conjunto explícito de mitigações verificadas pelo
+     laboratório (`documented_mitigations=set()` por padrão em
+     `evaluate_sca03_container_os`). Apenas `not_affected` e `will_not_fix` com
+     mitigação verificada são excluídos (e registrados em SARIF `level: "note"`);
+     `will_not_fix` sem mitigação documentada e `end_of_life` permanecem
+     bloqueantes (`FAIL` / SARIF `error`), preservando retrocompatibilidade da
+     assinatura legada para testes anteriores.
+
+3. VALIDAÇÃO (SDD 134)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration134_sca03_neon_reeval` validando bloqueio
+  de `will_not_fix` sem mitigação, exclusão com mitigação verificada, bloqueio
+  de `end_of_life`, exclusão de `not_affected` e veredito `Not_Covered` honesto
+  sem lista hardcoded quando o Trivy não alcança a imagem.
+- Regressão validada: `test_iteration73_sca03_guide_tooling` (`OK`).

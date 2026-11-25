@@ -525,8 +525,16 @@ def evaluate_sca02_dependencies(
     return sca02_failures, sca02_sarif, stats
 
 
-def parse_trivy_os_report(trivy_data: dict) -> tuple[list[dict], list[str], list[str], list[dict], str]:
-    """Parse Trivy `--pkg-types os --list-all-pkgs --format json` output for SCA-03."""
+def parse_trivy_os_report(
+    trivy_data: dict,
+    documented_mitigations: set[str] | None = None,
+) -> tuple[list[dict], list[str], list[str], list[dict], str]:
+    """Parse Trivy `--pkg-types os --list-all-pkgs --format json` output for SCA-03.
+
+    When `documented_mitigations` is provided (a set of CVE IDs with lab-verified
+    mitigations per Test Guide L29/L99), `will_not_fix` advisories are excluded ONLY
+    if present in `documented_mitigations`, and `end_of_life` remains blocking.
+    """
     os_meta = (trivy_data.get("Metadata") or {}).get("OS") or {}
     os_family = str(os_meta.get("Family", "debian") or "debian").strip()
     os_name = str(os_meta.get("Name", "")).strip()
@@ -582,11 +590,22 @@ def parse_trivy_os_report(trivy_data: dict) -> tuple[list[dict], list[str], list
                         pass
             cvss_lbl = f"CVSS {cvss_val:.1f} " if cvss_val is not None else ""
 
-            if status in {"will_not_fix", "end_of_life", "not_affected"}:
-                excluded_os_info.append(f"{pname}@{pver}: {vid} ({sev}, status={status})")
-                continue
+            if documented_mitigations is None:
+                if status in {"will_not_fix", "end_of_life", "not_affected"}:
+                    excluded_os_info.append(f"{pname}@{pver}: {vid} ({sev}, status={status})")
+                    continue
+            else:
+                if status == "not_affected":
+                    excluded_os_info.append(f"{pname}@{pver}: {vid} ({sev}, status=not_affected)")
+                    continue
+                if status == "will_not_fix" and vid in documented_mitigations:
+                    excluded_os_info.append(
+                        f"{pname}@{pver}: {vid} ({sev}, status=will_not_fix, lab-verified mitigation)"
+                    )
+                    continue
 
-            entry_lbl = f"{vid} ({cvss_lbl}{sev}, status={status or 'affected'}, fix={fixed_ver})"
+            mit_note = ", no documented mitigation" if (documented_mitigations is not None and status == "will_not_fix") else ""
+            entry_lbl = f"{vid} ({cvss_lbl}{sev}, status={status or 'affected'}{mit_note}, fix={fixed_ver})"
             pkg_blocking_map.setdefault((pname, pver), []).append(entry_lbl)
 
         for (pname, pver), advs in sorted(pkg_blocking_map.items()):
@@ -607,39 +626,58 @@ def parse_trivy_os_report(trivy_data: dict) -> tuple[list[dict], list[str], list
 def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], list[dict], list[dict], str]:
     """Evaluate SCA-03 using `trivy image --pkg-types os` (Guide reference tool),
     checking base image digest pinning, OS packages (including unfixed HIGH/CRITICAL CVEs),
-    and excluding advisories marked `will_not_fix` by the distribution.
+    and enforcing Test Guide L99 (`will_not_fix` excluded only with lab-verified mitigation).
     """
     dockerfile = repo / "Dockerfile"
-    if not dockerfile.exists():
+    compose_files = [
+        p for p in (repo / "docker-compose.yml", repo / "docker-compose.yaml", repo / "compose.yml", repo / "compose.yaml")
+        if p.is_file()
+    ]
+    if not dockerfile.exists() and not compose_files:
         return ("Not_Covered", [], [], [], [], "No Dockerfile or container image found")
 
-    df_text = dockerfile.read_text(encoding="utf-8", errors="ignore")
-    from_lines = re.findall(r"^FROM\s+([^\s]+)", df_text, re.MULTILINE | re.IGNORECASE)
+    from_lines: list[str] = []
+    if dockerfile.exists():
+        df_text = dockerfile.read_text(encoding="utf-8", errors="ignore")
+        from_lines.extend(re.findall(r"^FROM\s+([^\s]+)", df_text, re.MULTILINE | re.IGNORECASE))
+    for cf in compose_files:
+        try:
+            cf_text = cf.read_text(encoding="utf-8", errors="ignore")
+            for img_m in re.findall(r"^\s*image:\s*['\"]?([^\s'\"#]+)", cf_text, re.MULTILINE):
+                if img_m not in from_lines:
+                    from_lines.append(img_m)
+        except Exception:
+            pass
 
-    # Detect Debian/Ubuntu/Alpine release from Dockerfile (e.g., debian13 -> Debian:13)
-    distro_eco = "Debian:13"
+    if not from_lines:
+        return ("Not_Covered", [], [], [], [], "No container image references declared")
+
+    # Detect Debian/Ubuntu/Alpine release hint from Dockerfile if available
+    distro_eco = "OS-Layer"
     for fl in from_lines:
         m_deb = re.search(r"debian(\d+)", fl, re.IGNORECASE)
         if m_deb:
             distro_eco = f"Debian:{m_deb.group(1)}"
 
-    os_pkgs: list[tuple[str, str, str]] = []  # (binary_pkg, version, source_pkg)
     os_sbom_components: list[dict] = []
     blocking_os_findings: list[str] = []
     non_blocking_os_info: list[str] = []
     sca03_sarif: list[dict] = []
 
-    # Check Dockerfile base image digest pinning
-    unpinned_stages = [img for img in from_lines if "@sha256:" not in img]
+    # Check base image digest pinning
+    unpinned_stages = [
+        img for img in from_lines
+        if "@sha256:" not in img and not img.lower().startswith("scratch")
+    ]
     if unpinned_stages:
-        msg = f"Dockerfile base image tag(s) not pinned by immutable @sha256 digest: {', '.join(unpinned_stages)}"
+        msg = f"Container base image tag(s) not pinned by immutable @sha256 digest: {', '.join(unpinned_stages)}"
         blocking_os_findings.append(msg)
         sca03_sarif.append(
             {
                 "ruleId": "CASA3-SCA-03",
                 "level": "error",
                 "message": {"text": f"SCA-03: {msg}"},
-                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}}}],
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile" if dockerfile.exists() else compose_files[0].name}}}],
             }
         )
 
@@ -647,7 +685,7 @@ def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], 
     trivy_ran = False
     candidate_images = ["bkimminich/juice-shop:latest"] if "juice-shop" in repo.name.lower() else []
     for fl in from_lines:
-        if not fl.lower().startswith("installer"):
+        if not fl.lower().startswith(("installer", "builder", "scratch")) and fl not in candidate_images:
             candidate_images.append(fl)
 
     env_docker = {**subprocess.os.environ, "DOCKER_API_VERSION": "1.44"}
@@ -657,6 +695,66 @@ def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], 
         time.time() - (Path.home() / ".cache" / "trivy" / "db" / "trivy.db").stat().st_mtime < 86400
     )
 
+    def _run_trivy_on_image(target_img: str) -> bool:
+        nonlocal os_sbom_components, distro_eco
+        if not Path(TRIVY_BIN).exists():
+            return False
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        skip_flags = ["--skip-db-update"] if trivy_db_cached else []
+        base_trivy = [
+            TRIVY_BIN,
+            "image",
+            "--scanners",
+            "vuln",
+            "--pkg-types",
+            "os",
+            "--list-all-pkgs",
+            "--quiet",
+            *skip_flags,
+        ]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            fj = pool.submit(
+                subprocess.run,
+                [*base_trivy, "--format", "json", "-o", str(trivy_json_path), target_img],
+                capture_output=True,
+                text=True,
+                env=env_docker,
+                timeout=90,
+            )
+            fs = pool.submit(
+                subprocess.run,
+                [*base_trivy, "--severity", "HIGH,CRITICAL", "--format", "sarif", "-o", str(trivy_sarif_path), target_img],
+                capture_output=True,
+                text=True,
+                env=env_docker,
+                timeout=90,
+            )
+            pj = fj.result()
+            fs.result()
+        if pj.returncode == 0 and trivy_json_path.exists():
+            tdata = json.loads(trivy_json_path.read_text(encoding="utf-8", errors="ignore"))
+            # Test Guide L29/L99: only lab-verified mitigations exclude will_not_fix (empty by default)
+            os_comps, trivy_blocking, trivy_excl, trivy_sarif, t_distro = parse_trivy_os_report(
+                tdata, documented_mitigations=set()
+            )
+            os_sbom_components.extend(os_comps)
+            distro_eco = t_distro or distro_eco
+            blocking_os_findings.extend(trivy_blocking)
+            non_blocking_os_info.extend(trivy_excl)
+            sca03_sarif.extend(trivy_sarif)
+            for excl_line in trivy_excl:
+                sca03_sarif.append(
+                    {
+                        "ruleId": "CASA3-SCA-03",
+                        "level": "note",
+                        "message": {"text": f"SCA-03 triaged OS advisory: {excl_line}"},
+                        "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile" if dockerfile.exists() else compose_files[0].name}}}],
+                    }
+                )
+            return True
+        return False
+
+    # 1. Prefer locally built/pulled image via Docker inspect + Trivy
     for img_name in candidate_images:
         try:
             insp = subprocess.run(
@@ -668,204 +766,39 @@ def evaluate_sca03_container_os(repo: Path) -> tuple[str, list[str], list[str], 
             )
             if insp.returncode == 0 and insp.stdout.strip():
                 img_digest = insp.stdout.strip()
-                if Path(TRIVY_BIN).exists():
-                    skip_flags = ["--skip-db-update"] if trivy_db_cached else []
-                    base_trivy = [
-                        TRIVY_BIN,
-                        "image",
-                        "--scanners",
-                        "vuln",
-                        "--pkg-types",
-                        "os",
-                        "--list-all-pkgs",
-                        "--quiet",
-                        *skip_flags,
-                    ]
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-                        fj = pool.submit(
-                            subprocess.run,
-                            [*base_trivy, "--format", "json", "-o", str(trivy_json_path), img_name],
-                            capture_output=True,
-                            text=True,
-                            env=env_docker,
-                            timeout=90,
-                        )
-                        fs = pool.submit(
-                            subprocess.run,
-                            [*base_trivy, "--severity", "HIGH,CRITICAL", "--format", "sarif", "-o", str(trivy_sarif_path), img_name],
-                            capture_output=True,
-                            text=True,
-                            env=env_docker,
-                            timeout=90,
-                        )
-                        pj = fj.result()
-                        fs.result()
-                    if pj.returncode == 0 and trivy_json_path.exists():
-                        tdata = json.loads(trivy_json_path.read_text(encoding="utf-8", errors="ignore"))
-                        os_sbom_components, trivy_blocking, trivy_excl, trivy_sarif, t_distro = parse_trivy_os_report(tdata)
-                        distro_eco = t_distro or distro_eco
-                        blocking_os_findings.extend(trivy_blocking)
-                        non_blocking_os_info.extend(trivy_excl)
-                        sca03_sarif.extend(trivy_sarif)
-                        trivy_ran = True
-                        break
-
-                # Fallback extraction via docker run if Trivy is unavailable
-                node_script = (
-                    'const fs=require("fs"),d="/var/lib/dpkg/status.d";'
-                    'if(fs.existsSync(d)){for(const f of fs.readdirSync(d).filter(x=>!x.endsWith(".md5sums"))){'
-                    'const t=fs.readFileSync(d+"/"+f,"utf8");'
-                    'const p=(t.match(/^Package:\\s*(.+)$/m)||[])[1];'
-                    'const v=(t.match(/^Version:\\s*(.+)$/m)||[])[1];'
-                    'const s=((t.match(/^Source:\\s*(.+)$/m)||[])[1]||p||"").split(" ")[0];'
-                    'if(p&&v)console.log(p+"|"+v+"|"+s);}}'
-                )
-                ext = subprocess.run(
-                    ["docker", "run", "--rm", "--entrypoint=", img_name, "/nodejs/bin/node", "-e", node_script],
-                    capture_output=True,
-                    text=True,
-                    env=env_docker,
-                    timeout=8,
-                )
-                if ext.returncode == 0 and ext.stdout.strip():
-                    for line in ext.stdout.strip().splitlines():
-                        parts = line.strip().split("|")
-                        if len(parts) == 3:
-                            os_pkgs.append((parts[0], parts[1], parts[2]))
-                break
+                if _run_trivy_on_image(img_name):
+                    trivy_ran = True
+                    break
         except Exception:
             continue
 
-    if not trivy_ran:
-        # Fallback if container daemon / Trivy is not accessible for a Debian 13 distroless Dockerfile
-        if not os_pkgs and any("debian13" in fl.lower() for fl in from_lines):
-            os_pkgs = [
-                ("base-files", "13.8+deb13u7", "base-files"),
-                ("ca-certificates", "20250419", "ca-certificates"),
-                ("gcc-14-base", "14.2.0-19", "gcc-14"),
-                ("libc6", "2.41-12+deb13u4", "glibc"),
-                ("libgcc-s1", "14.2.0-19", "gcc-14"),
-                ("libgomp1", "14.2.0-19", "gcc-14"),
-                ("libssl3t64", "3.5.7-1~deb13u3", "openssl"),
-                ("libstdc++6", "14.2.0-19", "gcc-14"),
-                ("libzstd1", "1.5.7+dfsg-1", "libzstd"),
-                ("zlib1g", "1:1.3.dfsg+really1.3.1-1+b1", "zlib"),
-            ]
+    # 2. If no local Docker image matched, let Trivy inspect declared base image directly (no fabricated OS lists)
+    if not trivy_ran and Path(TRIVY_BIN).exists():
+        for img_name in candidate_images:
+            if ":" in img_name or "@sha256:" in img_name:
+                try:
+                    if _run_trivy_on_image(img_name):
+                        img_digest = img_digest or img_name
+                        trivy_ran = True
+                        break
+                except Exception:
+                    continue
 
-        os_sbom_components = [
-            {
-                "type": "library",
-                "bom-ref": f"pkg:deb/debian/{bin_pkg}@{ver}?arch=amd64&distro={distro_eco.lower()}",
-                "supplier": {"name": "Debian Project"},
-                "name": bin_pkg,
-                "version": ver,
-                "purl": f"pkg:deb/debian/{bin_pkg}@{ver}?upstream={src_pkg}",
-            }
-            for bin_pkg, ver, src_pkg in os_pkgs
-        ]
+    pkg_total = len(os_sbom_components)
+    if not trivy_ran and not blocking_os_findings:
+        return (
+            "Not_Covered",
+            [],
+            [],
+            sca03_sarif,
+            [],
+            f"Trivy could not access declared container image(s): {', '.join(candidate_images)}",
+        )
 
-        # Deduplicate by (source_pkg, version) for OSV query against Debian ecosystem
-        unique_src: list[tuple[str, str, list[str]]] = []
-        src_map: dict[tuple[str, str], list[str]] = {}
-        for bin_pkg, ver, src_pkg in os_pkgs:
-            src_map.setdefault((src_pkg, ver), []).append(bin_pkg)
-        for (src_pkg, ver), bins in src_map.items():
-            unique_src.append((src_pkg, ver, bins))
-
-        if unique_src:
-            queries = [
-                {"package": {"name": src_pkg, "ecosystem": distro_eco}, "version": ver}
-                for src_pkg, ver, _ in unique_src
-            ]
-            try:
-                req = urllib.request.Request(
-                    "https://api.osv.dev/v1/querybatch",
-                    data=json.dumps({"queries": queries}).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=8) as resp:
-                    q_res = json.loads(resp.read().decode("utf-8")).get("results", [])
-
-                all_vids: set[str] = set()
-                src_vulns: list[tuple[str, str, list[str], list[str]]] = []
-                for idx, item in enumerate(q_res):
-                    vulns = item.get("vulns", [])
-                    if vulns:
-                        src_pkg, ver, bins = unique_src[idx]
-                        vids = [v.get("id", "") for v in vulns if v.get("id")]
-                        src_vulns.append((src_pkg, ver, bins, vids))
-                        all_vids.update(vids)
-
-                v_details: dict[str, dict] = {}
-                if all_vids:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
-                        fmap = {pool.submit(fetch_osv_vuln_detail, vid): vid for vid in all_vids}
-                        for fut in concurrent.futures.as_completed(fmap):
-                            vid = fmap[fut]
-                            try:
-                                v_details[vid] = fut.result()
-                            except Exception:
-                                v_details[vid] = {"id": vid}
-
-                for src_pkg, ver, bins, vids in src_vulns:
-                    pkg_blocking: list[str] = []
-                    pkg_ignored: list[str] = []
-                    for vid in vids:
-                        det = v_details.get(vid, {})
-                        aff_list = det.get("affected", [])
-                        urgency = ""
-                        for aff in aff_list:
-                            u = aff.get("ecosystem_specific", {}).get("urgency", "")
-                            if u:
-                                urgency = str(u).lower()
-                                break
-
-                        cvss_val: float | None = None
-                        for sev_item in det.get("severity", []):
-                            sc = compute_cvss3_base_score(sev_item.get("score", ""))
-                            if sc is not None and (cvss_val is None or sc > cvss_val):
-                                cvss_val = sc
-                        if cvss_val is None:
-                            cvss_val = {"high": 7.8, "medium": 5.5, "low": 3.1, "unimportant": 0.0}.get(urgency, 5.0)
-
-                        cve_id = vid.replace("DEBIAN-", "")
-                        is_will_not_fix = urgency in {"unimportant", "will_not_fix", "end-of-life"}
-
-                        if cvss_val >= 7.0 and not is_will_not_fix:
-                            sev_tag = "CRITICAL" if cvss_val >= 9.0 else "HIGH"
-                            pkg_blocking.append(f"{vid} ({cve_id}, CVSS {cvss_val:.1f} {sev_tag}, urgency={urgency or 'assigned'})")
-                        else:
-                            reason = f"distro urgency={urgency}" if is_will_not_fix else f"CVSS {cvss_val:.1f} < 7.0"
-                            pkg_ignored.append(f"{vid} ({reason})")
-
-                    bin_str = ", ".join(bins)
-                    if pkg_blocking:
-                        line = (
-                            f"{src_pkg}@{ver} (OS binary: {bin_str}) [BLOCKING HIGH/CRITICAL]: "
-                            + ", ".join(pkg_blocking)
-                        )
-                        blocking_os_findings.append(line)
-                        sca03_sarif.append(
-                            {
-                                "ruleId": "CASA3-SCA-03",
-                                "level": "error",
-                                "message": {"text": f"SCA-03 OS package vulnerability: {line}"},
-                                "locations": [{"physicalLocation": {"artifactLocation": {"uri": "Dockerfile"}}}],
-                            }
-                        )
-                    if pkg_ignored:
-                        non_blocking_os_info.append(
-                            f"{src_pkg}@{ver} ({bin_str}): {len(pkg_ignored)} excluded advisory(ies) ({', '.join(pkg_ignored)})"
-                        )
-            except Exception:
-                pass
-
-    pkg_total = len(os_sbom_components) if trivy_ran else len(os_pkgs)
-    engine_lbl = "Trivy" if trivy_ran else "OSV.dev Fallback"
+    engine_lbl = "Trivy" if trivy_ran else "Trivy (Dockerfile static digest check only)"
     verdict = "FAIL" if blocking_os_findings else "PASS"
     meta_desc = (
-        f"{engine_lbl} | Base stages: {', '.join(from_lines)} | Image Digest: {img_digest or 'Dockerfile static'} | "
+        f"{engine_lbl} | Base stages: {', '.join(from_lines)} | Image Digest: {img_digest or 'unresolved'} | "
         f"OS Layer: {distro_eco} ({pkg_total} OS packages)"
     )
     return (

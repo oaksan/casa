@@ -235,6 +235,60 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 02/61: SCA-02 (Iteração SDD 133)", just_neon)
 
+    def test_iteration134_sca03_neon_reeval(self) -> None:
+        # 1. Verify will_not_fix without documented mitigation blocks; with lab-verified mitigation is excluded;
+        #    end_of_life always blocks; not_affected is excluded.
+        trivy_sample = {
+            "Metadata": {"OS": {"Family": "debian", "Name": "13.7"}},
+            "Results": [
+                {
+                    "Class": "os-pkgs",
+                    "Packages": [
+                        {"Name": "tar", "Version": "1.35", "Identifier": {"PURL": "pkg:deb/debian/tar@1.35"}},
+                        {"Name": "gzip", "Version": "1.12", "Identifier": {"PURL": "pkg:deb/debian/gzip@1.12"}},
+                        {"Name": "zlib1g", "Version": "1.3", "Identifier": {"PURL": "pkg:deb/debian/zlib1g@1.3"}},
+                        {"Name": "curl", "Version": "8.0", "Identifier": {"PURL": "pkg:deb/debian/curl@8.0"}},
+                    ],
+                    "Vulnerabilities": [
+                        {"VulnerabilityID": "CVE-2025-1001", "PkgName": "tar", "InstalledVersion": "1.35", "Severity": "HIGH", "Status": "will_not_fix"},
+                        {"VulnerabilityID": "CVE-2025-1002", "PkgName": "gzip", "InstalledVersion": "1.12", "Severity": "HIGH", "Status": "will_not_fix"},
+                        {"VulnerabilityID": "CVE-2025-1003", "PkgName": "zlib1g", "InstalledVersion": "1.3", "Severity": "CRITICAL", "Status": "end_of_life"},
+                        {"VulnerabilityID": "CVE-2025-1004", "PkgName": "curl", "InstalledVersion": "8.0", "Severity": "HIGH", "Status": "not_affected"},
+                    ],
+                }
+            ],
+        }
+        _, blocking, excluded, sarifs, _ = sc.parse_trivy_os_report(
+            trivy_sample, documented_mitigations={"CVE-2025-1002"}
+        )
+        joined_blk = "\n".join(blocking)
+        joined_exc = "\n".join(excluded)
+        self.assertIn("CVE-2025-1001", joined_blk)
+        self.assertIn("no documented mitigation", joined_blk)
+        self.assertIn("CVE-2025-1003", joined_blk)
+        self.assertNotIn("CVE-2025-1002", joined_blk)
+        self.assertNotIn("CVE-2025-1004", joined_blk)
+        self.assertIn("CVE-2025-1002", joined_exc)
+        self.assertIn("CVE-2025-1004", joined_exc)
+        self.assertEqual(len(sarifs), 2)
+
+        # 2. Verify no fabricated Debian 13 package list when Trivy/Docker cannot inspect a digest-pinned Dockerfile
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / "Dockerfile").write_text(
+                "FROM gcr.io/distroless/nodejs22-debian13@sha256:" + ("a" * 64) + "\n",
+                encoding="utf-8",
+            )
+            fake_fail = mock.Mock(returncode=1, stdout="", stderr="no daemon")
+            with mock.patch("subprocess.run", return_value=fake_fail):
+                verdict, blk, _, _, comps, _ = sc.evaluate_sca03_container_os(repo)
+            self.assertEqual(verdict, "Not_Covered")
+            self.assertEqual(blk, [])
+            self.assertEqual(comps, [])
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 03/61: SCA-03 (Iteração SDD 134)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

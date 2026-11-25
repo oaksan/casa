@@ -541,3 +541,34 @@ Domínio 2: Static Code Analysis & Secrets
 - Novo teste unitário: `test_iteration143_sast07_neon_reeval` validando
   detecção estática Ruby/PHP e detecção ativa de persistência de `is_admin=True`.
 - Regressão validada: `test_iteration82_sast07_guide_tooling` (`OK`).
+
+================================================================================
+CONTROLE 13/61: SAST-08 (Iteração SDD 144)
+Domínio 2: Static Code Analysis & Secrets
+================================================================================
+
+1. AUDITORIA DE FERRAMENTAL CONTRA O TEST GUIDE
+--------------------------------------------------------------------------------
+- Ferramentas exigidas (`CASA 3.0 (AL1) Test Guide.md`, L309):
+  `CodeQL`, `semgrep`.
+- Verificação de Conformidade de Ferramentas:
+  **CONFORME (100% gratuito e listado no Test Guide)**. O controle executa
+  exclusivamente `semgrep` com regras `mode: taint` em nível `ERROR` (SARIF 2.1.0).
+
+2. LACUNAS IDENTIFICADAS E MELHORIAS IMPLEMENTADAS (SDD 144)
+--------------------------------------------------------------------------------
+1) **Fechamento de brecha de bypass em queries concatenadas com segundo argumento**:
+   - *Antes*: `pattern-not: "$M.query($X, [ ... ])"` isentava queries
+     concatenadas se houvesse um array ou objeto `replacements`/`bind` passado
+     como segundo argumento.
+   - *Melhoria*: Os `pattern-not` agora exigem primeiro argumento string literal
+     estática (`"..."`).
+2) **Expansão multilíngue (`PHP` e `C#`)**:
+   - Adicionadas regras `CASA3-SAST-08-sql-php` (`mysqli_query`, `$PDO->query`/
+     `exec`) e `CASA3-SAST-08-sql-csharp` (`SqlCommand`, `ExecuteSqlRaw`).
+
+3. VALIDAÇÃO (SDD 144)
+--------------------------------------------------------------------------------
+- Novo teste unitário: `test_iteration144_sast08_neon_reeval` validando captura
+  de concatenação com array de parâmetros, PHP e C#.
+- Regressão validada: `test_iteration83_sast08_guide_tooling` (`OK`).

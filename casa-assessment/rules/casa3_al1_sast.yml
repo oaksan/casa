@@ -639,9 +639,9 @@ rules:
               - pattern: "sequelize.query($SINK, ...)"
               - pattern: "models.sequelize.query($SINK, ...)"
               - pattern: "$DB.query($SINK, ...)"
-          - pattern-not: "$M.query($X, { ..., replacements: $R, ... })"
-          - pattern-not: "$M.query($X, { ..., bind: $B, ... })"
-          - pattern-not: "$M.query($X, [ ... ])"
+          - pattern-not: "$M.query(\"...\", { ..., replacements: $R, ... })"
+          - pattern-not: "$M.query(\"...\", { ..., bind: $B, ... })"
+          - pattern-not: "$M.query(\"...\", [ ... ])"
       - pattern: "$COLL.find({ ..., $where: $SINK, ... })"
       - pattern: "$COLL.findOne({ ..., $where: $SINK, ... })"
 
@@ -691,6 +691,32 @@ rules:
       - pattern: "$DB.Query($SINK)"
       - pattern: "$DB.Exec($SINK)"
       - pattern: "$DB.QueryRow($SINK)"
+
+  - id: CASA3-SAST-08-sql-php
+    mode: taint
+    languages: [php]
+    message: "SAST-08: Tainted HTTP input flows into unparameterized SQL query in PHP (CWE-89)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+    pattern-sinks:
+      - pattern: mysqli_query($CONN, $SINK)
+      - pattern: $PDO->query($SINK)
+      - pattern: $PDO->exec($SINK)
+
+  - id: CASA3-SAST-08-sql-csharp
+    mode: taint
+    languages: [csharp]
+    message: "SAST-08: Tainted HTTP input flows into unparameterized SQL command in C# (CWE-89)"
+    severity: ERROR
+    pattern-sources:
+      - pattern: Request.Query[$K]
+      - pattern: Request.Form[$K]
+    pattern-sinks:
+      - pattern: new SqlCommand($SINK, ...)
+      - pattern: $DB.ExecuteSqlRaw($SINK, ...)
 
   - id: CASA3-SAST-09-unsafe-deserialization
     languages: [typescript, javascript]

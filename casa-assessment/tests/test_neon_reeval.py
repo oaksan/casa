@@ -643,6 +643,34 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 12/61: SAST-07 (Iteração SDD 143)", just_neon)
 
+    def test_iteration144_sast08_neon_reeval(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            src = repo / "src"
+            src.mkdir()
+            # Concatenated SQL with dummy bind array must STILL fail; PHP and C# SQLi taint must FAIL
+            (src / "bad_concat.ts").write_text(
+                "export const q = (req: any, db: any) => db.query('SELECT * FROM u WHERE name=' + req.query.n, [1]);\n",
+                encoding="utf-8",
+            )
+            (src / "bad.php").write_text(
+                "<?php $id = $_GET['id']; mysqli_query($conn, 'SELECT * FROM u WHERE id=' . $id);\n",
+                encoding="utf-8",
+            )
+            (src / "Bad.cs").write_text(
+                "class C { void F() { var q = Request.Query[\"u\"]; new SqlCommand(\"SELECT * FROM u WHERE n=\" + q, conn); } }\n",
+                encoding="utf-8",
+            )
+            v_fail, f_fail, sarifs, _ = sc.evaluate_sast08_sql_injection(repo)
+            self.assertEqual(v_fail, "FAIL")
+            joined = "\n".join(f_fail)
+            for fn in ("bad_concat.ts", "bad.php", "Bad.cs"):
+                self.assertIn(fn, joined, f"Missing SAST-08 hit for {fn} in:\n{joined}")
+            self.assertGreaterEqual(len(sarifs), 3)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 13/61: SAST-08 (Iteração SDD 144)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

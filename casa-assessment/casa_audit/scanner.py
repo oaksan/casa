@@ -7024,6 +7024,7 @@ def evaluate_cfg08_cors(
     target_url: str,
     *,
     auth_headers: dict[str, str] | None = None,
+    endpoints: list[tuple[str, str, dict[str, str], bool]] | None = None,
     zap_report: dict | None = None,
     json_out_path: Path | None = None,
     sarif_out_path: Path | None = None,
@@ -7063,20 +7064,26 @@ def evaluate_cfg08_cors(
     probe = http_probe_fn or _default_probe
     auth_hdrs = dict(auth_headers or {})
     suffix_origin = f"https://not{host}"
+    prefix_origin = f"https://{host}.evil.example.com"
     cors_probe_origins = [
         ("foreign_origin", "https://evil.example.com"),
         ("null_origin", "null"),
         ("suffix_sharing_origin", suffix_origin),
+        ("prefix_matching_origin", prefix_origin),
     ]
-    cors_endpoints = [
-        ("GET", "/", {}, False),
-        ("GET", "/rest/products/search?q=apple", {}, False),
-        ("GET", "/rest/user/whoami", auth_hdrs, True),
-        ("GET", "/rest/wallet/balance", auth_hdrs, True),
-        ("GET", "/api/Users/", auth_hdrs, True),
-        ("GET", "/rest/admin/application-configuration", {}, True),
-        ("OPTIONS", "/rest/user/login", {"Access-Control-Request-Method": "POST"}, True),
-    ]
+    cors_endpoints = (
+        list(endpoints)
+        if endpoints is not None
+        else [
+            ("GET", "/", {}, False),
+            ("GET", "/rest/products/search?q=apple", {}, False),
+            ("GET", "/rest/user/whoami", auth_hdrs, True),
+            ("GET", "/rest/wallet/balance", auth_hdrs, True),
+            ("GET", "/api/Users/", auth_hdrs, True),
+            ("GET", "/rest/admin/application-configuration", {}, True),
+            ("OPTIONS", "/rest/user/login", {"Access-Control-Request-Method": "POST"}, True),
+        ]
+    )
 
     active_zap = (
         zap_report
@@ -7218,6 +7225,7 @@ def evaluate_cfg08_cors(
         "probesSent": cors_probes_sent,
         "endpointsCount": len(cors_endpoints),
         "suffixOrigin": suffix_origin,
+        "prefixOrigin": prefix_origin,
         "findings": cfg08_findings,
         "sarifResults": sarif_items,
         "zapPluginsMatched": sorted(zap_matched_plugins),

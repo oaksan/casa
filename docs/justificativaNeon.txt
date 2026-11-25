@@ -1066,3 +1066,20 @@ CONTROLE 31/61: CFG-07 (Iteração SDD 162) — Anti-Caching Headers on Sensitiv
 4. Validação:
    - `test_iteration162_cfg07_neon_reeval` (sessão/rotas customizadas PASS;
      `public, no-store` FAIL) + regressão `test_iteration101_cfg07_guide_tooling`.
+
+--------------------------------------------------------------------------------
+CONTROLE 32/61: CFG-08 (Iteração SDD 163) — CORS Policy Restrictive
+--------------------------------------------------------------------------------
+1. Ferramentas do Guia (`CASA 3.0 (AL1) Test Guide.md`, L708):
+   - Referência: `OWASP ZAP (rule 10098 Cross-Domain Misconfiguration), curl`.
+   - Auditoria de Ferramentas: CONFORME (100% gratuito). Executa OWASP ZAP 2.17.0
+     (Regra Passiva `10098`) + sonda ativa multi-origem CORS. Zero Burp Suite pago.
+2. Lacunas Encontradas na Reavaliação Neon:
+   - A sonda ativa não testava bypass de allowlist por prefixo (`startsWith`:
+     `https://<host>.evil.example.com`) e não aceitava lista `endpoints` customizada.
+3. Melhorias Executadas (`casa-assessment/casa_audit/scanner.py`):
+   - Adicionada sonda `prefix_matching_origin` (`https://{host}.evil.example.com`),
+     campo `prefixOrigin` e parâmetro opcional `endpoints` em `evaluate_cfg08_cors`.
+4. Validação:
+   - `test_iteration163_cfg08_neon_reeval` (bypass `startsWith` FAIL; allowlist
+     exata PASS) + regressão `test_iteration102_cfg08_guide_tooling` (ZAP 2.17.0 real).

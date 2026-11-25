@@ -1368,6 +1368,44 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 31/61: CFG-07 (Iteração SDD 162)", just_neon)
 
+    def test_iteration163_cfg08_neon_reeval(self) -> None:
+        empty_zap = {"executed": True, "alerts": []}
+
+        # 1. Server with buggy startsWith("https://app.example.com") reflects prefix-matching origin -> FAIL
+        def _probe_prefix_bug(ep: str, method: str = "GET", headers=None, body=None):
+            orig = (headers or {}).get("Origin", "")
+            if orig.startswith("https://app.example.com"):
+                return 200, {"access-control-allow-origin": orig, "access-control-allow-credentials": "true"}, "{}"
+            return 200, {}, "{}"
+
+        r_pref = sc.evaluate_cfg08_cors(
+            "https://app.example.com",
+            endpoints=[("GET", "/api/v1/me", {}, True)],
+            http_probe_fn=_probe_prefix_bug,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_pref["verdict"], "FAIL")
+        self.assertEqual(r_pref["prefixOrigin"], "https://app.example.com.evil.example.com")
+        self.assertTrue(any(f["violationType"] == "reflected_prefix_matching_origin" for f in r_pref["findings"]))
+
+        # 2. Exact-match allowlist rejecting all untrusted origins -> PASS
+        def _probe_exact(ep: str, method: str = "GET", headers=None, body=None):
+            orig = (headers or {}).get("Origin", "")
+            if orig == "https://app.example.com":
+                return 200, {"access-control-allow-origin": orig}, "{}"
+            return 200, {}, "{}"
+
+        r_ok = sc.evaluate_cfg08_cors(
+            "https://app.example.com",
+            endpoints=[("GET", "/api/v1/me", {}, True)],
+            http_probe_fn=_probe_exact,
+            zap_report=empty_zap,
+        )
+        self.assertEqual(r_ok["verdict"], "PASS")
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("CONTROLE 32/61: CFG-08 (Iteração SDD 163)", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

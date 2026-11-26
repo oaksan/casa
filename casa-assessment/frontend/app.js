@@ -4,14 +4,59 @@
 
   var DATA = window.CASA3_DATA;
   var STORE_KEY = "casa3-assessment-v1";
+  var APPS_STORE_KEY = "casa3-applications-v1";
+  var ACTIVE_APP_KEY = "casa3-active-app-v1";
+  var APP_STATE_PREFIX = "casa3-app-state-";
+  var LANG_STORE_KEY = "casa3-lang-v1";
 
   var I18N = {
     pt: {
       brandSub: "Avaliação de Segurança de Aplicações Web",
       resetBtn: "Limpar",
-      resetTitle: "Limpar todos os vereditos, execuções, notas e capturas salvas neste navegador",
+      resetTitle: "Limpar os vereditos, execuções, notas e capturas da aplicação selecionada",
+      tabApps: "Aplicações",
       tabAssess: "Avaliação",
       tabReport: "Relatório",
+      tabLockedTitle: "Selecione ou cadastre uma aplicação antes de acessar esta guia",
+      appsKicker: "App Defense Alliance · Linux Foundation · v3.0",
+      appsTitle: "Aplicações CASA 3.0",
+      appsLede:
+        "Selecione uma aplicação cadastrada para iniciar a <strong>Avaliação</strong> ou visualizar o <strong>Relatório</strong>. Caso a aplicação ainda não exista, cadastre-a abaixo — <strong>Avaliador</strong> e <strong>Nível de Garantia Alvo</strong> são definidos exclusivamente neste cadastro.",
+      appsListTitle: "Aplicações Cadastradas",
+      appsListSub: "Escolha uma aplicação para liberar as guias Avaliação e Relatório.",
+      appsEmpty: "Nenhuma aplicação cadastrada ainda. Cadastre a primeira aplicação abaixo para iniciar.",
+      btnFocusNewApp: "+ Cadastrar Nova Aplicação",
+      appFormTitleNew: "Cadastrar Nova Aplicação",
+      appFormTitleEdit: "Editar Aplicação Cadastrada",
+      appFormSub: "Preencha os dados da aplicação, o avaliador responsável e o nível de garantia alvo (AL1 ou AL2).",
+      appLblOrg: "Aplicação / Organização *",
+      appLblAssessor: "Avaliador / Laboratório *",
+      appLblTarget: "Nível de Garantia Alvo *",
+      appBtnCreate: "Cadastrar Aplicação",
+      appBtnSave: "Salvar Alterações",
+      appBtnCancelEdit: "Cancelar Edição",
+      appErrOrg: "Informe o nome da Aplicação / Organização.",
+      appErrAssessor: "Informe o Avaliador / Laboratório.",
+      appBadgeSelected: "Selecionada",
+      appCardAssessor: "Avaliador:",
+      appCardLastScan: "Último scan:",
+      appCardNoScan: "Aguardando scan",
+      appCardUrl: "URL:",
+      appCardSurfaces: "Superfícies:",
+      appActAssess: "▶ Iniciar Avaliação",
+      appActReport: "Ver Relatório",
+      appActEdit: "Editar",
+      appActDelete: "Excluir",
+      appConfirmDelete: function (name) {
+        return 'Excluir a aplicação "' + name + '" e seus dados de avaliação salvos neste navegador?';
+      },
+      gateNotice: "Selecione uma aplicação cadastrada (ou cadastre uma nova abaixo) antes de acessar Avaliação ou Relatório.",
+      setupLockHint:
+        "Avaliador e Nível Alvo só podem ser alterados no cadastro da Aplicação. A Data da Avaliação é preenchida automaticamente após a conclusão do scan.",
+      btnManageApps: "← Trocar / Editar Aplicação",
+      datePendingScan: "Preenchida automaticamente após o scan",
+      reportNoScanDate: "Scan ainda não concluído",
+      btnBackApps: "← Aplicações",
       heroKicker: "App Defense Alliance · Linux Foundation · v3.0",
       heroTitle: "Avaliação CASA 3.0",
       heroLede:
@@ -144,9 +189,50 @@
     en: {
       brandSub: "Cloud Application Security Assessment",
       resetBtn: "Reset",
-      resetTitle: "Clear all saved verdicts, automated runs, notes and screenshots stored in this browser",
+      resetTitle: "Clear saved verdicts, automated runs, notes and screenshots for the selected application",
+      tabApps: "Applications",
       tabAssess: "Assessment",
       tabReport: "Report",
+      tabLockedTitle: "Select or register an application before accessing this tab",
+      appsKicker: "App Defense Alliance · Linux Foundation · v3.0",
+      appsTitle: "CASA 3.0 Applications",
+      appsLede:
+        "Select a registered application before starting an <strong>Assessment</strong> or viewing a <strong>Report</strong>. If the application does not exist yet, register it below — <strong>Assessor</strong> and <strong>Target Assurance Level</strong> can only be changed here.",
+      appsListTitle: "Registered Applications",
+      appsListSub: "Choose an application to unlock the Assessment and Report tabs.",
+      appsEmpty: "No applications registered yet. Register your first application below to begin.",
+      btnFocusNewApp: "+ Register New Application",
+      appFormTitleNew: "Register New Application",
+      appFormTitleEdit: "Edit Registered Application",
+      appFormSub: "Provide application details, responsible assessor, and target assurance level (AL1 or AL2).",
+      appLblOrg: "Application / Organization *",
+      appLblAssessor: "Assessor / Security Lab *",
+      appLblTarget: "Target Assurance Level *",
+      appBtnCreate: "Register Application",
+      appBtnSave: "Save Changes",
+      appBtnCancelEdit: "Cancel Edit",
+      appErrOrg: "Please enter the Application / Organization name.",
+      appErrAssessor: "Please enter the Assessor / Security Lab.",
+      appBadgeSelected: "Selected",
+      appCardAssessor: "Assessor:",
+      appCardLastScan: "Last scan:",
+      appCardNoScan: "Awaiting scan",
+      appCardUrl: "URL:",
+      appCardSurfaces: "Surfaces:",
+      appActAssess: "▶ Start Assessment",
+      appActReport: "View Report",
+      appActEdit: "Edit",
+      appActDelete: "Delete",
+      appConfirmDelete: function (name) {
+        return 'Delete application "' + name + '" and its saved assessment data in this browser?';
+      },
+      gateNotice: "Select a registered application (or register a new one below) before accessing Assessment or Report.",
+      setupLockHint:
+        "Assessor and Target Level can only be changed in the Application registry. Evaluation Date is filled automatically after scan completion.",
+      btnManageApps: "← Switch / Edit Application",
+      datePendingScan: "Auto-filled after scan completion",
+      reportNoScanDate: "Scan not yet completed",
+      btnBackApps: "← Applications",
       heroKicker: "App Defense Alliance · Linux Foundation · v3.0",
       heroTitle: "CASA 3.0 Assessment",
       heroLede:
@@ -291,35 +377,201 @@
     return;
   }
 
-  /* ---------- state ---------- */
-  var state = load();
+  /* ---------- application registry & per-app state (SDD 194) ---------- */
+  var apps = loadAppsLocal();
+  var activeAppId = null;
+  var editingAppId = "";
+  var currentView = "apps";
   var activeFilter = "all";
+  var state = createEmptyState();
 
-  function load() {
+  function getSavedLang() {
     try {
-      var raw = localStorage.getItem(STORE_KEY);
-      if (raw) {
-        var parsed = JSON.parse(raw);
-        parsed.meta = parsed.meta || {};
-        parsed.meta.lang = parsed.meta.lang || "pt";
-        parsed.meta.surfaces = parsed.meta.surfaces || ["Web_Application"];
-        parsed.answers = parsed.answers || {};
-        return parsed;
-      }
+      var l = localStorage.getItem(LANG_STORE_KEY);
+      if (l === "en" || l === "pt") return l;
     } catch (e) {}
+    return "pt";
+  }
+
+  function createEmptyState(app) {
+    var a = app || {};
     return {
       meta: {
-        lang: "pt",
-        org: "OWASP Juice Shop",
-        assessor: "",
-        date: today(),
-        target: "AL2",
-        targetUrl: "http://localhost:3000",
-        repoPath: "/home/user/felipe/speckit/juice-shop-master",
-        surfaces: ["Web_Application"],
+        appId: a.id || "",
+        lang: getSavedLang(),
+        org: a.org || "",
+        assessor: a.assessor || "",
+        date: a.date || "",
+        lastScanAt: a.lastScanAt || "",
+        target: a.target === "AL1" ? "AL1" : "AL2",
+        targetUrl: a.targetUrl != null ? a.targetUrl : "http://localhost:3000",
+        repoPath: a.repoPath != null ? a.repoPath : "/home/user/felipe/speckit/juice-shop-master",
+        surfaces: Array.isArray(a.surfaces) && a.surfaces.length ? a.surfaces.slice() : ["Web_Application"],
       },
       answers: {},
     };
+  }
+
+  function loadAppsLocal() {
+    var list = [];
+    try {
+      var raw = localStorage.getItem(APPS_STORE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          list = parsed.filter(function (x) {
+            return x && x.id && x.org;
+          });
+        }
+      }
+    } catch (e) {}
+
+    // One-time migration from legacy single-app storage if no registered apps exist yet
+    if (!list.length) {
+      try {
+        var legacyRaw = localStorage.getItem(STORE_KEY);
+        if (legacyRaw) {
+          var legacy = JSON.parse(legacyRaw);
+          var lm = (legacy && legacy.meta) || {};
+          var la = (legacy && legacy.answers) || {};
+          var hasAnswers = Object.keys(la).some(function (k) {
+            return la[k] && la[k].verdict != null;
+          });
+          if (lm.org || lm.assessor || hasAnswers) {
+            var migId = "app-migrated-1";
+            var scanTs = "";
+            Object.keys(la).forEach(function (k) {
+              if (!scanTs && la[k] && la[k].autoTimestamp) scanTs = la[k].autoTimestamp;
+            });
+            var migApp = {
+              id: migId,
+              org: lm.org || "OWASP Juice Shop",
+              assessor: lm.assessor || "Avaliador",
+              target: lm.target === "AL1" ? "AL1" : "AL2",
+              targetUrl: lm.targetUrl || "http://localhost:3000",
+              repoPath: lm.repoPath || "/home/user/felipe/speckit/juice-shop-master",
+              surfaces: Array.isArray(lm.surfaces) && lm.surfaces.length ? lm.surfaces : ["Web_Application"],
+              date: scanTs ? scanTs.slice(0, 10) : "",
+              lastScanAt: scanTs || "",
+            };
+            list = [migApp];
+            localStorage.setItem(APPS_STORE_KEY, JSON.stringify(list));
+            localStorage.setItem(APP_STATE_PREFIX + migId, JSON.stringify({ answers: la }));
+          }
+        }
+      } catch (e) {}
+    }
+    return list;
+  }
+
+  function saveAppsLocal() {
+    try {
+      localStorage.setItem(APPS_STORE_KEY, JSON.stringify(apps));
+    } catch (e) {}
+  }
+
+  function getAppById(id) {
+    if (!id) return null;
+    for (var i = 0; i < apps.length; i++) {
+      if (apps[i].id === id) return apps[i];
+    }
+    return null;
+  }
+
+  function loadAppAnswers(appId) {
+    if (!appId) return {};
+    try {
+      var raw = localStorage.getItem(APP_STATE_PREFIX + appId);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        return (parsed && parsed.answers) || {};
+      }
+    } catch (e) {}
+    return {};
+  }
+
+  function formatScanDateDisplay(isoDate, lastScanAt) {
+    if (!isoDate && !lastScanAt) return "";
+    var isPt = lang() === "pt";
+    if (lastScanAt) {
+      var d = new Date(lastScanAt);
+      if (!isNaN(d.getTime())) {
+        var dd = pad(d.getDate());
+        var mm = pad(d.getMonth() + 1);
+        var yyyy = d.getFullYear();
+        var hh = pad(d.getHours());
+        var mi = pad(d.getMinutes());
+        return isPt ? dd + "/" + mm + "/" + yyyy + " " + hh + ":" + mi : yyyy + "-" + mm + "-" + dd + " " + hh + ":" + mi;
+      }
+    }
+    if (isoDate && /^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+      var pts = isoDate.split("-");
+      return isPt ? pts[2] + "/" + pts[1] + "/" + pts[0] : isoDate;
+    }
+    return isoDate || lastScanAt || "";
+  }
+
+  function syncAppToServer(appRec) {
+    if (!appRec || !appRec.org || !appRec.assessor) return Promise.resolve(appRec);
+    return fetch("/api/applications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(appRec),
+    })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (data) {
+        if (data && data.application) return data.application;
+        return appRec;
+      })
+      .catch(function () {
+        return appRec;
+      });
+  }
+
+  function fetchAppsFromServer() {
+    return fetch("/api/applications", { cache: "no-store" })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (data) {
+        if (!data || !Array.isArray(data.applications)) return;
+        if (data.applications.length > 0) {
+          // Merge server apps with local list (server authoritative for matching IDs, keep local-only if any)
+          var byId = {};
+          data.applications.forEach(function (sa) {
+            byId[sa.id] = sa;
+          });
+          apps.forEach(function (la) {
+            if (!byId[la.id]) {
+              byId[la.id] = la;
+              syncAppToServer(la);
+            }
+          });
+          apps = Object.keys(byId).map(function (k) {
+            return byId[k];
+          });
+          saveAppsLocal();
+        } else if (apps.length > 0) {
+          apps.forEach(function (la) {
+            syncAppToServer(la);
+          });
+        }
+        renderAppsList();
+        if (activeAppId) {
+          var refreshed = getAppById(activeAppId);
+          if (refreshed) {
+            state.meta.org = refreshed.org;
+            state.meta.assessor = refreshed.assessor;
+            state.meta.target = refreshed.target;
+            state.meta.date = refreshed.date || state.meta.date || "";
+            state.meta.lastScanAt = refreshed.lastScanAt || state.meta.lastScanAt || "";
+            syncReadonlySetup();
+          }
+        }
+      })
+      .catch(function () {});
   }
 
   function lang() {
@@ -372,7 +624,19 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       try {
-        localStorage.setItem(STORE_KEY, JSON.stringify(state));
+        localStorage.setItem(LANG_STORE_KEY, lang());
+        if (activeAppId) {
+          localStorage.setItem(APP_STATE_PREFIX + activeAppId, JSON.stringify({ answers: state.answers }));
+          var curApp = getAppById(activeAppId);
+          if (curApp) {
+            curApp.targetUrl = state.meta.targetUrl;
+            curApp.repoPath = state.meta.repoPath;
+            curApp.surfaces = (state.meta.surfaces || ["Web_Application"]).slice();
+            curApp.date = state.meta.date || "";
+            curApp.lastScanAt = state.meta.lastScanAt || "";
+            saveAppsLocal();
+          }
+        }
       } catch (e) {}
     }, 120);
   }
@@ -681,30 +945,260 @@
     }
   }
 
-  /* ---------- setup fields & static i18n ---------- */
+  /* ---------- setup fields (locked read-only in Assessment) & static i18n ---------- */
   var els = {
-    org: document.getElementById("org"),
-    assessor: document.getElementById("assessor"),
-    date: document.getElementById("date"),
-    target: document.getElementById("target"),
+    orgDisplay: document.getElementById("org-display"),
+    assessorDisplay: document.getElementById("assessor-display"),
+    dateDisplay: document.getElementById("date-display"),
+    targetDisplay: document.getElementById("target-display"),
     targetUrl: document.getElementById("target-url"),
     repoPath: document.getElementById("repo-path"),
     levelDesc: document.getElementById("level-desc"),
     autoStatus: document.getElementById("auto-status"),
+    tabApps: document.getElementById("i18n-tab-apps"),
+    tabAssess: document.getElementById("i18n-tab-assess"),
+    tabReport: document.getElementById("i18n-tab-report"),
+    appsList: document.getElementById("apps-list"),
+    appsGateNotice: document.getElementById("apps-gate-notice"),
+    appForm: document.getElementById("app-form"),
+    appEditId: document.getElementById("app-edit-id"),
+    appOrg: document.getElementById("app-org"),
+    appAssessor: document.getElementById("app-assessor"),
+    appTarget: document.getElementById("app-target"),
+    appUrl: document.getElementById("app-url"),
+    appRepo: document.getElementById("app-repo"),
+    appFormError: document.getElementById("app-form-error"),
+    btnSaveApp: document.getElementById("btn-save-app"),
+    btnCancelEditApp: document.getElementById("btn-cancel-edit-app"),
   };
-
-  els.org.value = state.meta.org || "";
-  els.assessor.value = state.meta.assessor || "";
-  els.date.value = state.meta.date || today();
-  els.target.value = state.meta.target || "AL2";
-  els.targetUrl.value = state.meta.targetUrl || "http://localhost:3000";
-  els.repoPath.value = state.meta.repoPath || "/home/user/felipe/speckit/juice-shop-master";
 
   function syncLevelDesc() {
     var lv = DATA.assurance_levels && DATA.assurance_levels[state.meta.target];
     if (lv && els.levelDesc) {
       els.levelDesc.textContent = lang() === "pt" && lv.description_pt ? lv.description_pt : lv.description;
     }
+  }
+
+  function syncReadonlySetup() {
+    var tr = t();
+    if (els.orgDisplay) els.orgDisplay.textContent = state.meta.org || "—";
+    if (els.assessorDisplay) els.assessorDisplay.textContent = state.meta.assessor || "—";
+    if (els.dateDisplay) {
+      var fmtDate = formatScanDateDisplay(state.meta.date, state.meta.lastScanAt);
+      if (fmtDate) {
+        els.dateDisplay.textContent = fmtDate;
+        els.dateDisplay.classList.remove("is-pending");
+      } else {
+        els.dateDisplay.textContent = tr.datePendingScan;
+        els.dateDisplay.classList.add("is-pending");
+      }
+    }
+    if (els.targetDisplay) {
+      els.targetDisplay.textContent = state.meta.target === "AL1" ? tr.optAL1 : tr.optAL2;
+    }
+    if (els.targetUrl) els.targetUrl.value = state.meta.targetUrl || "";
+    if (els.repoPath) els.repoPath.value = state.meta.repoPath || "";
+    document.querySelectorAll("[data-surface]").forEach(function (cb) {
+      var surf = cb.getAttribute("data-surface");
+      cb.checked = (state.meta.surfaces || ["Web_Application"]).indexOf(surf) !== -1;
+    });
+    syncLevelDesc();
+  }
+
+  function syncTabGating() {
+    var locked = !activeAppId;
+    var tr = t();
+    [els.tabAssess, els.tabReport].forEach(function (tab) {
+      if (!tab) return;
+      tab.disabled = locked;
+      tab.setAttribute("aria-disabled", String(locked));
+      tab.title = locked ? tr.tabLockedTitle : "";
+    });
+    var topresetEl = document.getElementById("topreset");
+    if (topresetEl) {
+      topresetEl.disabled = locked;
+      topresetEl.style.opacity = locked ? "0.45" : "";
+    }
+  }
+
+  function resetAppForm() {
+    editingAppId = "";
+    if (els.appEditId) els.appEditId.value = "";
+    if (els.appOrg) els.appOrg.value = "";
+    if (els.appAssessor) els.appAssessor.value = "";
+    if (els.appTarget) els.appTarget.value = "AL2";
+    if (els.appUrl) els.appUrl.value = "http://localhost:3000";
+    if (els.appRepo) els.appRepo.value = "/home/user/felipe/speckit/juice-shop-master";
+    document.querySelectorAll("[data-app-surface]").forEach(function (cb) {
+      cb.checked = cb.getAttribute("data-app-surface") === "Web_Application";
+    });
+    if (els.appFormError) {
+      els.appFormError.hidden = true;
+      els.appFormError.textContent = "";
+    }
+    if (els.btnCancelEditApp) els.btnCancelEditApp.hidden = true;
+    applyAppFormLabels();
+  }
+
+  function applyAppFormLabels() {
+    var tr = t();
+    var titleEl = document.getElementById("i18n-app-form-title");
+    if (titleEl) titleEl.textContent = editingAppId ? tr.appFormTitleEdit : tr.appFormTitleNew;
+    if (els.btnSaveApp) els.btnSaveApp.textContent = editingAppId ? tr.appBtnSave : tr.appBtnCreate;
+    if (els.btnCancelEditApp) els.btnCancelEditApp.textContent = tr.appBtnCancelEdit;
+  }
+
+  function startEditApplication(appId) {
+    var app = getAppById(appId);
+    if (!app) return;
+    editingAppId = app.id;
+    if (els.appEditId) els.appEditId.value = app.id;
+    if (els.appOrg) els.appOrg.value = app.org || "";
+    if (els.appAssessor) els.appAssessor.value = app.assessor || "";
+    if (els.appTarget) els.appTarget.value = app.target === "AL1" ? "AL1" : "AL2";
+    if (els.appUrl) els.appUrl.value = app.targetUrl || "";
+    if (els.appRepo) els.appRepo.value = app.repoPath || "";
+    var surfs = Array.isArray(app.surfaces) && app.surfaces.length ? app.surfaces : ["Web_Application"];
+    document.querySelectorAll("[data-app-surface]").forEach(function (cb) {
+      cb.checked = surfs.indexOf(cb.getAttribute("data-app-surface")) !== -1;
+    });
+    if (els.btnCancelEditApp) els.btnCancelEditApp.hidden = false;
+    if (els.appFormError) els.appFormError.hidden = true;
+    applyAppFormLabels();
+    var card = document.getElementById("app-form-card");
+    if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (els.appOrg) els.appOrg.focus();
+  }
+
+  function deleteApplication(appId) {
+    var app = getAppById(appId);
+    if (!app) return;
+    if (!confirm(t().appConfirmDelete(app.org))) return;
+    apps = apps.filter(function (a) {
+      return a.id !== appId;
+    });
+    saveAppsLocal();
+    try {
+      localStorage.removeItem(APP_STATE_PREFIX + appId);
+    } catch (e) {}
+    fetch("/api/applications?id=" + encodeURIComponent(appId), { method: "DELETE" }).catch(function () {});
+    if (editingAppId === appId) resetAppForm();
+    if (activeAppId === appId) {
+      activeAppId = null;
+      try {
+        localStorage.removeItem(ACTIVE_APP_KEY);
+      } catch (e) {}
+      state = createEmptyState();
+      syncTabGating();
+      syncReadonlySetup();
+    }
+    renderAppsList();
+  }
+
+  function selectApplication(appId, targetView) {
+    var app = getAppById(appId);
+    if (!app) return;
+    activeAppId = app.id;
+    try {
+      localStorage.setItem(ACTIVE_APP_KEY, activeAppId);
+    } catch (e) {}
+    state = createEmptyState(app);
+    state.answers = loadAppAnswers(app.id);
+    if (els.appsGateNotice) els.appsGateNotice.hidden = true;
+    syncTabGating();
+    syncReadonlySetup();
+    applySurfaceScoping();
+    renderAppsList();
+    renderNav();
+    renderControls();
+    loadFigureImages(document.getElementById("controls"));
+    updateProgress();
+    var progPanel = document.getElementById("scan-progress-panel");
+    if (progPanel && !scanActive) progPanel.hidden = true;
+    if (els.autoStatus && !scanActive) {
+      els.autoStatus.textContent = t().statusReady;
+    }
+    if (targetView) {
+      switchView(targetView);
+    }
+  }
+
+  function renderAppsList() {
+    if (!els.appsList) return;
+    var tr = t();
+    if (!apps.length) {
+      els.appsList.innerHTML = '<div class="apps-empty">' + esc(tr.appsEmpty) + "</div>";
+      return;
+    }
+    els.appsList.innerHTML = apps
+      .map(function (app) {
+        var isSel = app.id === activeAppId;
+        var scanStr = formatScanDateDisplay(app.date, app.lastScanAt) || tr.appCardNoScan;
+        var surfsStr = (app.surfaces || ["Web_Application"]).join(", ");
+        var lvlClass = app.target === "AL1" ? "badge-al1" : "badge-al2";
+        return (
+          '<div class="app-card' +
+          (isSel ? " is-selected" : "") +
+          '" data-app-id="' +
+          esc(app.id) +
+          '">' +
+          '<div class="app-card-top">' +
+          '<h3 class="app-card-name">' +
+          esc(app.org) +
+          "</h3>" +
+          '<div class="app-card-badges">' +
+          '<span class="badge ' +
+          lvlClass +
+          '">' +
+          esc(app.target || "AL2") +
+          "</span>" +
+          (isSel ? '<span class="badge badge-selected">' + esc(tr.appBadgeSelected) + "</span>" : "") +
+          "</div></div>" +
+          '<div class="app-card-meta">' +
+          "<div><strong>" +
+          esc(tr.appCardAssessor) +
+          "</strong> " +
+          esc(app.assessor || "—") +
+          "</div>" +
+          "<div><strong>" +
+          esc(tr.appCardLastScan) +
+          "</strong> <code>" +
+          esc(scanStr) +
+          "</code></div>" +
+          (app.targetUrl
+            ? "<div><strong>" + esc(tr.appCardUrl) + "</strong> <code>" + esc(app.targetUrl) + "</code></div>"
+            : "") +
+          "<div><strong>" +
+          esc(tr.appCardSurfaces) +
+          "</strong> <code>" +
+          esc(surfsStr) +
+          "</code></div>" +
+          "</div>" +
+          '<div class="app-card-actions">' +
+          '<button type="button" class="btn-mini-act primary-act" data-app-act="assess" data-app-id="' +
+          esc(app.id) +
+          '">' +
+          esc(tr.appActAssess) +
+          "</button>" +
+          '<button type="button" class="btn-mini-act" data-app-act="report" data-app-id="' +
+          esc(app.id) +
+          '">' +
+          esc(tr.appActReport) +
+          "</button>" +
+          '<button type="button" class="btn-mini-act" data-app-act="edit" data-app-id="' +
+          esc(app.id) +
+          '">' +
+          esc(tr.appActEdit) +
+          "</button>" +
+          '<button type="button" class="btn-mini-act danger-act" data-app-act="delete" data-app-id="' +
+          esc(app.id) +
+          '">' +
+          esc(tr.appActDelete) +
+          "</button>" +
+          "</div></div>"
+        );
+      })
+      .join("");
   }
 
   function applyStaticI18n() {
@@ -722,21 +1216,41 @@
     setTxt("topreset", tr.resetBtn);
     var topresetEl = document.getElementById("topreset");
     if (topresetEl) topresetEl.title = tr.resetTitle;
+    setTxt("i18n-tab-apps", tr.tabApps);
     setTxt("i18n-tab-assess", tr.tabAssess);
     setTxt("i18n-tab-report", tr.tabReport);
+
+    setTxt("i18n-apps-kicker", tr.appsKicker);
+    setTxt("i18n-apps-title", tr.appsTitle);
+    var appsLedeEl = document.getElementById("i18n-apps-lede");
+    if (appsLedeEl) appsLedeEl.innerHTML = tr.appsLede;
+    setTxt("i18n-apps-list-title", tr.appsListTitle);
+    setTxt("i18n-apps-list-sub", tr.appsListSub);
+    setTxt("btn-focus-new-app", tr.btnFocusNewApp);
+    setTxt("i18n-app-form-sub", tr.appFormSub);
+    setTxt("i18n-app-lbl-org", tr.appLblOrg);
+    setTxt("i18n-app-lbl-assessor", tr.appLblAssessor);
+    setTxt("i18n-app-lbl-target", tr.appLblTarget);
+    setTxt("i18n-app-opt-al1", tr.optAL1);
+    setTxt("i18n-app-opt-al2", tr.optAL2);
+    setTxt("i18n-app-lbl-url", tr.lblUrl);
+    setTxt("i18n-app-lbl-repo", tr.lblRepo);
+    setTxt("i18n-app-surfaces-lbl", tr.surfacesLbl);
+    if (els.appOrg) els.appOrg.placeholder = tr.phOrg;
+    if (els.appAssessor) els.appAssessor.placeholder = tr.phAssessor;
+    applyAppFormLabels();
+
     setTxt("i18n-hero-kicker", tr.heroKicker);
     setTxt("i18n-hero-title", tr.heroTitle);
     var ledeEl = document.getElementById("i18n-hero-lede");
     if (ledeEl) ledeEl.innerHTML = tr.heroLede;
 
     setTxt("i18n-lbl-org", tr.lblOrg);
-    els.org.placeholder = tr.phOrg;
     setTxt("i18n-lbl-assessor", tr.lblAssessor);
-    els.assessor.placeholder = tr.phAssessor;
     setTxt("i18n-lbl-date", tr.lblDate);
     setTxt("i18n-lbl-target", tr.lblTarget);
-    setTxt("i18n-opt-al1", tr.optAL1);
-    setTxt("i18n-opt-al2", tr.optAL2);
+    setTxt("i18n-setup-lock-hint", tr.setupLockHint);
+    setTxt("btn-manage-apps", tr.btnManageApps);
 
     setTxt("i18n-pill-auto", tr.pillAuto);
     setTxt("i18n-auto-title", tr.autoTitle);
@@ -758,7 +1272,9 @@
     setTxt("i18n-foot-txt", tr.footTxt);
     setTxt("i18n-foot-link", tr.footLink);
 
-    syncLevelDesc();
+    syncTabGating();
+    syncReadonlySetup();
+    renderAppsList();
   }
 
   /* Language switcher event */
@@ -767,6 +1283,9 @@
       var selected = btn.getAttribute("data-lang");
       if (selected !== "pt" && selected !== "en") return;
       state.meta.lang = selected;
+      try {
+        localStorage.setItem(LANG_STORE_KEY, selected);
+      } catch (e) {}
       save();
       applyStaticI18n();
       renderNav();
@@ -780,6 +1299,118 @@
     });
   });
 
+  if (els.appsList) {
+    els.appsList.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-app-act]");
+      if (!btn) return;
+      var act = btn.getAttribute("data-app-act");
+      var aid = btn.getAttribute("data-app-id");
+      if (act === "assess") selectApplication(aid, "assess");
+      else if (act === "report") selectApplication(aid, "report");
+      else if (act === "edit") startEditApplication(aid);
+      else if (act === "delete") deleteApplication(aid);
+    });
+  }
+
+  var btnFocusNewApp = document.getElementById("btn-focus-new-app");
+  if (btnFocusNewApp) {
+    btnFocusNewApp.addEventListener("click", function () {
+      resetAppForm();
+      var card = document.getElementById("app-form-card");
+      if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (els.appOrg) els.appOrg.focus();
+    });
+  }
+
+  if (els.btnCancelEditApp) {
+    els.btnCancelEditApp.addEventListener("click", function () {
+      resetAppForm();
+    });
+  }
+
+  var btnManageApps = document.getElementById("btn-manage-apps");
+  if (btnManageApps) {
+    btnManageApps.addEventListener("click", function () {
+      switchView("apps");
+    });
+  }
+
+  if (els.appForm) {
+    els.appForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var tr = t();
+      var orgVal = (els.appOrg ? els.appOrg.value : "").trim();
+      var assessorVal = (els.appAssessor ? els.appAssessor.value : "").trim();
+      var targetVal = els.appTarget && els.appTarget.value === "AL1" ? "AL1" : "AL2";
+      var urlVal = (els.appUrl ? els.appUrl.value : "").trim();
+      var repoVal = (els.appRepo ? els.appRepo.value : "").trim();
+      var surfs = [];
+      document.querySelectorAll("[data-app-surface]").forEach(function (cb) {
+        if (cb.checked) surfs.push(cb.getAttribute("data-app-surface"));
+      });
+      if (!surfs.length) surfs = ["Web_Application"];
+
+      if (!orgVal) {
+        if (els.appFormError) {
+          els.appFormError.textContent = tr.appErrOrg;
+          els.appFormError.hidden = false;
+        }
+        if (els.appOrg) els.appOrg.focus();
+        return;
+      }
+      if (!assessorVal) {
+        if (els.appFormError) {
+          els.appFormError.textContent = tr.appErrAssessor;
+          els.appFormError.hidden = false;
+        }
+        if (els.appAssessor) els.appAssessor.focus();
+        return;
+      }
+      if (els.appFormError) els.appFormError.hidden = true;
+
+      var existing = editingAppId ? getAppById(editingAppId) : null;
+      var rec = existing
+        ? {
+            id: existing.id,
+            org: orgVal,
+            assessor: assessorVal,
+            target: targetVal,
+            targetUrl: urlVal,
+            repoPath: repoVal,
+            surfaces: surfs,
+            date: existing.date || "",
+            lastScanAt: existing.lastScanAt || "",
+          }
+        : {
+            id: "app-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6),
+            org: orgVal,
+            assessor: assessorVal,
+            target: targetVal,
+            targetUrl: urlVal,
+            repoPath: repoVal,
+            surfaces: surfs,
+            date: "",
+            lastScanAt: "",
+          };
+
+      if (existing) {
+        for (var i = 0; i < apps.length; i++) {
+          if (apps[i].id === existing.id) {
+            apps[i] = rec;
+            break;
+          }
+        }
+      } else {
+        apps.push(rec);
+      }
+      saveAppsLocal();
+      syncAppToServer(rec);
+      resetAppForm();
+      if (els.appsGateNotice) els.appsGateNotice.hidden = true;
+      selectApplication(rec.id, null);
+    });
+  }
+
   document.querySelectorAll("[data-surface]").forEach(function (cb) {
     var surf = cb.getAttribute("data-surface");
     cb.checked = (state.meta.surfaces || ["Web_Application"]).indexOf(surf) !== -1;
@@ -788,26 +1419,20 @@
       document.querySelectorAll("[data-surface]").forEach(function (el) {
         if (el.checked) checked.push(el.getAttribute("data-surface"));
       });
-      state.meta.surfaces = checked;
+      state.meta.surfaces = checked.length ? checked : ["Web_Application"];
       applySurfaceScoping();
       renderControls();
       loadFigureImages(document.getElementById("controls"));
       updateProgress();
+      var curApp = getAppById(activeAppId);
+      if (curApp) {
+        curApp.surfaces = state.meta.surfaces.slice();
+        saveAppsLocal();
+        syncAppToServer(curApp);
+      }
     });
   });
 
-  els.org.addEventListener("input", function () {
-    state.meta.org = els.org.value;
-    save();
-  });
-  els.assessor.addEventListener("input", function () {
-    state.meta.assessor = els.assessor.value;
-    save();
-  });
-  els.date.addEventListener("input", function () {
-    state.meta.date = els.date.value;
-    save();
-  });
   els.targetUrl.addEventListener("input", function () {
     state.meta.targetUrl = els.targetUrl.value;
     save();
@@ -815,15 +1440,6 @@
   els.repoPath.addEventListener("input", function () {
     state.meta.repoPath = els.repoPath.value;
     save();
-  });
-  els.target.addEventListener("change", function () {
-    state.meta.target = els.target.value;
-    syncLevelDesc();
-    save();
-    renderNav();
-    renderControls();
-    loadFigureImages(document.getElementById("controls"));
-    updateProgress();
   });
 
   /* Filter pills */
@@ -1299,7 +1915,10 @@
 
   /* ---------- Automated AL1 Scanner & Evidence Importer ---------- */
   function applyScanResults(resultsMap, sourceLabel) {
-    var ts = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
+    var now = new Date();
+    var ts = now.toISOString().replace("T", " ").slice(0, 19) + " UTC";
+    var isoDate = today();
+    var isoFull = now.toISOString();
     var updated = 0;
     Object.keys(resultsMap).forEach(function (cid) {
       var r = resultsMap[cid];
@@ -1310,6 +1929,18 @@
       a.autoTimestamp = ts;
       updated++;
     });
+    // SDD 194: Automatically populate Evaluation Date upon scan completion
+    state.meta.date = isoDate;
+    state.meta.lastScanAt = isoFull;
+    var curApp = getAppById(activeAppId);
+    if (curApp) {
+      curApp.date = isoDate;
+      curApp.lastScanAt = isoFull;
+      saveAppsLocal();
+      syncAppToServer(curApp);
+    }
+    syncReadonlySetup();
+    renderAppsList();
     save();
     renderControls();
     loadFigureImages(controlsEl);
@@ -1849,7 +2480,8 @@
     }
 
     var who = state.meta.org ? esc(state.meta.org) : isPt ? "A aplicação alvo" : "The target application";
-    var when = state.meta.date ? (isPt ? " em " : " on ") + esc(state.meta.date) : "";
+    var formattedEvalDate = formatScanDateDisplay(state.meta.date, state.meta.lastScanAt);
+    var when = formattedEvalDate ? (isPt ? " em " : " on ") + esc(formattedEvalDate) : "";
     var introBody = isPt
       ? "<p><b>" +
         who +
@@ -1907,7 +2539,9 @@
     var metaLine =
       (meta.org ? "<span>" + esc(meta.org) + "</span>" : "") +
       (meta.assessor ? "<span>" + esc(meta.assessor) + "</span>" : "") +
-      (meta.date ? "<span>" + esc(meta.date) + "</span>" : "") +
+      "<span>" +
+      esc(formattedEvalDate || tr.reportNoScanDate) +
+      "</span>" +
       "<span>" +
       (isPt ? "Alvo " : "Target ") +
       esc(target) +
@@ -2050,6 +2684,9 @@
       gapHtml +
       '<div id="evidence-slot"></div>' +
       '<div class="report-actions">' +
+      '<button class="btn ghost" id="back-apps" type="button">' +
+      esc(tr.btnBackApps) +
+      "</button>" +
       '<button class="btn ghost" id="back" type="button">' +
       esc(tr.btnBack) +
       "</button>" +
@@ -2061,6 +2698,9 @@
       "</button>" +
       "</div>";
 
+    document.getElementById("back-apps").addEventListener("click", function () {
+      switchView("apps");
+    });
     document.getElementById("back").addEventListener("click", function () {
       switchView("assess");
     });
@@ -2196,17 +2836,28 @@
     }, 1000);
   }
 
-  /* ---------- view switching ---------- */
+  /* ---------- view switching (gated on selected application — SDD 194) ---------- */
   function switchView(view) {
+    if ((view === "assess" || view === "report") && !activeAppId) {
+      if (els.appsGateNotice) {
+        els.appsGateNotice.textContent = t().gateNotice;
+        els.appsGateNotice.hidden = false;
+      }
+      view = "apps";
+    }
+    currentView = view;
+    var appsSec = document.getElementById("view-apps");
     var assess = document.getElementById("view-assess");
     var report = document.getElementById("view-report");
-    var isReport = view === "report";
-    assess.hidden = isReport;
-    report.hidden = !isReport;
+    if (appsSec) appsSec.hidden = view !== "apps";
+    if (assess) assess.hidden = view !== "assess";
+    if (report) report.hidden = view !== "report";
     document.querySelectorAll(".view-switch .seg").forEach(function (b) {
       b.setAttribute("aria-pressed", String(b.getAttribute("data-view") === view));
     });
-    if (isReport) buildReport();
+    if (view === "apps") renderAppsList();
+    if (view === "assess") syncReadonlySetup();
+    if (view === "report") buildReport();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -2220,23 +2871,27 @@
   });
   document.getElementById("brand-home").addEventListener("click", function (e) {
     e.preventDefault();
-    switchView("assess");
+    switchView("apps");
   });
 
   function resetAll() {
+    if (!activeAppId) return;
     var tr = t();
     if (!confirm(tr.confirmReset)) return;
     var currentLang = lang();
+    var curApp = getAppById(activeAppId);
     try {
-      localStorage.removeItem(STORE_KEY);
+      localStorage.removeItem(APP_STATE_PREFIX + activeAppId);
     } catch (e) {}
     idbClear();
-    state = load();
+    if (curApp) {
+      curApp.date = "";
+      curApp.lastScanAt = "";
+      saveAppsLocal();
+      syncAppToServer(curApp);
+    }
+    state = createEmptyState(curApp);
     state.meta.lang = currentLang;
-    els.org.value = state.meta.org;
-    els.assessor.value = "";
-    els.date.value = state.meta.date;
-    els.target.value = "AL2";
     applyStaticI18n();
     applySurfaceScoping();
     switchView("assess");
@@ -2244,6 +2899,8 @@
     renderControls();
     loadFigureImages(controlsEl);
     updateProgress();
+    var progPanel = document.getElementById("scan-progress-panel");
+    if (progPanel) progPanel.hidden = true;
     if (els.autoStatus) {
       els.autoStatus.textContent = t().statusReady;
     }
@@ -2254,11 +2911,8 @@
   var topresetBtn = document.getElementById("topreset");
   if (topresetBtn) topresetBtn.addEventListener("click", resetAll);
 
-  /* ---------- init ---------- */
+  /* ---------- init (always opens on Applications view for pre-selection — SDD 194) ---------- */
   applyStaticI18n();
-  applySurfaceScoping();
-  renderNav();
-  renderControls();
-  loadFigureImages(controlsEl);
-  updateProgress();
+  switchView("apps");
+  fetchAppsFromServer();
 })();

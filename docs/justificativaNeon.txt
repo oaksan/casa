@@ -1829,3 +1829,30 @@ ITERAÇÃO SDD 193 — Progresso em Tempo Real do Scan Automatizado AL1 na UI
    - `test_iteration193_scan_progress_api_and_ui` + regressão
      `test_http_server_and_api_scan_endpoint` + reinício do servidor local na
      porta 8080.
+
+--------------------------------------------------------------------------------
+ITERAÇÃO SDD 194 — Pré-Cadastro/Seleção de Aplicação, Metadados Bloqueados e Data Automática
+--------------------------------------------------------------------------------
+1. Requisitos Atendidos:
+   - Seleção obrigatória de APLICAÇÃO cadastrada ANTES de acessar as guias
+     `Avaliação` e `Relatório`, com fluxo completo de pré-cadastro, edição e
+     exclusão na nova aba inicial `Aplicações` (`#view-apps`).
+   - `Avaliador / Laboratório` e `Nível de Garantia Alvo` (`AL1`/`AL2`)
+     estritamente somente leitura nas guias `Avaliação` e `Relatório`, podendo
+     ser alterados exclusivamente no cadastro da aplicação.
+   - `Data da Avaliação` removida como `<input type="date">` manual e
+     preenchida automaticamente com data/hora somente após a conclusão de um
+     scan em `applyScanResults(...)`.
+2. Implementação:
+   - `casa-assessment/casa_audit/server.py`: endpoints REST `GET/POST/DELETE /api/applications`
+     com persistência em `casa-assessment/output/applications.json` e validação
+     obrigatória de `org`, `assessor` e `target` (`AL1`/`AL2`).
+   - `casa-assessment/frontend/{assess.html,styles.css,app.js}`: nova aba
+     inicial `Aplicações`, bloqueio (`disabled`) das abas `Avaliação`/`Relatório`
+     até a seleção da aplicação, isolamento de respostas/evidências por
+     aplicação, migração automática de dados legados, displays somente leitura
+     (`#org-display`, `#assessor-display`, `#date-display`, `#target-display`),
+     preenchimento automático da data pós-scan, i18n `PT`/`EN` e `?v=sdd194`.
+3. Validação:
+   - `node --check casa-assessment/frontend/app.js` + `test_iteration194_app_registry_and_locked_meta`
+     + regressão `test_iteration193_scan_progress_api_and_ui`.

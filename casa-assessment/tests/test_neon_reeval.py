@@ -2671,6 +2671,121 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("ITERAÇÃO SDD 193", just_neon)
 
+    def test_iteration194_app_registry_and_locked_meta(self) -> None:
+        """SDD 194: Application pre-registration/selection gate, locked Assessor/Target & auto scan date."""
+        import http.server
+        import json as _json
+        import threading
+        import urllib.error
+        import urllib.request
+        import casa_audit.server as srv_mod
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            orig_store = srv_mod.APPS_STORE_PATH
+            srv_mod.APPS_STORE_PATH = tdp / "applications.json"
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), srv_mod.CasaAssessmentHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                # 1. Empty registry initially
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/applications", timeout=5) as r0:
+                    self.assertEqual(r0.status, 200)
+                    d0 = _json.loads(r0.read().decode("utf-8"))
+                self.assertEqual(d0["applications"], [])
+
+                # 2. Validation rejects missing assessor
+                bad_req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/applications",
+                    data=_json.dumps({"org": "Juice Shop", "assessor": "", "target": "AL1"}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as ctx_err:
+                    urllib.request.urlopen(bad_req, timeout=5)
+                self.assertEqual(ctx_err.exception.code, 400)
+
+                # 3. Create application -> 201
+                create_req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/applications",
+                    data=_json.dumps(
+                        {
+                            "org": "OWASP Juice Shop",
+                            "assessor": "Felipe Lab",
+                            "target": "AL1",
+                            "targetUrl": "http://localhost:3000",
+                            "repoPath": "/tmp/juice",
+                            "surfaces": ["Web_Application"],
+                        }
+                    ).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(create_req, timeout=5) as r1:
+                    self.assertEqual(r1.status, 201)
+                    d1 = _json.loads(r1.read().decode("utf-8"))
+                app_id = d1["application"]["id"]
+                self.assertEqual(d1["application"]["assessor"], "Felipe Lab")
+                self.assertEqual(d1["application"]["target"], "AL1")
+                self.assertEqual(d1["application"]["date"], "")
+
+                # 4. Update application (assessor + target + auto scan date) -> 200
+                upd_req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/applications",
+                    data=_json.dumps(
+                        {
+                            "id": app_id,
+                            "org": "OWASP Juice Shop",
+                            "assessor": "Felipe Mestrado",
+                            "target": "AL2",
+                            "date": "2026-11-26",
+                            "lastScanAt": "2026-11-26T14:30:00Z",
+                        }
+                    ).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(upd_req, timeout=5) as r2:
+                    self.assertEqual(r2.status, 200)
+                    d2 = _json.loads(r2.read().decode("utf-8"))
+                self.assertEqual(d2["application"]["assessor"], "Felipe Mestrado")
+                self.assertEqual(d2["application"]["target"], "AL2")
+                self.assertEqual(d2["application"]["date"], "2026-11-26")
+
+                # 5. Delete application -> 200
+                del_req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/applications?id={app_id}",
+                    method="DELETE",
+                )
+                with urllib.request.urlopen(del_req, timeout=5) as r3:
+                    self.assertEqual(r3.status, 200)
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/applications", timeout=5) as r4:
+                    self.assertEqual(_json.loads(r4.read().decode("utf-8"))["applications"], [])
+            finally:
+                srv.shutdown()
+                srv.server_close()
+                srv_mod.APPS_STORE_PATH = orig_store
+
+        # 6. Verify frontend enforces: pre-selection view, gated tabs, no editable date/assessor/target in Assessment
+        html_txt = (ROOT_DIR / "casa-assessment" / "frontend" / "assess.html").read_text(encoding="utf-8")
+        js_txt = (ROOT_DIR / "casa-assessment" / "frontend" / "app.js").read_text(encoding="utf-8")
+        assess_section = html_txt.split('id="view-assess"', 1)[1].split('id="view-report"', 1)[0]
+        self.assertIn('id="view-apps"', html_txt)
+        self.assertIn('id="i18n-tab-apps"', html_txt)
+        self.assertIn('id="i18n-tab-assess" data-view="assess" aria-pressed="false" disabled', html_txt)
+        self.assertIn('id="i18n-tab-report" data-view="report" aria-pressed="false" disabled', html_txt)
+        self.assertNotIn('type="date"', html_txt)
+        self.assertNotIn('id="assessor"', assess_section)
+        self.assertNotIn('id="target"', assess_section)
+        self.assertIn('id="assessor-display" data-readonly="true"', assess_section)
+        self.assertIn('id="target-display" data-readonly="true"', assess_section)
+        self.assertIn('id="date-display" data-readonly="true"', assess_section)
+        self.assertIn("/api/applications", js_txt)
+        self.assertIn('switchView("apps")', js_txt)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("ITERAÇÃO SDD 194", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

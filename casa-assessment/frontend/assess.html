@@ -8,12 +8,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=sdd193" />
+  <link rel="stylesheet" href="styles.css?v=sdd194" />
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="#view-assess" id="brand-home" title="ADA CASA 3.0 Assessment">
+      <a class="brand" href="#view-apps" id="brand-home" title="ADA CASA 3.0 Assessment">
         <span class="brand-badge">ADA</span>
         <span class="brand-divider" aria-hidden="true"></span>
         <span class="brand-mark">CASA 3.0</span>
@@ -24,18 +24,96 @@
           <button class="lang-btn" type="button" data-lang="pt" aria-pressed="true" title="Exibir em Português (Brasil)">PT</button>
           <button class="lang-btn" type="button" data-lang="en" aria-pressed="false" title="Display in English">EN</button>
         </div>
-        <button class="topreset" id="topreset" type="button" title="Clear all saved verdicts, automated runs, notes and screenshots stored in this browser">Reset</button>
+        <button class="topreset" id="topreset" type="button" title="Clear saved verdicts, automated runs, notes and screenshots for the selected application">Reset</button>
         <nav class="view-switch" aria-label="Views">
-          <button class="seg" id="i18n-tab-assess" data-view="assess" aria-pressed="true">Assessment</button>
-          <button class="seg" id="i18n-tab-report" data-view="report" aria-pressed="false">Report</button>
+          <button class="seg" id="i18n-tab-apps" data-view="apps" aria-pressed="true">Aplicações</button>
+          <button class="seg" id="i18n-tab-assess" data-view="assess" aria-pressed="false" disabled aria-disabled="true">Avaliação</button>
+          <button class="seg" id="i18n-tab-report" data-view="report" aria-pressed="false" disabled aria-disabled="true">Relatório</button>
         </nav>
       </div>
     </div>
   </header>
 
   <main class="wrap">
+    <!-- APPLICATIONS SELECTION & REGISTRATION VIEW (SDD 194) -->
+    <section id="view-apps">
+      <div class="hero">
+        <div class="hero-kicker" id="i18n-apps-kicker">App Defense Alliance &middot; Linux Foundation &middot; v3.0</div>
+        <h1 id="i18n-apps-title">Aplicações CASA 3.0</h1>
+        <p class="lede" id="i18n-apps-lede">
+          Selecione uma aplicação cadastrada para iniciar a <strong>Avaliação</strong> ou visualizar o <strong>Relatório</strong>.
+          Caso a aplicação ainda não exista, cadastre-a abaixo — <strong>Avaliador</strong> e <strong>Nível de Garantia Alvo</strong> são definidos exclusivamente neste cadastro.
+        </p>
+      </div>
+
+      <div class="apps-notice card" id="apps-gate-notice" hidden role="status"></div>
+
+      <!-- REGISTERED APPLICATIONS LIST -->
+      <div class="apps-section card" id="apps-list-card">
+        <div class="apps-sec-head">
+          <div>
+            <h2 id="i18n-apps-list-title">Aplicações Cadastradas</h2>
+            <p class="apps-sec-sub" id="i18n-apps-list-sub">Escolha uma aplicação para liberar as guias Avaliação e Relatório.</p>
+          </div>
+          <button class="btn ghost btn-sm" id="btn-focus-new-app" type="button">+ Cadastrar Nova Aplicação</button>
+        </div>
+        <div class="apps-grid" id="apps-list"></div>
+      </div>
+
+      <!-- REGISTER / EDIT APPLICATION FORM -->
+      <div class="apps-section card" id="app-form-card">
+        <div class="apps-sec-head">
+          <div>
+            <h2 id="i18n-app-form-title">Cadastrar Nova Aplicação</h2>
+            <p class="apps-sec-sub" id="i18n-app-form-sub">Preencha os dados da aplicação, o avaliador responsável e o nível de garantia alvo (AL1 ou AL2).</p>
+          </div>
+        </div>
+        <form id="app-form" novalidate>
+          <input type="hidden" id="app-edit-id" value="" />
+          <div class="app-form-grid">
+            <div class="field">
+              <label for="app-org" id="i18n-app-lbl-org">Aplicação / Organização *</label>
+              <input id="app-org" type="text" placeholder="ex.: OWASP Juice Shop" autocomplete="off" required />
+            </div>
+            <div class="field">
+              <label for="app-assessor" id="i18n-app-lbl-assessor">Avaliador / Laboratório *</label>
+              <input id="app-assessor" type="text" placeholder="ex.: Felipe — Laboratório Mestrado" autocomplete="off" required />
+            </div>
+            <div class="field">
+              <label for="app-target" id="i18n-app-lbl-target">Nível de Garantia Alvo *</label>
+              <select id="app-target">
+                <option value="AL1" id="i18n-app-opt-al1">AL1 — Avaliação Automatizada (61 Controles)</option>
+                <option value="AL2" id="i18n-app-opt-al2" selected>AL2 — Avaliação Completa de Lab (61 AL1 + 15 AL2)</option>
+              </select>
+            </div>
+          </div>
+          <div class="auto-inputs" style="margin-top: 12px;">
+            <div class="field">
+              <label for="app-url" id="i18n-app-lbl-url">URL da Aplicação Alvo (para TLS, Headers, Cookies, DAST)</label>
+              <input id="app-url" type="url" placeholder="http://localhost:3000" value="http://localhost:3000" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="app-repo" id="i18n-app-lbl-repo">Caminho do Repositório / Artefato (para SCA, SAST, Segredos)</label>
+              <input id="app-repo" type="text" placeholder="/home/user/felipe/speckit/juice-shop-master" value="/home/user/felipe/speckit/juice-shop-master" autocomplete="off" />
+            </div>
+          </div>
+          <div class="app-form-surfaces">
+            <span class="surfaces-label" id="i18n-app-surfaces-lbl">Superfícies Declaradas:</span>
+            <label class="surf-check"><input type="checkbox" data-app-surface="Web_Application" checked /> <span>Web_Application</span></label>
+            <label class="surf-check"><input type="checkbox" data-app-surface="Mobile" /> <span>Mobile</span></label>
+            <label class="surf-check"><input type="checkbox" data-app-surface="Native" /> <span>Native</span></label>
+          </div>
+          <div class="app-form-error" id="app-form-error" hidden role="alert"></div>
+          <div class="app-form-actions">
+            <button class="btn primary btn-sm" id="btn-save-app" type="submit">Cadastrar Aplicação</button>
+            <button class="btn ghost btn-sm" id="btn-cancel-edit-app" type="button" hidden>Cancelar Edição</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
     <!-- ASSESSMENT VIEW -->
-    <section id="view-assess">
+    <section id="view-assess" hidden>
       <aside class="rail" id="rail" aria-label="Jump to domain"></aside>
       <div class="hero">
         <div class="hero-kicker" id="i18n-hero-kicker">App Defense Alliance &middot; Linux Foundation &middot; v3.0</div>
@@ -47,26 +125,29 @@
         </p>
       </div>
 
-      <!-- SETUP METADATA CARD -->
-      <div class="setup card">
-        <div class="field">
-          <label for="org" id="i18n-lbl-org">Application / Organization</label>
-          <input id="org" type="text" placeholder="e.g. OWASP Juice Shop" autocomplete="off" />
+      <!-- READ-ONLY APPLICATION METADATA CARD (SDD 194) -->
+      <div class="setup-wrap card">
+        <div class="setup setup-readonly">
+          <div class="field readonly-field">
+            <span class="field-lbl" id="i18n-lbl-org">Application / Organization</span>
+            <div class="readonly-val" id="org-display" data-readonly="true">&mdash;</div>
+          </div>
+          <div class="field readonly-field">
+            <span class="field-lbl"><span id="i18n-lbl-assessor">Assessor / Security Lab</span> <span class="lock-tag" title="Editável apenas no cadastro da Aplicação" aria-hidden="true">&#128274;</span></span>
+            <div class="readonly-val" id="assessor-display" data-readonly="true">&mdash;</div>
+          </div>
+          <div class="field readonly-field">
+            <span class="field-lbl"><span id="i18n-lbl-date">Date of Evaluation</span> <span class="lock-tag" title="Preenchida automaticamente após o scan" aria-hidden="true">&#9201;</span></span>
+            <div class="readonly-val readonly-date" id="date-display" data-readonly="true">&mdash;</div>
+          </div>
+          <div class="field readonly-field">
+            <span class="field-lbl"><span id="i18n-lbl-target">Target Assurance Level</span> <span class="lock-tag" title="Editável apenas no cadastro da Aplicação" aria-hidden="true">&#128274;</span></span>
+            <div class="readonly-val" id="target-display" data-readonly="true">&mdash;</div>
+          </div>
         </div>
-        <div class="field">
-          <label for="assessor" id="i18n-lbl-assessor">Assessor / Security Lab</label>
-          <input id="assessor" type="text" placeholder="e.g. Master's Research Lab" autocomplete="off" />
-        </div>
-        <div class="field">
-          <label for="date" id="i18n-lbl-date">Date of Evaluation</label>
-          <input id="date" type="date" />
-        </div>
-        <div class="field">
-          <label for="target" id="i18n-lbl-target">Target Assurance Level</label>
-          <select id="target">
-            <option value="AL1" id="i18n-opt-al1">AL1 &mdash; Automated Assessment (61 Controls)</option>
-            <option value="AL2" id="i18n-opt-al2" selected>AL2 &mdash; Full Lab Assessment (61 AL1 + 15 AL2)</option>
-          </select>
+        <div class="setup-lock-bar">
+          <span class="setup-lock-hint" id="i18n-setup-lock-hint">Avaliador e Nível Alvo só podem ser alterados no cadastro da Aplicação. A Data da Avaliação é preenchida automaticamente após a conclusão do scan.</span>
+          <button class="btn ghost btn-sm" id="btn-manage-apps" type="button">&larr; Trocar / Editar Aplicação</button>
         </div>
       </div>
 
@@ -173,7 +254,7 @@
     <a href="https://github.com/oaksan/casa" target="_blank" rel="noopener" id="i18n-foot-link">Project on GitHub</a>
   </footer>
 
-  <script src="data.js?v=sdd193"></script>
-  <script src="app.js?v=sdd193"></script>
+  <script src="data.js?v=sdd194"></script>
+  <script src="app.js?v=sdd194"></script>
 </body>
 </html>

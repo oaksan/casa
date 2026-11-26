@@ -13,9 +13,98 @@ import uuid
 from pathlib import Path
 
 import casa_audit.scanner
-from casa_audit.scanner import load_controls
+from casa_audit.scanner import OUTPUT_DIR, load_controls
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+APPS_STORE_PATH = OUTPUT_DIR / "applications.json"
+_APPS_LOCK = threading.Lock()
+
+
+def _load_applications_store(store_path: Path | None = None) -> list[dict]:
+    path = store_path or APPS_STORE_PATH
+    with _APPS_LOCK:
+        if not path.exists():
+            return []
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                return [item for item in raw if isinstance(item, dict) and item.get("id")]
+        except Exception:
+            pass
+        return []
+
+
+def _save_applications_store(apps: list[dict], store_path: Path | None = None) -> None:
+    path = store_path or APPS_STORE_PATH
+    with _APPS_LOCK:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(apps, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def upsert_application_record(payload: dict, store_path: Path | None = None) -> tuple[dict | None, str | None, bool]:
+    """Create or update a registered application record. Returns (record, error_msg, created)."""
+    org = str(payload.get("org") or payload.get("name") or "").strip()
+    assessor = str(payload.get("assessor") or "").strip()
+    target = str(payload.get("target") or "AL2").strip().upper()
+    if not org:
+        return None, "Application / Organization name is required.", False
+    if not assessor:
+        return None, "Assessor / Security Lab is required.", False
+    if target not in {"AL1", "AL2"}:
+        return None, "Target Assurance Level must be AL1 or AL2.", False
+
+    target_url = str(payload.get("targetUrl") or payload.get("target_url") or "").strip()
+    repo_path = str(payload.get("repoPath") or payload.get("repo_path") or "").strip()
+    raw_surfaces = payload.get("surfaces")
+    valid_surfaces = [s for s in (raw_surfaces or ["Web_Application"]) if s in {"Web_Application", "Mobile", "Native"}]
+    if not valid_surfaces:
+        valid_surfaces = ["Web_Application"]
+
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    req_id = str(payload.get("id") or "").strip()
+    apps = _load_applications_store(store_path)
+
+    existing = next((a for a in apps if a.get("id") == req_id), None) if req_id else None
+    if existing is not None:
+        existing["org"] = org
+        existing["assessor"] = assessor
+        existing["target"] = target
+        existing["targetUrl"] = target_url
+        existing["repoPath"] = repo_path
+        existing["surfaces"] = valid_surfaces
+        if "lastScanAt" in payload:
+            existing["lastScanAt"] = str(payload.get("lastScanAt") or "")
+        if "date" in payload:
+            existing["date"] = str(payload.get("date") or "")
+        existing["updatedAt"] = now_iso
+        _save_applications_store(apps, store_path)
+        return existing, None, False
+
+    new_rec = {
+        "id": req_id or f"app-{uuid.uuid4().hex[:10]}",
+        "org": org,
+        "assessor": assessor,
+        "target": target,
+        "targetUrl": target_url,
+        "repoPath": repo_path,
+        "surfaces": valid_surfaces,
+        "date": str(payload.get("date") or ""),
+        "lastScanAt": str(payload.get("lastScanAt") or ""),
+        "createdAt": now_iso,
+        "updatedAt": now_iso,
+    }
+    apps.append(new_rec)
+    _save_applications_store(apps, store_path)
+    return new_rec, None, True
+
+
+def delete_application_record(app_id: str, store_path: Path | None = None) -> bool:
+    apps = _load_applications_store(store_path)
+    new_apps = [a for a in apps if a.get("id") != app_id]
+    if len(new_apps) == len(apps):
+        return False
+    _save_applications_store(new_apps, store_path)
+    return True
 
 DOMAIN_SPEC: list[tuple[str, int]] = [
     ("SCA", 5),
@@ -243,6 +332,10 @@ class CasaAssessmentHandler(http.server.SimpleHTTPRequestHandler):
             controls = load_controls()
             self._send_json(200, {"count": len(controls), "controls": controls})
             return
+        if parsed.path == "/api/applications":
+            apps = _load_applications_store()
+            self._send_json(200, {"count": len(apps), "applications": apps})
+            return
         if parsed.path == "/api/scan/status":
             qs = urllib.parse.parse_qs(parsed.query)
             scan_id = (qs.get("id") or [""])[0].strip()
@@ -254,8 +347,37 @@ class CasaAssessmentHandler(http.server.SimpleHTTPRequestHandler):
             return
         return super().do_GET()
 
+    def do_DELETE(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/applications":
+            qs = urllib.parse.parse_qs(parsed.query)
+            app_id = (qs.get("id") or [""])[0].strip()
+            if not app_id:
+                self._send_json(400, {"error": "Missing application id"})
+                return
+            deleted = delete_application_record(app_id)
+            if not deleted:
+                self._send_json(404, {"error": "Application not found", "id": app_id})
+                return
+            self._send_json(200, {"status": "deleted", "id": app_id})
+            return
+        self._send_json(404, {"error": "Not found"})
+
     def do_POST(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/applications":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                body = json.loads(raw)
+            except Exception:
+                body = {}
+            rec, err, created = upsert_application_record(body if isinstance(body, dict) else {})
+            if err or rec is None:
+                self._send_json(400, {"error": err or "Invalid application payload"})
+                return
+            self._send_json(201 if created else 200, {"status": "created" if created else "updated", "application": rec})
+            return
         if parsed.path in {"/api/scan", "/api/scan/start"}:
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"

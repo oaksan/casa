@@ -225,7 +225,16 @@ class CasaAssessmentHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(FRONTEND_DIR), **kwargs)
 
+    def end_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        super().end_headers()
+
     def do_GET(self) -> None:
+        if "If-Modified-Since" in self.headers:
+            del self.headers["If-Modified-Since"]
+        if "If-None-Match" in self.headers:
+            del self.headers["If-None-Match"]
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path in {"/", "/index.html"}:
             self.path = "/assess.html"
@@ -287,7 +296,6 @@ class CasaAssessmentHandler(http.server.SimpleHTTPRequestHandler):
         encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)

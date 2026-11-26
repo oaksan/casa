@@ -2786,6 +2786,84 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("ITERAÇÃO SDD 194", just_neon)
 
+    def test_iteration195_report_pass_evolution_and_history(self) -> None:
+        """SDD 195: Scan history REST persistence, latest-by-default selector & Pass Rate evolution chart."""
+        import http.server
+        import json as _json
+        import threading
+        import urllib.request
+        import casa_audit.server as srv_mod
+
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            orig_apps = srv_mod.APPS_STORE_PATH
+            orig_hist = srv_mod.HISTORY_STORE_PATH
+            srv_mod.APPS_STORE_PATH = tdp / "applications.json"
+            srv_mod.HISTORY_STORE_PATH = tdp / "scan_history.json"
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), srv_mod.CasaAssessmentHandler)
+            port = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                # 1. Register an application
+                c_req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/applications",
+                    data=_json.dumps({"org": "Juice Shop", "assessor": "Felipe", "target": "AL1"}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(c_req, timeout=5) as rc:
+                    app_id = _json.loads(rc.read().decode("utf-8"))["application"]["id"]
+
+                # 2. Save 3 scan runs out of chronological order and verify sorted retrieval
+                sample_runs = [
+                    {"id": "run-3", "executedAt": "2026-11-26T15:00:00Z", "date": "2026-11-26", "target": "AL1", "summary": {"passPct": 85, "passedCount": 50, "applicableCount": 59}, "answers": {"SCA-01": {"verdict": "PASS"}}},
+                    {"id": "run-1", "executedAt": "2026-11-20T10:00:00Z", "date": "2026-11-20", "target": "AL1", "summary": {"passPct": 20, "passedCount": 12, "applicableCount": 59}, "answers": {"SCA-01": {"verdict": "FAIL"}}},
+                    {"id": "run-2", "executedAt": "2026-11-23T12:30:00Z", "date": "2026-11-23", "target": "AL1", "summary": {"passPct": 55, "passedCount": 32, "applicableCount": 59}, "answers": {"SCA-01": {"verdict": "PASS"}}},
+                ]
+                for run_obj in sample_runs:
+                    h_req = urllib.request.Request(
+                        f"http://127.0.0.1:{port}/api/applications/history",
+                        data=_json.dumps({"app_id": app_id, "run": run_obj}).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(h_req, timeout=5) as rh:
+                        self.assertEqual(rh.status, 201)
+
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/applications/history?app_id={app_id}", timeout=5) as rg:
+                    self.assertEqual(rg.status, 200)
+                    hist_data = _json.loads(rg.read().decode("utf-8"))
+                self.assertEqual(hist_data["count"], 3)
+                self.assertEqual([r["id"] for r in hist_data["runs"]], ["run-1", "run-2", "run-3"])
+                self.assertEqual([r["summary"]["passPct"] for r in hist_data["runs"]], [20, 55, 85])
+
+                # 3. Deleting the application also purges its scan history
+                d_req = urllib.request.Request(f"http://127.0.0.1:{port}/api/applications?id={app_id}", method="DELETE")
+                with urllib.request.urlopen(d_req, timeout=5) as rd:
+                    self.assertEqual(rd.status, 200)
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/applications/history?app_id={app_id}", timeout=5) as rg2:
+                    self.assertEqual(_json.loads(rg2.read().decode("utf-8"))["runs"], [])
+            finally:
+                srv.shutdown()
+                srv.server_close()
+                srv_mod.APPS_STORE_PATH = orig_apps
+                srv_mod.HISTORY_STORE_PATH = orig_hist
+
+        # 4. Verify frontend evolution chart, latest-by-default selector, and cache-busting
+        html_txt = (ROOT_DIR / "casa-assessment" / "frontend" / "assess.html").read_text(encoding="utf-8")
+        js_txt = (ROOT_DIR / "casa-assessment" / "frontend" / "app.js").read_text(encoding="utf-8")
+        css_txt = (ROOT_DIR / "casa-assessment" / "frontend" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn("app.js?v=sdd195", html_txt)
+        self.assertIn("function passRateEvolutionChart(", js_txt)
+        self.assertIn('id="report-run-select"', js_txt)
+        self.assertIn("/api/applications/history", js_txt)
+        self.assertIn("evo-point", js_txt)
+        self.assertIn(".evolution-card", css_txt)
+        self.assertIn(".report-history-bar", css_txt)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("ITERAÇÃO SDD 195", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

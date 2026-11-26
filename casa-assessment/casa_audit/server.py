@@ -17,7 +17,10 @@ from casa_audit.scanner import OUTPUT_DIR, load_controls
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 APPS_STORE_PATH = OUTPUT_DIR / "applications.json"
+HISTORY_STORE_PATH = OUTPUT_DIR / "scan_history.json"
 _APPS_LOCK = threading.Lock()
+_HISTORY_LOCK = threading.Lock()
+_MAX_HISTORY_RUNS_PER_APP = 100
 
 
 def _load_applications_store(store_path: Path | None = None) -> list[dict]:
@@ -104,7 +107,84 @@ def delete_application_record(app_id: str, store_path: Path | None = None) -> bo
     if len(new_apps) == len(apps):
         return False
     _save_applications_store(new_apps, store_path)
+    if store_path is None:
+        clear_app_scan_history(app_id)
     return True
+
+
+def _load_scan_history_store(store_path: Path | None = None) -> dict[str, list[dict]]:
+    path = store_path or HISTORY_STORE_PATH
+    with _HISTORY_LOCK:
+        if not path.exists():
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                return {
+                    str(k): [r for r in v if isinstance(r, dict) and r.get("id")]
+                    for k, v in raw.items()
+                    if isinstance(v, list)
+                }
+        except Exception:
+            pass
+        return {}
+
+
+def _save_scan_history_store(data: dict[str, list[dict]], store_path: Path | None = None) -> None:
+    path = store_path or HISTORY_STORE_PATH
+    with _HISTORY_LOCK:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def get_app_scan_history(app_id: str, store_path: Path | None = None) -> list[dict]:
+    data = _load_scan_history_store(store_path)
+    runs = list(data.get(app_id, []))
+    runs.sort(key=lambda r: str(r.get("executedAt") or r.get("date") or ""))
+    return runs
+
+
+def append_app_scan_history(payload: dict, store_path: Path | None = None) -> tuple[dict | None, str | None]:
+    """Append (or upsert by run id) a scan execution snapshot for an application."""
+    app_id = str(payload.get("app_id") or payload.get("appId") or "").strip()
+    if not app_id:
+        return None, "Missing app_id."
+    run_obj = payload.get("run") if isinstance(payload.get("run"), dict) else payload
+    run_id = str(run_obj.get("id") or f"run-{uuid.uuid4().hex[:10]}").strip()
+    executed_at = str(run_obj.get("executedAt") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())).strip()
+    date_str = str(run_obj.get("date") or executed_at[:10]).strip()
+    summary = run_obj.get("summary") if isinstance(run_obj.get("summary"), dict) else {}
+    answers = run_obj.get("answers") if isinstance(run_obj.get("answers"), dict) else {}
+
+    rec = {
+        "id": run_id,
+        "appId": app_id,
+        "executedAt": executed_at,
+        "date": date_str,
+        "source": str(run_obj.get("source") or "ada-casa-audit Live Scanner"),
+        "target": str(run_obj.get("target") or "AL2"),
+        "surfaces": list(run_obj.get("surfaces") or ["Web_Application"]),
+        "summary": summary,
+        "answers": answers,
+    }
+    data = _load_scan_history_store(store_path)
+    runs = [r for r in data.get(app_id, []) if r.get("id") != run_id]
+    runs.append(rec)
+    runs.sort(key=lambda r: str(r.get("executedAt") or r.get("date") or ""))
+    if len(runs) > _MAX_HISTORY_RUNS_PER_APP:
+        runs = runs[-_MAX_HISTORY_RUNS_PER_APP:]
+    data[app_id] = runs
+    _save_scan_history_store(data, store_path)
+    return rec, None
+
+
+def clear_app_scan_history(app_id: str, store_path: Path | None = None) -> None:
+    if not app_id:
+        return
+    data = _load_scan_history_store(store_path)
+    if app_id in data:
+        data.pop(app_id, None)
+        _save_scan_history_store(data, store_path)
 
 DOMAIN_SPEC: list[tuple[str, int]] = [
     ("SCA", 5),
@@ -336,6 +416,15 @@ class CasaAssessmentHandler(http.server.SimpleHTTPRequestHandler):
             apps = _load_applications_store()
             self._send_json(200, {"count": len(apps), "applications": apps})
             return
+        if parsed.path == "/api/applications/history":
+            qs = urllib.parse.parse_qs(parsed.query)
+            app_id = (qs.get("app_id") or qs.get("id") or [""])[0].strip()
+            if not app_id:
+                self._send_json(400, {"error": "Missing app_id"})
+                return
+            runs = get_app_scan_history(app_id)
+            self._send_json(200, {"app_id": app_id, "count": len(runs), "runs": runs})
+            return
         if parsed.path == "/api/scan/status":
             qs = urllib.parse.parse_qs(parsed.query)
             scan_id = (qs.get("id") or [""])[0].strip()
@@ -361,10 +450,33 @@ class CasaAssessmentHandler(http.server.SimpleHTTPRequestHandler):
                 return
             self._send_json(200, {"status": "deleted", "id": app_id})
             return
+        if parsed.path == "/api/applications/history":
+            qs = urllib.parse.parse_qs(parsed.query)
+            app_id = (qs.get("app_id") or qs.get("id") or [""])[0].strip()
+            if not app_id:
+                self._send_json(400, {"error": "Missing app_id"})
+                return
+            clear_app_scan_history(app_id)
+            self._send_json(200, {"status": "cleared", "app_id": app_id})
+            return
         self._send_json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/applications/history":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                body = json.loads(raw)
+            except Exception:
+                body = {}
+            rec, err = append_app_scan_history(body if isinstance(body, dict) else {})
+            if err or rec is None:
+                self._send_json(400, {"error": err or "Invalid history payload"})
+                return
+            runs = get_app_scan_history(rec["appId"])
+            self._send_json(201, {"status": "saved", "run": rec, "count": len(runs)})
+            return
         if parsed.path == "/api/applications":
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"

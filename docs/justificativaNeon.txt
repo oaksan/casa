@@ -1856,3 +1856,31 @@ ITERAÇÃO SDD 194 — Pré-Cadastro/Seleção de Aplicação, Metadados Bloquea
 3. Validação:
    - `node --check casa-assessment/frontend/app.js` + `test_iteration194_app_registry_and_locked_meta`
      + regressão `test_iteration193_scan_progress_api_and_ui`.
+
+--------------------------------------------------------------------------------
+ITERAÇÃO SDD 195 — Evolução da Taxa de Sucesso (Pass) e Histórico de Relatórios
+--------------------------------------------------------------------------------
+1. Requisitos Atendidos:
+   - Visualização na guia `Relatório` de gráfico SVG interativo de evolução da
+     taxa de Sucesso (`PASS %`) ao longo das datas/horários de execução de scan
+     na Aplicação selecionada, com badge de variação (`delta %`) e pontos clicáveis.
+   - Exibição sempre do resultado da **última execução de Scan** por padrão ao
+     abrir a guia `Relatório`.
+   - Seletor de execuções (`#report-run-select`), botões `◀ Anterior`,
+     `Próxima ▶`, `Ver Última Execução →` e banner de visualização histórica
+     permitindo consultar, imprimir ou exportar qualquer relatório anterior sem
+     alterar o estado atual da aplicação.
+2. Implementação:
+   - `casa-assessment/casa_audit/server.py`: persistência em
+     `casa-assessment/output/scan_history.json` e endpoints
+     `GET/POST/DELETE /api/applications/history` (com limpeza automática ao
+     excluir a aplicação).
+   - `casa-assessment/frontend/{assess.html,styles.css,app.js}`: gravação de
+     snapshots imutáveis em `applyScanResults(...)`, sincronização com backend
+     e `localStorage`, função `passRateEvolutionChart`, barra seletora
+     `.report-history-bar`, exportação/impressão fiel ao snapshot selecionado,
+     suporte completo a `PT`/`EN` e `?v=sdd195`.
+3. Validação:
+   - `node --check casa-assessment/frontend/app.js` +
+     `test_iteration195_report_pass_evolution_and_history` + regressão
+     `test_iteration194_app_registry_and_locked_meta`.

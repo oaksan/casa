@@ -7,6 +7,7 @@
   var APPS_STORE_KEY = "casa3-applications-v1";
   var ACTIVE_APP_KEY = "casa3-active-app-v1";
   var APP_STATE_PREFIX = "casa3-app-state-";
+  var APP_HISTORY_PREFIX = "casa3-app-history-";
   var LANG_STORE_KEY = "casa3-lang-v1";
 
   var I18N = {
@@ -57,6 +58,23 @@
       datePendingScan: "Preenchida automaticamente após o scan",
       reportNoScanDate: "Scan ainda não concluído",
       btnBackApps: "← Aplicações",
+      repHistLabel: "Execução do Scan:",
+      repHistLatestTag: "Última execução",
+      repHistPrev: "◀ Anterior",
+      repHistNext: "Próxima ▶",
+      repHistGoLatest: "Ver Última Execução →",
+      repHistNoRuns: "Nenhum scan registrado ainda",
+      repHistBanner: function (idx, total, dt) {
+        return "Visualizando relatório histórico — Execução #" + idx + " de " + total + " (" + dt + ").";
+      },
+      secEvolution: "Evolução da Taxa de Sucesso (Pass) por Data de Scan",
+      evoTitle: "Histórico de Taxa de Aprovação (PASS %)",
+      evoEmpty: "Execute ao menos um scan automatizado para registrar o histórico e acompanhar a evolução da taxa de sucesso.",
+      evoSingleHint: "1 execução registrada (linha de base). Execute novos scans após correções para visualizar a curva de evolução.",
+      evoMultiHint: "Clique em qualquer ponto do gráfico ou use o seletor acima para abrir o relatório completo daquela execução.",
+      evoRunsCount: function (n) {
+        return n + (n === 1 ? " execução" : " execuções");
+      },
       heroKicker: "App Defense Alliance · Linux Foundation · v3.0",
       heroTitle: "Avaliação CASA 3.0",
       heroLede:
@@ -233,6 +251,23 @@
       datePendingScan: "Auto-filled after scan completion",
       reportNoScanDate: "Scan not yet completed",
       btnBackApps: "← Applications",
+      repHistLabel: "Scan Execution:",
+      repHistLatestTag: "Latest run",
+      repHistPrev: "◀ Previous",
+      repHistNext: "Next ▶",
+      repHistGoLatest: "View Latest Run →",
+      repHistNoRuns: "No scan runs recorded yet",
+      repHistBanner: function (idx, total, dt) {
+        return "Viewing historical report — Run #" + idx + " of " + total + " (" + dt + ").";
+      },
+      secEvolution: "Pass Rate Evolution Across Scan Dates",
+      evoTitle: "Pass Rate History (PASS %)",
+      evoEmpty: "Run at least one automated scan to record history and track pass-rate evolution over time.",
+      evoSingleHint: "1 scan run recorded (baseline). Run additional scans after fixes to visualize the evolution curve.",
+      evoMultiHint: "Click any point on the chart or use the selector above to inspect the full report from that run.",
+      evoRunsCount: function (n) {
+        return n + (n === 1 ? " run" : " runs");
+      },
       heroKicker: "App Defense Alliance · Linux Foundation · v3.0",
       heroTitle: "CASA 3.0 Assessment",
       heroLede:
@@ -383,7 +418,204 @@
   var editingAppId = "";
   var currentView = "apps";
   var activeFilter = "all";
+  var appScanHistory = [];
+  var selectedReportRunId = null;
   var state = createEmptyState();
+
+  function cloneJson(obj) {
+    try {
+      return JSON.parse(JSON.stringify(obj || {}));
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function computeAnswersSummary(answersMap, targetLevel) {
+    var tgt = targetLevel === "AL1" ? "AL1" : "AL2";
+    var inScope = DATA.controls.filter(function (c) {
+      return tgt === "AL1" ? c.tier === "AL1" : true;
+    });
+    var assessed = 0,
+      applicable = 0,
+      passed = 0,
+      failed = 0,
+      notCovered = 0,
+      na = 0;
+    inScope.forEach(function (c) {
+      var a = answersMap && answersMap[c.id];
+      if (!a || a.verdict == null) return;
+      assessed++;
+      if (a.verdict === "NOT_APPLICABLE") {
+        na++;
+      } else {
+        applicable++;
+        if (a.verdict === "PASS") passed++;
+        else if (a.verdict === "FAIL") failed++;
+        else if (a.verdict === "Not_Covered") notCovered++;
+      }
+    });
+    var rate = applicable ? passed / applicable : 0;
+    return {
+      passRate: Math.round(rate * 10000) / 10000,
+      passPct: Math.round(rate * 100),
+      passedCount: passed,
+      applicableCount: applicable,
+      assessedCount: assessed,
+      inScopeCount: inScope.length,
+      failCount: failed,
+      notCoveredCount: notCovered,
+      naCount: na,
+    };
+  }
+
+  function loadAppHistoryLocal(appId, appObj, currentAnswers) {
+    var list = [];
+    if (!appId) return list;
+    try {
+      var raw = localStorage.getItem(APP_HISTORY_PREFIX + appId);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          list = parsed.filter(function (r) {
+            return r && r.id;
+          });
+        }
+      }
+    } catch (e) {}
+
+    // Auto-seed an initial historical run if an app already has a completed scan from before SDD 195
+    if (!list.length && appObj && (appObj.lastScanAt || appObj.date)) {
+      var ans = currentAnswers || loadAppAnswers(appId);
+      var hasVerdict = Object.keys(ans).some(function (k) {
+        return ans[k] && ans[k].verdict != null;
+      });
+      if (hasVerdict) {
+        var execIso = appObj.lastScanAt || (appObj.date ? appObj.date + "T12:00:00Z" : new Date().toISOString());
+        var seedRun = {
+          id: "run-seed-" + appId,
+          appId: appId,
+          executedAt: execIso,
+          date: appObj.date || execIso.slice(0, 10),
+          source: "ada-casa-audit Live Scanner",
+          target: appObj.target === "AL1" ? "AL1" : "AL2",
+          surfaces: (appObj.surfaces || ["Web_Application"]).slice(),
+          summary: computeAnswersSummary(ans, appObj.target),
+          answers: cloneJson(ans),
+        };
+        list = [seedRun];
+        saveAppHistoryLocal(appId, list);
+      }
+    }
+    list.sort(function (a, b) {
+      return String(a.executedAt || a.date || "").localeCompare(String(b.executedAt || b.date || ""));
+    });
+    return list;
+  }
+
+  function saveAppHistoryLocal(appId, runs) {
+    if (!appId) return;
+    try {
+      localStorage.setItem(APP_HISTORY_PREFIX + appId, JSON.stringify(runs || []));
+    } catch (e) {}
+  }
+
+  function pushRunHistoryToServer(appId, runObj) {
+    if (!appId || !runObj) return Promise.resolve();
+    return fetch("/api/applications/history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ app_id: appId, run: runObj }),
+    }).catch(function () {});
+  }
+
+  function fetchAppHistoryFromServer(appId) {
+    if (!appId) return Promise.resolve();
+    return fetch("/api/applications/history?app_id=" + encodeURIComponent(appId), { cache: "no-store" })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (data) {
+        if (!data || !Array.isArray(data.runs) || activeAppId !== appId) return;
+        var byId = {};
+        data.runs.forEach(function (sr) {
+          if (sr && sr.id) byId[sr.id] = sr;
+        });
+        appScanHistory.forEach(function (lr) {
+          if (lr && lr.id && !byId[lr.id]) {
+            byId[lr.id] = lr;
+            pushRunHistoryToServer(appId, lr);
+          }
+        });
+        appScanHistory = Object.keys(byId).map(function (k) {
+          return byId[k];
+        });
+        appScanHistory.sort(function (a, b) {
+          return String(a.executedAt || a.date || "").localeCompare(String(b.executedAt || b.date || ""));
+        });
+        saveAppHistoryLocal(appId, appScanHistory);
+        if (
+          !selectedReportRunId ||
+          !appScanHistory.some(function (r) {
+            return r.id === selectedReportRunId;
+          })
+        ) {
+          selectedReportRunId = appScanHistory.length ? appScanHistory[appScanHistory.length - 1].id : null;
+        }
+        if (currentView === "report") {
+          buildReport();
+        }
+      })
+      .catch(function () {});
+  }
+
+  function recordScanRunSnapshot(sourceLabel, nowDate) {
+    if (!activeAppId) return;
+    var now = nowDate || new Date();
+    var isoFull = now.toISOString();
+    var isoDate = today();
+    var tgt = state.meta.target === "AL1" ? "AL1" : "AL2";
+    var ansCopy = cloneJson(state.answers);
+    var runRec = {
+      id: "run-" + now.getTime().toString(36) + "-" + Math.random().toString(36).slice(2, 6),
+      appId: activeAppId,
+      executedAt: isoFull,
+      date: isoDate,
+      source: sourceLabel || "ada-casa-audit Live Scanner",
+      target: tgt,
+      surfaces: (state.meta.surfaces || ["Web_Application"]).slice(),
+      summary: computeAnswersSummary(ansCopy, tgt),
+      answers: ansCopy,
+    };
+    appScanHistory.push(runRec);
+    appScanHistory.sort(function (a, b) {
+      return String(a.executedAt || a.date || "").localeCompare(String(b.executedAt || b.date || ""));
+    });
+    if (appScanHistory.length > 100) {
+      appScanHistory = appScanHistory.slice(-100);
+    }
+    selectedReportRunId = runRec.id;
+    saveAppHistoryLocal(activeAppId, appScanHistory);
+    pushRunHistoryToServer(activeAppId, runRec);
+  }
+
+  function formatShortChartDate(isoDate, executedAt) {
+    var isPt = lang() === "pt";
+    if (executedAt) {
+      var d = new Date(executedAt);
+      if (!isNaN(d.getTime())) {
+        var dd = pad(d.getDate());
+        var mm = pad(d.getMonth() + 1);
+        var hh = pad(d.getHours());
+        var mi = pad(d.getMinutes());
+        return (isPt ? dd + "/" + mm : mm + "-" + dd) + " " + hh + ":" + mi;
+      }
+    }
+    if (isoDate && /^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+      var p = isoDate.split("-");
+      return isPt ? p[2] + "/" + p[1] : p[1] + "-" + p[2];
+    }
+    return isoDate || "—";
+  }
 
   function getSavedLang() {
     try {
@@ -1080,11 +1312,14 @@
     saveAppsLocal();
     try {
       localStorage.removeItem(APP_STATE_PREFIX + appId);
+      localStorage.removeItem(APP_HISTORY_PREFIX + appId);
     } catch (e) {}
     fetch("/api/applications?id=" + encodeURIComponent(appId), { method: "DELETE" }).catch(function () {});
     if (editingAppId === appId) resetAppForm();
     if (activeAppId === appId) {
       activeAppId = null;
+      appScanHistory = [];
+      selectedReportRunId = null;
       try {
         localStorage.removeItem(ACTIVE_APP_KEY);
       } catch (e) {}
@@ -1104,6 +1339,9 @@
     } catch (e) {}
     state = createEmptyState(app);
     state.answers = loadAppAnswers(app.id);
+    appScanHistory = loadAppHistoryLocal(app.id, app, state.answers);
+    selectedReportRunId = appScanHistory.length ? appScanHistory[appScanHistory.length - 1].id : null;
+    fetchAppHistoryFromServer(app.id);
     if (els.appsGateNotice) els.appsGateNotice.hidden = true;
     syncTabGating();
     syncReadonlySetup();
@@ -1940,6 +2178,7 @@
       syncAppToServer(curApp);
     }
     syncReadonlySetup();
+    recordScanRunSnapshot(sourceLabel, now);
     renderAppsList();
     save();
     renderControls();
@@ -2398,24 +2637,259 @@
     );
   }
 
-  /* ---------- Report View ---------- */
+  function passRateEvolutionChart(runs, selectedId) {
+    var tr = t();
+    var isPt = lang() === "pt";
+    if (!runs || !runs.length) {
+      return (
+        '<div class="section-title">' +
+        esc(tr.secEvolution) +
+        "</div>" +
+        '<div class="evolution-card card"><div class="evo-head"><h3 class="evo-title">' +
+        esc(tr.evoTitle) +
+        '</h3><div class="evo-meta">' +
+        esc(tr.evoRunsCount(0)) +
+        '</div></div><div class="evo-cap">' +
+        esc(tr.evoEmpty) +
+        "</div></div>"
+      );
+    }
+
+    var ptsData = runs.map(function (r, idx) {
+      var sum = r.summary && typeof r.summary.passPct === "number"
+        ? r.summary
+        : computeAnswersSummary(r.answers || {}, r.target || state.meta.target);
+      return {
+        id: r.id,
+        idx: idx + 1,
+        pct: Math.max(0, Math.min(100, Math.round(sum.passPct || 0))),
+        passed: sum.passedCount || 0,
+        applicable: sum.applicableCount || 0,
+        failed: (sum.failCount || 0) + (sum.notCoveredCount || 0),
+        shortDate: formatShortChartDate(r.date, r.executedAt),
+        fullDate: formatScanDateDisplay(r.date, r.executedAt) || r.date || "—",
+        selected: r.id === selectedId,
+      };
+    });
+
+    var W = 820,
+      H = 225,
+      padL = 46,
+      padR = 28,
+      padT = 26,
+      padB = 42,
+      plotW = W - padL - padR,
+      plotH = H - padT - padB;
+
+    function xFor(i) {
+      if (ptsData.length === 1) return padL + plotW / 2;
+      return padL + (i / (ptsData.length - 1)) * plotW;
+    }
+    function yFor(pct) {
+      return padT + (1 - pct / 100) * plotH;
+    }
+
+    var gridHtml = [0, 25, 50, 75, 100]
+      .map(function (v) {
+        var y = yFor(v).toFixed(1);
+        return (
+          '<line class="evo-grid" x1="' +
+          padL +
+          '" y1="' +
+          y +
+          '" x2="' +
+          (W - padR) +
+          '" y2="' +
+          y +
+          '"/>' +
+          '<text class="evo-axis-lbl" x="' +
+          (padL - 8) +
+          '" y="' +
+          (Number(y) + 4).toFixed(1) +
+          '" text-anchor="end">' +
+          v +
+          "%</text>"
+        );
+      })
+      .join("");
+
+    var coords = ptsData.map(function (p, i) {
+      return { x: xFor(i), y: yFor(p.pct), data: p };
+    });
+
+    var lineSvg = "";
+    var areaSvg = "";
+    if (coords.length >= 2) {
+      var polyPts = coords
+        .map(function (c) {
+          return c.x.toFixed(1) + "," + c.y.toFixed(1);
+        })
+        .join(" ");
+      var baseY = yFor(0).toFixed(1);
+      var areaPts =
+        coords[0].x.toFixed(1) +
+        "," +
+        baseY +
+        " " +
+        polyPts +
+        " " +
+        coords[coords.length - 1].x.toFixed(1) +
+        "," +
+        baseY;
+      areaSvg = '<polygon class="evo-area" points="' + areaPts + '"/>';
+      lineSvg = '<polyline class="evo-line" points="' + polyPts + '"/>';
+    }
+
+    // Thin X-axis labels cleanly if many runs exist
+    var labelStep = coords.length > 10 ? Math.ceil(coords.length / 8) : 1;
+    var pointsSvg = coords
+      .map(function (c, i) {
+        var p = c.data;
+        var showDate = i === 0 || i === coords.length - 1 || i % labelStep === 0 || p.selected;
+        var tip =
+          "#" +
+          p.idx +
+          " · " +
+          p.fullDate +
+          " · " +
+          p.pct +
+          "% PASS (" +
+          p.passed +
+          "/" +
+          p.applicable +
+          (isPt ? " aplicáveis, " : " applicable, ") +
+          p.failed +
+          " FAIL/NC)";
+        return (
+          '<g class="evo-point' +
+          (p.selected ? " is-selected" : "") +
+          '" data-run-id="' +
+          esc(p.id) +
+          '" tabindex="0" role="button" aria-label="' +
+          esc(tip) +
+          '">' +
+          "<title>" +
+          esc(tip) +
+          "</title>" +
+          (p.selected ? '<circle class="evo-ring" cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1) + '" r="8"/>' : "") +
+          '<circle class="evo-dot" cx="' +
+          c.x.toFixed(1) +
+          '" cy="' +
+          c.y.toFixed(1) +
+          '" r="' +
+          (p.selected ? "6" : "4.5") +
+          '"/>' +
+          '<text class="evo-val-lbl" x="' +
+          c.x.toFixed(1) +
+          '" y="' +
+          (c.y - 11).toFixed(1) +
+          '" text-anchor="middle">' +
+          p.pct +
+          "%</text>" +
+          (showDate
+            ? '<text class="evo-date-lbl" x="' +
+              c.x.toFixed(1) +
+              '" y="' +
+              (H - 12).toFixed(1) +
+              '" text-anchor="middle">' +
+              esc(p.shortDate) +
+              "</text>"
+            : "") +
+          "</g>"
+        );
+      })
+      .join("");
+
+    // Compute delta badge comparing selected run (or latest) vs previous run
+    var deltaHtml = "";
+    var selIdx = ptsData.findIndex(function (p) {
+      return p.selected;
+    });
+    if (selIdx < 0) selIdx = ptsData.length - 1;
+    if (selIdx > 0) {
+      var diff = ptsData[selIdx].pct - ptsData[selIdx - 1].pct;
+      var cls = diff > 0 ? "is-up" : diff < 0 ? "is-down" : "is-flat";
+      var sign = diff > 0 ? "+" + diff + "% ↑" : diff < 0 ? diff + "% ↓" : "0% =";
+      deltaHtml = '<span class="evo-delta ' + cls + '">' + sign + "</span>";
+    }
+
+    return (
+      '<div class="section-title">' +
+      esc(tr.secEvolution) +
+      "</div>" +
+      '<div class="evolution-card card">' +
+      '<div class="evo-head">' +
+      '<h3 class="evo-title">' +
+      esc(tr.evoTitle) +
+      "</h3>" +
+      '<div class="evo-meta">' +
+      deltaHtml +
+      "<span>" +
+      esc(tr.evoRunsCount(ptsData.length)) +
+      "</span></div></div>" +
+      '<svg viewBox="0 0 ' +
+      W +
+      " " +
+      H +
+      '" class="evo-svg" role="img" aria-label="' +
+      esc(tr.evoTitle) +
+      '">' +
+      gridHtml +
+      areaSvg +
+      lineSvg +
+      pointsSvg +
+      "</svg>" +
+      '<div class="evo-cap">' +
+      esc(ptsData.length === 1 ? tr.evoSingleHint : tr.evoMultiHint) +
+      "</div></div>"
+    );
+  }
+
+  function getActiveReportRun() {
+    if (!appScanHistory.length) return null;
+    if (selectedReportRunId) {
+      for (var i = 0; i < appScanHistory.length; i++) {
+        if (appScanHistory[i].id === selectedReportRunId) return appScanHistory[i];
+      }
+    }
+    return appScanHistory[appScanHistory.length - 1];
+  }
+
+  /* ---------- Report View (Latest scan by default + Historical selector & Pass Evolution — SDD 195) ---------- */
   function buildReport() {
     var tr = t();
     var isPt = lang() === "pt";
-    var target = state.meta.target || "AL2";
-    var inScope = DATA.controls.filter(isControlInAssuranceLevel);
+    var runs = appScanHistory.slice();
+    var activeRun = getActiveReportRun();
+    var latestRun = runs.length ? runs[runs.length - 1] : null;
+    var activeIdx = activeRun
+      ? runs.findIndex(function (r) {
+          return r.id === activeRun.id;
+        })
+      : -1;
+    var isViewingHistorical = Boolean(activeRun && latestRun && activeRun.id !== latestRun.id);
+
+    var reportAnswers = activeRun ? (activeRun.answers || {}) : state.answers;
+    var target = (activeRun && activeRun.target) || state.meta.target || "AL2";
+    var reportSurfaces = (activeRun && activeRun.surfaces) || state.meta.surfaces || ["Web_Application"];
+    var reportDateRaw = activeRun ? activeRun.date : state.meta.date;
+    var reportExecAt = activeRun ? activeRun.executedAt : state.meta.lastScanAt;
+
+    var inScope = DATA.controls.filter(function (c) {
+      return target === "AL1" ? c.tier === "AL1" : true;
+    });
     var assessed = inScope.filter(function (c) {
-      var a = state.answers[c.id];
+      var a = reportAnswers[c.id];
       return a && a.verdict != null;
     });
     var applicableAssessed = assessed.filter(function (c) {
-      return state.answers[c.id].verdict !== "NOT_APPLICABLE";
+      return reportAnswers[c.id].verdict !== "NOT_APPLICABLE";
     });
     var passed = applicableAssessed.filter(function (c) {
-      return state.answers[c.id].verdict === "PASS";
+      return reportAnswers[c.id].verdict === "PASS";
     });
     var failed = applicableAssessed.filter(function (c) {
-      var v = state.answers[c.id].verdict;
+      var v = reportAnswers[c.id].verdict;
       return v === "FAIL" || v === "Not_Covered";
     });
 
@@ -2425,7 +2899,7 @@
       return c.tier === "AL1";
     });
     var al1Passed = al1InScope.filter(function (c) {
-      var a = state.answers[c.id];
+      var a = reportAnswers[c.id];
       return a && (a.verdict === "PASS" || a.verdict === "NOT_APPLICABLE");
     });
 
@@ -2433,7 +2907,7 @@
       return c.tier === "AL2";
     });
     var al2Passed = al2InScope.filter(function (c) {
-      var a = state.answers[c.id];
+      var a = reportAnswers[c.id];
       return a && (a.verdict === "PASS" || a.verdict === "NOT_APPLICABLE");
     });
 
@@ -2442,11 +2916,11 @@
         return c.domain === d;
       });
       var dEval = dControls.filter(function (c) {
-        var a = state.answers[c.id];
+        var a = reportAnswers[c.id];
         return a && a.verdict != null && a.verdict !== "NOT_APPLICABLE";
       });
       var dPass = dEval.filter(function (c) {
-        return state.answers[c.id].verdict === "PASS";
+        return reportAnswers[c.id].verdict === "PASS";
       });
       var rate = dEval.length ? dPass.length / dEval.length : null;
       return { domain: d, rate: rate, passed: dPass.length, evalCount: dEval.length, total: dControls.length };
@@ -2456,7 +2930,7 @@
       figuresOrder = [],
       figByControl = {};
     inScope.forEach(function (c) {
-      var a = state.answers[c.id];
+      var a = reportAnswers[c.id];
       if (!a || !a.figures || !a.figures.length) return;
       a.figures.forEach(function (f) {
         figNum++;
@@ -2480,7 +2954,7 @@
     }
 
     var who = state.meta.org ? esc(state.meta.org) : isPt ? "A aplicação alvo" : "The target application";
-    var formattedEvalDate = formatScanDateDisplay(state.meta.date, state.meta.lastScanAt);
+    var formattedEvalDate = formatScanDateDisplay(reportDateRaw, reportExecAt);
     var when = formattedEvalDate ? (isPt ? " em " : " on ") + esc(formattedEvalDate) : "";
     var introBody = isPt
       ? "<p><b>" +
@@ -2494,7 +2968,7 @@
         " de " +
         inScope.length +
         " controles em escopo foram avaliados nas superfícies declaradas (<code>" +
-        esc((state.meta.surfaces || ["Web_Application"]).join(", ")) +
+        esc(reportSurfaces.join(", ")) +
         "</code>), alcançando uma taxa de conformidade de <b>" +
         Math.round(passRate * 100) +
         "%</b>.</p>" +
@@ -2510,7 +2984,7 @@
         " of " +
         inScope.length +
         " in-scope controls were evaluated across declared surfaces (<code>" +
-        esc((state.meta.surfaces || ["Web_Application"]).join(", ")) +
+        esc(reportSurfaces.join(", ")) +
         "</code>), achieving a compliance pass rate of <b>" +
         Math.round(passRate * 100) +
         "%</b>.</p>" +
@@ -2603,7 +3077,7 @@
     } else {
       gapHtml = failed
         .map(function (c) {
-          var a = state.answers[c.id];
+          var a = reportAnswers[c.id];
           var figs = figByControl[c.id];
           var figWord = isPt ? "Figura " : "Figure ";
           var figRef = figs
@@ -2661,11 +3135,75 @@
         .join("");
     }
 
+    var historyOptions = runs.length
+      ? runs
+          .slice()
+          .reverse()
+          .map(function (r, revIdx) {
+            var num = runs.length - revIdx;
+            var sum = r.summary && typeof r.summary.passPct === "number"
+              ? r.summary
+              : computeAnswersSummary(r.answers || {}, r.target || target);
+            var dt = formatScanDateDisplay(r.date, r.executedAt) || r.date || "—";
+            var latestSuffix = revIdx === 0 ? " (" + tr.repHistLatestTag + ")" : "";
+            var optLabel = "#" + num + " — " + dt + " · " + sum.passPct + "% PASS" + latestSuffix;
+            return (
+              '<option value="' +
+              esc(r.id) +
+              '"' +
+              (activeRun && activeRun.id === r.id ? " selected" : "") +
+              ">" +
+              esc(optLabel) +
+              "</option>"
+            );
+          })
+          .join("")
+      : '<option value="">' + esc(tr.repHistNoRuns) + "</option>";
+
+    var historyBar =
+      '<div class="report-history-bar card">' +
+      '<div class="rh-left">' +
+      '<label class="rh-label" for="report-run-select">' +
+      esc(tr.repHistLabel) +
+      "</label>" +
+      '<select id="report-run-select" class="rh-select"' +
+      (!runs.length ? " disabled" : "") +
+      ">" +
+      historyOptions +
+      "</select></div>" +
+      '<div class="rh-actions">' +
+      '<button type="button" class="rh-btn" id="btn-run-prev"' +
+      (activeIdx <= 0 ? " disabled" : "") +
+      ">" +
+      esc(tr.repHistPrev) +
+      "</button>" +
+      '<button type="button" class="rh-btn" id="btn-run-next"' +
+      (activeIdx < 0 || activeIdx >= runs.length - 1 ? " disabled" : "") +
+      ">" +
+      esc(tr.repHistNext) +
+      "</button>" +
+      (isViewingHistorical
+        ? '<button type="button" class="rh-btn is-primary" id="btn-run-latest">' + esc(tr.repHistGoLatest) + "</button>"
+        : "") +
+      "</div></div>";
+
+    var historicalBanner = isViewingHistorical
+      ? '<div class="history-banner" role="status"><span>' +
+        esc(tr.repHistBanner(activeIdx + 1, runs.length, formattedEvalDate || reportDateRaw || "—")) +
+        '</span><button type="button" class="rh-btn is-primary" id="btn-banner-latest">' +
+        esc(tr.repHistGoLatest) +
+        "</button></div>"
+      : "";
+
+    var evolutionBlock = passRateEvolutionChart(runs, activeRun ? activeRun.id : null);
+
     var notAssessed = inScope.length - assessed.length;
     var summaryNote =
       '<div class="section-title">' + esc(tr.secFindings(failed.length, notAssessed, figNum)) + "</div>";
 
     document.getElementById("report").innerHTML =
+      historyBar +
+      historicalBanner +
       '<div class="report-head"><div><h1>' +
       esc(tr.reportTitle) +
       "</h1>" +
@@ -2678,6 +3216,7 @@
       introBody +
       "</div>" +
       stats +
+      evolutionBlock +
       charts +
       pipeline +
       summaryNote +
@@ -2698,6 +3237,53 @@
       "</button>" +
       "</div>";
 
+    var runSel = document.getElementById("report-run-select");
+    if (runSel) {
+      runSel.addEventListener("change", function () {
+        selectedReportRunId = runSel.value || null;
+        buildReport();
+      });
+    }
+    var btnPrev = document.getElementById("btn-run-prev");
+    if (btnPrev && activeIdx > 0) {
+      btnPrev.addEventListener("click", function () {
+        selectedReportRunId = runs[activeIdx - 1].id;
+        buildReport();
+      });
+    }
+    var btnNext = document.getElementById("btn-run-next");
+    if (btnNext && activeIdx >= 0 && activeIdx < runs.length - 1) {
+      btnNext.addEventListener("click", function () {
+        selectedReportRunId = runs[activeIdx + 1].id;
+        buildReport();
+      });
+    }
+    ["btn-run-latest", "btn-banner-latest"].forEach(function (bid) {
+      var bEl = document.getElementById(bid);
+      if (bEl && latestRun) {
+        bEl.addEventListener("click", function () {
+          selectedReportRunId = latestRun.id;
+          buildReport();
+        });
+      }
+    });
+    document.querySelectorAll("#report .evo-point[data-run-id]").forEach(function (pt) {
+      var jumpToRun = function () {
+        var rid = pt.getAttribute("data-run-id");
+        if (rid) {
+          selectedReportRunId = rid;
+          buildReport();
+        }
+      };
+      pt.addEventListener("click", jumpToRun);
+      pt.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          jumpToRun();
+        }
+      });
+    });
+
     document.getElementById("back-apps").addEventListener("click", function () {
       switchView("apps");
     });
@@ -2708,7 +3294,7 @@
       var slug =
         (state.meta.org || "app").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app";
       var prev = document.title;
-      document.title = "CASA3-" + (state.meta.target || "AL2") + "-" + slug + "-" + (state.meta.date || today());
+      document.title = "CASA3-" + target + "-" + slug + "-" + (reportDateRaw || today());
       function restore() {
         document.title = prev;
         window.removeEventListener("afterprint", restore);
@@ -2782,16 +3368,28 @@
   }
 
   function exportJson() {
-    var id = currentReportId();
-    var inScope = DATA.controls.filter(isControlInAssuranceLevel);
+    var activeRun = getActiveReportRun();
+    var exportAnswers = activeRun ? (activeRun.answers || {}) : state.answers;
+    var exportTarget = (activeRun && activeRun.target) || state.meta.target || "AL2";
+    var exportMeta = cloneJson(state.meta);
+    if (activeRun) {
+      exportMeta.date = activeRun.date || exportMeta.date;
+      exportMeta.lastScanAt = activeRun.executedAt || exportMeta.lastScanAt;
+      exportMeta.target = exportTarget;
+      exportMeta.scanRunId = activeRun.id;
+    }
+    var id = shortHash(JSON.stringify({ meta: exportMeta, answers: exportAnswers }));
+    var inScope = DATA.controls.filter(function (c) {
+      return exportTarget === "AL1" ? c.tier === "AL1" : true;
+    });
     var payload = {
       standard: DATA.standard,
       version: DATA.version,
       report_id: id,
       exported_at: new Date().toISOString(),
-      meta: state.meta,
+      meta: exportMeta,
       results: inScope.map(function (c) {
-        var a = state.answers[c.id] || {};
+        var a = exportAnswers[c.id] || {};
         return {
           id: c.id,
           code: c.code,
@@ -2857,7 +3455,12 @@
     });
     if (view === "apps") renderAppsList();
     if (view === "assess") syncReadonlySetup();
-    if (view === "report") buildReport();
+    if (view === "report") {
+      // SDD 195: Always open Report showing the latest scan execution by default
+      selectedReportRunId = appScanHistory.length ? appScanHistory[appScanHistory.length - 1].id : null;
+      buildReport();
+      fetchAppHistoryFromServer(activeAppId);
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -2882,7 +3485,11 @@
     var curApp = getAppById(activeAppId);
     try {
       localStorage.removeItem(APP_STATE_PREFIX + activeAppId);
+      localStorage.removeItem(APP_HISTORY_PREFIX + activeAppId);
     } catch (e) {}
+    appScanHistory = [];
+    selectedReportRunId = null;
+    fetch("/api/applications/history?app_id=" + encodeURIComponent(activeAppId), { method: "DELETE" }).catch(function () {});
     idbClear();
     if (curApp) {
       curApp.date = "";

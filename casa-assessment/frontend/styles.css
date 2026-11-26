@@ -781,6 +781,136 @@ textarea { resize: vertical; min-height: 58px; }
 #report .card, #report .gap, #report .stat { overflow-wrap: anywhere; }
 .report-head { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .report-head h1 { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 6px; }
+
+/* Report History Selector & Pass Rate Evolution Chart (SDD 195) */
+.report-history-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+.rh-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1 1 360px;
+  min-width: 0;
+}
+.rh-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.rh-select {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-width: 260px;
+  max-width: 100%;
+  flex: 1 1 260px;
+}
+.rh-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rh-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+}
+.rh-btn:hover:not(:disabled) { border-color: var(--text); }
+.rh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.rh-btn.is-primary { background: var(--black); color: #fff; border-color: var(--black); }
+.history-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--nc-bg);
+  border: 1px solid var(--nc-border);
+  color: #78350f;
+  font-size: 13px;
+  font-weight: 500;
+}
+.evolution-card {
+  padding: 20px 22px;
+  margin-bottom: 18px;
+}
+.evo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.evo-title {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+.evo-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+}
+.evo-delta {
+  padding: 2px 8px;
+  border-radius: 980px;
+  font-weight: 600;
+  font-size: 11.5px;
+}
+.evo-delta.is-up { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass-border); }
+.evo-delta.is-down { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail-border); }
+.evo-delta.is-flat { background: var(--na-bg); color: var(--na); border: 1px solid var(--border-subtle); }
+.evo-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.evo-grid { stroke: var(--border-subtle); stroke-width: 1; stroke-dasharray: 3 3; }
+.evo-axis-lbl { fill: var(--text-3); font-family: var(--mono); font-size: 11px; }
+.evo-area { fill: rgba(21, 128, 61, 0.10); }
+.evo-line { fill: none; stroke: var(--pass); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.evo-point { cursor: pointer; }
+.evo-point circle.evo-dot { fill: var(--card); stroke: var(--pass); stroke-width: 2.5; transition: r 0.15s ease; }
+.evo-point:hover circle.evo-dot { fill: var(--pass); }
+.evo-point.is-selected circle.evo-dot { fill: var(--al1-text); stroke: var(--al1-text); }
+.evo-point.is-selected circle.evo-ring { fill: none; stroke: rgba(29, 78, 216, 0.25); stroke-width: 6; }
+.evo-val-lbl { fill: var(--text); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.evo-date-lbl { fill: var(--text-3); font-family: var(--mono); font-size: 10.5px; }
+.evo-cap { margin-top: 8px; font-size: 12.5px; color: var(--text-3); }
+@media print {
+  .report-history-bar, .history-banner { display: none !important; }
+}
 .report-meta { color: var(--text-2); font-size: 14.5px; }
 .report-meta span + span::before { content: "\00b7"; margin: 0 8px; color: var(--text-3); }
 .report-meta .rid { font-family: var(--mono); font-size: 13px; color: var(--text-3); }

@@ -30,8 +30,12 @@
       lblUrl: "URL da Aplicação Alvo (para TLS, Headers, Cookies, DAST)",
       lblRepo: "Caminho do Repositório / Artefato (para SCA, SAST, Segredos)",
       btnRunAuto: "▶ Executar Scan Automatizado AL1",
+      btnRunAutoBusy: "⏳ Escaneando AL1…",
       statusReady: "Pronto — 61 controles AL1 aguardando execução automatizada.",
       statusRunning: "Executando verificações automatizadas do AL1 (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…",
+      scanLastPrefix: "Último controle:",
+      scanWaitingCtrl: "Aguardando primeiro controle…",
+      scanErrorPrefix: "Erro durante o scan:",
       fltAll: "Todos no Escopo",
       fltAL1: "AL1 Automatizados (61)",
       fltAL2: "AL2 Checklist Manual (15)",
@@ -161,8 +165,12 @@
       lblUrl: "Target Application URL (for TLS, Headers, Cookies, DAST)",
       lblRepo: "Source Repository / Artifact Path (for SCA, SAST, Secrets)",
       btnRunAuto: "▶ Run Automated AL1 Scan",
+      btnRunAutoBusy: "⏳ Scanning AL1…",
       statusReady: "Ready — 61 AL1 controls awaiting automated scan.",
       statusRunning: "Running automated AL1 checks (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)…",
+      scanLastPrefix: "Last control:",
+      scanWaitingCtrl: "Waiting for first control…",
+      scanErrorPrefix: "Scan error:",
       fltAll: "All in Scope",
       fltAL1: "AL1 Automated (61)",
       fltAL2: "AL2 Manual Checklist (15)",
@@ -735,7 +743,10 @@
     setTxt("i18n-surfaces-lbl", tr.surfacesLbl);
     setTxt("i18n-lbl-url", tr.lblUrl);
     setTxt("i18n-lbl-repo", tr.lblRepo);
-    setTxt("btn-run-auto", tr.btnRunAuto);
+    setTxt("btn-run-auto", scanActive ? tr.btnRunAutoBusy : tr.btnRunAuto);
+    if (lastScanProgress) {
+      renderScanProgress(lastScanProgress, scanActive ? "running" : lastScanMode);
+    }
 
     setTxt("i18n-flt-all", tr.fltAll);
     setTxt("i18n-flt-al1", tr.fltAL1);
@@ -1314,35 +1325,279 @@
     }
   }
 
-  /* 1. Live Scan via Backend API (/api/scan) with fallback */
-  document.getElementById("btn-run-auto").addEventListener("click", function () {
-    var btn = document.getElementById("btn-run-auto");
-    btn.disabled = true;
-    if (els.autoStatus) {
-      els.autoStatus.textContent = t().statusRunning;
+  /* 1. Live Scan via Async Progress API (/api/scan/start + /api/scan/status) with /api/scan fallback */
+  var SCAN_DOMAINS = [
+    ["SCA", 5],
+    ["SAST", 13],
+    ["TLS", 6],
+    ["CFG", 11],
+    ["AUT", 8],
+    ["AZI", 6],
+    ["OAU", 9],
+    ["WHK", 3],
+  ];
+  var scanActive = false;
+  var scanPollTimer = null;
+  var scanClockTimer = null;
+  var scanStartMs = 0;
+  var lastScanProgress = null;
+  var lastScanMode = "running";
+
+  function formatScanElapsed(totalSec) {
+    var s = Math.max(0, Math.floor(totalSec || 0));
+    var mm = String(Math.floor(s / 60)).padStart(2, "0");
+    var ss = String(s % 60).padStart(2, "0");
+    return mm + ":" + ss;
+  }
+
+  function buildInitialScanProgress() {
+    var doms = {};
+    SCAN_DOMAINS.forEach(function (pair) {
+      doms[pair[0]] = { done: 0, total: pair[1], status: "pending", pass: 0, fail: 0 };
+    });
+    return {
+      completed: 0,
+      total: 61,
+      percent: 0,
+      elapsed_sec: 0,
+      current_domain: "SCA",
+      stage_pt: "Iniciando scan automatizado AL1 (61 controles em 8 domínios)…",
+      stage_en: "Starting automated AL1 scan (61 controls across 8 domains)…",
+      last_control: "",
+      last_verdict: "",
+      last_tool: "",
+      counts: { PASS: 0, FAIL: 0, NOT_APPLICABLE: 0, Not_Covered: 0 },
+      domains: doms,
+      domain_order: SCAN_DOMAINS.map(function (p) { return p[0]; }),
+    };
+  }
+
+  function renderScanProgress(prog, mode) {
+    if (!prog) return;
+    lastScanProgress = prog;
+    lastScanMode = mode || "running";
+
+    var panel = document.getElementById("scan-progress-panel");
+    if (!panel) return;
+    panel.hidden = false;
+    panel.classList.remove("is-running", "is-completed", "is-error");
+    panel.classList.add("is-" + lastScanMode);
+
+    var tr = t();
+    var stageEl = document.getElementById("scan-prog-stage");
+    var countEl = document.getElementById("scan-prog-count");
+    var pctEl = document.getElementById("scan-prog-pct");
+    var elapsedEl = document.getElementById("scan-prog-elapsed");
+    var barEl = document.getElementById("scan-prog-bar");
+    var fillEl = document.getElementById("scan-prog-fill");
+    var gridEl = document.getElementById("scan-domain-grid");
+    var tallyEl = document.getElementById("scan-prog-tally");
+    var lastEl = document.getElementById("scan-prog-last");
+
+    var stageTxt = lang() === "pt" ? (prog.stage_pt || tr.statusRunning) : (prog.stage_en || tr.statusRunning);
+    var completed = typeof prog.completed === "number" ? prog.completed : 0;
+    var total = typeof prog.total === "number" && prog.total > 0 ? prog.total : 61;
+    var pct = typeof prog.percent === "number" ? prog.percent : Math.round((completed / total) * 100);
+    var elapsedVal = lastScanMode === "running" && scanStartMs
+      ? Math.max(prog.elapsed_sec || 0, (Date.now() - scanStartMs) / 1000)
+      : (prog.elapsed_sec || 0);
+
+    if (stageEl) stageEl.textContent = stageTxt;
+    if (countEl) countEl.textContent = completed + "/" + total;
+    if (pctEl) pctEl.textContent = pct + "%";
+    if (elapsedEl) elapsedEl.textContent = formatScanElapsed(elapsedVal);
+    if (barEl) barEl.setAttribute("aria-valuenow", String(pct));
+    if (fillEl) fillEl.style.width = Math.max(lastScanMode === "running" ? 2 : 0, Math.min(100, pct)) + "%";
+
+    if (els.autoStatus && lastScanMode === "running") {
+      els.autoStatus.textContent =
+        (lang() === "pt" ? "Progresso: " : "Progress: ") +
+        completed + "/" + total + " (" + pct + "%) · " +
+        (prog.current_domain || "SCA") + " · " + formatScanElapsed(elapsedVal);
     }
 
+    if (gridEl) {
+      var domOrder = prog.domain_order || SCAN_DOMAINS.map(function (p) { return p[0]; });
+      var domMap = prog.domains || {};
+      gridEl.innerHTML = domOrder.map(function (dom) {
+        var info = domMap[dom] || { done: 0, total: 0, status: "pending" };
+        var st = info.status || "pending";
+        var mark = st === "done" ? " ✓" : (st === "running" ? " ●" : "");
+        return (
+          '<div class="scan-dom-chip is-' + esc(st) + '">' +
+          '<span class="dom-code">' + esc(dom) + mark + "</span>" +
+          '<span class="dom-cnt">' + esc(String(info.done || 0)) + "/" + esc(String(info.total || 0)) + "</span>" +
+          "</div>"
+        );
+      }).join("");
+    }
+
+    if (tallyEl) {
+      var c = prog.counts || {};
+      tallyEl.innerHTML =
+        '<span class="tally-pill tally-pass">PASS ' + (c.PASS || 0) + "</span>" +
+        '<span class="tally-pill tally-fail">FAIL ' + (c.FAIL || 0) + "</span>" +
+        '<span class="tally-pill tally-na">N/A ' + (c.NOT_APPLICABLE || 0) + "</span>" +
+        '<span class="tally-pill tally-nc">N/C ' + (c.Not_Covered || 0) + "</span>";
+    }
+
+    if (lastEl) {
+      if (prog.last_control) {
+        lastEl.textContent =
+          tr.scanLastPrefix + " " + prog.last_control +
+          (prog.last_verdict ? " [" + prog.last_verdict + "]" : "") +
+          (prog.last_tool ? " — " + prog.last_tool : "");
+      } else {
+        lastEl.textContent = tr.scanWaitingCtrl;
+      }
+    }
+  }
+
+  function stopScanTimers() {
+    if (scanPollTimer) {
+      clearTimeout(scanPollTimer);
+      scanPollTimer = null;
+    }
+    if (scanClockTimer) {
+      clearInterval(scanClockTimer);
+      scanClockTimer = null;
+    }
+  }
+
+  function finishScanUI(btn, mode, prog) {
+    stopScanTimers();
+    scanActive = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = t().btnRunAuto;
+    }
+    if (prog) {
+      renderScanProgress(prog, mode);
+    }
+  }
+
+  function runLegacySyncScan(btn, payload) {
     fetch("/api/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        target_url: state.meta.targetUrl || "",
-        repo_path: state.meta.repoPath || "",
-        surfaces: state.meta.surfaces || ["Web_Application"],
-      }),
+      body: JSON.stringify(payload),
     })
       .then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json();
       })
       .then(function (data) {
-        btn.disabled = false;
+        var doneProg = lastScanProgress || buildInitialScanProgress();
+        doneProg.completed = (data && data.count) || 61;
+        doneProg.percent = 100;
+        doneProg.elapsed_sec = (Date.now() - scanStartMs) / 1000;
+        doneProg.stage_pt = "Scan concluído — " + doneProg.completed + " controles AL1 avaliados.";
+        doneProg.stage_en = "Scan completed — " + doneProg.completed + " AL1 controls evaluated.";
+        finishScanUI(btn, "completed", doneProg);
         if (data && data.results) {
           applyScanResults(data.results, "ada-casa-audit Live Scanner");
         }
       })
       .catch(function () {
-        btn.disabled = false;
+        var errProg = lastScanProgress || buildInitialScanProgress();
+        errProg.elapsed_sec = (Date.now() - scanStartMs) / 1000;
+        errProg.stage_pt = "Erro: Servidor local (/api/scan) inacessível. Inicie python3 -m casa_audit.";
+        errProg.stage_en = "Error: Local scanner server (/api/scan) unreachable. Start python3 -m casa_audit.";
+        finishScanUI(btn, "error", errProg);
+        runClientSideAutomatedScan();
+      });
+  }
+
+  document.getElementById("btn-run-auto").addEventListener("click", function () {
+    if (scanActive) return;
+    var btn = document.getElementById("btn-run-auto");
+    scanActive = true;
+    scanStartMs = Date.now();
+    btn.disabled = true;
+    btn.textContent = t().btnRunAutoBusy;
+
+    var payload = {
+      target_url: state.meta.targetUrl || "",
+      repo_path: state.meta.repoPath || "",
+      surfaces: state.meta.surfaces || ["Web_Application"],
+    };
+
+    renderScanProgress(buildInitialScanProgress(), "running");
+    stopScanTimers();
+    scanClockTimer = setInterval(function () {
+      if (scanActive && lastScanProgress) {
+        var elapsedEl = document.getElementById("scan-prog-elapsed");
+        if (elapsedEl) {
+          elapsedEl.textContent = formatScanElapsed((Date.now() - scanStartMs) / 1000);
+        }
+      }
+    }, 1000);
+
+    function pollStatus(scanId) {
+      if (!scanActive) return;
+      fetch("/api/scan/status?id=" + encodeURIComponent(scanId), { cache: "no-store" })
+        .then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        })
+        .then(function (snap) {
+          if (snap && snap.progress) {
+            renderScanProgress(snap.progress, snap.status === "completed" ? "completed" : (snap.status === "error" ? "error" : "running"));
+          }
+          if (snap.status === "completed") {
+            finishScanUI(btn, "completed", snap.progress);
+            if (snap.results) {
+              applyScanResults(snap.results, "ada-casa-audit Live Scanner");
+            }
+          } else if (snap.status === "error") {
+            finishScanUI(btn, "error", snap.progress);
+            if (els.autoStatus) {
+              els.autoStatus.textContent = t().scanErrorPrefix + " " + (snap.error || "Unknown error");
+            }
+          } else {
+            scanPollTimer = setTimeout(function () { pollStatus(scanId); }, 600);
+          }
+        })
+        .catch(function (err) {
+          var errProg = lastScanProgress || buildInitialScanProgress();
+          errProg.elapsed_sec = (Date.now() - scanStartMs) / 1000;
+          errProg.stage_pt = t().scanErrorPrefix + " " + (err && err.message ? err.message : "Falha ao consultar status.");
+          errProg.stage_en = t().scanErrorPrefix + " " + (err && err.message ? err.message : "Failed to poll status.");
+          finishScanUI(btn, "error", errProg);
+          runClientSideAutomatedScan();
+        });
+    }
+
+    fetch("/api/scan/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) {
+        if (res.status === 404) {
+          runLegacySyncScan(btn, payload);
+          return null;
+        }
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (started) {
+        if (!started) return;
+        if (started.progress) {
+          renderScanProgress(started.progress, "running");
+        }
+        if (started.scan_id) {
+          scanPollTimer = setTimeout(function () { pollStatus(started.scan_id); }, 400);
+        } else {
+          runLegacySyncScan(btn, payload);
+        }
+      })
+      .catch(function () {
+        var errProg = lastScanProgress || buildInitialScanProgress();
+        errProg.elapsed_sec = (Date.now() - scanStartMs) / 1000;
+        errProg.stage_pt = "Erro: Servidor local (/api/scan) inacessível. Inicie python3 -m casa_audit.";
+        errProg.stage_en = "Error: Local scanner server (/api/scan) unreachable. Start python3 -m casa_audit.";
+        finishScanUI(btn, "error", errProg);
         runClientSideAutomatedScan();
       });
   });

@@ -1802,3 +1802,30 @@ CONSOLIDAÇÃO FINAL DA SÉRIE NEON — 61/61 CONTROLES CASA 3.0 AL1 (SDD 132 ..
   - 125/125 testes unitários e de integração (`unittest discover`) aprovados (`OK`) sem falhas intermitentes.
   - 8 fechamentos de domínio validados com scan ao vivo completo contra OWASP Juice Shop (`61/61` controles).
 ================================================================================
+
+--------------------------------------------------------------------------------
+ITERAÇÃO SDD 193 — Progresso em Tempo Real do Scan Automatizado AL1 na UI
+--------------------------------------------------------------------------------
+1. Motivação:
+   - Ao clicar em "▶ Executar Scan Automatizado AL1", a interface `assess.html`
+     exibia apenas o texto estático "Executando verificações automatizadas do
+     AL1 (SCA, SAST, TLS, CFG, AUT, AZI, OAU, WHK)..." sem indicar andamento.
+2. Implementação:
+   - `casa-assessment/casa_audit/scanner.py`: criado `_ProgressDict` e parâmetro
+     opcional `progress_cb` em `run_automated_al1_scan`, `run_sca_checks`,
+     `run_sast_checks` e `run_dynamic_and_protocol_checks`, emitindo eventos de
+     fase (`SCA`..`WHK` + `FINAL`) e de conclusão individual de cada controle.
+   - `casa-assessment/casa_audit/server.py`: adicionados endpoints assíncronos
+     `POST /api/scan/start` (HTTP 202 com `scan_id`) e `GET /api/scan/status?id=...`
+     (HTTP 200 com percentual, `N/61`, tempo decorrido, status dos 8 domínios,
+     contadores `PASS`/`FAIL`/`N/A`/`N/C`, último controle e `results` finais),
+     mantendo `POST /api/scan` síncrono 100% compatível.
+   - `casa-assessment/frontend/{assess.html,styles.css,app.js}`: adicionado painel
+     `#scan-progress-panel` com barra animada, etapa atual em PT/EN, contador
+     `N/61` + `%` + cronômetro `MM:SS`, 8 chips de domínio (`SCA`..`WHK`), pílulas
+     de veredito ao vivo e último controle concluído, com polling a cada 600ms e
+     fallback automático para `/api/scan`.
+3. Validação:
+   - `test_iteration193_scan_progress_api_and_ui` + regressão
+     `test_http_server_and_api_scan_endpoint` + reinício do servidor local na
+     porta 8080.

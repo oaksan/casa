@@ -2593,6 +2593,84 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("CONTROLE 61/61: WHK-03 (Iteração SDD 192)", just_neon)
 
+    def test_iteration193_scan_progress_api_and_ui(self) -> None:
+        """SDD 193: Live scan progress callback, async /api/scan/start + /api/scan/status & UI panel."""
+        import http.server
+        import json as _json
+        import threading
+        import time as _time
+        import urllib.request
+        from casa_audit.server import CasaAssessmentHandler
+
+        # 1. Verify progress_cb fires stage + control events across all 61 AL1 controls
+        events: list[dict] = []
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            (tdp / "package.json").write_text('{"name":"demo","version":"1.0.0"}', encoding="utf-8")
+            res = sc.run_automated_al1_scan(
+                target_url="",
+                repo_path=str(tdp),
+                surfaces=["Web_Application"],
+                progress_cb=events.append,
+            )
+            self.assertEqual(len(res), 61)
+            stage_domains = {e["domain"] for e in events if e.get("type") == "stage"}
+            ctrl_ids = {e["control_id"] for e in events if e.get("type") == "control"}
+            self.assertTrue({"SCA", "SAST", "FINAL"}.issubset(stage_domains))
+            self.assertEqual(len(ctrl_ids), 61)
+
+            # 2. Verify async HTTP endpoints POST /api/scan/start (202) -> GET /api/scan/status (200)
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), CasaAssessmentHandler)
+            port = srv.server_address[1]
+            t_srv = threading.Thread(target=srv.serve_forever, daemon=True)
+            t_srv.start()
+            try:
+                req_start = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/scan/start",
+                    data=_json.dumps({"target_url": "", "repo_path": str(tdp), "surfaces": ["Web_Application"]}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req_start, timeout=10) as resp_s:
+                    self.assertEqual(resp_s.status, 202)
+                    started = _json.loads(resp_s.read().decode("utf-8"))
+                scan_id = started["scan_id"]
+                self.assertTrue(scan_id)
+                self.assertEqual(started["progress"]["total"], 61)
+
+                final_snap = None
+                for _ in range(120):
+                    with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/scan/status?id={scan_id}", timeout=10) as resp_p:
+                        self.assertEqual(resp_p.status, 200)
+                        snap = _json.loads(resp_p.read().decode("utf-8"))
+                    if snap["status"] == "completed":
+                        final_snap = snap
+                        break
+                    _time.sleep(0.25)
+
+                self.assertIsNotNone(final_snap, "Async scan job did not complete within timeout")
+                self.assertEqual(final_snap["count"], 61)
+                self.assertEqual(final_snap["progress"]["completed"], 61)
+                self.assertEqual(final_snap["progress"]["percent"], 100)
+                self.assertEqual(final_snap["progress"]["domain_order"], ["SCA", "SAST", "TLS", "CFG", "AUT", "AZI", "OAU", "WHK"])
+                self.assertEqual(final_snap["progress"]["domains"]["SCA"]["status"], "done")
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+        # 3. Verify frontend UI markup, styles, and polling logic exist
+        html_txt = (ROOT_DIR / "casa-assessment" / "frontend" / "assess.html").read_text(encoding="utf-8")
+        js_txt = (ROOT_DIR / "casa-assessment" / "frontend" / "app.js").read_text(encoding="utf-8")
+        css_txt = (ROOT_DIR / "casa-assessment" / "frontend" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('id="scan-progress-panel"', html_txt)
+        self.assertIn('id="scan-domain-grid"', html_txt)
+        self.assertIn("/api/scan/start", js_txt)
+        self.assertIn("/api/scan/status?id=", js_txt)
+        self.assertIn(".scan-dom-chip.is-running", css_txt)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("ITERAÇÃO SDD 193", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

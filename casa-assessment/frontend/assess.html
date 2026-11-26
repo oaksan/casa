@@ -105,6 +105,30 @@
           </button>
           <span class="auto-status" id="auto-status">Ready &mdash; 61 AL1 controls awaiting automated scan.</span>
         </div>
+
+        <div class="scan-progress" id="scan-progress-panel" hidden aria-live="polite">
+          <div class="scan-prog-head">
+            <div class="scan-prog-title">
+              <span class="scan-dot" id="scan-prog-dot" aria-hidden="true"></span>
+              <span class="scan-prog-stage" id="scan-prog-stage"></span>
+            </div>
+            <div class="scan-prog-meta">
+              <span id="scan-prog-count">0/61</span>
+              <span class="meta-sep">&middot;</span>
+              <span id="scan-prog-pct">0%</span>
+              <span class="meta-sep">&middot;</span>
+              <span id="scan-prog-elapsed">00:00</span>
+            </div>
+          </div>
+          <div class="scan-prog-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="scan-prog-bar">
+            <div class="scan-prog-fill" id="scan-prog-fill" style="width:0%"></div>
+          </div>
+          <div class="scan-domain-grid" id="scan-domain-grid"></div>
+          <div class="scan-prog-foot">
+            <div class="scan-tally" id="scan-prog-tally"></div>
+            <div class="scan-last" id="scan-prog-last"></div>
+          </div>
+        </div>
       </div>
 
       <!-- STICKY PROGRESS & FILTER BAR -->

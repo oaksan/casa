@@ -199,6 +199,156 @@ body {
 .btn-sm { padding: 8px 15px !important; font-size: 13.5px !important; }
 .auto-status { font-size: 13px; color: var(--text-2); margin-left: auto; font-family: var(--mono); }
 
+/* Live Scan Progress Panel (SDD 193) */
+.scan-progress {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+.scan-prog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.scan-prog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.scan-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+  animation: scan-pulse 1.2s ease-in-out infinite;
+}
+.scan-progress.is-completed .scan-dot { background: var(--pass); animation: none; }
+.scan-progress.is-error .scan-dot { background: var(--fail); animation: none; }
+@keyframes scan-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+.scan-prog-stage {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scan-prog-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  flex: none;
+}
+.scan-prog-track {
+  height: 8px;
+  background: var(--border-subtle);
+  border-radius: 980px;
+  overflow: hidden;
+  position: relative;
+}
+.scan-prog-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 980px;
+  transition: width 0.35s ease, background-color 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.scan-progress.is-running .scan-prog-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+  animation: scan-shimmer 1.4s linear infinite;
+}
+.scan-progress.is-completed .scan-prog-fill { background: var(--pass); }
+.scan-progress.is-error .scan-prog-fill { background: var(--fail); }
+@keyframes scan-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.scan-domain-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 11px;
+}
+@media (max-width: 720px) {
+  .scan-domain-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.scan-dom-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  transition: all 0.2s ease;
+}
+.scan-dom-chip .dom-code { font-weight: 600; font-size: 11.5px; }
+.scan-dom-chip .dom-cnt { font-size: 10.5px; }
+.scan-dom-chip.is-running {
+  border-color: var(--accent);
+  background: var(--al1-badge);
+  color: var(--al1-text);
+  box-shadow: 0 0 0 1px rgba(0, 102, 204, 0.14);
+}
+.scan-dom-chip.is-done {
+  border-color: var(--pass-border);
+  background: var(--pass-bg);
+  color: var(--pass);
+}
+.scan-prog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.scan-tally { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tally-pill {
+  padding: 2px 7px;
+  border-radius: 980px;
+  font-weight: 600;
+  font-size: 11px;
+}
+.tally-pass { background: var(--pass-bg); color: var(--pass); border: 1px solid var(--pass-border); }
+.tally-fail { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail-border); }
+.tally-na { background: var(--na-bg); color: var(--na); border: 1px solid var(--border-subtle); }
+.tally-nc { background: var(--nc-bg); color: var(--nc); border: 1px solid var(--nc-border); }
+.scan-last {
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 /* Progress & Filter Bar */
 .progress-bar { padding: 14px 22px; margin-bottom: 18px; position: sticky; top: 59px; z-index: 20; }
 .progress-meta {

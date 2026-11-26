@@ -2061,8 +2061,47 @@ def run_osv_scanner_for_sca01(repo: Path, osv_json_path: Path, osv_sarif_path: P
 # ---------------------------------------------------------------------------
 # 1. Domain 1: Software Composition & Supply Chain (SCA-01 .. SCA-05)
 # ---------------------------------------------------------------------------
-def run_sca_checks(repo: Path) -> dict[str, dict]:
-    results: dict[str, dict] = {}
+class _ProgressDict(dict):
+    """Dict subclass that emits live progress notifications as each CASA control result is recorded."""
+
+    def __init__(self, progress_cb=None):
+        super().__init__()
+        self._progress_cb = progress_cb
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if self._progress_cb is not None and isinstance(key, str) and isinstance(value, dict):
+            try:
+                domain = key.split("-", 1)[0] if "-" in key else ""
+                self._progress_cb(
+                    {
+                        "type": "control",
+                        "control_id": key,
+                        "domain": domain,
+                        "verdict": str(value.get("verdict") or ""),
+                        "tool": str(value.get("tool") or ""),
+                    }
+                )
+            except Exception:
+                pass
+
+
+def _emit_stage(progress_cb, domain: str, stage_pt: str, stage_en: str) -> None:
+    if progress_cb is not None:
+        try:
+            progress_cb({"type": "stage", "domain": domain, "stage_pt": stage_pt, "stage_en": stage_en})
+        except Exception:
+            pass
+
+
+def run_sca_checks(repo: Path, *, progress_cb=None) -> dict[str, dict]:
+    _emit_stage(
+        progress_cb,
+        "SCA",
+        "Domínio 1/8 (SCA) — Analisando dependências e SBOM (syft, osv-scanner, trivy)…",
+        "Domain 1/8 (SCA) — Analyzing dependencies and SBOM (syft, osv-scanner, trivy)…",
+    )
+    results: dict[str, dict] = _ProgressDict(progress_cb) if progress_cb is not None else {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     pkg_json = repo / "package.json"
@@ -3961,8 +4000,14 @@ def evaluate_sast13_sensitive_logging(
     return verdict, findings, sarif_hits, dur
 
 
-def run_sast_checks(repo: Path) -> dict[str, dict]:
-    results: dict[str, dict] = {}
+def run_sast_checks(repo: Path, *, progress_cb=None) -> dict[str, dict]:
+    _emit_stage(
+        progress_cb,
+        "SAST",
+        "Domínio 2/8 (SAST) — Executando análise estática e segredos (semgrep, gitleaks, trivy)…",
+        "Domain 2/8 (SAST) — Running static analysis and secret scans (semgrep, gitleaks, trivy)…",
+    )
+    results: dict[str, dict] = _ProgressDict(progress_cb) if progress_cb is not None else {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     sarif_out = OUTPUT_DIR / "semgrep-sast.sarif"
 
@@ -15226,8 +15271,8 @@ def evaluate_oau09_token_validation(
     }
 
 
-def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, dict]:
-    results: dict[str, dict] = {}
+def run_dynamic_and_protocol_checks(target_url: str, repo: Path, *, progress_cb=None) -> dict[str, dict]:
+    results: dict[str, dict] = _ProgressDict(progress_cb) if progress_cb is not None else {}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     har_path = OUTPUT_DIR / "dast-capture.har"
     dast_sarif_path = OUTPUT_DIR / "dast-findings.sarif"
@@ -15354,6 +15399,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
         return status, resp_headers, resp_body
 
     # ---- Domain 3: Transport Security (TLS-01 .. TLS-06) ----
+    _emit_stage(
+        progress_cb,
+        "TLS",
+        "Domínio 3/8 (TLS) — Verificando transporte, protocolos e certificados (testssl.sh)…",
+        "Domain 3/8 (TLS) — Verifying transport, protocols, and certificates (testssl.sh)…",
+    )
     tls_json_path = OUTPUT_DIR / "tls-scan.json"
     tls_port = port if is_https else 443
     tls_version = None
@@ -15669,6 +15720,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 4: Server Configuration & Response Headers (CFG-01 .. CFG-11) ----
+    _emit_stage(
+        progress_cb,
+        "CFG",
+        "Domínio 4/8 (CFG) — Verificando headers, CORS, cache e exposição (OWASP ZAP, nuclei, dnsx)…",
+        "Domain 4/8 (CFG) — Checking headers, CORS, cache, and exposure (OWASP ZAP, nuclei, dnsx)…",
+    )
     # CFG-01: Official OWASP ZAP Spider + Passive Rule 10033 + Autoindex / ListBucketResult Parser (SARIF 2.1.0 + HAR 1.2)
     parse_directory_index = parse_directory_index_body
     cfg01_eval = evaluate_cfg01_directory_browsing(
@@ -15971,6 +16028,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 5: Authentication & Session Management (AUT-01 .. AUT-08) ----
+    _emit_stage(
+        progress_cb,
+        "AUT",
+        "Domínio 5/8 (AUT) — Verificando autenticação, sessão, entropia e JWT (SP 800-90B, Chrome CDP)…",
+        "Domain 5/8 (AUT) — Checking authentication, sessions, entropy, and JWT (SP 800-90B, Chrome CDP)…",
+    )
     # AUT-01: SecLists Default Credentials & Product-Derived Vendor Replay Harness (SARIF 2.1.0 + redacted HAR 1.2)
     aut01_eval = evaluate_aut01_default_credentials(
         base_url,
@@ -16218,6 +16281,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 6: Authorization & Injection (AZI-01 .. AZI-06) ----
+    _emit_stage(
+        progress_cb,
+        "AZI",
+        "Domínio 6/8 (AZI) — Verificando CSRF, XSS, SQLi/NoSQL, CMDi, LFI/RFI e Redirect (ZAP, sqlmap, Chrome CDP)…",
+        "Domain 6/8 (AZI) — Checking CSRF, XSS, SQLi/NoSQL, CMDi, LFI/RFI, and Redirects (ZAP, sqlmap, Chrome CDP)…",
+    )
     # AZI-01: Strong anti-CSRF mechanism on state-changing authenticated endpoints (3-mode replay + re-read state verification, SARIF 2.1.0 + redacted HAR 1.2)
     session_a_tok = aut05_replayed_token or auth_token or jwt_token
     azi01_eval = evaluate_azi01_anti_csrf(
@@ -16382,6 +16451,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 7: Application Use of OAuth 2.0 / OpenID Connect (OAU-01 .. OAU-09) ----
+    _emit_stage(
+        progress_cb,
+        "OAU",
+        "Domínio 7/8 (OAU) — Verificando fluxos OAuth 2.0 / OIDC, PKCE, tokens e JWT (proxy, Semgrep, Chrome CDP)…",
+        "Domain 7/8 (OAU) — Checking OAuth 2.0 / OIDC flows, PKCE, tokens, and JWT (proxy, Semgrep, Chrome CDP)…",
+    )
     # Inspect both live served JS bundles (DAST client artifact) and source files for OAuth 2.0/OIDC parameters
     oauth_bundle_texts: dict[str, str] = {}
     for js_ref in re.findall(r'<script[^>]+src=["\']([^"\']+\.js)["\']', root_body, re.IGNORECASE):
@@ -16716,6 +16791,12 @@ def run_dynamic_and_protocol_checks(target_url: str, repo: Path) -> dict[str, di
     }
 
     # ---- Domain 8: Webhook Security (WHK-01 .. WHK-03) ----
+    _emit_stage(
+        progress_cb,
+        "WHK",
+        "Domínio 8/8 (WHK) — Verificando TLS, HMAC-SHA256+, SSRF e segredos de Webhooks (testssl.sh, gitleaks, Semgrep)…",
+        "Domain 8/8 (WHK) — Checking Webhook TLS, HMAC-SHA256+, SSRF, and secrets (testssl.sh, gitleaks, Semgrep)…",
+    )
     whk_receivers, whk_files, whk_scanned_files, whk_disc_probes = discover_webhook_facilities(
         repo,
         base_url=base_url,
@@ -18768,6 +18849,8 @@ def run_automated_al1_scan(
     target_url: str = "",
     repo_path: str = "",
     surfaces: list[str] | None = None,
+    *,
+    progress_cb=None,
 ) -> dict[str, dict]:
     """Run all 61 AL1 automated checks using real tools & probes and return control_id -> result."""
     declared_surfaces = surfaces or ["Web_Application"]
@@ -18778,11 +18861,18 @@ def run_automated_al1_scan(
         sca_results = {}
         sast_results = {}
     else:
-        sca_results = run_sca_checks(repo)
-        sast_results = run_sast_checks(repo)
+        sca_results = run_sca_checks(repo, progress_cb=progress_cb)
+        sast_results = run_sast_checks(repo, progress_cb=progress_cb)
 
-    dyn_results = run_dynamic_and_protocol_checks(target_url, repo)
+    dyn_results = run_dynamic_and_protocol_checks(target_url, repo, progress_cb=progress_cb)
     merged = {**sca_results, **sast_results, **dyn_results}
+
+    _emit_stage(
+        progress_cb,
+        "FINAL",
+        "Consolidando verificações híbridas (SAST-07, SAST-13) e vereditos finais dos 61 controles…",
+        "Consolidating hybrid checks (SAST-07, SAST-13) and final verdicts across all 61 controls…",
+    )
 
     # OAU-05 Static Client/Binary Execution when target_url is absent and Mobile/Native surface is active
     if (not target_url or not target_url.strip()) and any(s in {"Mobile", "Native"} for s in declared_surfaces) and repo.exists():

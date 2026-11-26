@@ -2864,6 +2864,75 @@ class TestNeonReeval(unittest.TestCase):
         just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
         self.assertIn("ITERAÇÃO SDD 195", just_neon)
 
+    def test_iteration196_casa3_project_cleanup(self) -> None:
+        """SDD 196: Non-CASA 3.0 upstream files removed while all CASA 3.0 runtime dependencies remain intact."""
+        removed_paths = [
+            "AI Profile",
+            "Cloud App and Config Profile",
+            "DASA",
+            "MASA",
+            "Meta Profile Extension",
+            "Mobile App Profile",
+            "Web App Profile",
+            "Submission Forms and Templates",
+            "assessment",
+            "cloud-assessment",
+            "scripts",
+            ".github",
+            "ADA_Evaluation_Methodology.md",
+            "ADA_Scheme_Overview.md",
+            "ADA_Security_Test_Lab_Authorization.md",
+            "CHANGELOG.md",
+            "CONTRIBUTING.md",
+            "CASA/ADA Burp Audit Scan Configuration.json",
+            "CASA/CASA Specification.md",
+            "CASA/CASA Test Guide.md",
+            "casa-assessment/samples",
+        ]
+        for rel in removed_paths:
+            self.assertFalse((ROOT_DIR / rel).exists(), f"Expected obsolete path to be removed: {rel}")
+
+        required_paths = [
+            "CASA/CASA 3.0 (AL1) Specification.md",
+            "CASA/CASA 3.0 (AL1) Test Guide.md",
+            "CASA/CASA 3.0 (AL2) Specification.md",
+            "CASA/CASA 3.0 (AL2) Test Guide.md",
+            "casa-assessment/casa_audit/__init__.py",
+            "casa-assessment/casa_audit/__main__.py",
+            "casa-assessment/casa_audit/scanner.py",
+            "casa-assessment/casa_audit/server.py",
+            "casa-assessment/frontend/assess.html",
+            "casa-assessment/frontend/app.js",
+            "casa-assessment/frontend/data.js",
+            "casa-assessment/frontend/styles.css",
+            "casa-assessment/data/casa3_controls.json",
+            "casa-assessment/rules/casa3_al1_sast.yml",
+            "casa-assessment/rules/casa3_al1_oauth.yml",
+            "casa-assessment/rules/nuclei_cfg02",
+            "casa-assessment/rules/nuclei_cfg11",
+            "casa-assessment/rules/seclists_aut01_default_creds.txt",
+            "casa-assessment/rules/seclists_cfg10_admin.txt",
+            "casa-assessment/scripts/build_casa3_data.py",
+            "casa-assessment/scripts/pt_translations.py",
+            "casa-assessment/scripts/headless_storage_dump.js",
+            "casa-assessment/scripts/headless_xss_callback.js",
+            "casa-assessment/output/.gitkeep",
+        ]
+        for rel in required_paths:
+            self.assertTrue((ROOT_DIR / rel).exists(), f"Missing required CASA 3.0 dependency: {rel}")
+
+        controls = sc.load_controls()
+        self.assertEqual(len(controls), 76)
+        self.assertEqual(sum(1 for c in controls if c.get("tier") == "AL1"), 61)
+        self.assertEqual(sum(1 for c in controls if c.get("tier") == "AL2"), 15)
+
+        gi_txt = (ROOT_DIR / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("casa-assessment/output/*", gi_txt)
+        self.assertIn("!casa-assessment/output/.gitkeep", gi_txt)
+
+        just_neon = (ROOT_DIR / "docs" / "justificativaNeon.txt").read_text(encoding="utf-8")
+        self.assertIn("ITERAÇÃO SDD 196", just_neon)
+
 
 if __name__ == "__main__":
     unittest.main()

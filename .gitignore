@@ -6,3 +6,7 @@ __pycache__/
 venv/
 .env
 *.log
+
+# Runtime CASA 3.0 scan artifacts & local app registry/history (generated automatically)
+casa-assessment/output/*
+!casa-assessment/output/.gitkeep

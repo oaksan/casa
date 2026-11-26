@@ -1884,3 +1884,32 @@ ITERAÇÃO SDD 195 — Evolução da Taxa de Sucesso (Pass) e Histórico de Rela
    - `node --check casa-assessment/frontend/app.js` +
      `test_iteration195_report_pass_evolution_and_history` + regressão
      `test_iteration194_app_registry_and_locked_meta`.
+
+--------------------------------------------------------------------------------
+ITERAÇÃO SDD 196 — Limpeza do Repositório para Arquivos Necessários do CASA 3.0
+--------------------------------------------------------------------------------
+1. Motivação:
+   - Reduzir o número de arquivos desnecessários herdados do monorepo ADA e
+     artefatos gerados em runtime, preservando 100% dos arquivos, regras,
+     scripts, especificações CASA 3.0 e dependências necessárias para executar
+     a aplicação.
+2. Remoções e Higienização Executadas:
+   - Removidos diretórios/arquivos alheios ao CASA 3.0: `AI Profile/`,
+     `Cloud App and Config Profile/`, `DASA/`, `MASA/`, `Meta Profile Extension/`,
+     `Mobile App Profile/`, `Web App Profile/`, `Submission Forms and Templates/`,
+     `assessment/`, `cloud-assessment/`, `scripts/` (linters AI na raiz),
+     `.github/`, `ADA_*.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
+     `CASA/ADA Burp Audit Scan Configuration.json`, `CASA/CASA Specification.md`,
+     `CASA/CASA Test Guide.md` e `casa-assessment/samples/`.
+   - Desversionados 93 artefatos efêmeros em `casa-assessment/output/`,
+     adicionado `casa-assessment/output/.gitkeep` e configurada regra
+     `casa-assessment/output/*` + `!casa-assessment/output/.gitkeep` no
+     `.gitignore` (preservando dados locais `applications.json` e
+     `scan_history.json` em disco).
+   - Preservados integralmente: `casa-assessment/{casa_audit,frontend,data,rules,scripts,tests}`,
+     os 4 arquivos oficiais CASA 3.0 em `CASA/`, `specs/`, `docs/`, `.specify/`,
+     `.gemini/`, `LICENSE` e `README.md`.
+3. Validação:
+   - `test_iteration196_casa3_project_cleanup` + `test_iteration195_report_pass_evolution_and_history`
+     + `test_iteration194_app_registry_and_locked_meta` + `test_iteration193_scan_progress_api_and_ui`
+     + verificação de `build_casa3_data.py` e inicialização do servidor `casa_audit`.
